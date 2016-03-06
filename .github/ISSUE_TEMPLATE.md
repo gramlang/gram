@@ -1,0 +1,14 @@
+# Description
+
+[Description of the change]
+
+# Steps to reproduce
+You can omit this section if not applicable.
+
+1. [First step]
+2. [Second step]
+3. [and so on...]
+
+**Expected behavior:** [What you expected to happen]
+
+**Actual behavior:** [What actually happened]
