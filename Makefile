@@ -10,7 +10,8 @@ llvm: build/llvm/build/bin/llc
 build/llvm/build/bin/llc: build/llvm/llvm-3.7.1.src.tar.xz
 	cd build/llvm && tar -xf llvm-3.7.1.src.tar.xz
 	mkdir build/llvm/build
-	cd build/llvm/build && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ../llvm-3.7.1.src && make
+	cd build/llvm/build && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ../llvm-3.7.1.src
+	cd build/llvm/build && make
 
 build/llvm/llvm-3.7.1.src.tar.xz:
 	mkdir -p build/llvm
