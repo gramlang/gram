@@ -1,6 +1,6 @@
-.PHONY: all clean llvm
+.PHONY: all clean llvm unicodedata
 
-all: llvm
+all: llvm unicodedata
 
 clean:
 	rm -rf build
@@ -16,3 +16,9 @@ build/llvm/build/bin/llc: build/llvm/llvm-3.8.0.src.tar.xz
 build/llvm/llvm-3.8.0.src.tar.xz:
 	mkdir -p build/llvm
 	curl -o build/llvm/llvm-3.8.0.src.tar.xz http://llvm.org/releases/3.8.0/llvm-3.8.0.src.tar.xz
+
+unicodedata: build/unicodedata/UnicodeData.txt
+
+build/unicodedata/UnicodeData.txt:
+	mkdir -p build/unicodedata
+	curl -o build/unicodedata/UnicodeData.txt http://www.unicode.org/Public/UCD/latest/ucd/UnicodeData.txt
