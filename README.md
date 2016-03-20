@@ -17,8 +17,8 @@ Gram uses [LLVM](http://llvm.org/) for code generation. When compiled for the fi
 
 # Contributing
 
-See the file [CONTRIBUTING.md](https://github.com/boyers/gram/blob/master/CONTRIBUTING.md).
+See the file [CONTRIBUTING.md](https://github.com/gramlang/gram/blob/master/CONTRIBUTING.md).
 
 # License
 
-See the file [LICENSE.md](https://github.com/boyers/gram/blob/master/LICENSE.md).
+See the file [LICENSE.md](https://github.com/gramlang/gram/blob/master/LICENSE.md).
