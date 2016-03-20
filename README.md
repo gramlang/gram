@@ -2,11 +2,11 @@
 
 Gram is a high-level programming language with a small, extensible core and a strong, static type system.
 
-# How to build Gram
+## How to build Gram
 
 To build Gram, run `make` at the root of this repository.
 
-## Dependencies
+### Dependencies
 
 Building Gram requires the following:
 
@@ -15,10 +15,10 @@ Building Gram requires the following:
 
 Gram uses [LLVM](http://llvm.org/) for code generation. When compiled for the first time, Gram will automatically download and compile LLVM. LLVM has some additional dependencies which are documented [here](http://llvm.org/docs/GettingStarted.html#requirements).
 
-# Contributing
+## Contributing
 
 See the file [CONTRIBUTING.md](https://github.com/gramlang/gram/blob/master/CONTRIBUTING.md).
 
-# License
+## License
 
 See the file [LICENSE.md](https://github.com/gramlang/gram/blob/master/LICENSE.md).
