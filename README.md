@@ -1,6 +1,6 @@
 # The Gram Programming Language
 
-Gram is a high-level programming language with a small, extensible core and a strong, static type system.
+[Gram](https://www.gram.org) is a high-level programming language with a small, extensible core and a strong, static type system.
 
 ## How to build
 
