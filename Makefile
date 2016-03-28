@@ -1,9 +1,16 @@
+CC=g++
+SOURCES=src/main.cpp src/platform.cpp deps/whereami/whereami.cpp
+
 .PHONY: all clean llvm
 
-all: llvm
+all: llvm build/bin/gram
 
 clean:
 	rm -rf build
+
+build/bin/gram: $(SOURCES)
+	mkdir -p build/bin
+	$(CC) $(SOURCES) -o build/bin/gram
 
 llvm: build/llvm/build/bin/llc
 
