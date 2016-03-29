@@ -3,6 +3,9 @@
   All platform-specific code lives in these functions.
 */
 
+#ifndef PLATFORM_H
+#define PLATFORM_H
+
 #include <string>
 #include <vector>
 
@@ -19,3 +22,5 @@ std::string execute_file(
 
 // Compile LLVM assembly into a native binary.
 void llc(const std::string filename, const std::string llvm_asm);
+
+#endif

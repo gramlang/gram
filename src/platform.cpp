@@ -5,11 +5,12 @@
 
 #include "platform.h"
 
+#include "../deps/whereami/whereami.h"
 #include <errno.h>
+#include <stdexcept>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include "../deps/whereami/whereami.h"
 
 using namespace std;
 

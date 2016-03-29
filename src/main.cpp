@@ -1,5 +1,5 @@
-#include <iostream>
 #include "platform.h"
+#include <iostream>
 
 using namespace std;
 
