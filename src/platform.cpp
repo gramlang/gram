@@ -66,6 +66,9 @@ void invoke_llvm(const string &command, const vector<string> &args) {
 
     // Run the command.
     execv(command_path.c_str(), argv);
+
+    // If we got this far, execv failed.
+    delete [] argv;
     panic();
   } else {
     // Wait for the child process to terminate.
