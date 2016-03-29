@@ -26,12 +26,14 @@ string get_executable_path() {
   }
 
   // Use whereami to get the path.
-  char *path = (char*)malloc(length + 1);
+  char *path = new char[length + 1];
   if (wai_getExecutablePath(path, length, NULL) == -1) {
     panic();
   }
   path[length] = '\0';
-  return path;
+  std::string pathStr(path);
+  delete [] path;
+  return pathStr;
 }
 
 // Invokes an LLVM command. For example:
