@@ -49,8 +49,7 @@ void invoke_llvm(const string &command, const vector<string> &args) {
   } else if (pid == 0) {
     // Get the path to the command.
     string executable_path = get_executable_path();
-    string command_path = executable_path.substr(0, executable_path.size() - 4) +
-      "../llvm/build/bin/" + command;
+    string command_path = executable_path.substr(0, executable_path.size() - 4) + "llvm/" + command;
 
     // Put the args into an array.
     char **argv = new char *[args.size() + 2];
