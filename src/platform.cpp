@@ -25,6 +25,7 @@ string get_executable_path() {
   // Use whereami to get the path.
   char *path = new char[length + 1];
   if (wai_getExecutablePath(path, length, NULL) == -1) {
+    delete [] path;
     throw runtime_error("An unexpected error occurred.");
   }
   path[length] = '\0';
@@ -46,6 +47,8 @@ string execute_file(const string &file, const vector<string> &args, const string
   // Set up a pipe to capture the stdout of the child.
   int child_to_parent[2];
   if (pipe(child_to_parent) == -1) {
+    close(parent_to_child[1]);
+    close(parent_to_child[0]);
     throw runtime_error("An unexpected error occurred.");
   }
 
@@ -101,6 +104,7 @@ string execute_file(const string &file, const vector<string> &args, const string
         if (errno == EINTR) {
           continue;
         } else {
+          close(child_to_parent[0]);
           throw runtime_error("An unexpected error occurred.");
         }
       } else if (count == 0) {
