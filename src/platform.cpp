@@ -4,81 +4,123 @@
 */
 
 #include "platform.h"
-#include <stdlib.h>
+
+#include "../deps/whereami/whereami.h"
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <iostream>
-#include <sstream>
-#include "../deps/whereami/whereami.h"
 
 using namespace std;
 
-// Use this macro to print the file and line number, then kill the program.
-#define panic() (cout << "Internal error at " << __FILE__ << ":" << __LINE__ << endl, exit(1))
-
-// Returns the path to this executable.
+// Return the path to this executable.
 string get_executable_path() {
   // Use whereami to get the length of the path.
   int length = wai_getExecutablePath(NULL, 0, NULL);
   if (length == -1) {
-    panic();
+    throw runtime_error("An unexpected error occurred.");
   }
 
   // Use whereami to get the path.
   char *path = new char[length + 1];
   if (wai_getExecutablePath(path, length, NULL) == -1) {
-    panic();
+    throw runtime_error("An unexpected error occurred.");
   }
   path[length] = '\0';
-  std::string pathStr(path);
+  string pathStr(path);
   delete [] path;
+
   return pathStr;
 }
 
-// Invokes an LLVM command. For example:
-//   vector<string> args;
-//   args.push_back("--version");
-//   invoke_llvm("llc", args);
-void invoke_llvm(const string &command, const vector<string> &args) {
+// Execute a program. Returns the output of the program.
+// Raises a std::runtime_error if the program does not exit successfully.
+string execute_file(const string &file, const vector<string> &args, const string &stdin) {
+  // Set up a pipe to send data to the stdin of the child.
+  int parent_to_child[2];
+  if (pipe(parent_to_child) == -1) {
+    throw runtime_error("An unexpected error occurred.");
+  }
+
+  // Set up a pipe to capture the stdout of the child.
+  int child_to_parent[2];
+  if (pipe(child_to_parent) == -1) {
+    throw runtime_error("An unexpected error occurred.");
+  }
+
   // Fork a child process to run the command.
   pid_t pid = fork();
   if (pid == -1) {
     // Something went wrong.
-    panic();
+    close(parent_to_child[1]);
+    close(parent_to_child[0]);
+    close(child_to_parent[1]);
+    close(child_to_parent[0]);
+    throw runtime_error("An unexpected error occurred.");
   } else if (pid == 0) {
-    // Get the path to the command.
-    string executable_path = get_executable_path();
-    string command_path = executable_path.substr(0, executable_path.size() - 4) + "llvm/" + command;
+    // Set up stdin and stdout.
+    while ((dup2(parent_to_child[0], STDIN_FILENO) == -1) && (errno == EINTR));
+    while ((dup2(child_to_parent[1], STDOUT_FILENO) == -1) && (errno == EINTR));
+
+    // We don't need these descriptors anymore.
+    close(parent_to_child[1]);
+    close(parent_to_child[0]);
+    close(child_to_parent[1]);
+    close(child_to_parent[0]);
 
     // Put the args into an array.
     char **argv = new char *[args.size() + 2];
-    argv[0] = const_cast<char *>(command_path.c_str());
+    argv[0] = const_cast<char *>(file.c_str());
     for (size_t i = 0; i < args.size(); i++) {
       argv[i + 1] = const_cast<char *>(args[i].c_str());
     }
     argv[args.size() + 1] = 0;
 
-    // Redirect standard output to /dev/null.
-    FILE *out = fopen("/dev/null", "w");
-    dup2(fileno(out), 1);
-
     // Run the command.
-    execv(command_path.c_str(), argv);
+    execv(file.c_str(), argv);
 
     // If we got this far, execv failed.
     delete [] argv;
-    panic();
+    throw runtime_error("An unexpected error occurred.");
   } else {
+    // We don't need these descriptors anymore.
+    close(parent_to_child[0]);
+    close(child_to_parent[1]);
+
+    // Send the data to the child and close the pipe.
+    write(parent_to_child[1], stdin.c_str(), stdin.size());
+    close(parent_to_child[1]);
+
+    // Read the output of the child and close the pipe.
+    string stdout;
+    char buffer[4096];
+    while (true) {
+      ssize_t count = read(child_to_parent[0], buffer, sizeof(buffer));
+      if (count == -1) {
+        if (errno == EINTR) {
+          continue;
+        } else {
+          throw runtime_error("An unexpected error occurred.");
+        }
+      } else if (count == 0) {
+        break;
+      } else {
+        stdout.append(buffer, count);
+      }
+    }
+    close(child_to_parent[0]);
+
     // Wait for the child process to terminate.
     int status = 0;
     if (waitpid(pid, &status, 0) == -1) {
-      panic();
+      throw runtime_error("An unexpected error occurred.");
     }
 
-    // Make sure the command succeeded.
+    // Make sure the process exited successfully.
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      panic();
+      throw runtime_error("The child process did not exit successfully.");
     }
+
+    return stdout;
   }
 }

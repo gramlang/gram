@@ -6,8 +6,9 @@
 #include <string>
 #include <vector>
 
-// Invoke an LLVM command. For example:
-//   vector<string> args;
-//   args.push_back("--version");
-//   invoke_llvm("llc", args);
-void invoke_llvm(const std::string &command, const std::vector<std::string> &args);
+// Return the path to this executable.
+std::string get_executable_path();
+
+// Execute a program. Returns the output of the program.
+// Raises a std::runtime_error if the program does not exit successfully.
+std::string execute_file(const std::string &file, const std::vector<std::string> &args, const std::string &stdin);
