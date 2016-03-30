@@ -4,6 +4,6 @@
 using namespace std;
 
 int main() {
-  llc("test", "define i64 @main() {\n  ret i64 0\n}\n");
+  cout << llc("/dev/stdout", "define i64 @main() {\n  ret i64 0\n}\n") << endl;
   return 0;
 }

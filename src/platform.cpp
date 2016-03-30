@@ -11,8 +11,15 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <sys/stat.h>
 
 using namespace std;
+
+// Return whether a file exists.
+bool file_exists(const string& path) {
+  struct stat buffer;
+  return (stat(path.c_str(), &buffer) == 0);
+}
 
 // Return the path to this executable.
 string get_executable_path() {
@@ -37,7 +44,7 @@ string get_executable_path() {
 
 // Execute a program. Returns the output of the program.
 // Raises a std::runtime_error if the program does not exit successfully.
-string execute_file(const string &file, const vector<string> &args, const string &stdin) {
+string execute_file(const string &path, const vector<string> &args, const string &stdin) {
   // Set up a pipe to send data to the stdin of the child.
   int parent_to_child[2];
   if (pipe(parent_to_child) == -1) {
@@ -74,14 +81,14 @@ string execute_file(const string &file, const vector<string> &args, const string
 
     // Put the args into an array.
     char **argv = new char *[args.size() + 2];
-    argv[0] = const_cast<char *>(file.c_str());
+    argv[0] = const_cast<char *>(path.c_str());
     for (size_t i = 0; i < args.size(); i++) {
       argv[i + 1] = const_cast<char *>(args[i].c_str());
     }
     argv[args.size() + 1] = 0;
 
     // Run the command.
-    execv(file.c_str(), argv);
+    execv(path.c_str(), argv);
 
     // If we got this far, execv failed.
     delete [] argv;
@@ -131,7 +138,7 @@ string execute_file(const string &file, const vector<string> &args, const string
 }
 
 // Compile LLVM assembly into a native binary.
-string llc(const string filename, const string llvm_asm) {
+string llc(const string output_path, const string llvm_asm) {
   // Get the path to the LLVM compiler.
   string executable_path = get_executable_path();
   string llc_path = executable_path.substr(0, executable_path.size() - 4) + "llvm/llc";
@@ -144,9 +151,15 @@ string llc(const string filename, const string llvm_asm) {
   // Compile the assembly with GCC.
   vector<string> gcc_args;
   gcc_args.push_back("-o");
-  gcc_args.push_back(filename);
+  gcc_args.push_back(output_path);
   gcc_args.push_back("-x");
   gcc_args.push_back("assembler");
   gcc_args.push_back("-");
-  return execute_file("/usr/bin/gcc", gcc_args, native_asm);
+  if (file_exists("/usr/bin/clang")) {
+    return execute_file("/usr/bin/clang", gcc_args, native_asm);
+  }
+  if (file_exists("/usr/bin/gcc")) {
+    return execute_file("/usr/bin/gcc", gcc_args, native_asm);
+  }
+  throw runtime_error("Unable to find native assembler.");
 }
