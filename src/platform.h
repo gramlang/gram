@@ -3,8 +3,8 @@
   All platform-specific code lives in these functions.
 */
 
-#ifndef PLATFORM_H
-#define PLATFORM_H
+#ifndef GRAM_PLATFORM_H
+#define GRAM_PLATFORM_H
 
 #include <string>
 #include <vector>

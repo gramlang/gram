@@ -1,7 +1,5 @@
-#include "platform.h"
+#include "compiler.h"
 #include <iostream>
-#include <stdexcept>
-#include <string.h>
 
 using namespace std;
 
@@ -28,8 +26,8 @@ int main(int argc, char *argv[]) {
   // Invoke the compiler.
   if (argc == 3) {
     try {
-      llc(argv[2], "define i64 @main() {\n  ret i64 0\n}\n");
-    } catch(std::runtime_error &e) {
+      compile(argv[1], argv[2]);
+    } catch(error &e) {
       cout << "Error: " << e.what() << endl;
       return 1;
     }

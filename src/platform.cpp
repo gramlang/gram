@@ -1,8 +1,3 @@
-/*
-  This header abstracts away details about the operating system and environment.
-  All platform-specific code lives in these functions.
-*/
-
 #include "platform.h"
 
 #include "../deps/whereami/whereami.h"

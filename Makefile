@@ -1,5 +1,5 @@
 CC=g++
-SOURCES=src/main.cpp src/platform.cpp deps/whereami/whereami.cpp
+SOURCES=src/main.cpp src/compiler.cpp src/error.cpp src/platform.cpp deps/whereami/whereami.cpp
 LLVM_TOOLS=llc
 
 .PHONY: all clean
