@@ -18,7 +18,7 @@ using namespace std;
 // Return whether a file exists.
 bool file_exists(const string& path) {
   struct stat buffer;
-  return (stat(path.c_str(), &buffer) == 0);
+  return stat(path.c_str(), &buffer) == 0;
 }
 
 // Return the path to this executable.
@@ -70,8 +70,22 @@ string execute_file(const string &path, const vector<string> &args, const string
     throw runtime_error("An unexpected error occurred.");
   } else if (pid == 0) {
     // Set up stdin and stdout.
-    while ((dup2(parent_to_child[0], STDIN_FILENO) == -1) && (errno == EINTR));
-    while ((dup2(child_to_parent[1], STDOUT_FILENO) == -1) && (errno == EINTR));
+    while (dup2(parent_to_child[0], STDIN_FILENO) == -1) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        throw runtime_error("An unexpected error occurred.");
+      }
+    }
+    while (dup2(child_to_parent[1], STDOUT_FILENO) == -1) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        close(parent_to_child[1]);
+        close(parent_to_child[0]);
+        throw runtime_error("An unexpected error occurred.");
+      }
+    }
 
     // We don't need these descriptors anymore.
     close(parent_to_child[1]);
@@ -99,7 +113,15 @@ string execute_file(const string &path, const vector<string> &args, const string
     close(child_to_parent[1]);
 
     // Send the data to the child and close the pipe.
-    write(parent_to_child[1], stdin.c_str(), stdin.size());
+    while (write(parent_to_child[1], stdin.c_str(), stdin.size()) == -1) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        close(parent_to_child[1]);
+        close(child_to_parent[0]);
+        throw runtime_error("An unexpected error occurred.");
+      }
+    }
     close(parent_to_child[1]);
 
     // Read the output of the child and close the pipe.
@@ -124,8 +146,12 @@ string execute_file(const string &path, const vector<string> &args, const string
 
     // Wait for the child process to terminate.
     int status = 0;
-    if (waitpid(pid, &status, 0) == -1) {
-      throw runtime_error("An unexpected error occurred.");
+    while (waitpid(pid, &status, 0) == -1) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        throw runtime_error("An unexpected error occurred.");
+      }
     }
 
     // Make sure the process exited successfully.
