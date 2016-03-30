@@ -131,7 +131,7 @@ string execute_file(const string &file, const vector<string> &args, const string
 }
 
 // Compile LLVM assembly into a native binary.
-void llc(const string filename, const string llvm_asm) {
+string llc(const string filename, const string llvm_asm) {
   // Get the path to the LLVM compiler.
   string executable_path = get_executable_path();
   string llc_path = executable_path.substr(0, executable_path.size() - 4) + "llvm/llc";
@@ -148,5 +148,5 @@ void llc(const string filename, const string llvm_asm) {
   gcc_args.push_back("-x");
   gcc_args.push_back("assembler");
   gcc_args.push_back("-");
-  execute_file("/usr/bin/gcc", gcc_args, native_asm);
+  return execute_file("/usr/bin/gcc", gcc_args, native_asm);
 }

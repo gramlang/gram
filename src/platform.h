@@ -12,7 +12,7 @@
 // Return the path to this executable.
 std::string get_executable_path();
 
-// Execute a program. Returns the output of the program.
+// Execute a program. Returns the stdout from the program.
 // Raises a std::runtime_error if the program does not exit successfully.
 std::string execute_file(
   const std::string &file,
@@ -21,6 +21,7 @@ std::string execute_file(
 );
 
 // Compile LLVM assembly into a native binary.
-void llc(const std::string filename, const std::string llvm_asm);
+// Returns the stdout from llc.
+std::string llc(const std::string filename, const std::string llvm_asm);
 
 #endif
