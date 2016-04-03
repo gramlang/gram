@@ -10,10 +10,29 @@ To build Gram, run `make` at the root of this repository.
 
 Building Gram requires the following:
 
-* [GNU Make](http://savannah.gnu.org/projects/make)
-* [GCC](https://gcc.gnu.org/)
+* [Clang](http://clang.llvm.org/) >= 3.1
+* [CMake](https://cmake.org/) >= 2.8.8
+* [GNU Make](http://savannah.gnu.org/projects/make) >= 3.79
 
-Gram uses [LLVM](http://llvm.org/) for code generation. When compiled for the first time, Gram will automatically download and compile LLVM. LLVM has some additional dependencies which are documented [here](http://llvm.org/docs/GettingStarted.html#requirements).
+Additionally, the build process assumes the existence of common Unix utilities like `cp`, `grep`, etc.
+
+#### Ubuntu
+
+On Ubuntu, the following should be sufficient to install the dependencies:
+
+```bash
+sudo apt-get install clang cmake
+```
+
+#### OS X
+
+On OS X, install the Command Line Tools for Xcode:
+
+```bash
+xcode-select --install
+```
+
+You will also need CMake, which can be downloaded [here](https://cmake.org/download/) or installed with [Homebrew](http://brew.sh/).
 
 ## How to contribute
 
