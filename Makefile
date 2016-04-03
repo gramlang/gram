@@ -1,4 +1,4 @@
-CC=g++
+CC=clang
 SOURCES=src/main.cpp src/compiler.cpp src/error.cpp src/platform.cpp deps/whereami/whereami.cpp
 LLVM_TOOLS=llc
 
