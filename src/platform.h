@@ -9,9 +9,6 @@
 #include <string>
 #include <vector>
 
-// Return whether a file exists.
-bool file_exists(const std::string& path);
-
 // Return the path to this executable.
 std::string get_executable_path();
 

@@ -10,12 +10,6 @@
 
 using namespace std;
 
-// Return whether a file exists.
-bool file_exists(const string& path) {
-  struct stat buffer;
-  return stat(path.c_str(), &buffer) == 0;
-}
-
 // Return the path to this executable.
 string get_executable_path() {
   // Use whereami to get the length of the path.
@@ -38,6 +32,7 @@ string get_executable_path() {
 }
 
 // Execute a program. Returns the output of the program.
+// This function will use the PATH environment variable to find the program.
 // Raises a std::runtime_error if the program does not exit successfully.
 string execute_file(const string &path, const vector<string> &args, const string &stdin) {
   // Set up a pipe to send data to the stdin of the child.
@@ -97,7 +92,7 @@ string execute_file(const string &path, const vector<string> &args, const string
     argv[args.size() + 1] = 0;
 
     // Run the command.
-    execv(path.c_str(), argv);
+    execvp(path.c_str(), argv);
 
     // If we got this far, execv failed.
     delete [] argv;
@@ -177,11 +172,5 @@ string llc(const string output_path, const string llvm_asm) {
   gcc_args.push_back("-x");
   gcc_args.push_back("assembler");
   gcc_args.push_back("-");
-  if (file_exists("/usr/bin/clang")) {
-    return execute_file("/usr/bin/clang", gcc_args, native_asm);
-  }
-  if (file_exists("/usr/bin/gcc")) {
-    return execute_file("/usr/bin/gcc", gcc_args, native_asm);
-  }
-  throw runtime_error("Unable to find native assembler.");
+  return execute_file("clang", gcc_args, native_asm);
 }
