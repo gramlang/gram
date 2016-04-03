@@ -164,8 +164,7 @@ string llc(const string output_path, const string llvm_asm) {
   llvm_args.push_back("-O=3");
   string native_asm = execute_file(llc_path, llvm_args, llvm_asm);
 
-  // Assemble with Clang or GCC (whichever is available).
-  // Once LLVM can generate native assembly, switch to use that.
+  // Assemble with Clang.
   vector<string> gcc_args;
   gcc_args.push_back("-o");
   gcc_args.push_back(output_path);
