@@ -36,7 +36,7 @@ sudo apt-get install clang cmake
 
 #### OS X
 
-On OS X, install the Command Line Tools for Xcode to get Clang and GNU Make:
+On OS X, install the Command Line Tools for Xcode to get Clang and Make:
 
 ```bash
 xcode-select --install
