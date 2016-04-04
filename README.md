@@ -32,7 +32,7 @@ sudo apt-get install clang cmake
 
 #### OS X
 
-On OS X, install the Command Line Tools for Xcode to get Clang and GNU Make:
+On OS X, install the Command Line Tools for Xcode to ge  t Clang and GNU Make:
 
 ```bash
 xcode-select --install
@@ -52,7 +52,7 @@ Gram is known to build with [GCC](https://gcc.gnu.org/) >= 4.9.
 
 ### Run-time dependencies
 
-Gram requires Clang >= 3.1 to run.
+Gram requires either Clang >= 3.1 or GCC >= 4.7 to run.
 
 ## How to contribute
 
