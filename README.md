@@ -5,8 +5,8 @@
 ## How to build and install
 
 1. Ensure you have the dependencies listed below.
-2. Run `make` at the root of this repository to build.
-3. Run `sudo make install` at the root of this repository to install.
+2. To build, run `make` at the root of this repository.
+3. To install, Run `sudo make install` at the root of this repository.
 
 You can also run `make install PREFIX=path` to install to a specific directory (the default is `/usr/local/bin`).
 
@@ -18,7 +18,7 @@ Building Gram requires the following:
 
 * [Clang](http://clang.llvm.org/) >= 3.1
 * [CMake](https://cmake.org/) >= 2.8.8
-* [GNU Make](http://savannah.gnu.org/projects/make) >= 3.79
+* [Make](http://savannah.gnu.org/projects/make) >= 3.79
 
 Additionally, the build process assumes the existence of common Unix utilities like `cp`, `grep`, etc.
 
@@ -32,7 +32,7 @@ sudo apt-get install clang cmake
 
 #### OS X
 
-On OS X, install the Command Line Tools for Xcode:
+On OS X, install the Command Line Tools for Xcode to get Clang and GNU Make:
 
 ```bash
 xcode-select --install
