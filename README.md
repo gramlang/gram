@@ -21,7 +21,7 @@ If you want to uninstall Gram, run `sudo make uninstall` from the root of this r
 Building Gram requires the following:
 
 * [Clang](http://clang.llvm.org/) >= 3.1
-* [CMake](https://cmake.org/) >= 2.8.8
+* [CMake](https://cmake.org/) >= 2.8.12.2
 * [Make](http://savannah.gnu.org/projects/make) >= 3.79
 
 Additionally, the build process assumes the existence of common Unix utilities like `cp`, `grep`, etc.
