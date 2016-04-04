@@ -10,9 +10,19 @@
 2. Run `make` to build.
 3. Run `sudo make install` to install.
 
-By default, Gram will be installed in `/usr/local/bin`. You can run `make install PREFIX=path` to install to a different directory.
+If all goes well, you should be able to run `gram` from the command line.
 
-If Gram was installed to the default location, you can uninstall it with `sudo make uninstall`. You can also uninstall from a different directory with `make uninstall PREFIX=path`.
+### Other build and installation options
+
+Normally, all of your CPU cores will be used to build Gram. You can override this behavior with the `NPROCS` option. For example, you can run `make NPROCS=1` to build Gram with only one core.
+
+The default installation directory is `/usr/local/bin`. You can run `make install PREFIX=path` to install to a different directory.
+
+The build system creates a directory called `build` for intermediate build artifacts. Normally, these files are retained so future builds can use them instead of starting from scratch. You can remove them with `make clean`.
+
+If Gram was installed to the default location, you can uninstall it with `sudo make uninstall`. You can uninstall from a different directory with `make uninstall PREFIX=path`.
+
+The build script uses Clang by default. You can optionally specify a different C and C++ compiler. For example, you can run `make CC=gcc CXX=g++` to build Gram with [GCC](https://gcc.gnu.org/). Gram is known to build with GCC >= 4.9.
 
 ### Build-time dependencies
 
@@ -42,21 +52,12 @@ xcode-select --install
 
 You will also need CMake, which can be downloaded [here](https://cmake.org/download/) or installed via [Homebrew](http://brew.sh/).
 
-#### Troubleshooting
-
-If for some reason you cannot install Clang >= 3.1, you can try to build Gram with a different compiler. For example:
-
-```bash
-make CC=gcc CXX=g++
-```
-
-Gram is known to build with [GCC](https://gcc.gnu.org/) >= 4.9.
 
 ### Run-time dependencies
 
 Gram itself requires either Clang >= 3.1 or GCC >= 4.7 to assemble and link executables.
 
-By default, executables produced by Gram have no run-time dependencies above the architecture they were built for.
+Executables produced by Gram have no intrinsic run-time dependencies above the architecture they were built for.
 
 ## How to contribute
 
