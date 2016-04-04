@@ -12,7 +12,7 @@ You can also run `make install PREFIX=path` to install to a specific directory (
 
 If you want to uninstall Gram, run `sudo make uninstall` from the root of this repository. You can also uninstall from a specific directory with `make uninstall PREFIX=path` (the default is `/usr/local/bin`).
 
-### Dependencies
+### Build-time dependencies
 
 Building Gram requires the following:
 
@@ -39,6 +39,20 @@ xcode-select --install
 ```
 
 You will also need CMake, which can be downloaded [here](https://cmake.org/download/) or installed via [Homebrew](http://brew.sh/).
+
+#### Troubleshooting
+
+If for some reason you cannot install Clang >= 3.1, you can try to build Gram with a different compiler. For example:
+
+```bash
+make CC=gcc CXX=g++
+```
+
+Gram is known to build with [GCC](https://gcc.gnu.org/) >= 4.9.
+
+### Run-time dependencies
+
+Gram requires Clang >= 3.1 to run.
 
 ## How to contribute
 
