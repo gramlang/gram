@@ -8,7 +8,7 @@
 
 1. Ensure you have the dependencies listed below.
 2. To build, run `make` at the root of this repository.
-3. To install, Run `sudo make install` at the root of this repository.
+3. To install, run `sudo make install` at the root of this repository.
 
 You can also run `make install PREFIX=path` to install to a specific directory (the default is `/usr/local/bin`).
 
