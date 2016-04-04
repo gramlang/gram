@@ -7,14 +7,14 @@
 ## Getting started
 
 1. Ensure you have the dependencies listed below.
-2. To build, run `make` at the root of this repository.
-3. To install, run `sudo make install` at the root of this repository.
+2. Run `make` to build.
+3. Run `sudo make install` to install.
 
-You can also run `make install PREFIX=path` to install to a specific directory (the default is `/usr/local/bin`).
+By default, Gram will be installed in `/usr/local/bin`. You can run `make install PREFIX=path` to install to a different directory.
 
 After installing, you can run `make clean` to remove any intermediate build artifacts.
 
-If you want to uninstall Gram, run `sudo make uninstall` from the root of this repository. You can also uninstall from a specific directory with `make uninstall PREFIX=path` (the default is `/usr/local/bin`).
+If you want to uninstall Gram, run `sudo make uninstall`. You can also uninstall from a specific directory with `make uninstall PREFIX=path` (the default is `/usr/local/bin`).
 
 ### Build-time dependencies
 
