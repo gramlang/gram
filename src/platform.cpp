@@ -166,19 +166,23 @@ string llc(const string output_path, const string llvm_asm) {
   try {
     native_asm = execute_file(llc_path, llvm_args, llvm_asm);
   } catch(runtime_error &e) {
-    throw runtime_error("Error invoking " + llc_path + ". Please check your Gram installation.");
+    throw runtime_error("Error invoking " + llc_path + ". Check your Gram installation.");
   }
 
-  // Assemble with Clang.
-  vector<string> gcc_args;
-  gcc_args.push_back("-o");
-  gcc_args.push_back(output_path);
-  gcc_args.push_back("-x");
-  gcc_args.push_back("assembler");
-  gcc_args.push_back("-");
+  // Assemble with Clang or GCC (whichever is available).
+  vector<string> cc_args;
+  cc_args.push_back("-o");
+  cc_args.push_back(output_path);
+  cc_args.push_back("-x");
+  cc_args.push_back("assembler");
+  cc_args.push_back("-");
   try {
-    return execute_file("clang", gcc_args, native_asm);
+    return execute_file("clang", cc_args, native_asm);
   } catch(runtime_error &e) {
-    throw runtime_error("Error invoking Clang. Please ensure Clang is installed.");
+    try {
+      return execute_file("gcc", cc_args, native_asm);
+    } catch(runtime_error &e) {
+      throw runtime_error("Unable to invoke Clang or GCC. Ensure that at least one of these tools is installed.");
+    }
   }
 }
