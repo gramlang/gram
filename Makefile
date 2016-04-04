@@ -34,7 +34,7 @@ build/llvm/build/bin/llc: build/llvm/llvm-3.8.0.src.tar.xz
 	tar -xf build/llvm/llvm-3.8.0.src.tar.xz -C build/llvm/llvm --strip-components=1
 	mkdir -p build/llvm/build
 	cd build/llvm/build && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ../llvm -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX)
-	cd build/llvm/build && make
+	cd build/llvm/build && make -j 4
 
 build/llvm/llvm-3.8.0.src.tar.xz:
 	mkdir -p build/llvm
