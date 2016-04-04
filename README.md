@@ -12,9 +12,7 @@
 
 By default, Gram will be installed in `/usr/local/bin`. You can run `make install PREFIX=path` to install to a different directory.
 
-After installing, you can run `make clean` to remove any intermediate build artifacts.
-
-If you want to uninstall Gram, run `sudo make uninstall`. You can also uninstall from a specific directory with `make uninstall PREFIX=path` (the default is `/usr/local/bin`).
+If Gram was installed to the default location, you can uninstall it with `sudo make uninstall`. You can also uninstall from a different directory with `make uninstall PREFIX=path`.
 
 ### Build-time dependencies
 
