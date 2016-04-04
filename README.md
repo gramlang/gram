@@ -2,13 +2,15 @@
 
 [Gram](https://www.gram.org) is a high-level programming language with a small, extensible core and a strong, static type system.
 
-## How to build and install
+## Getting started
 
 1. Ensure you have the dependencies listed below.
 2. To build, run `make` at the root of this repository.
 3. To install, Run `sudo make install` at the root of this repository.
 
 You can also run `make install PREFIX=path` to install to a specific directory (the default is `/usr/local/bin`).
+
+After installing, you can run `make clean` to remove any intermediate build artifacts.
 
 If you want to uninstall Gram, run `sudo make uninstall` from the root of this repository. You can also uninstall from a specific directory with `make uninstall PREFIX=path` (the default is `/usr/local/bin`).
 
@@ -24,7 +26,7 @@ Additionally, the build process assumes the existence of common Unix utilities l
 
 #### Ubuntu
 
-On Ubuntu, the following should be sufficient to install the dependencies:
+On a recent Ubuntu distribution, the following should be sufficient to install the dependencies:
 
 ```bash
 sudo apt-get install clang cmake
@@ -32,7 +34,7 @@ sudo apt-get install clang cmake
 
 #### OS X
 
-On OS X, install the Command Line Tools for Xcode to ge  t Clang and GNU Make:
+On OS X, install the Command Line Tools for Xcode to get Clang and GNU Make:
 
 ```bash
 xcode-select --install
@@ -52,7 +54,9 @@ Gram is known to build with [GCC](https://gcc.gnu.org/) >= 4.9.
 
 ### Run-time dependencies
 
-Gram requires either Clang >= 3.1 or GCC >= 4.7 to run.
+Gram itself requires either Clang >= 3.1 or GCC >= 4.7 to assemble and link executables.
+
+By default, executables produced by Gram have no run-time dependencies above the architecture they were built for.
 
 ## How to contribute
 

@@ -182,7 +182,7 @@ string llc(const string output_path, const string llvm_asm) {
     try {
       return execute_file("gcc", cc_args, native_asm);
     } catch(runtime_error &e) {
-      throw runtime_error("Unable to invoke Clang or GCC. Ensure that at least one of these tools is installed.");
+      throw runtime_error("Unable to invoke Clang or GCC. Ensure that at least one of these is installed.");
     }
   }
 }
