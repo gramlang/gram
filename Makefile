@@ -1,4 +1,5 @@
-CC=clang++
+CC=clang
+CXX=clang++
 SOURCES=main.cpp compiler.cpp error.cpp platform.cpp ../deps/whereami/whereami.cpp
 TARGETS=gram gram-llc
 PREFIX=/usr/local/bin
@@ -18,7 +19,7 @@ uninstall:
 
 bin/gram: $(addprefix src/,$(SOURCES))
 	mkdir -p bin
-	$(CC) $(addprefix src/,$(SOURCES)) -o bin/gram
+	$(CXX) $(addprefix src/,$(SOURCES)) -o bin/gram
 
 bin/gram-llc: build/llvm/build/bin/llc
 	mkdir -p bin
@@ -28,7 +29,7 @@ build/llvm/build/bin/llc: build/llvm/llvm-3.8.0.src.tar.xz
 	mkdir -p build/llvm/llvm
 	tar -xf build/llvm/llvm-3.8.0.src.tar.xz -C build/llvm/llvm --strip-components=1
 	mkdir -p build/llvm/build
-	cd build/llvm/build && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ../llvm
+	cd build/llvm/build && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ../llvm -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX)
 	cd build/llvm/build && make
 
 build/llvm/llvm-3.8.0.src.tar.xz:
