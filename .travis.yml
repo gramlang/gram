@@ -1,14 +1,9 @@
+language: generic
+os: linux
+dist: trusty
+sudo: required
 install:
-  # Install GCC 4.8.
-  - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
-  - sudo apt-get -qq update
-  - sudo apt-get -qq install gcc-4.8 g++-4.8
-  # Install CMake 3.5.1.
-  - mkdir build-deps && cd build-deps
-  - wget --no-check-certificate https://cmake.org/files/v3.5/cmake-3.5.1-Linux-x86_64.sh
-  - chmod +x cmake-3.5.1-Linux-x86_64.sh
-  - sudo ./cmake-3.5.1-Linux-x86_64.sh --skip-license --prefix=/usr/local
-  - cd .. && rm -rf build-deps
+  - sudo apt-get -qq install cmake
 script:
-  - make CC=gcc-4.8 CXX=g++-4.8
+  - make CC=gcc CXX=g++
   - sudo make install
