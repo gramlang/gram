@@ -1,8 +1,12 @@
+# These options can be specified by the user, for example:
+# $ make CC=gcc CXX=g++ PREFIX=~/bin
 CC=clang
 CXX=clang++
-SOURCES=main.cpp compiler.cpp error.cpp platform.cpp ../deps/whereami/whereami.cpp
-TARGETS=gram gram-llc
 PREFIX=/usr/local/bin
+
+# These macros cannot be changed by the user.
+override SOURCES=main.cpp compiler.cpp error.cpp platform.cpp ../deps/whereami/whereami.cpp
+override TARGETS=gram gram-llc
 
 .PHONY: all clean install uninstall
 
