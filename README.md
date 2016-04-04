@@ -2,9 +2,15 @@
 
 [Gram](https://www.gram.org) is a high-level programming language with a small, extensible core and a strong, static type system.
 
-## How to build
+## How to build and install
 
-To build Gram, run `make` at the root of this repository.
+1. Ensure you have the dependencies listed below.
+2. Run `make` at the root of this repository to build.
+3. Run `sudo make install` at the root of this repository to install.
+
+You can also run `make install PREFIX=path` to install to a specific directory (the default is `/usr/local/bin`).
+
+If you want to uninstall Gram, run `sudo make uninstall` from the root of this repository. You can also uninstall from a specific directory with `make uninstall PREFIX=path` (the default is `/usr/local/bin`).
 
 ### Dependencies
 
@@ -32,7 +38,7 @@ On OS X, install the Command Line Tools for Xcode:
 xcode-select --install
 ```
 
-You will also need CMake, which can be downloaded [here](https://cmake.org/download/) or installed with [Homebrew](http://brew.sh/).
+You will also need CMake, which can be downloaded [here](https://cmake.org/download/) or installed via [Homebrew](http://brew.sh/).
 
 ## How to contribute
 

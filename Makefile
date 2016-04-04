@@ -1,16 +1,24 @@
 CC=clang++
-SOURCES=src/main.cpp src/compiler.cpp src/error.cpp src/platform.cpp deps/whereami/whereami.cpp
+SOURCES=main.cpp compiler.cpp error.cpp platform.cpp ../deps/whereami/whereami.cpp
+TARGETS=gram gram-llc
+PREFIX=/usr/local/bin
 
-.PHONY: all clean
+.PHONY: all clean install uninstall
 
-all: bin/gram bin/gram-llc
+all: $(addprefix bin/,$(TARGETS))
 
 clean:
 	rm -rf build
 
-bin/gram: $(SOURCES)
+install: all
+	cp $(addprefix bin/,$(TARGETS)) $(PREFIX)
+
+uninstall:
+	rm $(addprefix $(PREFIX)/,$(TARGETS))
+
+bin/gram: $(addprefix src/,$(SOURCES))
 	mkdir -p bin
-	$(CC) $(SOURCES) -o bin/gram
+	$(CC) $(addprefix src/,$(SOURCES)) -o bin/gram
 
 bin/gram-llc: build/llvm/build/bin/llc
 	mkdir -p bin
