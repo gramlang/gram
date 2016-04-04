@@ -2,6 +2,8 @@
 
 [Gram](https://www.gram.org) is a high-level programming language with a small, extensible core and a strong, static type system.
 
+[![Build Status](https://travis-ci.org/gramlang/gram.svg?branch=master)](https://travis-ci.org/gramlang/gram)
+
 ## Getting started
 
 1. Ensure you have the dependencies listed below.
