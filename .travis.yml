@@ -1,6 +1,6 @@
 language: cpp
 compiler: gcc
-before_install:
+install:
   # Install GCC 4.8.
   - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
   - sudo apt-get -qq update
@@ -11,5 +11,6 @@ before_install:
   - chmod +x cmake-3.5.1-Linux-x86_64.sh
   - sudo ./cmake-3.5.1-Linux-x86_64.sh --skip-license --prefix=/usr/local
   - cd .. && rm -rf build-deps
-install: true
-script: make CC=gcc-4.8 CXX=g++-4.8
+script:
+  - make CC=gcc-4.8 CXX=g++-4.8
+  - sudo make install
