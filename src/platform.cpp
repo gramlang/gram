@@ -162,7 +162,12 @@ string llc(const string output_path, const string llvm_asm) {
   // Compile the LLVM to assembly.
   vector<string> llvm_args;
   llvm_args.push_back("-O=3");
-  string native_asm = execute_file(llc_path, llvm_args, llvm_asm);
+  string native_asm;
+  try {
+    native_asm = execute_file(llc_path, llvm_args, llvm_asm);
+  } catch(runtime_error &e) {
+    throw runtime_error("Error invoking " + llc_path + ". Please check your Gram installation.");
+  }
 
   // Assemble with Clang.
   vector<string> gcc_args;
@@ -171,5 +176,9 @@ string llc(const string output_path, const string llvm_asm) {
   gcc_args.push_back("-x");
   gcc_args.push_back("assembler");
   gcc_args.push_back("-");
-  return execute_file("clang", gcc_args, native_asm);
+  try {
+    return execute_file("clang", gcc_args, native_asm);
+  } catch(runtime_error &e) {
+    throw runtime_error("Error invoking Clang. Please ensure Clang is installed.");
+  }
 }
