@@ -1,23 +1,22 @@
 CC=clang++
 SOURCES=src/main.cpp src/compiler.cpp src/error.cpp src/platform.cpp deps/whereami/whereami.cpp
-LLVM_TOOLS=llc
 
 .PHONY: all clean
 
-all: bin/gram
+all: bin/gram bin/gram-llc
 
 clean:
 	rm -rf build
 
-bin/gram: $(SOURCES) $(addprefix bin/llvm/,$(LLVM_TOOLS))
+bin/gram: $(SOURCES)
 	mkdir -p bin
 	$(CC) $(SOURCES) -o bin/gram
 
-$(addprefix bin/llvm/,$(LLVM_TOOLS)): $(addprefix build/llvm/build/bin/,$(LLVM_TOOLS))
-	mkdir -p bin/llvm
-	cp $(addprefix build/llvm/build/bin/,$(LLVM_TOOLS)) bin/llvm/
+bin/gram-llc: build/llvm/build/bin/llc
+	mkdir -p bin
+	cp build/llvm/build/bin/llc bin/gram-llc
 
-$(addprefix build/llvm/build/bin/,$(LLVM_TOOLS)): build/llvm/llvm-3.8.0.src.tar.xz
+build/llvm/build/bin/llc: build/llvm/llvm-3.8.0.src.tar.xz
 	mkdir -p build/llvm/llvm
 	tar -xf build/llvm/llvm-3.8.0.src.tar.xz -C build/llvm/llvm --strip-components=1
 	mkdir -p build/llvm/build

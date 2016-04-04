@@ -157,7 +157,7 @@ string execute_file(const string &path, const vector<string> &args, const string
 string llc(const string output_path, const string llvm_asm) {
   // Get the path to the LLVM compiler.
   string executable_path = get_executable_path();
-  string llc_path = executable_path.substr(0, executable_path.size() - 4) + "llvm/llc";
+  string llc_path = executable_path.substr(0, executable_path.size() - 4) + "gram-llc";
 
   // Compile the LLVM to assembly.
   vector<string> llvm_args;
