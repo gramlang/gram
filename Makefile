@@ -3,6 +3,8 @@
 # $ make install PREFIX=~/bin
 CC=clang
 CXX=clang++
+CCFLAGS=-O3
+CXXFLAGS=-O3
 PREFIX=/usr/local/bin
 NPROCS=1
 
@@ -36,7 +38,7 @@ uninstall:
 
 bin/gram: $(addprefix src/,$(SOURCES))
 	mkdir -p bin
-	$(CXX) $(addprefix src/,$(SOURCES)) -o bin/gram
+	$(CXX) $(CXXFLAGS) $(addprefix src/,$(SOURCES)) -o bin/gram
 
 bin/gram-llc: build/llvm/build/bin/llc
 	mkdir -p bin
