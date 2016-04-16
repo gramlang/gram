@@ -169,7 +169,7 @@ string llc(const string output_path, const string llvm_asm) {
     throw runtime_error("Error invoking " + llc_path + ". Check your Gram installation.");
   }
 
-  // Assemble with Clang or GCC (whichever is available).
+  // Assemble and link with Clang or GCC (whichever is available).
   vector<string> cc_args;
   cc_args.push_back("-o");
   cc_args.push_back(output_path);

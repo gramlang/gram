@@ -22,7 +22,7 @@ The build system creates a directory called `build` for intermediate build artif
 
 If Gram was installed to the default location, you can uninstall it with `sudo make uninstall`. You can uninstall from a different directory with `make uninstall PREFIX=path`.
 
-The build script uses Clang by default. You can optionally specify a different C and C++ compiler. For example, you can run `make CC=gcc CXX=g++` to build Gram with [GCC](https://gcc.gnu.org/). Gram is known to build with GCC >= 4.9.
+The build system uses Clang by default. You can optionally specify a different C and C++ compiler. For example, you can run `make CC=gcc CXX=g++` to build Gram with [GCC](https://gcc.gnu.org/). Gram is known to build with GCC >= 4.9.
 
 ### Build-time dependencies
 
@@ -55,7 +55,7 @@ You will also need CMake, which can be downloaded [here](https://cmake.org/downl
 
 ### Run-time dependencies
 
-Gram itself requires either Clang >= 3.1 or GCC >= 4.7 to assemble and link executables.
+Gram itself requires either Clang or GCC to assemble and link executables.
 
 Executables produced by Gram have no intrinsic run-time dependencies above the architecture they were built for.
 
