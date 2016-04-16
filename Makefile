@@ -44,20 +44,9 @@ bin/gram-llc: build/llvm/build/bin/llc
 	mkdir -p bin
 	cp build/llvm/build/bin/llc bin/gram-llc
 
-build/llvm/build/bin/llc: build/llvm/llvm-3.8.0.src.tar.xz
+build/llvm/build/bin/llc: deps/llvm-3.8.0.src.tar.xz
 	mkdir -p build/llvm/llvm
-	tar -xf build/llvm/llvm-3.8.0.src.tar.xz -C build/llvm/llvm --strip-components=1
+	tar -xf deps/llvm-3.8.0.src.tar.xz -C build/llvm/llvm --strip-components=1
 	mkdir -p build/llvm/build
 	cd build/llvm/build && cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ../llvm -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX)
 	cd build/llvm/build && make -j $(NPROCS)
-
-build/llvm/llvm-3.8.0.src.tar.xz:
-	mkdir -p build/llvm
-	curl -o build/llvm/llvm-3.8.0-untrusted.src.tar.xz http://llvm.org/releases/3.8.0/llvm-3.8.0.src.tar.xz
-	if [ "$$(openssl sha1 build/llvm/llvm-3.8.0-untrusted.src.tar.xz)" = \
-			 "SHA1(build/llvm/llvm-3.8.0-untrusted.src.tar.xz)= 723ac918979255706434a05f5af34b71c49c9971" ]; \
-		then mv build/llvm/llvm-3.8.0-untrusted.src.tar.xz build/llvm/llvm-3.8.0.src.tar.xz; \
-	else \
-		echo "LLVM integrity check failed."; \
-		exit 1; \
-	fi
