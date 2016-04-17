@@ -4,17 +4,16 @@
 set -e
 
 # Install compilers if necessary.
-export CC="$(./which-compiler.sh CC)"
-export CXX="$(./which-compiler.sh CXX)"
+CC="$(./which-compiler.sh CC)"
+CXX="$(./which-compiler.sh CXX)"
 if (echo "$CC" | grep -q "NONE") || (echo "$CXX" | grep -q "NONE"); then
   if uname -a | grep -q "Ubuntu"; then # Ubuntu
     # Install gcc-4.9 and g++-4.9.
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get -y update
-    apt-get -y install software-properties-common python-software-properties # for add-apt-repository
-    add-apt-repository -y ppa:ubuntu-toolchain-r/test # for gcc-4.9 and g++-4.9
-    apt-get -y update
-    apt-get -y install gcc-4.9 g++-4.9
+    DEBIAN_FRONTEND=noninteractive apt-get -y update
+    DEBIAN_FRONTEND=noninteractive apt-get -y install software-properties-common python-software-properties # for add-apt-repository
+    DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:ubuntu-toolchain-r/test # for gcc-4.9 and g++-4.9
+    DEBIAN_FRONTEND=noninteractive apt-get -y update
+    DEBIAN_FRONTEND=noninteractive apt-get -y install gcc-4.9 g++-4.9
   else
     if (uname | grep -q "Darwin") && which xcode-select; then # OS X
       # Install the Command Line Tools for Xcode.
@@ -24,8 +23,8 @@ if (echo "$CC" | grep -q "NONE") || (echo "$CXX" | grep -q "NONE"); then
       exit 1
     fi
   fi
-  export CC="$(./which-compiler.sh CC)"
-  export CXX="$(./which-compiler.sh CXX)"
+  CC="$(./which-compiler.sh CC)"
+  CXX="$(./which-compiler.sh CXX)"
 fi
 
 # Install CMake if necessary.
