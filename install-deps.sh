@@ -3,6 +3,9 @@
 # Exit immediately if any command fails.
 set -e
 
+# Get the non-root user.
+USER="$(who am i | awk '{print $1}')"
+
 # Install compilers if necessary.
 CC="$(./which-compiler.sh CC)"
 CXX="$(./which-compiler.sh CXX)"
@@ -17,7 +20,7 @@ if (echo "$CC" | grep -q "NONE") || (echo "$CXX" | grep -q "NONE"); then
   else
     if (uname | grep -q "Darwin") && which xcode-select; then # OS X
       # Install the Command Line Tools for Xcode.
-      sudo -u $SUDO_USER xcode-select --install || true # Fails if already installed
+      sudo -u $USER xcode-select --install || true # Fails if already installed
     else
       echo "Unable to install sufficient C and C++ compilers."
       exit 1
@@ -31,22 +34,22 @@ fi
 if ! (which cmake && (cmake --version | grep -q "cmake version 3")); then
   if (uname | grep -q "Darwin") && which brew; then # OS X + Homebrew
     # Install via Homebrew.
-    sudo -u $SUDO_USER brew update
-    sudo -u $SUDO_USER brew install cmake
+    sudo -u $USER brew update
+    sudo -u $USER brew install cmake
   else
     if (uname -a | grep -q "Ubuntu") && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake | grep -q "cmake (3\."); then # Ubuntu + apt-get
       # Install via apt-get.
       DEBIAN_FRONTEND=noninteractive apt-get -y install cmake
     else # Other platforms
       # Build and install from source.
-      sudo -u $SUDO_USER mkdir -p build/cmake-3.5.2
-      sudo -u $SUDO_USER tar -xf deps/cmake-3.5.2.tar.gz -C build/cmake-3.5.2 --strip-components=1
+      sudo -u $USER mkdir -p build/cmake-3.5.2
+      sudo -u $USER tar -xf deps/cmake-3.5.2.tar.gz -C build/cmake-3.5.2 --strip-components=1
       cd build/cmake-3.5.2
-      sudo -u $SUDO_USER CC="$CC" CXX="$CXX" ./bootstrap
-      sudo -u $SUDO_USER make
+      sudo -u $USER CC="$CC" CXX="$CXX" ./bootstrap
+      sudo -u $USER make
       make install
       cd ../..
-      sudo -u $SUDO_USER rm -rf build/cmake-3.5.2
+      sudo -u $USER rm -rf build/cmake-3.5.2
     fi
   fi
 fi
