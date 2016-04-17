@@ -9,8 +9,8 @@ USER="$(who am i | awk '{print $1}')"
 # Install compilers if necessary.
 CC="$(./which-compiler.sh CC)"
 CXX="$(./which-compiler.sh CXX)"
-if (echo "$CC" | grep -q "NONE") || (echo "$CXX" | grep -q "NONE"); then
-  if uname -a | grep -q "Ubuntu"; then # Ubuntu
+if (echo "$CC" | grep -qi "NONE") || (echo "$CXX" | grep -qi "NONE"); then
+  if uname -a | grep -qi "Ubuntu"; then # Ubuntu
     # Install gcc-4.9 and g++-4.9.
     DEBIAN_FRONTEND=noninteractive apt-get -y update
     DEBIAN_FRONTEND=noninteractive apt-get -y install software-properties-common python-software-properties # For add-apt-repository
@@ -18,7 +18,7 @@ if (echo "$CC" | grep -q "NONE") || (echo "$CXX" | grep -q "NONE"); then
     DEBIAN_FRONTEND=noninteractive apt-get -y update
     DEBIAN_FRONTEND=noninteractive apt-get -y install gcc-4.9 g++-4.9
   else
-    if (uname | grep -q "Darwin") && which xcode-select; then # OS X
+    if (uname | grep -qi "Darwin") && which xcode-select; then # OS X
       # Install the Command Line Tools for Xcode.
       sudo -u $USER xcode-select --install || true # Fails if already installed
     else
@@ -31,13 +31,13 @@ if (echo "$CC" | grep -q "NONE") || (echo "$CXX" | grep -q "NONE"); then
 fi
 
 # Install CMake if necessary.
-if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -q "cmake version 3")); then
-  if (uname | grep -q "Darwin") && which brew >/dev/null 2>&1; then # OS X + Homebrew
+if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -qi "cmake version 3")); then
+  if (uname | grep -qi "darwin") && which brew >/dev/null 2>&1; then # OS X + Homebrew
     # Install via Homebrew.
     sudo -u $USER brew update
     sudo -u $USER brew install cmake
   else
-    if (uname -a | grep -q "Ubuntu") && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake | grep -q "cmake (3\."); then # Ubuntu + apt-get
+    if (uname -a | grep -qi "ubuntu|debian") && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake | grep -qi "cmake (3\."); then # Ubuntu + apt-get
       # Install via apt-get.
       DEBIAN_FRONTEND=noninteractive apt-get -y install cmake
     else # Other platforms

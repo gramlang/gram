@@ -6,6 +6,8 @@
 
 ## Getting started
 
+Gram is supported on popular Unix-like operating systems, such as Ubuntu and OS X. To install Gram, follow these steps from the root of this repository:
+
 1. Run `sudo make install-deps` to ensure you have the dependencies installed.
 2. Run `make` to build.
 3. Run `sudo make install` to install.
