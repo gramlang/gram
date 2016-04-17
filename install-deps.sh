@@ -41,9 +41,11 @@ if ! (which cmake && (cmake --version | grep -q "cmake version 3")); then
       # Build and install from source.
       mkdir -p build/cmake-3.5.2
       tar -xf deps/cmake-3.5.2.tar.gz -C build/cmake-3.5.2 --strip-components=1
-      cd build/cmake-3.5.2 && CC="$CC" CXX="$CXX" ./bootstrap
-      cd build/cmake-3.5.2 && make
-      cd build/cmake-3.5.2 && make install
+      cd build/cmake-3.5.2
+      CC="$CC" CXX="$CXX" ./bootstrap
+      make
+      make install
+      cd ../..
       rm -rf build/cmake-3.5.2
     fi
   fi
