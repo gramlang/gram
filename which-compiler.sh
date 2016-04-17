@@ -1,10 +1,12 @@
+# This script tries to find a version of GCC >= 4.9 or Clang >= 3.1.
+
 # Usage:
 #   ./get-compiler.sh CC
 #   ./get-compiler.sh CXX
 
 CC=NONE
 CXX=NONE
-if (gcc --version 2>/dev/null | grep -qi  "( 4\.9\.)|( 5\.)|( 6\.)") && (gcc++ --version 2>/dev/null | grep -qi  "( 4\.9\.)|( 5\.)|( 6\.)"); then
+if (gcc --version 2>/dev/null | grep -qi  "( 4\.9\.)|( [5-9]\.)") && (gcc++ --version 2>/dev/null | grep -qi  "( 4\.9\.)|( [5-9]\.)"); then
   CC=gcc
   CXX=g++
 fi
@@ -16,7 +18,7 @@ if (clang --version 2>/dev/null | grep -qi  " 3\.[1-9]") && clang++ --version 2>
   CC=clang
   CXX=clang++
 fi
-if (clang --version 2>/dev/null | grep -qi  "apple llvm version 7\.") && clang++ --version 2>/dev/null | grep -qi  "apple llvm version 7\."; then
+if (clang --version 2>/dev/null | grep -qi  "apple llvm version [5-9]\.") && clang++ --version 2>/dev/null | grep -qi  "apple llvm version [5-9]\."; then
   CC=clang
   CXX=clang++
 fi
