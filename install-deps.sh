@@ -4,7 +4,9 @@
 set -e
 
 # Install compilers if necessary.
-if (./which-compiler.sh CC | grep -q "NONE") || (./which-compiler.sh CXX | grep -q "NONE"); then
+export CC="$(./which-compiler.sh CC)"
+export CXX="$(./which-compiler.sh CXX)"
+if (echo "$CC" | grep -q "NONE") || (echo "$CXX" | grep -q "NONE"); then
   if uname -a | grep -q "Ubuntu"; then # Ubuntu
     # Install gcc-4.9 and g++-4.9.
     export DEBIAN_FRONTEND=noninteractive
@@ -22,10 +24,12 @@ if (./which-compiler.sh CC | grep -q "NONE") || (./which-compiler.sh CXX | grep 
       exit 1
     fi
   fi
+  export CC="$(./which-compiler.sh CC)"
+  export CXX="$(./which-compiler.sh CXX)"
 fi
 
 # Install CMake if necessary.
-if ! (cmake --version | grep -q "cmake version 3"); then
+if ! (which cmake && (cmake --version | grep -q "cmake version 3")); then
   if (uname | grep -q "Darwin") && which brew; then # OS X + Homebrew
     # Install via Homebrew.
     sudo -u $SUDO_USER brew update
@@ -34,7 +38,7 @@ if ! (cmake --version | grep -q "cmake version 3"); then
     # Build and install from source.
     mkdir -p build/cmake-3.5.2
     tar -xf deps/cmake-3.5.2.tar.gz -C build/cmake-3.5.2 --strip-components=1
-    cd build/cmake-3.5.2 && ./bootstrap
+    cd build/cmake-3.5.2 && CC="$CC" CXX="$CXX" ./bootstrap
     cd build/cmake-3.5.2 && make
     cd build/cmake-3.5.2 && make install
     rm -rf build/cmake-3.5.2
