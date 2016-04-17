@@ -9,8 +9,8 @@ USER="$(who am i | awk '{print $1}')"
 # Install compilers if necessary.
 CC="$(./which-compiler.sh CC)"
 CXX="$(./which-compiler.sh CXX)"
-if (echo "$CC" | grep -qi "NONE") || (echo "$CXX" | grep -qi "NONE"); then
-  if uname -a | grep -qi "Ubuntu"; then # Ubuntu
+if (echo "$CC" | grep -qi "none") || (echo "$CXX" | grep -qi "none"); then
+  if uname -a | grep -qi "ubuntu"; then # Ubuntu
     # Install gcc-4.9 and g++-4.9.
     DEBIAN_FRONTEND=noninteractive apt-get -y update
     DEBIAN_FRONTEND=noninteractive apt-get -y install software-properties-common python-software-properties # For add-apt-repository
@@ -18,7 +18,7 @@ if (echo "$CC" | grep -qi "NONE") || (echo "$CXX" | grep -qi "NONE"); then
     DEBIAN_FRONTEND=noninteractive apt-get -y update
     DEBIAN_FRONTEND=noninteractive apt-get -y install gcc-4.9 g++-4.9
   else
-    if (uname | grep -qi "Darwin") && which xcode-select; then # OS X
+    if (uname | grep -qi "darwin") && which xcode-select; then # OS X
       # Install the Command Line Tools for Xcode.
       sudo -u $USER xcode-select --install || true # Fails if already installed
     else
