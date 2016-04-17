@@ -31,8 +31,8 @@ if (echo "$CC" | grep -q "NONE") || (echo "$CXX" | grep -q "NONE"); then
 fi
 
 # Install CMake if necessary.
-if ! (which cmake && (cmake --version | grep -q "cmake version 3")); then
-  if (uname | grep -q "Darwin") && which brew; then # OS X + Homebrew
+if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -q "cmake version 3")); then
+  if (uname | grep -q "Darwin") && which brew >/dev/null 2>&1; then # OS X + Homebrew
     # Install via Homebrew.
     sudo -u $USER brew update
     sudo -u $USER brew install cmake
