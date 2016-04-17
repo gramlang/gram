@@ -39,14 +39,14 @@ if ! (which cmake && (cmake --version | grep -q "cmake version 3")); then
       DEBIAN_FRONTEND=noninteractive apt-get -y install cmake
     else # Other platforms
       # Build and install from source.
-      mkdir -p build/cmake-3.5.2
-      tar -xf deps/cmake-3.5.2.tar.gz -C build/cmake-3.5.2 --strip-components=1
+      sudo -u $SUDO_USER mkdir -p build/cmake-3.5.2
+      sudo -u $SUDO_USER tar -xf deps/cmake-3.5.2.tar.gz -C build/cmake-3.5.2 --strip-components=1
       cd build/cmake-3.5.2
-      CC="$CC" CXX="$CXX" ./bootstrap
-      make
+      sudo -u $SUDO_USER CC="$CC" CXX="$CXX" ./bootstrap
+      sudo -u $SUDO_USER make
       make install
       cd ../..
-      rm -rf build/cmake-3.5.2
+      sudo -u $SUDO_USER rm -rf build/cmake-3.5.2
     fi
   fi
 fi
