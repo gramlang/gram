@@ -5,6 +5,7 @@ matrix:
       sudo: required
     - os: osx
       osx_image: xcode7.3
-install: sudo make install-deps
-script: make
-deploy: sudo make install
+install:
+  - sudo make install-deps
+script:
+  - make && sudo make install
