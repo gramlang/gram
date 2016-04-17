@@ -13,7 +13,7 @@ ifeq ($(OS),Darwin) # Assume OS X.
   NPROCS:=$(shell sysctl -n hw.ncpu)
 endif
 
-# Try to determine the best compiler settings.
+# Determine which compiler to use.
 override CC=$(shell ./which-compiler.sh CC)
 override CXX=$(shell ./which-compiler.sh CXX)
 override CCFLAGS=-O3
