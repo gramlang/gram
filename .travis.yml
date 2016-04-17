@@ -9,5 +9,6 @@ matrix:
 install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq install cmake; fi
 script:
+  - sudo make install-deps
   - make CC=gcc CXX=g++
   - sudo make install
