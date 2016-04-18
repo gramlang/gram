@@ -1,35 +1,17 @@
 #include "platform.h"
 
-#include "../deps/whereami/whereami.h"
 #include <errno.h>
 #include <stdexcept>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #include <sys/stat.h>
+#include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/IRPrintingPasses.h>
+#include <llvm/Support/raw_ostream.h>
 
 using namespace std;
-
-// Return the path to this executable.
-string get_executable_path() {
-  // Use whereami to get the length of the path.
-  int length = wai_getExecutablePath(NULL, 0, NULL);
-  if (length == -1) {
-    throw runtime_error("An unexpected error occurred.");
-  }
-
-  // Use whereami to get the path.
-  char *path = new char[length + 1];
-  if (wai_getExecutablePath(path, length, NULL) == -1) {
-    delete [] path;
-    throw runtime_error("An unexpected error occurred.");
-  }
-  path[length] = '\0';
-  string pathStr(path);
-  delete [] path;
-
-  return pathStr;
-}
+using namespace llvm;
 
 // Execute a program. Returns the output of the program.
 // This function will use the PATH environment variable to find the program.
@@ -154,20 +136,14 @@ string execute_file(const string &path, const vector<string> &args, const string
 }
 
 // Compile LLVM assembly into a native binary.
-string llc(const string output_path, const string llvm_asm) {
-  // Get the path to the LLVM compiler.
-  string executable_path = get_executable_path();
-  string llc_path = executable_path.substr(0, executable_path.size() - 4) + "gram-llc";
-
+string llc(const string output_path, Module &module) {
   // Compile the LLVM to assembly.
-  vector<string> llvm_args;
-  llvm_args.push_back("-O=3");
   string native_asm;
-  try {
-    native_asm = execute_file(llc_path, llvm_args, llvm_asm);
-  } catch(runtime_error &e) {
-    throw runtime_error("Error invoking " + llc_path + ". Check your Gram installation.");
-  }
+
+  legacy::PassManager pass_manager;
+  pass_manager.add(createPrintModulePass(outs()));
+  pass_manager.run(module);
+  return "";
 
   // Assemble and link with Clang or GCC (whichever is available).
   vector<string> cc_args;

@@ -8,9 +8,7 @@
 
 #include <string>
 #include <vector>
-
-// Return the path to this executable.
-std::string get_executable_path();
+#include <llvm/IR/Module.h>
 
 // Execute a program. Returns the stdout from the program.
 // Raises a std::runtime_error if the program does not exit successfully.
@@ -22,6 +20,6 @@ std::string execute_file(
 
 // Compile LLVM assembly into a native binary.
 // Returns the stdout from llc.
-std::string llc(const std::string output_path, const std::string llvm_asm);
+std::string llc(const std::string output_path, llvm::Module &module);
 
 #endif
