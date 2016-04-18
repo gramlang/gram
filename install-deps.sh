@@ -66,12 +66,11 @@ if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -qi 'cmake version 
     brew update
     brew install cmake
   else
-    # Update package index if applicable.
     if uname -a | grep -qi 'ubuntu\|debian'; then # Ubuntu or Debian
+    # Update package index.
       echo 'Updating apt-get index...'
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
     fi
-
     if (uname -a | grep -qi 'ubuntu\|debian') && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake | grep -qi 'cmake (3\.'); then # Ubuntu + apt-get
       # Install via apt-get.
       echo 'Installing cmake via apt-get...'
