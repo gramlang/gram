@@ -17,6 +17,7 @@ if ! (which make >/dev/null 2>&1 && (make --version | grep -qi 'make \(3\.79\)\|
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y install build-essential
     else
       echo 'No sufficient make found.'
+      echo 'Please install GNU Make >= 3.79.1.'
       exit 1
     fi
   fi
