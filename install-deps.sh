@@ -14,6 +14,7 @@ if (uname | grep -qi 'darwin') && which brew >/dev/null 2>&1; then # OS X + Home
 fi
 
 # Install compilers if necessary.
+# Gram requires GCC >= 4.9 or Clang >= 3.1.
 echo 'Looking for sufficient C and C++ compilers...'
 CC="$(./which-compiler.sh CC)"
 CXX="$(./which-compiler.sh CXX)"
@@ -44,6 +45,7 @@ echo "Found C compiler: $CC"
 echo "Found C++ compiler: $CXX"
 
 # Install CMake if necessary.
+# Gram requires CMake >= 2.8.12.2.
 echo 'Looking for sufficient cmake...'
 if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -qi 'cmake version 3')); then
   echo 'No sufficient cmake found.'
