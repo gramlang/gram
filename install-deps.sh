@@ -21,7 +21,7 @@ if ! (which make >/dev/null 2>&1 && (make --version | grep -qi 'make \(3\.79\)\|
     fi
   fi
 fi
-echo "Found: $(make --version | head -n 1)"
+echo "Found make: $(make --version | head -n 1)"
 
 # Install compilers if necessary.
 # Gram requires GCC >= 4.9 or Clang >= 3.1.
@@ -52,8 +52,8 @@ if (echo "$CC" | grep -qi 'none') || (echo "$CXX" | grep -qi 'none'); then
   CC="$(./which-compiler.sh CC)"
   CXX="$(./which-compiler.sh CXX)"
 fi
-echo "Found C compiler: $CC"
-echo "Found C++ compiler: $CXX"
+echo "Found $CC: $($CC --version | head -n 1)"
+echo "Found $CXX: $($CXX --version | head -n 1)"
 
 # Install CMake if necessary.
 # Gram requires CMake >= 2.8.12.2.
@@ -90,6 +90,6 @@ if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -qi 'cmake version 
     fi
   fi
 fi
-echo "Found: $(cmake --version | head -n 1)"
+echo "Found cmake: $(cmake --version | head -n 1)"
 
 echo 'Ready to build Gram.'
