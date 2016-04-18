@@ -3,6 +3,26 @@
 # Exit immediately if any command fails.
 set -e
 
+# Install make if necessary.
+# Gram requires GNU Make >= 3.79.1.
+echo 'Looking for sufficient make...'
+if ! (which make >/dev/null 2>&1 && (make --version | grep -qi 'make \(3\.79\)\|\(3\.8[0-2]\)\|\(4\.\)')); then
+  if (uname | grep -qi 'darwin') && which xcode-select; then # OS X
+    # Install the Command Line Tools for Xcode.
+    echo 'Installing the Command Line Tools for Xcode...'
+    xcode-select --install || true # Fails if already installed
+  else
+    if uname -a | grep -qi 'ubuntu\|debian'; then # Ubuntu or Debian
+      echo 'Installing build-essential via apt-get...'
+      sudo DEBIAN_FRONTEND=noninteractive apt-get -y install build-essential
+    else
+      echo 'No sufficient make found.'
+      exit 1
+    fi
+  fi
+fi
+echo "Found: $(make --version | head -n 1)"
+
 # Install compilers if necessary.
 # Gram requires GCC >= 4.9 or Clang >= 3.1.
 echo 'Looking for sufficient C and C++ compilers...'
@@ -70,6 +90,6 @@ if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -qi 'cmake version 
     fi
   fi
 fi
-echo "Found cmake: $(cmake --version | head -n 1 | awk '{print $3}')"
+echo "Found: $(cmake --version | head -n 1)"
 
 echo 'Ready to build Gram.'
