@@ -14,6 +14,7 @@ if ! (which make >/dev/null 2>&1 && (make --version | grep -qi 'make \(3\.79\)\|
   else
     if uname -a | grep -qi 'ubuntu\|debian'; then # Ubuntu or Debian
       echo 'Installing build-essential via apt-get...'
+      sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y install build-essential
     else
       echo 'No sufficient make found.'
@@ -31,23 +32,33 @@ CC="$(./which-compiler.sh CC)"
 CXX="$(./which-compiler.sh CXX)"
 if (echo "$CC" | grep -qi 'none') || (echo "$CXX" | grep -qi 'none'); then
   echo 'No sufficient C and C++ compilers found.'
-  if uname -a | grep -qi 'ubuntu'; then # Ubuntu
-    # Install gcc-4.9 and g++-4.9.
-    echo 'Installing gcc-4.9 and g++-4.9 via apt-get...'
+  if uname -a | grep -qi 'ubuntu\|debian'; then # Ubuntu or Debian
+  # Update package index.
+    echo 'Updating apt-get index...'
     sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
-    sudo DEBIAN_FRONTEND=noninteractive apt-get -y install software-properties-common python-software-properties # For add-apt-repository
-    sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:ubuntu-toolchain-r/test # For gcc-4.9 and g++-4.9
-    sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
-    sudo DEBIAN_FRONTEND=noninteractive apt-get -y install gcc-4.9 g++-4.9
+  fi
+  if (uname -a | grep -qi 'ubuntu\|debian') && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install build-essential | grep -qi '\(gcc (4\.9\.\)\|\(gcc ([5-9]\.\)'); then # Ubuntu
+    # Install build-essential.
+    echo 'Installing build-essential via apt-get...'
+    sudo DEBIAN_FRONTEND=noninteractive apt-get -y install build-essential
   else
-    if (uname | grep -qi 'darwin') && which xcode-select; then # OS X
-      # Install the Command Line Tools for Xcode.
-      echo 'Installing the Command Line Tools for Xcode...'
-      xcode-select --install || true # Fails if already installed
+    if uname -a | grep -qi 'ubuntu'; then # Ubuntu
+      # Install gcc-4.9 and g++-4.9.
+      echo 'Installing gcc-4.9 and g++-4.9 via apt-get...'
+      sudo DEBIAN_FRONTEND=noninteractive apt-get -y install software-properties-common python-software-properties # For add-apt-repository
+      sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:ubuntu-toolchain-r/test # For gcc-4.9 and g++-4.9
+      sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
+      sudo DEBIAN_FRONTEND=noninteractive apt-get -y install gcc-4.9 g++-4.9
     else
-      echo 'Unable to install sufficient C and C++ compilers.'
-      echo 'Please install GCC >= 4.9 or Clang >= 3.1.'
-      exit 1
+      if (uname | grep -qi 'darwin') && which xcode-select; then # OS X
+        # Install the Command Line Tools for Xcode.
+        echo 'Installing the Command Line Tools for Xcode...'
+        xcode-select --install || true # Fails if already installed
+      else
+        echo 'Unable to install sufficient C and C++ compilers.'
+        echo 'Please install GCC >= 4.9 or Clang >= 3.1.'
+        exit 1
+      fi
     fi
   fi
   CC="$(./which-compiler.sh CC)"
@@ -72,7 +83,7 @@ if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -qi 'cmake version 
       echo 'Updating apt-get index...'
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
     fi
-    if (uname -a | grep -qi 'ubuntu\|debian') && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake | grep -qi 'cmake (3\.'); then # Ubuntu + apt-get
+    if (uname -a | grep -qi 'ubuntu\|debian') && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake | grep -qi 'cmake (3\.'); then # Ubuntu
       # Install via apt-get.
       echo 'Installing cmake via apt-get...'
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y install cmake
