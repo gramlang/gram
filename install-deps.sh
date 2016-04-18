@@ -3,16 +3,6 @@
 # Exit immediately if any command fails.
 set -e
 
-# Update package index.
-if uname -a | grep -qi 'ubuntu\|debian'; then # Ubuntu or Debian
-  echo 'Updating apt-get index...'
-  sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
-fi
-if (uname | grep -qi 'darwin') && which brew >/dev/null 2>&1; then # OS X + Homebrew
-  echo 'Updating Homebrew index...'
-  brew update
-fi
-
 # Install compilers if necessary.
 # Gram requires GCC >= 4.9 or Clang >= 3.1.
 echo 'Looking for sufficient C and C++ compilers...'
@@ -23,6 +13,7 @@ if (echo "$CC" | grep -qi 'none') || (echo "$CXX" | grep -qi 'none'); then
   if uname -a | grep -qi 'ubuntu'; then # Ubuntu
     # Install gcc-4.9 and g++-4.9.
     echo 'Installing gcc-4.9 and g++-4.9 via apt-get...'
+    sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
     sudo DEBIAN_FRONTEND=noninteractive apt-get -y install software-properties-common python-software-properties # For add-apt-repository
     sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:ubuntu-toolchain-r/test # For gcc-4.9 and g++-4.9
     sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
@@ -52,8 +43,15 @@ if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -qi 'cmake version 
   if (uname | grep -qi 'darwin') && which brew >/dev/null 2>&1; then # OS X + Homebrew
     # Install via Homebrew.
     echo 'Installing cmake via Homebrew...'
+    brew update
     brew install cmake
   else
+    # Update package index if applicable.
+    if uname -a | grep -qi 'ubuntu\|debian'; then # Ubuntu or Debian
+      echo 'Updating apt-get index...'
+      sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
+    fi
+
     if (uname -a | grep -qi 'ubuntu\|debian') && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake | grep -qi 'cmake (3\.'); then # Ubuntu + apt-get
       # Install via apt-get.
       echo 'Installing cmake via apt-get...'
