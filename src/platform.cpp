@@ -2,16 +2,26 @@
 
 #include <errno.h>
 #include <stdexcept>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <sys/stat.h>
+#include <llvm/ADT/SmallString.h>
+#include <llvm/ADT/Triple.h>
+#include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/IR/LegacyPassManager.h>
-#include <llvm/IR/IRPrintingPasses.h>
+#include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/TargetRegistry.h>
+#include <llvm/Support/TargetSelect.h>
+#include <llvm/Target/TargetMachine.h>
+#include <llvm/Target/TargetOptions.h>
 
 using namespace std;
 using namespace llvm;
+
+// This object just calls llvm_shutdown() when it is destroyed.
+llvm_shutdown_obj Y;
 
 // Execute a program. Returns the output of the program.
 // This function will use the PATH environment variable to find the program.
@@ -135,15 +145,60 @@ string execute_file(const string &path, const vector<string> &args, const string
   }
 }
 
-// Compile LLVM assembly into a native binary.
+// Compile an LLVM module into a native binary.
 string llc(const string output_path, Module &module) {
-  // Compile the LLVM to assembly.
-  string native_asm;
+  // The native assembly will be written to this string.
+  SmallString<1024> native_asm;
 
+  // Initialize targets.
+  InitializeAllTargets();
+  InitializeAllTargetMCs();
+  InitializeAllAsmPrinters();
+  InitializeAllAsmParsers();
+
+  // Initialize passes.
+  PassRegistry *registry = PassRegistry::getPassRegistry();
+  initializeCore(*registry);
+  initializeCodeGen(*registry);
+  initializeLoopStrengthReducePass(*registry);
+  initializeLowerIntrinsicsPass(*registry);
+  initializeUnreachableBlockElimPass(*registry);
+
+  // Get info about the current target triple.
+  Triple triple;
+  triple.setTriple(sys::getDefaultTargetTriple());
+
+  // Get info about the current target.
+  std::string error;
+  const Target *target = TargetRegistry::lookupTarget(triple.getTriple(), error);
+  if (!target) {
+    throw runtime_error("Unable to find LLVM target for triple " + triple.getTriple() + ".");
+  }
+
+  // Set up a pass manager.
   legacy::PassManager pass_manager;
-  pass_manager.add(createPrintModulePass(outs()));
+
+  // Add the optimization passes supported for this target.
+  TargetLibraryInfoImpl target_library_info_impl(triple);
+  pass_manager.add(new TargetLibraryInfoWrapperPass(target_library_info_impl));
+
+  // Add a pass to emit the native assembly.
+  TargetOptions options;
+  TargetMachine *target_machine = target->createTargetMachine(
+    triple.getTriple(),
+    "",
+    "",
+    options,
+    Reloc::Default,
+    CodeModel::Default,
+    CodeGenOpt::Aggressive
+  );
+  raw_svector_ostream native_asm_ostream(native_asm);
+  target_machine->addPassesToEmitFile(pass_manager, native_asm_ostream, TargetMachine::CGFT_AssemblyFile);
+  module.setDataLayout(target_machine->createDataLayout());
+
+  // Run all the passes.
   pass_manager.run(module);
-  return "";
 
   // Assemble and link with Clang or GCC (whichever is available).
   vector<string> cc_args;
@@ -153,10 +208,10 @@ string llc(const string output_path, Module &module) {
   cc_args.push_back("assembler");
   cc_args.push_back("-");
   try {
-    return execute_file("clang", cc_args, native_asm);
+    return execute_file("clang", cc_args, native_asm.str());
   } catch(runtime_error &e) {
     try {
-      return execute_file("gcc", cc_args, native_asm);
+      return execute_file("gcc", cc_args, native_asm.str());
     } catch(runtime_error &e) {
       throw runtime_error("Unable to invoke Clang or GCC. Ensure that at least one of these is installed.");
     }

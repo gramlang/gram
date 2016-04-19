@@ -18,9 +18,11 @@ If all goes well, you should be able to run `gram` from the command line.
 
 Normally, all of your CPU cores will be used to build Gram. You can override this behavior with the `NPROCS` option. For example, you can run `make NPROCS=1` to build Gram with only one core.
 
-The default installation directory is `/usr/local/bin`. You can run `make install PREFIX=path` to install to a different directory.
+By default, Gram will be built in release mode for maximum performance. You can run `make BUILD_TYPE=Debug` to build Gram with debugging information. This is useful if you are working on the Gram compiler.
 
-The build system creates a directory called `build` for intermediate build artifacts. Normally, these files are retained so future builds can use them instead of starting from scratch. You can remove them with `make clean`.
+If you want to remove all of the artifacts created during the build process, run `make clean`. Normally, these files are retained so future builds can use them instead of starting from scratch.
+
+The default installation directory is `/usr/local/bin`. You can run `make install PREFIX=path` to install to a different directory.
 
 If Gram was installed to the default location, you can uninstall it with `sudo make uninstall`. You can uninstall from a different directory with `make uninstall PREFIX=path`.
 
