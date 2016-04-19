@@ -10,4 +10,11 @@ The Gram Programming Language is licensed under the MIT License.
 >
 > THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Gram uses [LLVM](http://llvm.org/), which has its own license.
+Gram includes code from the following projects:
+
+* [LLVM](http://llvm.org/)
+* [utf8proc](https://github.com/JuliaLang/utf8proc)
+
+The source for these projects, including their respective licenses, can be found in the `deps` directory.
+
+Building Gram requires [CMake](https://cmake.org/). For convenience, a compatible version of CMake, including its source and and license, can be found in the `deps` directory.

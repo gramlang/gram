@@ -40,12 +40,21 @@ install: all
 uninstall:
 	rm $(addprefix $(PREFIX)/,$(TARGETS))
 
-build/bin/gram: $(addprefix src/,$(SOURCES)) build/llvm/build/bin/llvm-config
+build/bin/gram: $(addprefix src/,$(SOURCES)) build/llvm/build/bin/llvm-config build/obj/utf8proc.o
 	mkdir -p build/bin
-	$(CXX) $(addprefix src/,$(SOURCES)) $(shell build/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs) -o build/bin/gram
+	$(CXX) $(addprefix src/,$(SOURCES)) build/obj/utf8proc.o -Ibuild/utf8proc $(shell build/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs) -o build/bin/gram
+
+build/obj/utf8proc.o: $(addprefix build/utf8proc/,utf8proc.h utf8proc.c utf8proc_data.c)
+	mkdir -p build/obj
+	$(CC) -Ibuild/utf8proc -c build/utf8proc/utf8proc.c -o build/obj/utf8proc.o
+
+$(addprefix build/utf8proc/,utf8proc.h utf8proc.c utf8proc_data.c): deps/utf8proc.tar.gz
+	rm -rf build/utf8proc
+	mkdir -p build/utf8proc
+	tar -xf deps/utf8proc.tar.gz -C build/utf8proc --strip-components=1
 
 build/llvm/build/bin/llvm-config: deps/llvm-3.8.0.src.tar.xz
-	rm -rf build/llvm/
+	rm -rf build/llvm
 	mkdir -p build/llvm/llvm
 	tar -xf deps/llvm-3.8.0.src.tar.xz -C build/llvm/llvm --strip-components=1
 	mkdir -p build/llvm/build

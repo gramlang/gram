@@ -5,6 +5,10 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 
+extern "C" {
+  #include <utf8proc.h>
+}
+
 using namespace std;
 using namespace llvm;
 
