@@ -149,14 +149,14 @@ string execute_file(const string &path, const vector<string> &args, const string
 // Compile an LLVM module into a native binary.
 string llc(const string output_path, Module &module) {
   // Verify the module.
-  SmallString<1024> module_error;
+  SmallString<0> module_error;
   raw_svector_ostream module_error_ostream(module_error);
   if (verifyModule(module, &module_error_ostream)) {
     throw runtime_error(("LLVM module verification failed: " + module_error).str());
   }
 
   // The native assembly will be written to this string.
-  SmallString<1024> native_asm;
+  SmallString<0> native_asm;
 
   // Initialize targets.
   InitializeAllTargets();
@@ -177,8 +177,8 @@ string llc(const string output_path, Module &module) {
   triple.setTriple(sys::getDefaultTargetTriple());
 
   // Match the triple to a target.
-  std::string error;
-  const Target *target = TargetRegistry::lookupTarget(triple.getTriple(), error);
+  std::string target_error;
+  const Target *target = TargetRegistry::lookupTarget(triple.getTriple(), target_error);
   if (!target) {
     throw runtime_error("Unable to find LLVM target for triple " + triple.getTriple() + ".");
   }
