@@ -184,7 +184,7 @@ string llc(const string output_path, Module &module) {
 
   // Add a pass to emit the native assembly.
   TargetOptions options;
-  TargetMachine *target_machine = target->createTargetMachine(
+  std::unique_ptr<TargetMachine> target_machine(target->createTargetMachine(
     triple.getTriple(),
     "",
     "",
@@ -192,7 +192,7 @@ string llc(const string output_path, Module &module) {
     Reloc::Default,
     CodeModel::Default,
     CodeGenOpt::Aggressive
-  );
+  ));
   raw_svector_ostream native_asm_ostream(native_asm);
   target_machine->addPassesToEmitFile(pass_manager, native_asm_ostream, TargetMachine::CGFT_AssemblyFile);
   module.setDataLayout(target_machine->createDataLayout());
