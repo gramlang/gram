@@ -164,21 +164,21 @@ string llc(const string output_path, Module &module) {
   initializeLowerIntrinsicsPass(*registry);
   initializeUnreachableBlockElimPass(*registry);
 
-  // Get info about the current target triple.
+  // Get the target triple for this machine.
   Triple triple;
   triple.setTriple(sys::getDefaultTargetTriple());
 
-  // Get info about the current target.
+  // Match the triple to a target.
   std::string error;
   const Target *target = TargetRegistry::lookupTarget(triple.getTriple(), error);
   if (!target) {
     throw runtime_error("Unable to find LLVM target for triple " + triple.getTriple() + ".");
   }
 
-  // Set up a pass manager.
+  // Set up a pass manager to schedule the optimizations.
   legacy::PassManager pass_manager;
 
-  // Add the optimization passes supported for this target.
+  // Add the optimizations supported for this target.
   TargetLibraryInfoImpl target_library_info_impl(triple);
   pass_manager.add(new TargetLibraryInfoWrapperPass(target_library_info_impl));
 
