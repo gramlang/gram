@@ -52,6 +52,7 @@ $(addprefix build/utf8proc/,utf8proc.h utf8proc.c utf8proc_data.c): deps/utf8pro
 	rm -rf build/utf8proc
 	mkdir -p build/utf8proc
 	tar -xf deps/utf8proc.tar.gz -C build/utf8proc --strip-components=1
+	find build/utf8proc -exec touch {} \;
 
 build/llvm/build/bin/llvm-config: deps/llvm-3.8.0.src.tar.xz
 	rm -rf build/llvm
