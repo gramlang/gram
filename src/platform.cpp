@@ -10,6 +10,7 @@
 #include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/IR/LegacyPassManager.h>
+#include <llvm/IR/Verifier.h>
 #include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/TargetRegistry.h>
@@ -147,6 +148,13 @@ string execute_file(const string &path, const vector<string> &args, const string
 
 // Compile an LLVM module into a native binary.
 string llc(const string output_path, Module &module) {
+  // Verify the module.
+  SmallString<1024> module_error;
+  raw_svector_ostream module_error_ostream(module_error);
+  if (verifyModule(module, &module_error_ostream)) {
+    throw runtime_error(("LLVM module verification failed: " + module_error).str());
+  }
+
   // The native assembly will be written to this string.
   SmallString<1024> native_asm;
 
