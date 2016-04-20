@@ -195,7 +195,11 @@ string llc(const string output_path, Module &module) {
     CodeGenOpt::Aggressive
   ));
   raw_svector_ostream native_asm_ostream(native_asm);
-  target_machine->addPassesToEmitFile(pass_manager, native_asm_ostream, TargetMachine::CGFT_AssemblyFile);
+  target_machine->addPassesToEmitFile(
+    pass_manager,
+    native_asm_ostream,
+    TargetMachine::CGFT_AssemblyFile
+  );
   module.setDataLayout(target_machine->createDataLayout());
 
   // Run all the passes.
@@ -214,7 +218,9 @@ string llc(const string output_path, Module &module) {
     try {
       return execute_file("gcc", cc_args, native_asm.str());
     } catch(runtime_error &e) {
-      throw runtime_error("Unable to invoke Clang or GCC. Ensure that at least one of these is installed.");
+      throw runtime_error(
+        "Unable to invoke Clang or GCC. Ensure that at least one of these is installed."
+      );
     }
   }
 }

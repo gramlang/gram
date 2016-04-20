@@ -15,7 +15,9 @@ using namespace llvm;
 void compile(string input_path, string output_path) {
   try {
     Module module("test", getGlobalContext());
-    Function* main_fn = cast<Function>(module.getOrInsertFunction("main", IntegerType::getInt64Ty(getGlobalContext()), NULL));
+    Function* main_fn = cast<Function>(
+      module.getOrInsertFunction("main", IntegerType::getInt64Ty(getGlobalContext()), NULL)
+    );
     BasicBlock* block = BasicBlock::Create(getGlobalContext(), "", main_fn);
     IRBuilder<> builder(block);
     builder.CreateRet(ConstantInt::getSigned(IntegerType::getInt64Ty(getGlobalContext()), 0));
