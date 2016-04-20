@@ -164,14 +164,6 @@ string llc(const string output_path, Module &module) {
   InitializeAllAsmPrinters();
   InitializeAllAsmParsers();
 
-  // Initialize passes.
-  PassRegistry *registry = PassRegistry::getPassRegistry();
-  initializeCore(*registry);
-  initializeCodeGen(*registry);
-  initializeLoopStrengthReducePass(*registry);
-  initializeLowerIntrinsicsPass(*registry);
-  initializeUnreachableBlockElimPass(*registry);
-
   // Get the target triple for this machine.
   Triple triple;
   triple.setTriple(sys::getDefaultTargetTriple());
