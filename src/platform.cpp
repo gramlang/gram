@@ -186,11 +186,12 @@ string llc(const string output_path, Module &module) {
   // Set up a pass manager to schedule the optimizations.
   legacy::PassManager pass_manager;
 
-  // Add the optimizations supported for this target.
+  // Add information about which built-in functions (from the C standard library)
+  // are supported for optimization purposes.
   TargetLibraryInfoImpl target_library_info_impl(triple);
   pass_manager.add(new TargetLibraryInfoWrapperPass(target_library_info_impl));
 
-  // Add a pass to emit the native assembly.
+  // Add a passes to optimize the code and emit native assembly.
   TargetOptions options;
   std::unique_ptr<TargetMachine> target_machine(target->createTargetMachine(
     triple.getTriple(),
