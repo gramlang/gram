@@ -9,4 +9,4 @@ matrix:
 install:
   - make install-deps
 script:
-  - make NPROCS=4 && sudo make install
+  - make && sudo make install
