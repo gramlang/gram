@@ -147,7 +147,7 @@ string execute_file(const string &path, const vector<string> &args, const string
 }
 
 // Compile an LLVM module into a native binary.
-string llc(const string output_path, Module &module) {
+void llc(const string output_path, Module &module) {
   // Verify the module.
   SmallString<0> module_error;
   raw_svector_ostream module_error_ostream(module_error);
@@ -213,10 +213,10 @@ string llc(const string output_path, Module &module) {
   cc_args.push_back("assembler");
   cc_args.push_back("-");
   try {
-    return execute_file("clang", cc_args, native_asm.str());
+    execute_file("clang", cc_args, native_asm.str());
   } catch(runtime_error &e) {
     try {
-      return execute_file("gcc", cc_args, native_asm.str());
+      execute_file("gcc", cc_args, native_asm.str());
     } catch(runtime_error &e) {
       throw runtime_error(
         "Unable to invoke Clang or GCC. Ensure that at least one of these is installed."

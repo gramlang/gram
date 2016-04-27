@@ -18,8 +18,8 @@ std::string execute_file(
   const std::string &stdin
 );
 
-// Compile LLVM assembly into a native binary.
-// Returns the stdout from llc.
-std::string llc(const std::string output_path, llvm::Module &module);
+// Compile an LLVM module into a native binary.
+// Raises a std::runtime_error if compilation fails.
+void llc(const std::string output_path, llvm::Module &module);
 
 #endif
