@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
     cout << "  gram --help\n";
     cout << "  gram -v\n";
     cout << "  gram --version\n";
-    cout << "  gram input output\n";
+    cout << "  gram source dest\n";
     return 0;
   }
 
