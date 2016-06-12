@@ -6,7 +6,7 @@ using namespace std;
 
 int main(int argc, char *argv[]) {
   // Get the help message.
-  if (argc == 2 && (string(argv[1]) == "-h" || string(argv[1]) == "--help")) {
+  if (argc == 1 || (argc == 2 && (string(argv[1]) == "-h" || string(argv[1]) == "--help"))) {
     cout << "Gram (https://www.gram.org/)\n";
     cout << "----------------------------\n";
     cout << "Usage:\n";
