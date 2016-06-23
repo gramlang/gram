@@ -20,9 +20,6 @@
 // This object just calls llvm_shutdown() when it is destroyed.
 llvm::llvm_shutdown_obj Y;
 
-// Execute a program and return its stdout.
-// This function will use the PATH environment variable to find the program.
-// Raises a std::runtime_error if the program does not exit successfully.
 std::string gram::execute_program(
   const std::string &path,
   const std::vector<std::string> &args,
@@ -146,7 +143,6 @@ std::string gram::execute_program(
   }
 }
 
-// Compile an LLVM module into a native binary.
 void gram::llc(const std::string output_path, llvm::Module &module) {
   // Verify the module.
   llvm::SmallString<0> module_error;

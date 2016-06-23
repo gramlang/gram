@@ -13,6 +13,7 @@
 namespace gram {
 
   // Execute a program and return its stdout.
+  // This function will use the PATH environment variable to find the program.
   // Raises a std::runtime_error if the program does not exit successfully.
   std::string execute_program(
     const std::string &path,
