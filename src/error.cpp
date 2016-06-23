@@ -1,11 +1,9 @@
 #include "error.h"
 
-using namespace std;
-
-error::error(string message) {
+gram::error::error(std::string message) {
   this->message = message;
 }
 
-string error::what() {
+std::string gram::error::what() {
   return message;
 }

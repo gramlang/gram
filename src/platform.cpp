@@ -18,20 +18,21 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 
-using namespace std;
-using namespace llvm;
-
 // This object just calls llvm_shutdown() when it is destroyed.
-llvm_shutdown_obj Y;
+llvm::llvm_shutdown_obj Y;
 
 // Execute a program. Returns the output of the program.
 // This function will use the PATH environment variable to find the program.
 // Raises a std::runtime_error if the program does not exit successfully.
-string execute_file(const string &path, const vector<string> &args, const string &stdin) {
+std::string gram::execute_file(
+  const std::string &path,
+  const std::vector<std::string> &args,
+  const std::string &stdin
+) {
   // Set up a pipe to send data to the stdin of the child.
   int parent_to_child[2];
   if (pipe(parent_to_child) == -1) {
-    throw runtime_error("An unexpected error occurred.");
+    throw std::runtime_error("An unexpected error occurred.");
   }
 
   // Set up a pipe to capture the stdout of the child.
@@ -39,7 +40,7 @@ string execute_file(const string &path, const vector<string> &args, const string
   if (pipe(child_to_parent) == -1) {
     close(parent_to_child[1]);
     close(parent_to_child[0]);
-    throw runtime_error("An unexpected error occurred.");
+    throw std::runtime_error("An unexpected error occurred.");
   }
 
   // Fork a child process to run the command.
@@ -50,14 +51,14 @@ string execute_file(const string &path, const vector<string> &args, const string
     close(parent_to_child[0]);
     close(child_to_parent[1]);
     close(child_to_parent[0]);
-    throw runtime_error("An unexpected error occurred.");
+    throw std::runtime_error("An unexpected error occurred.");
   } else if (pid == 0) {
     // Set up stdin and stdout.
     while (dup2(parent_to_child[0], STDIN_FILENO) == -1) {
       if (errno == EINTR) {
         continue;
       } else {
-        throw runtime_error("An unexpected error occurred.");
+        throw std::runtime_error("An unexpected error occurred.");
       }
     }
     while (dup2(child_to_parent[1], STDOUT_FILENO) == -1) {
@@ -66,7 +67,7 @@ string execute_file(const string &path, const vector<string> &args, const string
       } else {
         close(parent_to_child[1]);
         close(parent_to_child[0]);
-        throw runtime_error("An unexpected error occurred.");
+        throw std::runtime_error("An unexpected error occurred.");
       }
     }
 
@@ -89,7 +90,7 @@ string execute_file(const string &path, const vector<string> &args, const string
 
     // If we got this far, execv failed.
     delete [] argv;
-    throw runtime_error("An unexpected error occurred.");
+    throw std::runtime_error("An unexpected error occurred.");
   } else {
     // We don't need these descriptors anymore.
     close(parent_to_child[0]);
@@ -102,13 +103,13 @@ string execute_file(const string &path, const vector<string> &args, const string
       } else {
         close(parent_to_child[1]);
         close(child_to_parent[0]);
-        throw runtime_error("An unexpected error occurred.");
+        throw std::runtime_error("An unexpected error occurred.");
       }
     }
     close(parent_to_child[1]);
 
     // Read the output of the child and close the pipe.
-    string stdout;
+    std::string stdout;
     char buffer[4096];
     while (true) {
       ssize_t count = read(child_to_parent[0], buffer, sizeof(buffer));
@@ -117,7 +118,7 @@ string execute_file(const string &path, const vector<string> &args, const string
           continue;
         } else {
           close(child_to_parent[0]);
-          throw runtime_error("An unexpected error occurred.");
+          throw std::runtime_error("An unexpected error occurred.");
         }
       } else if (count == 0) {
         break;
@@ -133,13 +134,13 @@ string execute_file(const string &path, const vector<string> &args, const string
       if (errno == EINTR) {
         continue;
       } else {
-        throw runtime_error("An unexpected error occurred.");
+        throw std::runtime_error("An unexpected error occurred.");
       }
     }
 
     // Make sure the process exited successfully.
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
-      throw runtime_error("The child process did not exit successfully.");
+      throw std::runtime_error("The child process did not exit successfully.");
     }
 
     return stdout;
@@ -147,58 +148,61 @@ string execute_file(const string &path, const vector<string> &args, const string
 }
 
 // Compile an LLVM module into a native binary.
-void llc(const string output_path, Module &module) {
+void gram::llc(const std::string output_path, llvm::Module &module) {
   // Verify the module.
-  SmallString<0> module_error;
-  raw_svector_ostream module_error_ostream(module_error);
-  if (verifyModule(module, &module_error_ostream)) {
-    throw runtime_error(("LLVM module verification failed: " + module_error).str());
+  llvm::SmallString<0> module_error;
+  llvm::raw_svector_ostream module_error_ostream(module_error);
+  if (llvm::verifyModule(module, &module_error_ostream)) {
+    throw std::runtime_error(("LLVM module verification failed: " + module_error).str());
   }
 
   // The native assembly will be written to this string.
-  SmallString<0> native_asm;
+  llvm::SmallString<0> native_asm;
 
   // Initialize targets.
-  InitializeAllTargets();
-  InitializeAllTargetMCs();
-  InitializeAllAsmPrinters();
-  InitializeAllAsmParsers();
+  llvm::InitializeAllTargets();
+  llvm::InitializeAllTargetMCs();
+  llvm::InitializeAllAsmPrinters();
+  llvm::InitializeAllAsmParsers();
 
   // Get the target triple for this machine.
-  Triple triple;
-  triple.setTriple(sys::getDefaultTargetTriple());
+  llvm::Triple triple;
+  triple.setTriple(llvm::sys::getDefaultTargetTriple());
 
   // Match the triple to a target.
   std::string target_error;
-  const Target *target = TargetRegistry::lookupTarget(triple.getTriple(), target_error);
+  const llvm::Target *target = llvm::TargetRegistry::lookupTarget(
+    triple.getTriple(),
+    target_error
+  );
   if (!target) {
-    throw runtime_error("Unable to find LLVM target for triple " + triple.getTriple() + ".");
+    throw std::runtime_error("Unable to find LLVM target for triple " + triple.getTriple() + ".");
   }
 
   // Set up a pass manager to schedule the optimizations.
-  legacy::PassManager pass_manager;
+  llvm::legacy::PassManager pass_manager;
 
   // Add information about which built-in functions (from the C standard library)
   // are supported for optimization purposes.
-  TargetLibraryInfoImpl target_library_info_impl(triple);
-  pass_manager.add(new TargetLibraryInfoWrapperPass(target_library_info_impl));
+  llvm::TargetLibraryInfoImpl target_library_info_impl(triple);
+  pass_manager.add(new llvm::TargetLibraryInfoWrapperPass(target_library_info_impl));
 
   // Add a passes to optimize the code and emit native assembly.
-  TargetOptions options;
-  std::unique_ptr<TargetMachine> target_machine(target->createTargetMachine(
+  llvm::TargetOptions options;
+  std::unique_ptr<llvm::TargetMachine> target_machine(target->createTargetMachine(
     triple.getTriple(),
     "",
     "",
     options,
-    Reloc::Default,
-    CodeModel::Default,
-    CodeGenOpt::Aggressive
+    llvm::Reloc::Default,
+    llvm::CodeModel::Default,
+    llvm::CodeGenOpt::Aggressive
   ));
-  raw_svector_ostream native_asm_ostream(native_asm);
+  llvm::raw_svector_ostream native_asm_ostream(native_asm);
   target_machine->addPassesToEmitFile(
     pass_manager,
     native_asm_ostream,
-    TargetMachine::CGFT_AssemblyFile
+    llvm::TargetMachine::CGFT_AssemblyFile
   );
   module.setDataLayout(target_machine->createDataLayout());
 
@@ -206,19 +210,19 @@ void llc(const string output_path, Module &module) {
   pass_manager.run(module);
 
   // Assemble and link with Clang or GCC (whichever is available).
-  vector<string> cc_args;
+  std::vector<std::string> cc_args;
   cc_args.push_back("-o");
   cc_args.push_back(output_path);
   cc_args.push_back("-x");
   cc_args.push_back("assembler");
   cc_args.push_back("-");
   try {
-    execute_file("clang", cc_args, native_asm.str());
-  } catch(runtime_error &e) {
+    gram::execute_file("clang", cc_args, native_asm.str());
+  } catch(std::runtime_error &e) {
     try {
-      execute_file("gcc", cc_args, native_asm.str());
-    } catch(runtime_error &e) {
-      throw runtime_error(
+      gram::execute_file("gcc", cc_args, native_asm.str());
+    } catch(std::runtime_error &e) {
+      throw std::runtime_error(
         "Unable to invoke Clang or GCC. Ensure that at least one of these is installed."
       );
     }

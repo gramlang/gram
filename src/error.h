@@ -7,13 +7,17 @@
 
 #include <string>
 
-class error {
-private:
-  std::string message;
+namespace gram {
 
-public:
-  error(std::string message);
-  std::string what();
-};
+  class error {
+  private:
+    std::string message;
+
+  public:
+    error(std::string message);
+    std::string what();
+  };
+
+}
 
 #endif
