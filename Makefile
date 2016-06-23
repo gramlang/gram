@@ -19,7 +19,7 @@ override CC=$(shell ./which-compiler.sh CC)
 override CXX=$(shell ./which-compiler.sh CXX)
 
 # The sources to compile relative to the src/ directory.
-override SOURCES=main.cpp compiler.cpp error.cpp platform.cpp
+override SOURCES=main.cpp compiler.cpp error.cpp platform.cpp token.cpp ast.cpp
 
 # The targets will be placed in the build/bin/ directory.
 override TARGETS=gram
@@ -40,19 +40,9 @@ install: all
 uninstall:
 	rm $(addprefix $(PREFIX)/,$(TARGETS))
 
-build/bin/gram: $(addprefix src/,$(SOURCES)) build/llvm/build/bin/llvm-config build/obj/utf8proc.o
+build/bin/gram: $(addprefix src/,$(SOURCES)) build/llvm/build/bin/llvm-config
 	mkdir -p build/bin
-	$(CXX) $(addprefix src/,$(SOURCES)) build/obj/utf8proc.o -Ibuild/utf8proc $(shell build/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs) -o build/bin/gram
-
-build/obj/utf8proc.o: $(addprefix build/utf8proc/,utf8proc.h utf8proc.c utf8proc_data.c)
-	mkdir -p build/obj
-	$(CC) -Ibuild/utf8proc -c build/utf8proc/utf8proc.c -o build/obj/utf8proc.o
-
-$(addprefix build/utf8proc/,utf8proc.h utf8proc.c utf8proc_data.c): deps/utf8proc.tar.gz
-	rm -rf build/utf8proc
-	mkdir -p build/utf8proc
-	tar -xf deps/utf8proc.tar.gz -C build/utf8proc --strip-components=1
-	find build/utf8proc -exec touch {} \;
+	$(CXX) $(addprefix src/,$(SOURCES)) $(shell build/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs) -o build/bin/gram
 
 build/llvm/build/bin/llvm-config: deps/llvm-3.8.0.src.tar.xz
 	rm -rf build/llvm

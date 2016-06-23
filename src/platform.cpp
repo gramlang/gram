@@ -1,11 +1,5 @@
 #include "platform.h"
-
 #include <errno.h>
-#include <stdexcept>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <unistd.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
@@ -17,6 +11,11 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+#include <stdexcept>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 // This object just calls llvm_shutdown() when it is destroyed.
 llvm::llvm_shutdown_obj Y;

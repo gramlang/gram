@@ -1,14 +1,9 @@
 #include "compiler.h"
-#include "platform.h"
 #include "error.h"
-
-#include <stdexcept>
+#include "platform.h"
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
-
-extern "C" {
-  #include <utf8proc.h>
-}
+#include <stdexcept>
 
 void gram::compile(std::string input_path, std::string output_path) {
   try {

@@ -1,6 +1,5 @@
 #include "compiler.h"
 #include "error.h"
-
 #include <iostream>
 
 int main(int argc, char *argv[]) {

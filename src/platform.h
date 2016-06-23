@@ -6,9 +6,9 @@
 #ifndef GRAM_PLATFORM_H
 #define GRAM_PLATFORM_H
 
+#include <llvm/IR/Module.h>
 #include <string>
 #include <vector>
-#include <llvm/IR/Module.h>
 
 namespace gram {
 
