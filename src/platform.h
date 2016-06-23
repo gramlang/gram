@@ -12,9 +12,9 @@
 
 namespace gram {
 
-  // Execute a program. Returns the stdout from the program.
+  // Execute a program and return its stdout.
   // Raises a std::runtime_error if the program does not exit successfully.
-  std::string execute_file(
+  std::string execute_program(
     const std::string &path,
     const std::vector<std::string> &args,
     const std::string &stdin

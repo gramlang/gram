@@ -20,10 +20,10 @@
 // This object just calls llvm_shutdown() when it is destroyed.
 llvm::llvm_shutdown_obj Y;
 
-// Execute a program. Returns the output of the program.
+// Execute a program and return its stdout.
 // This function will use the PATH environment variable to find the program.
 // Raises a std::runtime_error if the program does not exit successfully.
-std::string gram::execute_file(
+std::string gram::execute_program(
   const std::string &path,
   const std::vector<std::string> &args,
   const std::string &stdin
@@ -216,10 +216,10 @@ void gram::llc(const std::string output_path, llvm::Module &module) {
   cc_args.push_back("assembler");
   cc_args.push_back("-");
   try {
-    gram::execute_file("clang", cc_args, native_asm.str());
+    gram::execute_program("clang", cc_args, native_asm.str());
   } catch(std::runtime_error &e) {
     try {
-      gram::execute_file("gcc", cc_args, native_asm.str());
+      gram::execute_program("gcc", cc_args, native_asm.str());
     } catch(std::runtime_error &e) {
       throw std::runtime_error(
         "Unable to invoke Clang or GCC. Ensure that at least one of these is installed."
