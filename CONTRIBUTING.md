@@ -6,13 +6,11 @@ All code must strictly adhere to the appropriate style guide. If the style guide
 
 ## C++ style guide
 
-### Line length
+### Formatting
 
 Lines should not exceed 99 characters.
 
-**Motivation:** We don't want lines to grow without bound. The limit was chosen so that the code can be safely displayed on 100-column displays without wrapping.
-
-### Indentation
+**Motivation:** We don't want lines to grow without bound. The limit, while somewhat arbitrary, was chosen so that the code can be safely displayed on 100-column displays without wrapping.
 
 The unit for indentation is two spaces.
 
@@ -27,6 +25,8 @@ if (condition) {
   doSomethingElse();
 }
 ```
+
+**Motivation:** This is somewhat arbitrary, but we want to choose a convention and be consistent everywhere.
 
 ### Header files
 
