@@ -2,15 +2,15 @@
 
 Thank you for your interest in contributing! You can contribute by filing [issues](https://github.com/gramlang/gram/issues) and submitting [pull requests](https://github.com/gramlang/gram/pulls).
 
-All code must strictly adhere to the appropriate style guide. If the style guide is changed, then any applicable code must be changed accordingly. For any matters not prescribed by the style guide, be consistent with existing code.
+All code must strictly adhere to the appropriate style guide. If a style guide is changed, then any applicable code must be changed accordingly. For any matters not prescribed by a style guide, be consistent with existing code.
 
 ## C++ style guide
 
 ### Formatting
 
-Lines should not exceed 99 characters.
+Lines should not exceed 100 bytes, including the line feed.
 
-**Motivation:** We don't want lines to grow without bound. The limit, while somewhat arbitrary, was chosen so that the code can be safely displayed on 100-column displays without wrapping.
+**Motivation:** We don't want lines to grow without bound.
 
 The unit for indentation is two spaces.
 
@@ -62,9 +62,9 @@ Put all platform-specific code in the [`src/platform.cpp`](https://github.com/gr
 
 ### Formatting
 
-Lines should not exceed 99 characters.
+Lines should not exceed 100 bytes, including the line feed.
 
-**Motivation:** We don't want lines to grow without bound. The limit, while somewhat arbitrary, was chosen so that the code can be safely displayed on 100-column displays without wrapping.
+**Motivation:** We don't want lines to grow without bound.
 
 The unit for indentation is two spaces.
 
