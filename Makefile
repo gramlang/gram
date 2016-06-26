@@ -1,28 +1,19 @@
-# These options can be specified by the user, for example:
+# These options can be overridden by the user, for example:
 # $ make NPROCS=4 BUILD_TYPE=Debug
 # $ make install PREFIX=~/bin
-PREFIX=/usr/local/bin
-NPROCS=1
-BUILD_TYPE=Release
-
-# Try to determine how many cores are available.
-override OS=$(shell uname -s)
-ifeq ($(OS),Linux)
-  NPROCS=$(shell grep -c ^processor /proc/cpuinfo)
-endif
-ifeq ($(OS),Darwin) # Assume OS X.
-  NPROCS:=$(shell sysctl -n hw.ncpu)
-endif
+PREFIX := /usr/local/bin
+NPROCS := $(shell ./scripts/count-cores.sh)
+BUILD_TYPE := Release
 
 # Determine which compiler to use.
-override CC=$(shell ./which-compiler.sh CC)
-override CXX=$(shell ./which-compiler.sh CXX)
+override CC := $(shell ./scripts/get-compiler.sh CC)
+override CXX := $(shell ./scripts/get-compiler.sh CXX)
 
 # The sources to compile relative to the src/ directory.
-override SOURCES=main.cpp compiler.cpp error.cpp platform.cpp token.cpp ast.cpp
+override SOURCES := main.cpp compiler.cpp error.cpp platform.cpp token.cpp ast.cpp
 
 # The targets will be placed in the build/bin/ directory.
-override TARGETS=gram
+override TARGETS := gram
 
 .PHONY: all clean install-deps install uninstall
 
@@ -32,7 +23,7 @@ clean:
 	rm -rf build
 
 install-deps:
-	./install-deps.sh
+	./scripts/install-deps.sh
 
 install: all
 	cp $(addprefix build/bin/,$(TARGETS)) $(PREFIX)

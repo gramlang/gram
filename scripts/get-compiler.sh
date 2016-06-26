@@ -4,8 +4,8 @@ set -eu -o pipefail
 # This script tries to find a version of GCC >= 4.9 or Clang >= 3.1.
 
 # Usage:
-#   ./which-compiler.sh CC
-#   ./which-compiler.sh CXX
+#   ./get-compiler.sh CC
+#   ./get-compiler.sh CXX
 
 # These variables will store the compiler names.
 CC=NONE
