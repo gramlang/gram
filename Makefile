@@ -42,7 +42,7 @@ build/llvm/build/bin/llvm-config: deps/llvm-3.8.0.src.tar.xz
 	tar -xf deps/llvm-3.8.0.src.tar.xz -C build/llvm/llvm --strip-components=1
 	mkdir -p build/llvm/build
 	cd build/llvm/build && cmake ../llvm \
-		-G "Unix Makefiles" \
+		-G 'Unix Makefiles' \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 		-DCMAKE_C_COMPILER=$(CC) \
 		-DCMAKE_CXX_COMPILER=$(CXX) \
