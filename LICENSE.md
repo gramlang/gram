@@ -1,6 +1,6 @@
 # License
 
-The Gram Programming Language is licensed under the MIT License.
+The Gram Programming Language is distributed under the MIT License.
 
 > Copyright (c) 2016 Stephan Boyer
 >
