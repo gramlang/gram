@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 
-# This script tries to download and install any build tools needed to build Gram.
+# This script tries to download and install the build tools needed to build Gram:
+# - GNU Make >= 3.79.1
+# - GCC >= 4.9 or Clang >= 3.1
+# - CMake >= 2.8.12.2
 
 # Usage:
 #   ./install-deps.sh
