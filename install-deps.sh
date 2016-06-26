@@ -6,7 +6,8 @@ set -eu -o pipefail
 # Install make if necessary.
 # Gram requires GNU Make >= 3.79.1.
 echo 'Looking for sufficient make...'
-if ! (which make >/dev/null 2>&1 && (make --version | grep -qi 'make \(3\.79\)\|\(3\.8[0-2]\)\|\(4\.\)')); then
+if ! (which make >/dev/null 2>&1 &&
+  (make --version | grep -qi 'make \(3\.79\)\|\(3\.8[0-2]\)\|\(4\.\)')); then
   if (uname | grep -qi 'darwin') && which xcode-select; then # OS X
     # Install the Command Line Tools for Xcode.
     echo 'Installing the Command Line Tools for Xcode...'
@@ -37,7 +38,9 @@ if (echo "$CC" | grep -qi 'none') || (echo "$CXX" | grep -qi 'none'); then
     echo 'Updating apt-get index...'
     sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
   fi
-  if (uname -a | grep -qi 'ubuntu\|debian') && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install build-essential | grep -qi '\(gcc (4\.9\.\)\|\(gcc ([5-9]\.\)'); then # Ubuntu
+  if (uname -a | grep -qi 'ubuntu\|debian') &&
+    (DEBIAN_FRONTEND=noninteractive apt-get -Vs install build-essential |
+      grep -qi '\(gcc (4\.9\.\)\|\(gcc ([5-9]\.\)'); then # Ubuntu
     # Install build-essential.
     echo 'Installing build-essential via apt-get...'
     sudo DEBIAN_FRONTEND=noninteractive apt-get -y install build-essential
@@ -45,8 +48,10 @@ if (echo "$CC" | grep -qi 'none') || (echo "$CXX" | grep -qi 'none'); then
     if uname -a | grep -qi 'ubuntu'; then # Ubuntu
       # Install gcc-4.9 and g++-4.9.
       echo 'Installing gcc-4.9 and g++-4.9 via apt-get...'
-      sudo DEBIAN_FRONTEND=noninteractive apt-get -y install software-properties-common python-software-properties # For add-apt-repository
-      sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y ppa:ubuntu-toolchain-r/test # For gcc-4.9 and g++-4.9
+      sudo DEBIAN_FRONTEND=noninteractive apt-get -y install \
+        software-properties-common python-software-properties # For add-apt-repository
+      sudo DEBIAN_FRONTEND=noninteractive add-apt-repository -y \
+        ppa:ubuntu-toolchain-r/test # For gcc-4.9 and g++-4.9
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y install gcc-4.9 g++-4.9
     else
@@ -70,7 +75,8 @@ echo "Found $CXX: $($CXX --version | head -n 1)"
 # Install CMake if necessary.
 # Gram requires CMake >= 2.8.12.2.
 echo 'Looking for sufficient cmake...'
-if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -qi 'cmake version 3')); then
+if ! (which cmake >/dev/null 2>&1 &&
+  (cmake --version | grep -qi 'cmake version 3')); then
   echo 'No sufficient cmake found.'
   if (uname | grep -qi 'darwin') && which brew >/dev/null 2>&1; then # OS X + Homebrew
     # Install via Homebrew.
@@ -83,7 +89,9 @@ if ! (which cmake >/dev/null 2>&1 && (cmake --version | grep -qi 'cmake version 
       echo 'Updating apt-get index...'
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
     fi
-    if (uname -a | grep -qi 'ubuntu\|debian') && (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake | grep -qi 'cmake (3\.'); then # Ubuntu
+    if (uname -a | grep -qi 'ubuntu\|debian') &&
+      (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake |
+        grep -qi 'cmake (3\.'); then # Ubuntu
       # Install via apt-get.
       echo 'Installing cmake via apt-get...'
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y install cmake
