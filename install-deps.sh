@@ -1,7 +1,7 @@
-#!/bin/sh
+#!/usr/bin/env bash
+set -eu -o pipefail
 
-# Exit immediately if any command fails.
-set -e
+# This script tries to download and install any build tools needed to build Gram.
 
 # Install make if necessary.
 # Gram requires GNU Make >= 3.79.1.

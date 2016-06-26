@@ -57,3 +57,26 @@ Do not use `using` directives, such as `using namespace std`.
 Put all platform-specific code in the [`src/platform.cpp`](https://github.com/gramlang/gram/blob/master/src/platform.cpp) file.
 
 **Motivation:** If we want to port the code to a new platform, then we only have to port one file.
+
+## Bash style guide
+
+### Formatting
+
+Lines should not exceed 99 characters.
+
+**Motivation:** We don't want lines to grow without bound. The limit, while somewhat arbitrary, was chosen so that the code can be safely displayed on 100-column displays without wrapping.
+
+The unit for indentation is two spaces.
+
+**Motivation:** This is somewhat arbitrary, but we want to choose a convention and be consistent everywhere.
+
+### Safety
+
+Scripts should include the following prefix at the top of the file:
+
+```bash
+#!/usr/bin/env bash
+set -eu -o pipefail
+```
+
+**Motivation:** The first line is a shebang which locates a user's preferred Bash, rather than assuming it is the one located at `/bin/bash`. The second line causes the script to fail fast in case of an error, and to treat unset variables as an error.
