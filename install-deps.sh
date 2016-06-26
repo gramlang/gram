@@ -3,6 +3,9 @@ set -eu -o pipefail
 
 # This script tries to download and install any build tools needed to build Gram.
 
+# Usage:
+#   ./install-deps.sh
+
 # Install make if necessary.
 # Gram requires GNU Make >= 3.79.1.
 echo 'Looking for sufficient make...'
