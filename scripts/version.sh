@@ -5,24 +5,27 @@ set -eu -o pipefail
 # The output is printed to stdout; no actual files are written.
 
 # Usage:
-#   ./make-version.sh BUILD_TYPE
+#   ./version.sh BUILD_TYPE
 
 # The source of truth for the version number.
-VERSION="0.0.1"
-
-# Get the build type (release or debug).
-BUILD_TYPE="$1"
+VERSION='0.0.1'
 
 # Fetch the git commit hash.
 if git diff --quiet HEAD >/dev/null 2>&1; then
   COMMIT_HASH="$(git rev-parse --verify HEAD^{commit})"
 else
-  # Unless this is a debug build, fail if the working tree doesn't match HEAD.
-  if echo "$BUILD_TYPE" | grep -qi 'debug'; then
-    COMMIT_HASH=""
+  COMMIT_HASH=''
+fi
+
+# Get the build type (release or debug).
+if test "$#" -ne 1; then
+  echo 'Missing build type.'
+  exit 1
+else
+  if test "$1" = 'release' || test "$1" = 'debug'; then
+    BUILD_TYPE="$1"
   else
-    echo "The working tree does not match any commit." >&2
-    exit 1
+    echo "BUILD_TYPE must be 'release' or 'debug'"
   fi
 fi
 
@@ -33,5 +36,6 @@ cat <<-ENDOFMESSAGE
 namespace gram {
   const char *VERSION = "$VERSION";
   const char *COMMIT_HASH = $(test -z "$COMMIT_HASH" && echo '0' || echo "\"$COMMIT_HASH\"");
+  const char *BUILD_TYPE = "$BUILD_TYPE";
 }
 ENDOFMESSAGE

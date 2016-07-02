@@ -9,6 +9,7 @@
 namespace gram {
   extern const char *VERSION;
   extern const char *COMMIT_HASH; // NULL if not built from a clean commit
+  extern const char *BUILD_TYPE;
 }
 
 #endif
