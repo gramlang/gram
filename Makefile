@@ -25,7 +25,7 @@ else
 endif
 override BUILD_PREFIX := build/$(BUILD_TYPE)
 
-.PHONY: all clean install-deps install uninstall
+.PHONY: all clean clean-all install-deps install uninstall
 
 all: $(addprefix $(BUILD_PREFIX)/bin/,$(TARGETS))
 
