@@ -32,6 +32,6 @@ cat <<-ENDOFMESSAGE
 
 namespace gram {
   const char *VERSION = "$VERSION";
-  const char *COMMIT_HASH = "$COMMIT_HASH";
+  const char *COMMIT_HASH = $(test -z "$COMMIT_HASH" && echo '0' || echo "\"$COMMIT_HASH\"");
 }
 ENDOFMESSAGE

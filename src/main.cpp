@@ -23,7 +23,9 @@ int main(int argc, char *argv[]) {
   // Get the version information.
   if (argc == 2 && (std::string(argv[1]) == "-v" || std::string(argv[1]) == "--version")) {
     std::cout << "Gram " << gram::VERSION << "\n";
-    std::cout << gram::COMMIT_HASH << "\n";
+    if (gram::COMMIT_HASH) {
+      std::cout << gram::COMMIT_HASH << "\n";
+    }
     return 0;
   }
 
