@@ -4,6 +4,8 @@ Thank you for your interest in contributing! You can contribute by filing [issue
 
 All code must strictly adhere to the appropriate style guide. If a style guide is changed, then any applicable code must be changed accordingly. For any matters not prescribed by a style guide, be consistent with existing code.
 
+All code must pass the linters in order to be accepted. To install the linting tools, run `make install-lint-deps`. Then run `make lint` to run the linters.
+
 ## C++ style guide
 
 ### Formatting

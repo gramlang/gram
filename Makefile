@@ -25,7 +25,7 @@ else
 endif
 override BUILD_PREFIX := build/$(BUILD_TYPE)
 
-.PHONY: all clean clean-all install-deps install uninstall
+.PHONY: all clean clean-all lint install-deps install uninstall
 
 all: $(addprefix $(BUILD_PREFIX)/bin/,$(TARGETS))
 
@@ -35,8 +35,14 @@ clean:
 clean-all:
 	rm -rf build
 
+lint:
+	shellcheck scripts/*.sh
+
 install-deps:
 	./scripts/install-deps.sh
+
+install-lint-deps:
+	./scripts/install-lint-deps.sh
 
 install: all
 	cp $(addprefix $(BUILD_PREFIX)/bin/,$(TARGETS)) $(PREFIX)
