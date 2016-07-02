@@ -12,7 +12,7 @@ VERSION='0.0.1'
 
 # Fetch the git commit hash.
 if git diff --quiet HEAD >/dev/null 2>&1; then
-  COMMIT_HASH="$(git rev-parse --verify HEAD^{commit})"
+  COMMIT_HASH="$(git rev-parse --verify 'HEAD^{commit}')"
 else
   COMMIT_HASH=''
 fi
