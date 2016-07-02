@@ -32,8 +32,10 @@ uninstall:
 	rm $(addprefix $(PREFIX)/,$(TARGETS))
 
 build/bin/gram: $(addprefix src/,$(SOURCES)) build/llvm/build/bin/llvm-config
+	mkdir -p build/gram
+	./scripts/version.sh > build/gram/version.cpp
 	mkdir -p build/bin
-	$(CXX) $(addprefix src/,$(SOURCES)) -o build/bin/gram \
+	$(CXX) $(addprefix src/,$(SOURCES)) build/gram/version.cpp -o build/bin/gram \
 		$(shell build/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs)
 
 build/llvm/build/bin/llvm-config: deps/llvm-3.8.0.src.tar.xz

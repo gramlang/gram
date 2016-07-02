@@ -1,5 +1,6 @@
 #include "compiler.h"
 #include "error.h"
+#include "version.h"
 #include <iostream>
 
 int main(int argc, char *argv[]) {
@@ -19,9 +20,10 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  // Get the version.
+  // Get the version information.
   if (argc == 2 && (std::string(argv[1]) == "-v" || std::string(argv[1]) == "--version")) {
-    std::cout << "Gram 0.0.1\n";
+    std::cout << "Gram " << gram::VERSION << "\n";
+    std::cout << gram::COMMIT_HASH << "\n";
     return 0;
   }
 
