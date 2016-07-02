@@ -48,7 +48,8 @@ $(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/llvm/buil
 	mkdir -p $(BUILD_PREFIX)/gram
 	./scripts/version.sh "$(BUILD_TYPE)" > $(BUILD_PREFIX)/gram/version.cpp
 	mkdir -p $(BUILD_PREFIX)/bin
-	$(CXX) $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/version.cpp -o $(BUILD_PREFIX)/bin/gram \
+	$(CXX) $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/version.cpp \
+		-o $(BUILD_PREFIX)/bin/gram \
 		$(shell $(BUILD_PREFIX)/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs)
 
 $(BUILD_PREFIX)/llvm/build/bin/llvm-config: deps/llvm-3.8.0.src.tar.xz
