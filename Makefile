@@ -37,7 +37,7 @@ clean-all:
 
 lint:
 	shellcheck scripts/*.sh
-	cppcheck src --enable=all --force \
+	cppcheck src --enable=all --force --error-exitcode=1 \
 		-I $(BUILD_PREFIX)/llvm/llvm/include \
 		-I $(BUILD_PREFIX)/llvm/build/include
 
