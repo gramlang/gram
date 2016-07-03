@@ -23,7 +23,7 @@ namespace gram {
 
   // Compile an LLVM module into a native binary.
   // Raises a std::runtime_error if compilation fails.
-  void llc(const std::string output_path, llvm::Module &module);
+  void llc(const std::string &output_path, llvm::Module &module);
 
 }
 

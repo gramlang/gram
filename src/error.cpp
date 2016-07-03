@@ -1,7 +1,6 @@
 #include "error.h"
 
-gram::error::error(std::string message) {
-  this->message = message;
+gram::error::error(std::string message) : message(message) {
 }
 
 std::string gram::error::what() {

@@ -37,6 +37,9 @@ clean-all:
 
 lint:
 	shellcheck scripts/*.sh
+	cppcheck src --enable=all --force \
+		-I $(BUILD_PREFIX)/llvm/llvm/include \
+		-I $(BUILD_PREFIX)/llvm/build/include
 
 install-deps:
 	./scripts/install-deps.sh
@@ -52,7 +55,7 @@ uninstall:
 
 $(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/llvm/build/bin/llvm-config
 	mkdir -p $(BUILD_PREFIX)/gram
-	./scripts/version.sh "$(BUILD_TYPE)" > $(BUILD_PREFIX)/gram/version.cpp
+	./scripts/version.sh $(BUILD_TYPE) > $(BUILD_PREFIX)/gram/version.cpp
 	mkdir -p $(BUILD_PREFIX)/bin
 	$(CXX) $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/version.cpp \
 		-o $(BUILD_PREFIX)/bin/gram \

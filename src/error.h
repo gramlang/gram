@@ -14,7 +14,7 @@ namespace gram {
     std::string message;
 
   public:
-    error(std::string message);
+    explicit error(std::string message);
     std::string what();
   };
 

@@ -143,7 +143,7 @@ std::string gram::execute_program(
   }
 }
 
-void gram::llc(const std::string output_path, llvm::Module &module) {
+void gram::llc(const std::string &output_path, llvm::Module &module) {
   // Verify the module.
   llvm::SmallString<0> module_error;
   llvm::raw_svector_ostream module_error_ostream(module_error);
