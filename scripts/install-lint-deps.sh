@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 
-# This script tries to download and install the tools needed to lint Gram:
+# This script tries to download and install the tools needed to lint:
 # - ShellCheck
 
 # Usage:
@@ -17,6 +17,7 @@ if ! (which shellcheck >/dev/null 2>&1); then
     brew install shellcheck
   else
     if uname -a | grep -qi 'ubuntu\|debian'; then # Ubuntu or Debian
+      # Install via apt-get.
       echo 'Installing shellcheck via apt-get...'
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y install shellcheck

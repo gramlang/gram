@@ -40,7 +40,7 @@ CXX="$("${BASH_SOURCE%/*}/get-compiler.sh" CXX)"
 if (echo "$CC" | grep -qi 'none') || (echo "$CXX" | grep -qi 'none'); then
   echo 'No sufficient C and C++ compilers found.'
   if uname -a | grep -qi 'ubuntu\|debian'; then # Ubuntu or Debian
-  # Update package index.
+    # Update package index.
     echo 'Updating apt-get index...'
     sudo DEBIAN_FRONTEND=noninteractive apt-get -y update
   fi
