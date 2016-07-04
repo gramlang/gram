@@ -4,19 +4,26 @@
 #include <iostream>
 
 int main(int argc, char *argv[]) {
+  // Print this message if we are unable to parse the input.
+  std::string parse_error = "Try gram --help for more information.\n";
+
   // Get the help message.
   if (
     argc == 1 ||
     (argc == 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
   ) {
-    std::cout << "Gram (https://www.gram.org/)\n";
-    std::cout << "----------------------------\n";
-    std::cout << "Usage:\n";
-    std::cout << "  gram -h\n";
-    std::cout << "  gram --help\n";
-    std::cout << "  gram -v\n";
-    std::cout << "  gram --version\n";
-    std::cout << "  gram source dest\n";
+    std::cout <<
+      "Gram (https://www.gram.org/)\n"
+      "----------------------------\n"
+      "Usage:\n"
+      "  gram -h\n"
+      "  gram --help\n"
+      "  gram -v\n"
+      "  gram --version\n"
+      "  gram source dest\n"
+      "  gram --emit-asm source dest\n"
+      "  gram --emit-llvm-asm source dest\n"
+      "  gram --emit-llvm-bitcode source dest\n";
     return 0;
   }
 
@@ -31,9 +38,23 @@ int main(int argc, char *argv[]) {
   }
 
   // Invoke the compiler.
-  if (argc == 3) {
+  if (argc == 3 || argc == 4) {
     try {
-      gram::compile(argv[1], argv[2]);
+      if (argc == 4) {
+        if (std::string(argv[1]) == "--emit-llvm-bitcode") {
+          gram::compile(argv[2], argv[3], gram::OutputType::LLVM_BITCODE);
+        } else if (std::string(argv[1]) == "--emit-llvm-asm") {
+          gram::compile(argv[2], argv[3], gram::OutputType::LLVM_ASM);
+        } else if (std::string(argv[1]) == "--emit-asm") {
+          gram::compile(argv[2], argv[3], gram::OutputType::ASM);
+        } else {
+          // We didn't recognize the syntax.
+          std::cout << parse_error;
+          return 1;
+        }
+      } else {
+        gram::compile(argv[1], argv[2], gram::OutputType::BINARY);
+      }
     } catch(gram::error &e) {
       std::cout << "Error: " << e.what() << "\n";
       return 1;
@@ -42,6 +63,6 @@ int main(int argc, char *argv[]) {
   }
 
   // We didn't recognize the syntax.
-  std::cout << "Try gram --help for more information.\n";
+  std::cout << parse_error;
   return 1;
 }

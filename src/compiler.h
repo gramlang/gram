@@ -9,7 +9,14 @@
 
 namespace gram {
 
-  void compile(std::string input_path, std::string output_path);
+  enum class OutputType {
+    ASM,
+    BINARY,
+    LLVM_ASM,
+    LLVM_BITCODE
+  };
+
+  void compile(std::string input_path, std::string output_path, gram::OutputType output_type);
 
 }
 

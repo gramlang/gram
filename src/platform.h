@@ -6,6 +6,7 @@
 #ifndef GRAM_PLATFORM_H
 #define GRAM_PLATFORM_H
 
+#include "compiler.h"
 #include <llvm/IR/Module.h>
 #include <string>
 #include <vector>
@@ -23,7 +24,7 @@ namespace gram {
 
   // Compile an LLVM module into a native binary.
   // Raises a std::runtime_error if compilation fails.
-  void llc(const std::string &output_path, llvm::Module &module);
+  void llc(const std::string &output_path, llvm::Module &module, gram::OutputType output_type);
 
 }
 

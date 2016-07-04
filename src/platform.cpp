@@ -3,8 +3,10 @@
 #include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
+#include <llvm/Bitcode/ReaderWriter.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Verifier.h>
+#include <llvm/Support/FileSystem.h>
 #include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/TargetRegistry.h>
@@ -143,12 +145,38 @@ std::string gram::execute_program(
   }
 }
 
-void gram::llc(const std::string &output_path, llvm::Module &module) {
+void gram::llc(
+  const std::string &output_path,
+  llvm::Module &module,
+  gram::OutputType output_type
+) {
   // Verify the module.
   llvm::SmallString<0> module_error;
   llvm::raw_svector_ostream module_error_ostream(module_error);
   if (llvm::verifyModule(module, &module_error_ostream)) {
     throw std::runtime_error(("LLVM module verification failed: " + module_error).str());
+  }
+
+  // Output LLVM bitcode if requested.
+  if (output_type == gram::OutputType::LLVM_BITCODE) {
+    std::error_code ec;
+    llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
+    if (ec) {
+      throw std::runtime_error("Unable to write to file: " + output_path);
+    }
+    llvm::WriteBitcodeToFile(&module, out);
+    return;
+  }
+
+  // Output LLVM assembly if requested.
+  if (output_type == gram::OutputType::LLVM_ASM) {
+    std::error_code ec;
+    llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
+    if (ec) {
+      throw std::runtime_error("Unable to write to file: " + output_path);
+    }
+    module.print(out, 0);
+    return;
   }
 
   // The native assembly will be written to this string.
@@ -203,6 +231,17 @@ void gram::llc(const std::string &output_path, llvm::Module &module) {
 
   // Run all the passes.
   pass_manager.run(module);
+
+  // Output native assembly if requested.
+  if (output_type == gram::OutputType::ASM) {
+    std::error_code ec;
+    llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
+    if (ec) {
+      throw std::runtime_error("Unable to write to file: " + output_path);
+    }
+    out << native_asm;
+    return;
+  }
 
   // Assemble and link with Clang or GCC (whichever is available).
   std::vector<std::string> cc_args;

@@ -5,7 +5,7 @@
 #include <llvm/IR/LLVMContext.h>
 #include <stdexcept>
 
-void gram::compile(std::string input_path, std::string output_path) {
+void gram::compile(std::string input_path, std::string output_path, gram::OutputType output_type) {
   try {
     llvm::LLVMContext context;
     llvm::Module module("test", context);
@@ -16,7 +16,7 @@ void gram::compile(std::string input_path, std::string output_path) {
     basic_block->getInstList().push_back(
       llvm::ReturnInst::Create(context, llvm::ConstantInt::get(llvm::Type::getInt64Ty(context), 0))
     );
-    llc(output_path, module);
+    llc(output_path, module, output_type);
   } catch(std::runtime_error &e) {
     throw error(e.what());
   }
