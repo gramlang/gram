@@ -271,7 +271,7 @@ void gram::llc(
   }
   function_pass_manager.doFinalization();
 
-  // Run all the passes.
+  // Run all the module passes.
   pass_manager.run(module);
 
   // Output LLVM bitcode if requested.
