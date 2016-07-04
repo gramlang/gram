@@ -79,7 +79,7 @@ std::string gram::execute_program(
     close(child_to_parent[0]);
 
     // Put the args into an array.
-    char **argv = new char *[args.size() + 2];
+    auto argv = new char *[args.size() + 2];
     argv[0] = const_cast<char *>(path.c_str());
     for (size_t i = 0; i < args.size(); i++) {
       argv[i + 1] = const_cast<char *>(args[i].c_str());
@@ -194,7 +194,7 @@ void gram::llc(
 
   // Match the triple to a target.
   std::string target_error;
-  const llvm::Target *target = llvm::TargetRegistry::lookupTarget(
+  const auto target = llvm::TargetRegistry::lookupTarget(
     triple.getTriple(),
     target_error
   );
