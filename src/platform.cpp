@@ -157,28 +157,6 @@ void gram::llc(
     throw std::runtime_error(("LLVM module verification failed: " + module_error).str());
   }
 
-  // Output LLVM bitcode if requested.
-  if (output_type == gram::OutputType::LLVM_BITCODE) {
-    std::error_code ec;
-    llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
-    if (ec) {
-      throw std::runtime_error("Unable to write to file: " + output_path);
-    }
-    llvm::WriteBitcodeToFile(&module, out);
-    return;
-  }
-
-  // Output LLVM assembly if requested.
-  if (output_type == gram::OutputType::LLVM_ASM) {
-    std::error_code ec;
-    llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
-    if (ec) {
-      throw std::runtime_error("Unable to write to file: " + output_path);
-    }
-    module.print(out, 0);
-    return;
-  }
-
   // The native assembly will be written to this string.
   llvm::SmallString<0> native_asm;
 
@@ -186,7 +164,6 @@ void gram::llc(
   llvm::InitializeAllTargets();
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllAsmPrinters();
-  llvm::InitializeAllAsmParsers();
 
   // Get the target triple for this machine.
   llvm::Triple triple;
@@ -210,27 +187,51 @@ void gram::llc(
   llvm::TargetLibraryInfoImpl target_library_info_impl(triple);
   pass_manager.add(new llvm::TargetLibraryInfoWrapperPass(target_library_info_impl));
 
-  // Add a passes to optimize the code and emit native assembly.
-  llvm::TargetOptions options;
-  std::unique_ptr<llvm::TargetMachine> target_machine(target->createTargetMachine(
-    triple.getTriple(),
-    "",
-    "",
-    options,
-    llvm::Reloc::Default,
-    llvm::CodeModel::Default,
-    llvm::CodeGenOpt::Aggressive
-  ));
-  llvm::raw_svector_ostream native_asm_ostream(native_asm);
-  target_machine->addPassesToEmitFile(
-    pass_manager,
-    native_asm_ostream,
-    llvm::TargetMachine::CGFT_AssemblyFile
-  );
-  module.setDataLayout(target_machine->createDataLayout());
+  // Add passes to emit native assembly if needed.
+  if (output_type == gram::OutputType::ASM || output_type == gram::OutputType::BINARY) {
+    llvm::TargetOptions options;
+    std::unique_ptr<llvm::TargetMachine> target_machine(target->createTargetMachine(
+      triple.getTriple(),
+      "",
+      "",
+      options,
+      llvm::Reloc::Default,
+      llvm::CodeModel::Default,
+      llvm::CodeGenOpt::Aggressive
+    ));
+    llvm::raw_svector_ostream native_asm_ostream(native_asm);
+    target_machine->addPassesToEmitFile(
+      pass_manager,
+      native_asm_ostream,
+      llvm::TargetMachine::CGFT_AssemblyFile
+    );
+    module.setDataLayout(target_machine->createDataLayout());
+  }
 
   // Run all the passes.
   pass_manager.run(module);
+
+  // Output LLVM bitcode if requested.
+  if (output_type == gram::OutputType::LLVM_BITCODE) {
+    std::error_code ec;
+    llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
+    if (ec) {
+      throw std::runtime_error("Unable to write to file: " + output_path);
+    }
+    llvm::WriteBitcodeToFile(&module, out);
+    return;
+  }
+
+  // Output LLVM assembly if requested.
+  if (output_type == gram::OutputType::LLVM_ASM) {
+    std::error_code ec;
+    llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
+    if (ec) {
+      throw std::runtime_error("Unable to write to file: " + output_path);
+    }
+    module.print(out, 0);
+    return;
+  }
 
   // Output native assembly if requested.
   if (output_type == gram::OutputType::ASM) {
@@ -243,22 +244,26 @@ void gram::llc(
     return;
   }
 
-  // Assemble and link with Clang or GCC (whichever is available).
-  std::vector<std::string> cc_args;
-  cc_args.push_back("-o");
-  cc_args.push_back(output_path);
-  cc_args.push_back("-x");
-  cc_args.push_back("assembler");
-  cc_args.push_back("-");
-  try {
-    gram::execute_program("clang", cc_args, native_asm.str());
-  } catch(std::runtime_error &e) {
+  // Output native code if requested.
+  if (output_type == gram::OutputType::BINARY) {
+    // Assemble and link with Clang or GCC (whichever is available).
+    std::vector<std::string> cc_args;
+    cc_args.push_back("-o");
+    cc_args.push_back(output_path);
+    cc_args.push_back("-x");
+    cc_args.push_back("assembler");
+    cc_args.push_back("-");
     try {
-      gram::execute_program("gcc", cc_args, native_asm.str());
+      gram::execute_program("clang", cc_args, native_asm.str());
     } catch(std::runtime_error &e) {
-      throw std::runtime_error(
-        "Unable to invoke Clang or GCC. Ensure that at least one of these is installed."
-      );
+      try {
+        gram::execute_program("gcc", cc_args, native_asm.str());
+      } catch(std::runtime_error &e) {
+        throw std::runtime_error(
+          "Unable to invoke Clang or GCC. Ensure that at least one of these is installed."
+        );
+      }
     }
+    return;
   }
 }
