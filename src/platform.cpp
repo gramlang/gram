@@ -188,18 +188,18 @@ void gram::llc(
   pass_manager.add(new llvm::TargetLibraryInfoWrapperPass(target_library_info_impl));
 
   // Add passes to emit native assembly if needed.
+  llvm::TargetOptions options;
+  std::unique_ptr<llvm::TargetMachine> target_machine(target->createTargetMachine(
+    triple.getTriple(),
+    "",
+    "",
+    options,
+    llvm::Reloc::Default,
+    llvm::CodeModel::Default,
+    llvm::CodeGenOpt::Aggressive
+  ));
+  llvm::raw_svector_ostream native_asm_ostream(native_asm);
   if (output_type == gram::OutputType::ASM || output_type == gram::OutputType::BINARY) {
-    llvm::TargetOptions options;
-    std::unique_ptr<llvm::TargetMachine> target_machine(target->createTargetMachine(
-      triple.getTriple(),
-      "",
-      "",
-      options,
-      llvm::Reloc::Default,
-      llvm::CodeModel::Default,
-      llvm::CodeGenOpt::Aggressive
-    ));
-    llvm::raw_svector_ostream native_asm_ostream(native_asm);
     target_machine->addPassesToEmitFile(
       pass_manager,
       native_asm_ostream,
