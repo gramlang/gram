@@ -3,6 +3,7 @@
 #include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
+#include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/Bitcode/ReaderWriter.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Verifier.h>
@@ -13,6 +14,8 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+#include <llvm/Transforms/IPO.h>
+#include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <stdexcept>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -165,6 +168,25 @@ void gram::llc(
   llvm::InitializeAllTargetMCs();
   llvm::InitializeAllAsmPrinters();
 
+  // Initialize passes.
+  llvm::PassRegistry &pass_registry = *llvm::PassRegistry::getPassRegistry();
+  llvm::initializeCore(pass_registry);
+  llvm::initializeScalarOpts(pass_registry);
+  llvm::initializeObjCARCOpts(pass_registry);
+  llvm::initializeVectorization(pass_registry);
+  llvm::initializeIPO(pass_registry);
+  llvm::initializeAnalysis(pass_registry);
+  llvm::initializeTransformUtils(pass_registry);
+  llvm::initializeInstCombine(pass_registry);
+  llvm::initializeInstrumentation(pass_registry);
+  llvm::initializeTarget(pass_registry);
+  llvm::initializeCodeGenPreparePass(pass_registry);
+  llvm::initializeAtomicExpandPass(pass_registry);
+  llvm::initializeRewriteSymbolsPass(pass_registry);
+  llvm::initializeWinEHPreparePass(pass_registry);
+  llvm::initializeDwarfEHPreparePass(pass_registry);
+  llvm::initializeSjLjEHPreparePass(pass_registry);
+
   // Get the target triple for this machine.
   llvm::Triple triple;
   triple.setTriple(llvm::sys::getDefaultTargetTriple());
@@ -179,15 +201,7 @@ void gram::llc(
     throw std::runtime_error("Unable to find LLVM target for triple " + triple.getTriple() + ".");
   }
 
-  // Set up a pass manager to schedule the optimizations.
-  llvm::legacy::PassManager pass_manager;
-
-  // Add information about which built-in functions (from the C standard library)
-  // are supported for optimization purposes.
-  llvm::TargetLibraryInfoImpl target_library_info_impl(triple);
-  pass_manager.add(new llvm::TargetLibraryInfoWrapperPass(target_library_info_impl));
-
-  // Add passes to emit native assembly if needed.
+  // Set up the target machine.
   llvm::TargetOptions options;
   std::unique_ptr<llvm::TargetMachine> target_machine(target->createTargetMachine(
     triple.getTriple(),
@@ -198,6 +212,49 @@ void gram::llc(
     llvm::CodeModel::Default,
     llvm::CodeGenOpt::Aggressive
   ));
+
+  // Set up a pass manager to schedule the optimizations.
+  llvm::legacy::PassManager pass_manager;
+  llvm::legacy::FunctionPassManager function_pass_manager(&module);
+
+  // Add information about which built-in functions (from the C standard library)
+  // are supported for optimization purposes.
+  pass_manager.add(new llvm::TargetLibraryInfoWrapperPass(triple));
+
+  // Add internal analysis passes from the target machine.
+  pass_manager.add(
+    llvm::createTargetTransformInfoWrapperPass(target_machine->getTargetIRAnalysis())
+  );
+  function_pass_manager.add(
+    llvm::createTargetTransformInfoWrapperPass(target_machine->getTargetIRAnalysis())
+  );
+
+  // Add optimization passes.
+  llvm::PassManagerBuilder pass_manager_builder;
+  pass_manager_builder.OptLevel = 3;
+  pass_manager_builder.SizeLevel = 1;
+  pass_manager_builder.Inliner = llvm::createFunctionInliningPass(
+    pass_manager_builder.OptLevel,
+    pass_manager_builder.SizeLevel
+  );
+  pass_manager_builder.DisableTailCalls = false;
+  pass_manager_builder.DisableUnitAtATime = false;
+  pass_manager_builder.DisableUnrollLoops = false;
+  pass_manager_builder.BBVectorize = true;
+  pass_manager_builder.SLPVectorize = true;
+  pass_manager_builder.LoopVectorize = true;
+  pass_manager_builder.RerollLoops = false;
+  pass_manager_builder.LoadCombine = true;
+  pass_manager_builder.DisableGVNLoadPRE = false;
+  pass_manager_builder.VerifyInput = false;
+  pass_manager_builder.VerifyOutput = false;
+  pass_manager_builder.MergeFunctions = true;
+  pass_manager_builder.PrepareForLTO = true;
+  pass_manager_builder.populateFunctionPassManager(function_pass_manager);
+  pass_manager_builder.populateModulePassManager(pass_manager);
+  pass_manager_builder.populateLTOPassManager(pass_manager);
+
+  // Add passes to emit native assembly if needed.
   llvm::raw_svector_ostream native_asm_ostream(native_asm);
   if (output_type == gram::OutputType::ASM || output_type == gram::OutputType::BINARY) {
     target_machine->addPassesToEmitFile(
@@ -205,8 +262,14 @@ void gram::llc(
       native_asm_ostream,
       llvm::TargetMachine::CGFT_AssemblyFile
     );
-    module.setDataLayout(target_machine->createDataLayout());
   }
+
+  // Run all function passes.
+  function_pass_manager.doInitialization();
+  for (llvm::Function &func : module) {
+    function_pass_manager.run(func);
+  }
+  function_pass_manager.doFinalization();
 
   // Run all the passes.
   pass_manager.run(module);
