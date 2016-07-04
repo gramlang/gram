@@ -9,7 +9,8 @@ BUILD_TYPE := release
 override CC := $(shell ./scripts/get-compiler.sh CC)
 override CXX := $(shell ./scripts/get-compiler.sh CXX)
 
-# The sources to compile relative to the src/ directory.
+# The headers and sources to compile relative to the src/ directory.
+override HEADERS := ast.h compiler.h error.h platform.h token.h version.h
 override SOURCES := main.cpp compiler.cpp error.cpp platform.cpp token.cpp ast.cpp
 
 # The targets will be placed in the $(BUILD_PREFIX)/bin/ directory.
@@ -53,7 +54,8 @@ install: all
 uninstall:
 	rm $(addprefix $(PREFIX)/,$(TARGETS))
 
-$(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/llvm/build/bin/llvm-config
+$(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
+		$(BUILD_PREFIX)/llvm/build/bin/llvm-config
 	mkdir -p $(BUILD_PREFIX)/gram
 	./scripts/version.sh $(BUILD_TYPE) > $(BUILD_PREFIX)/gram/version.cpp
 	mkdir -p $(BUILD_PREFIX)/bin
