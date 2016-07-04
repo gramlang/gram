@@ -190,6 +190,7 @@ void gram::llc(
   // Get the target triple for this machine.
   llvm::Triple triple;
   triple.setTriple(llvm::sys::getDefaultTargetTriple());
+  module.setTargetTriple(llvm::sys::getDefaultTargetTriple());
 
   // Match the triple to a target.
   std::string target_error;
@@ -212,6 +213,7 @@ void gram::llc(
     llvm::CodeModel::Default,
     llvm::CodeGenOpt::Aggressive
   ));
+  module.setDataLayout(target_machine->createDataLayout());
 
   // Set up a pass manager to schedule the optimizations.
   llvm::legacy::PassManager pass_manager;
