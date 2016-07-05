@@ -22,6 +22,19 @@ namespace gram {
     THIN_ARROW
   };
 
+  const char * const TokenTypeName[] = {
+    "BEGIN",
+    "COLON",
+    "END",
+    "EQUALS",
+    "IDENTIFIER",
+    "INTEGER",
+    "SEQUENCER",
+    "THICK_ARROW",
+    "THIN_ARROW"
+  };
+
+
   class Token {
   public:
     gram::TokenType type;
@@ -30,10 +43,11 @@ namespace gram {
     Token(gram::TokenType type, std::string literal,
       size_t start_line, size_t start_col, // Zero-indexed, inclusive
       size_t end_line, size_t end_col); // Zero-indexed, exclusive
+    std::string show();
   };
 
   // Perform lexical analysis.
-  std::vector<gram::Token> lex(std::string &source, std::string &source_name);
+  void lex(std::vector<gram::Token> &tokens, std::string &source, std::string &source_name);
 
 }
 

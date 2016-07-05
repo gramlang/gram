@@ -20,7 +20,8 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
   std::string source = file_buffer.str();
 
   // Perform lexical analysis.
-  std::vector<Token> tokens = lex(source, input_path);
+  std::vector<Token> tokens;
+  lex(tokens, source, input_path);
 
   // Temporary code generation stub.
   try {
