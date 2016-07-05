@@ -1,5 +1,5 @@
 /*
-  This header declares the tokens produced by the lexer.
+  This header declares the interface to the lexical analyzer.
 */
 
 #ifndef GRAM_LEXER_H
@@ -26,13 +26,13 @@ namespace gram {
   public:
     gram::TokenType type;
     std::string literal;
-    size_t start_line, start_col,
-    end_line, end_col;
+    size_t start_line, start_col, end_line, end_col;
     Token(gram::TokenType type, std::string literal,
       size_t start_line, size_t start_col, // Zero-indexed, inclusive
       size_t end_line, size_t end_col); // Zero-indexed, exclusive
   };
 
+  // Perform lexical analysis.
   std::vector<gram::Token> lex(std::string &source, std::string &source_name);
 
 }

@@ -14,7 +14,7 @@ gram::Token::Token(
 }
 
 std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name) {
-  std::vector<gram::Token> tokens;
+  std::vector<Token> tokens;
   size_t pos = 0;
   size_t start_line = 0;
   size_t start_col = 0;
@@ -31,13 +31,13 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
         if (start_col > 0) {
           if (indentations.empty() || start_col > indentations.back()) {
             indentations.push_back(start_col);
-            tokens.push_back(gram::Token(gram::TokenType::BEGIN,
+            tokens.push_back(Token(TokenType::BEGIN,
               source.substr(pos - start_col, start_col),
               start_line, 0, start_line + 1, start_col));
           } else if (start_col < indentations.back()) {
             while (!indentations.empty() && start_col < indentations.back()) {
               indentations.pop_back();
-              tokens.push_back(gram::Token(gram::TokenType::END,
+              tokens.push_back(Token(TokenType::END,
                 "", start_line, 0, start_line + 1, 0));
             }
             if (indentations.empty() || start_col != indentations.back()) {
@@ -45,18 +45,18 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
                 source, source_name, start_line, start_col, start_line + 1, start_col);
             }
           } else if (start_col == indentations.back() && !tokens.empty()) {
-            tokens.push_back(gram::Token(gram::TokenType::SEQUENCER, "",
+            tokens.push_back(Token(TokenType::SEQUENCER, "",
               start_line, start_col, start_line + 1, start_col));
           }
           continue;
         } else {
           if (indentations.empty() && !tokens.empty()) {
-            tokens.push_back(gram::Token(gram::TokenType::SEQUENCER, "",
+            tokens.push_back(Token(TokenType::SEQUENCER, "",
               start_line, start_col, start_line + 1, start_col));
           } else {
             while (!indentations.empty()) {
               indentations.pop_back();
-              tokens.push_back(gram::Token(gram::TokenType::END,
+              tokens.push_back(Token(TokenType::END,
                 "", start_line, 0, start_line + 1, 0));
             }
           }
@@ -64,7 +64,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
       }
     }
     if (source[pos] == '(') {
-      tokens.push_back(gram::Token(gram::TokenType::BEGIN, source.substr(pos, 1),
+      tokens.push_back(Token(TokenType::BEGIN, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
       ++start_col;
@@ -72,7 +72,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
       continue;
     }
     if (source[pos] == ')') {
-      tokens.push_back(gram::Token(gram::TokenType::END, source.substr(pos, 1),
+      tokens.push_back(Token(TokenType::END, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       if (paren_depth == 0) {
         throw error("Unmatched ')'.",
@@ -84,35 +84,35 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
       continue;
     }
     if (source[pos] == ':') {
-      tokens.push_back(gram::Token(gram::TokenType::COLON, source.substr(pos, 1),
+      tokens.push_back(Token(TokenType::COLON, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
       ++start_col;
       continue;
     }
     if (source[pos] == ';') {
-      tokens.push_back(gram::Token(gram::TokenType::SEQUENCER, source.substr(pos, 1),
+      tokens.push_back(Token(TokenType::SEQUENCER, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
       ++start_col;
       continue;
     }
     if (pos < source.size() - 1 && source.substr(pos, 2) == "=>") {
-      tokens.push_back(gram::Token(gram::TokenType::THICK_ARROW, source.substr(pos, 2),
+      tokens.push_back(Token(TokenType::THICK_ARROW, source.substr(pos, 2),
         start_line, start_col, start_line + 1, start_col + 2));
       pos += 2;
       start_col += 2;
       continue;
     }
     if (pos < source.size() - 1 && source.substr(pos, 2) == "->") {
-      tokens.push_back(gram::Token(gram::TokenType::THIN_ARROW, source.substr(pos, 2),
+      tokens.push_back(Token(TokenType::THIN_ARROW, source.substr(pos, 2),
         start_line, start_col, start_line + 1, start_col + 2));
       pos += 2;
       start_col += 2;
       continue;
     }
     if (source[pos] == '=') {
-      tokens.push_back(gram::Token(gram::TokenType::EQUALS, source.substr(pos, 1),
+      tokens.push_back(Token(TokenType::EQUALS, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
       ++start_col;
@@ -131,7 +131,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
         ++end_pos;
       }
       size_t length = end_pos - pos;
-      tokens.push_back(gram::Token(gram::TokenType::IDENTIFIER, source.substr(pos, length),
+      tokens.push_back(Token(TokenType::IDENTIFIER, source.substr(pos, length),
         start_line, start_col, start_line + 1, start_col + length));
       start_col += length;
       pos = end_pos;
@@ -145,7 +145,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
         ++end_pos;
       }
       size_t length = end_pos - pos;
-      tokens.push_back(gram::Token(gram::TokenType::INTEGER, source.substr(pos, length),
+      tokens.push_back(Token(TokenType::INTEGER, source.substr(pos, length),
         start_line, start_col, start_line + 1, start_col + length));
       start_col += length;
       pos = end_pos;
@@ -178,7 +178,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
   }
   while (!indentations.empty()) {
     indentations.pop_back();
-    tokens.push_back(gram::Token(gram::TokenType::END,
+    tokens.push_back(Token(TokenType::END,
       "", start_line, start_col, start_line + 1, start_col));
   }
   return tokens;
