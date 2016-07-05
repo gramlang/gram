@@ -25,22 +25,34 @@
 // This object just calls llvm_shutdown() when it is destroyed.
 llvm::llvm_shutdown_obj Y;
 
-std::string gram::execute_program(
+int gram::execute_program(
   const std::string &path,
   const std::vector<std::string> &args,
-  const std::string &stdin
+  const std::string &stdin,
+  std::string &stdout,
+  std::string &stderr
 ) {
   // Set up a pipe to send data to the stdin of the child.
-  int parent_to_child[2];
-  if (pipe(parent_to_child) == -1) {
+  int stdin_pipe[2];
+  if (pipe(stdin_pipe) == -1) {
     throw std::runtime_error("An unexpected error occurred.");
   }
 
   // Set up a pipe to capture the stdout of the child.
-  int child_to_parent[2];
-  if (pipe(child_to_parent) == -1) {
-    close(parent_to_child[1]);
-    close(parent_to_child[0]);
+  int stdout_pipe[2];
+  if (pipe(stdout_pipe) == -1) {
+    close(stdin_pipe[1]);
+    close(stdin_pipe[0]);
+    throw std::runtime_error("An unexpected error occurred.");
+  }
+
+  // Set up a pipe to capture the stderr of the child.
+  int stderr_pipe[2];
+  if (pipe(stderr_pipe) == -1) {
+    close(stdin_pipe[1]);
+    close(stdin_pipe[0]);
+    close(stdout_pipe[1]);
+    close(stdout_pipe[0]);
     throw std::runtime_error("An unexpected error occurred.");
   }
 
@@ -48,35 +60,50 @@ std::string gram::execute_program(
   pid_t pid = fork();
   if (pid == -1) {
     // Something went wrong.
-    close(parent_to_child[1]);
-    close(parent_to_child[0]);
-    close(child_to_parent[1]);
-    close(child_to_parent[0]);
+    close(stdin_pipe[1]);
+    close(stdin_pipe[0]);
+    close(stdout_pipe[1]);
+    close(stdout_pipe[0]);
+    close(stderr_pipe[1]);
+    close(stderr_pipe[0]);
     throw std::runtime_error("An unexpected error occurred.");
   } else if (pid == 0) {
-    // Set up stdin and stdout.
-    while (dup2(parent_to_child[0], STDIN_FILENO) == -1) {
+    // Set up stdin, stdout, and stderr.
+    while (dup2(stdin_pipe[0], STDIN_FILENO) == -1) {
       if (errno == EINTR) {
         continue;
       } else {
         throw std::runtime_error("An unexpected error occurred.");
       }
     }
-    while (dup2(child_to_parent[1], STDOUT_FILENO) == -1) {
+    while (dup2(stdout_pipe[1], STDOUT_FILENO) == -1) {
       if (errno == EINTR) {
         continue;
       } else {
-        close(parent_to_child[1]);
-        close(parent_to_child[0]);
+        close(stdin_pipe[1]);
+        close(stdin_pipe[0]);
+        throw std::runtime_error("An unexpected error occurred.");
+      }
+    }
+    while (dup2(stderr_pipe[1], STDERR_FILENO) == -1) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        close(stdin_pipe[1]);
+        close(stdin_pipe[0]);
+        close(stdout_pipe[1]);
+        close(stdout_pipe[0]);
         throw std::runtime_error("An unexpected error occurred.");
       }
     }
 
     // We don't need these descriptors anymore.
-    close(parent_to_child[1]);
-    close(parent_to_child[0]);
-    close(child_to_parent[1]);
-    close(child_to_parent[0]);
+    close(stdin_pipe[1]);
+    close(stdin_pipe[0]);
+    close(stdout_pipe[1]);
+    close(stdout_pipe[0]);
+    close(stderr_pipe[1]);
+    close(stderr_pipe[0]);
 
     // Put the args into an array.
     auto argv = new char *[args.size() + 2];
@@ -94,40 +121,53 @@ std::string gram::execute_program(
     throw std::runtime_error("An unexpected error occurred.");
   } else {
     // We don't need these descriptors anymore.
-    close(parent_to_child[0]);
-    close(child_to_parent[1]);
+    close(stdin_pipe[0]);
+    close(stdout_pipe[1]);
+    close(stderr_pipe[1]);
 
     // Send the data to the child and close the pipe.
-    while (write(parent_to_child[1], stdin.c_str(), stdin.size()) == -1) {
+    while (write(stdin_pipe[1], stdin.c_str(), stdin.size()) == -1) {
       if (errno == EINTR) {
         continue;
       } else {
-        close(parent_to_child[1]);
-        close(child_to_parent[0]);
+        close(stdin_pipe[1]);
+        close(stdout_pipe[0]);
+        close(stderr_pipe[0]);
         throw std::runtime_error("An unexpected error occurred.");
       }
     }
-    close(parent_to_child[1]);
+    close(stdin_pipe[1]);
 
     // Read the output of the child and close the pipe.
-    std::string stdout;
-    char buffer[4096];
+    stdout.clear();
+    stderr.clear();
+    char stdout_buffer[4096];
+    char stderr_buffer[4096];
     while (true) {
-      ssize_t count = read(child_to_parent[0], buffer, sizeof(buffer));
-      if (count == -1) {
-        if (errno == EINTR) {
-          continue;
-        } else {
-          close(child_to_parent[0]);
+      ssize_t stdout_count = read(stdout_pipe[0], stdout_buffer, sizeof(stdout_buffer));
+      ssize_t stderr_count = read(stderr_pipe[0], stderr_buffer, sizeof(stderr_buffer));
+      if (stdout_count == -1) {
+        if (errno != EINTR) {
+          close(stdout_pipe[0]);
           throw std::runtime_error("An unexpected error occurred.");
         }
-      } else if (count == 0) {
+      } else if (stdout_count > 0) {
+        stdout.append(stdout_buffer, stdout_count);
+      }
+      if (stderr_count == -1) {
+        if (errno != EINTR) {
+          close(stderr_pipe[0]);
+          throw std::runtime_error("An unexpected error occurred.");
+        }
+      } else if (stderr_count > 0) {
+        stderr.append(stderr_buffer, stderr_count);
+      }
+      if (stdout_count == 0 && stderr_count == 0) {
         break;
-      } else {
-        stdout.append(buffer, count);
       }
     }
-    close(child_to_parent[0]);
+    close(stdout_pipe[0]);
+    close(stderr_pipe[0]);
 
     // Wait for the child process to terminate.
     int status = 0;
@@ -140,11 +180,12 @@ std::string gram::execute_program(
     }
 
     // Make sure the process exited successfully.
-    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    if (!WIFEXITED(status)) {
       throw std::runtime_error("The child process did not exit successfully.");
     }
 
-    return stdout;
+    // Return the exit status.
+    return WEXITSTATUS(status);
   }
 }
 
@@ -318,16 +359,28 @@ void gram::llc(
     cc_args.push_back("-x");
     cc_args.push_back("assembler");
     cc_args.push_back("-");
+
+    // Try Clang first, then GCC.
+    int status;
+    std::string stdout;
+    std::string stderr;
+    std::string cc = "Clang";
     try {
-      gram::execute_program("clang", cc_args, native_asm.str());
+      status = gram::execute_program("clang", cc_args, native_asm.str(), stdout, stderr);
     } catch(std::runtime_error &e) {
+      std::string cc = "GCC";
       try {
-        gram::execute_program("gcc", cc_args, native_asm.str());
+        status = gram::execute_program("gcc", cc_args, native_asm.str(), stdout, stderr);
       } catch(std::runtime_error &e) {
         throw std::runtime_error(
           "Unable to invoke Clang or GCC. Ensure that at least one of these is installed."
         );
       }
+    }
+    if (status != 0) {
+      throw std::runtime_error(
+        cc + " failed with status " + std::to_string(status) + ".\n" + stdout + "\n" + stderr
+      );
     }
     return;
   }

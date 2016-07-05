@@ -13,13 +13,15 @@
 
 namespace gram {
 
-  // Execute a program and return its stdout.
+  // Execute a program and return its exit status.
   // This function will use the PATH environment variable to find the program.
-  // Raises a std::runtime_error if the program does not exit successfully.
-  std::string execute_program(
+  // Raises a std::runtime_error if there was a problem starting the program.
+  int execute_program(
     const std::string &path,
     const std::vector<std::string> &args,
-    const std::string &stdin
+    const std::string &stdin,
+    std::string &stdout,
+    std::string &stderr
   );
 
   // Compile an LLVM module into a native binary.
