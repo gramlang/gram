@@ -91,12 +91,14 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
     }
     if (source[pos] == '_' ||
       (source[pos] >= 'A' && source[pos] <= 'Z') ||
-      (source[pos] >= 'a' && source[pos] <= 'z')) {
+      (source[pos] >= 'a' && source[pos] <= 'z') ||
+      (source[pos] & 0x80) != 0) {
       size_t end_pos = pos + 1;
       while (end_pos < source.size() && (source[end_pos] == '_' ||
         (source[end_pos] >= 'A' && source[end_pos] <= 'Z') ||
         (source[end_pos] >= 'a' && source[end_pos] <= 'z') ||
-        (source[end_pos] >= '0' && source[end_pos] <= '9'))) {
+        (source[end_pos] >= '0' && source[end_pos] <= '9') ||
+        (source[pos] & 0x80) != 0)) {
         ++end_pos;
       }
       size_t length = end_pos - pos;
