@@ -43,13 +43,21 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
               throw error("Unmatched outdent.",
                 source, source_name, start_line, start_col, start_line + 1, start_col);
             }
+          } else if (start_col == indentations.back()) {
+            tokens.push_back(gram::Token(gram::TokenType::SEQUENCER, "",
+              start_line, start_col, start_line + 1, start_col));
           }
           continue;
         } else {
-          while (!indentations.empty()) {
-            indentations.pop_back();
-            tokens.push_back(gram::Token(gram::TokenType::END,
-              "", start_line, 0, start_line + 1, 0));
+          if (indentations.empty()) {
+            tokens.push_back(gram::Token(gram::TokenType::SEQUENCER, "",
+              start_line, start_col, start_line + 1, start_col));
+          } else {
+            while (!indentations.empty()) {
+              indentations.pop_back();
+              tokens.push_back(gram::Token(gram::TokenType::END,
+                "", start_line, 0, start_line + 1, 0));
+            }
           }
         }
       }
@@ -62,7 +70,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
       continue;
     }
     if (source[pos] == ';') {
-      tokens.push_back(gram::Token(gram::TokenType::SEMICOLON, source.substr(pos, 1),
+      tokens.push_back(gram::Token(gram::TokenType::SEQUENCER, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
       ++start_col;

@@ -17,7 +17,7 @@ namespace gram {
     EQUALS,
     IDENTIFIER,
     INTEGER,
-    SEMICOLON,
+    SEQUENCER,
     THICK_ARROW,
     THIN_ARROW
   };
