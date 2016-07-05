@@ -25,8 +25,8 @@ gram::error::error(std::string message, std::string &source, std::string &source
           for (size_t j = 0; j < end_col - start_col; ++j) {
             this->message += "^";
           }
+          this->message += "\n";
         }
-        this->message += "\n";
         break;
       }
     }
