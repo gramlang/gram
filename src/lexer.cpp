@@ -18,6 +18,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
   size_t pos = 0;
   size_t start_line = 0;
   size_t start_col = 0;
+  size_t paren_depth = 0;
   std::vector<size_t> indentations;
   while (pos < source.size()) {
     if (start_col == 0) {
@@ -26,7 +27,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
         ++start_col;
         continue;
       }
-      if (source[pos] != '\n' && source[pos] != '#') {
+      if (source[pos] != '\n' && source[pos] != '#' && paren_depth == 0) {
         if (start_col > 0) {
           if (indentations.empty() || start_col > indentations.back()) {
             indentations.push_back(start_col);
@@ -43,13 +44,13 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
               throw error("Unmatched outdent.",
                 source, source_name, start_line, start_col, start_line + 1, start_col);
             }
-          } else if (start_col == indentations.back()) {
+          } else if (start_col == indentations.back() && !tokens.empty()) {
             tokens.push_back(gram::Token(gram::TokenType::SEQUENCER, "",
               start_line, start_col, start_line + 1, start_col));
           }
           continue;
         } else {
-          if (indentations.empty()) {
+          if (indentations.empty() && !tokens.empty()) {
             tokens.push_back(gram::Token(gram::TokenType::SEQUENCER, "",
               start_line, start_col, start_line + 1, start_col));
           } else {
@@ -61,6 +62,26 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
           }
         }
       }
+    }
+    if (source[pos] == '(') {
+      tokens.push_back(gram::Token(gram::TokenType::BEGIN, source.substr(pos, 1),
+        start_line, start_col, start_line + 1, start_col + 1));
+      ++pos;
+      ++start_col;
+      ++paren_depth;
+      continue;
+    }
+    if (source[pos] == ')') {
+      tokens.push_back(gram::Token(gram::TokenType::END, source.substr(pos, 1),
+        start_line, start_col, start_line + 1, start_col + 1));
+      if (paren_depth == 0) {
+        throw error("Unmatched ')'.",
+          source, source_name, start_line, start_col, start_line + 1, start_col + 1);
+      }
+      ++pos;
+      ++start_col;
+      --paren_depth;
+      continue;
     }
     if (source[pos] == ':') {
       tokens.push_back(gram::Token(gram::TokenType::COLON, source.substr(pos, 1),
@@ -149,6 +170,10 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
       continue;
     }
     throw error("Unexpected character '" + source.substr(pos, 1) + "'.",
+      source, source_name, start_line, start_col, start_line + 1, start_col + 1);
+  }
+  if (paren_depth > 0) {
+    throw error("Missing ')'.",
       source, source_name, start_line, start_col, start_line + 1, start_col + 1);
   }
   while (!indentations.empty()) {
