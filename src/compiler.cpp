@@ -12,7 +12,7 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
   // Read the source file.
   std::ifstream file(input_path);
   if (!file.is_open()) {
-    throw error("Unable to open file '" + input_path + "'.");
+    throw Error("Unable to open file '" + input_path + "'.");
   }
   std::stringstream file_buffer;
   file_buffer << file.rdbuf();
@@ -35,6 +35,6 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
     );
     llc(output_path, module, output_type);
   } catch(std::runtime_error &e) {
-    throw error(e.what());
+    throw Error(e.what());
   }
 }

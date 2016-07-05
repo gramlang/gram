@@ -41,7 +41,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
                 "", start_line, 0, start_line + 1, 0));
             }
             if (indentations.empty() || start_col != indentations.back()) {
-              throw error("Unmatched outdent.",
+              throw Error("Unmatched outdent.",
                 source, source_name, start_line, start_col, start_line + 1, start_col);
             }
           } else if (start_col == indentations.back() && !tokens.empty()) {
@@ -75,7 +75,7 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
       tokens.push_back(Token(TokenType::END, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       if (paren_depth == 0) {
-        throw error("Unmatched ')'.",
+        throw Error("Unmatched ')'.",
           source, source_name, start_line, start_col, start_line + 1, start_col + 1);
       }
       ++pos;
@@ -169,11 +169,11 @@ std::vector<gram::Token> gram::lex(std::string &source, std::string &source_name
       start_col = 0;
       continue;
     }
-    throw error("Unexpected character '" + source.substr(pos, 1) + "'.",
+    throw Error("Unexpected character '" + source.substr(pos, 1) + "'.",
       source, source_name, start_line, start_col, start_line + 1, start_col + 1);
   }
   if (paren_depth > 0) {
-    throw error("Missing ')'.",
+    throw Error("Missing ')'.",
       source, source_name, start_line, start_col, start_line + 1, start_col + 1);
   }
   while (!indentations.empty()) {

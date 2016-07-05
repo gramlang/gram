@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
       } else {
         gram::compile(argv[1], argv[2], gram::OutputType::BINARY);
       }
-    } catch(gram::error &e) {
+    } catch(gram::Error &e) {
       std::cout << "Error: " << e.what() << "\n";
       return 1;
     }
