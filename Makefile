@@ -31,7 +31,7 @@ override BUILD_PREFIX := build/$(BUILD_TYPE)
 all: $(addprefix $(BUILD_PREFIX)/bin/,$(TARGETS))
 
 clean:
-	rm -rf $(BUILD_PREFIX)/bin
+	rm -rf $(BUILD_PREFIX)/bin $(BUILD_PREFIX)/gram
 
 clean-all:
 	rm -rf $(BUILD_PREFIX)
