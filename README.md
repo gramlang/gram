@@ -20,7 +20,7 @@ Normally, all of your CPU cores will be used to build Gram. You can override thi
 
 By default, Gram will be built in release mode for maximum performance. You can run `make BUILD_TYPE=debug` to build Gram with debugging information. This is useful if you are working on the Gram compiler.
 
-If you want to remove the artifacts created during the build process, run `make clean` with a specific build type or `make clean-all` for all build types. Normally, these files are retained so future builds can use them instead of starting from scratch.
+If you want to remove the artifacts created during the build process, run `make clean` for Gram-specific artifacts or `make clean-all` for all artifacts including dependencies. Normally, these files are retained so future builds can use them instead of starting from scratch.
 
 The default installation directory is `/usr/local/bin`. You can run `make install PREFIX=path` to install to a different directory.
 

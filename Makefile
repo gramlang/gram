@@ -31,10 +31,10 @@ override BUILD_PREFIX := build/$(BUILD_TYPE)
 all: $(addprefix $(BUILD_PREFIX)/bin/,$(TARGETS))
 
 clean:
-	rm -rf $(BUILD_PREFIX)
+	rm -rf $(BUILD_PREFIX)/bin
 
 clean-all:
-	rm -rf build
+	rm -rf $(BUILD_PREFIX)
 
 lint:
 	shellcheck scripts/*.sh
