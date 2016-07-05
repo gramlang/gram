@@ -18,7 +18,7 @@ gram::error::error(std::string message, std::string &source, std::string &source
       }
       if (line == end_line) {
         this->message += source.substr(start_pos + 1, pos - start_pos - 1) + "\n";
-        if (end_line - start_line == 1) {
+        if (end_line - start_line == 1 && end_col - start_col > 0) {
           for (size_t i = 0; i < start_col; ++i) {
             this->message += " ";
           }
