@@ -5,6 +5,7 @@ gram::error::error(std::string message) : message(message) {
 
 gram::error::error(std::string message, std::string &source, std::string &source_name,
       size_t start_line, size_t start_col, size_t end_line, size_t end_col) {
+  // cppcheck-suppress useInitializationList
   this->message = source_name +
     ":" + std::to_string(start_line + 1) +
     ":" + std::to_string(start_col + 1) + "\n" + message;
