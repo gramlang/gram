@@ -1,11 +1,28 @@
 #include "compiler.h"
 #include "error.h"
+#include "lexer.h"
 #include "platform.h"
+#include <fstream>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
+#include <sstream>
 #include <stdexcept>
 
 void gram::compile(std::string input_path, std::string output_path, gram::OutputType output_type) {
+  // Read the source file.
+  std::ifstream file(input_path);
+  if (!file.is_open()) {
+    throw error("Unable to open file '" + input_path + "'.");
+  }
+  std::stringstream file_buffer;
+  file_buffer << file.rdbuf();
+  file.close();
+  std::string source = file_buffer.str();
+
+  // Perform lexical analysis.
+  std::vector<Token> tokens = lex(source, input_path);
+
+  // Temporary code generation stub.
   try {
     llvm::LLVMContext context;
     llvm::Module module("test", context);

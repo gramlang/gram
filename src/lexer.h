@@ -1,0 +1,40 @@
+/*
+  This header declares the tokens produced by the lexer.
+*/
+
+#ifndef GRAM_LEXER_H
+#define GRAM_LEXER_H
+
+#include <string>
+#include <vector>
+
+namespace gram {
+
+  enum class TokenType {
+    BEGIN,
+    COLON,
+    END,
+    EQUALS,
+    IDENTIFIER,
+    INTEGER,
+    SEMICOLON,
+    THICK_ARROW,
+    THIN_ARROW
+  };
+
+  class Token {
+  public:
+    gram::TokenType type;
+    std::string literal;
+    size_t start_line, start_col,
+    end_line, end_col;
+    Token(gram::TokenType type, std::string literal,
+      size_t start_line, size_t start_col, // Zero-indexed, inclusive
+      size_t end_line, size_t end_col); // Zero-indexed, exclusive
+  };
+
+  std::vector<gram::Token> lex(std::string &source, std::string &source_name);
+
+}
+
+#endif

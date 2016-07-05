@@ -240,7 +240,7 @@ void gram::llc(
     target_error
   );
   if (!target) {
-    throw std::runtime_error("Unable to find LLVM target for triple " + triple.getTriple() + ".");
+    throw std::runtime_error("Unable to find LLVM target for triple '" + triple.getTriple() + "'.");
   }
 
   // Set up the target machine.
@@ -322,7 +322,7 @@ void gram::llc(
     std::error_code ec;
     llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
     if (ec) {
-      throw std::runtime_error("Unable to write to file: " + output_path);
+      throw std::runtime_error("Unable to write to file '" + output_path + "'.");
     }
     llvm::WriteBitcodeToFile(&module, out);
     return;
@@ -333,7 +333,7 @@ void gram::llc(
     std::error_code ec;
     llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
     if (ec) {
-      throw std::runtime_error("Unable to write to file: " + output_path);
+      throw std::runtime_error("Unable to write to file '" + output_path + "'.");
     }
     module.print(out, 0);
     return;
@@ -344,7 +344,7 @@ void gram::llc(
     std::error_code ec;
     llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
     if (ec) {
-      throw std::runtime_error("Unable to write to file: " + output_path);
+      throw std::runtime_error("Unable to write to file '" + output_path + "'.");
     }
     out << native_asm;
     return;
