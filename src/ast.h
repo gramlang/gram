@@ -45,8 +45,15 @@ namespace gram {
   };
 
   class Type : public Term {
-  public:
+  private:
+    static Type *instance;
     Type();
+
+  public:
+    static Type &get_instance() {
+      static Type instance;
+      return instance;
+    }
   };
 
 }
