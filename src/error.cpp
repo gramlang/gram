@@ -7,7 +7,7 @@ gram::error::error(std::string message, std::string &source, std::string &source
       size_t start_line, size_t start_col, size_t end_line, size_t end_col) {
   this->message = source_name +
     ":" + std::to_string(start_line + 1) +
-    ":" + std::to_string(start_col + 1) + "\n" + message + "\n\n";
+    ":" + std::to_string(start_col + 1) + "\n" + message;
   size_t line = 0;
   size_t start_pos;
   for (size_t pos = 0; pos < source.size(); ++pos) {
@@ -17,7 +17,7 @@ gram::error::error(std::string message, std::string &source, std::string &source
         start_pos = pos;
       }
       if (line == end_line) {
-        this->message += source.substr(start_pos + 1, pos - start_pos - 1) + "\n";
+        this->message += "\n\n" + source.substr(start_pos + 1, pos - start_pos - 1) + "\n";
         if (end_line - start_line == 1 && end_col - start_col > 0) {
           for (size_t i = 0; i < start_col; ++i) {
             this->message += " ";
