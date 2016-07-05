@@ -384,4 +384,7 @@ void gram::llc(
     }
     return;
   }
+
+  // We shouldn't end up here.
+  throw std::runtime_error("Invalid output type.");
 }
