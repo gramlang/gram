@@ -8,7 +8,6 @@
 #include "lexer.h"
 #include <memory>
 #include <string>
-#include <utility>
 
 namespace gram {
 
