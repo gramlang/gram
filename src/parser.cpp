@@ -283,7 +283,7 @@ std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
   // Determine the type of arrow.
   if (pos == end || (
     pos->type != gram::TokenType::THIN_ARROW &&
-    pos->type == gram::TokenType::THICK_ARROW
+    pos->type != gram::TokenType::THICK_ARROW
   )) {
     throw gram::Error(
       "Expected an arrow here.",
@@ -325,6 +325,33 @@ std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
   return abstraction_or_pi_type;
 }
 
+std::unique_ptr<gram::Node> parse_variable(
+  const std::string &source,
+  std::string source_name,
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator end,
+  std::vector<gram::Token>::iterator &next
+) {
+  // Make sure we have some tokens to read.
+  if (begin == end) {
+    return std::unique_ptr<gram::Node>();
+  }
+
+  // Make sure we are actually parsing a variable.
+  if (begin->type != gram::TokenType::IDENTIFIER) {
+    next = begin;
+    return std::unique_ptr<gram::Node>();
+  }
+
+  // Tell the caller where we ended up.
+  next = begin + 1;
+
+  // Create the node and pass ownership to the caller.
+  auto variable = std::unique_ptr<gram::Node>(new gram::Variable(begin->literal));
+  variable->span_tokens(begin, next);
+  return variable;
+}
+
 std::unique_ptr<gram::Node> gram::parse(
   const std::string &source,
   std::string source_name,
@@ -345,6 +372,12 @@ std::unique_ptr<gram::Node> gram::parse(
 
   // Abstraction or pi type
   node = parse_abstraction_or_pi_type(source, source_name, begin, end, next);
+  if (node) {
+    return node;
+  }
+
+  // Variable
+  node = parse_variable(source, source_name, begin, end, next);
   if (node) {
     return node;
   }
