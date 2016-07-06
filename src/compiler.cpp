@@ -19,13 +19,12 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
   std::stringstream file_buffer;
   file_buffer << file.rdbuf();
   file.close();
-  const auto source = file_buffer.str();
+  auto source = file_buffer.str();
 
   // Perform lexical analysis.
-  const auto tokens = lex(source, input_path);
+  auto tokens = lex(source, input_path);
 
   // Parse the tokens into an AST.
-  std::vector<Token>::iterator next;
   auto node = parse(source, input_path, tokens->begin(), tokens->end());
 
   // If we got a node, print it!
