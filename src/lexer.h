@@ -34,7 +34,6 @@ namespace gram {
     "THIN_ARROW"
   };
 
-
   class Token {
   public:
     gram::TokenType type;
