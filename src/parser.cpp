@@ -5,6 +5,18 @@
 gram::Node::~Node() {
 }
 
+void gram::Node::span_tokens(
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator end
+) {
+  if (begin < end) {
+    start_line = begin->start_line;
+    start_col = begin->start_col;
+    end_line = (end - 1)->end_line;
+    end_col = (end - 1)->end_col;
+  }
+}
+
 gram::Term::~Term() {
 }
 
@@ -85,6 +97,26 @@ std::string gram::Definition::show() {
   return name + " = " + (value ? value->show() : "?");
 }
 
+std::unique_ptr<gram::Term> node_to_term(
+  const std::string &source,
+  std::string source_name,
+  std::unique_ptr<gram::Node> node
+) {
+  gram::Node *node_ptr = node.release();
+  gram::Term *term_ptr = dynamic_cast<gram::Term *>(node_ptr);
+  if (node_ptr && !term_ptr) {
+    size_t start_line = node_ptr->start_line;
+    size_t start_col = node_ptr->start_col;
+    size_t end_line = node_ptr->end_line;
+    size_t end_col = node_ptr->end_col;
+    delete node_ptr;
+    throw gram::Error(
+      "Expected a term.", source, source_name, start_line, start_col, end_line, end_col
+    );
+  }
+  return std::unique_ptr<gram::Term>(term_ptr);
+}
+
 std::unique_ptr<gram::Node> parse_block(
   const std::string &source,
   std::string source_name,
@@ -98,7 +130,7 @@ std::unique_ptr<gram::Node> parse_block(
     return std::unique_ptr<gram::Node>();
   }
 
-  // Make sure we are actually parsing a block
+  // Make sure we are actually parsing a block.
   if (begin->type != gram::TokenType::BEGIN && !top_level) {
     next = begin;
     return std::unique_ptr<gram::Node>();
@@ -121,14 +153,14 @@ std::unique_ptr<gram::Node> parse_block(
       continue;
     }
 
-    // Do recursive descent to get a body node
+    // Do recursive descent to get a body node.
     auto node = gram::parse(source, source_name, pos, end, pos, false);
 
     // If we are in this loop, there better be at least one node.
     // If we didn't get one, throw an error.
     if (!node) {
       throw gram::Error(
-        "Unexpected token: " + pos->show(),
+        "Unexpected token encountered in block.",
         source, source_name,
         pos->start_line, pos->start_col,
         pos->end_line, pos->end_col
@@ -139,6 +171,28 @@ std::unique_ptr<gram::Node> parse_block(
     body.push_back(std::move(node));
   }
 
+  // Make sure the abstraction has something to return.
+  if (body.empty()) {
+    if (top_level) {
+      return std::unique_ptr<gram::Node>();
+    } else {
+      throw gram::Error(
+        "A block must end with a term.",
+        source, source_name,
+        pos->start_line, pos->start_col,
+        pos->end_line, pos->end_col
+      );
+    }
+  }
+  if (dynamic_cast<gram::Term *>(body.back().get()) == nullptr) {
+    throw gram::Error(
+      "A block must end with a term.",
+      source, source_name,
+      body.back()->start_line, body.back()->start_col,
+      body.back()->end_line, body.back()->end_col
+    );
+  }
+
   // Tell the caller where we ended up.
   // Skip the END token if there is one.
   next = pos;
@@ -147,7 +201,128 @@ std::unique_ptr<gram::Node> parse_block(
   }
 
   // Create the node and pass ownership to the caller.
-  return std::unique_ptr<gram::Node>(new gram::Block(std::move(body)));
+  auto block = std::unique_ptr<gram::Node>(new gram::Block(std::move(body)));
+  block->span_tokens(begin, next);
+  return block;
+}
+
+std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
+  const std::string &source,
+  std::string source_name,
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator end,
+  std::vector<gram::Token>::iterator &next
+) {
+  // Make sure we have some tokens to read.
+  if (begin == end) {
+    return std::unique_ptr<gram::Node>();
+  }
+
+  // Make sure we are actually parsing an abstraction or pi type.
+  if (begin + 1 >= end || begin->type != gram::TokenType::IDENTIFIER || (
+    (begin + 1)->type != gram::TokenType::COLON &&
+    (begin + 1)->type != gram::TokenType::THIN_ARROW &&
+    (begin + 1)->type != gram::TokenType::THICK_ARROW
+  )) {
+    next = begin;
+    return std::unique_ptr<gram::Node>();
+  }
+
+  // Get the name of the argument.
+  auto pos = begin;
+  std::string argument_name = pos->literal;
+  ++pos;
+
+  // Get the type of the argument, if provided.
+  std::unique_ptr<gram::Term> argument_type;
+  if (pos->type == gram::TokenType::COLON) {
+    ++pos;
+
+    // Find the position of the arrow.
+    // We do this so that the argument type isn't greedily parsed until the end of the file.
+    auto arrow_pos = pos;
+    int indentation = 0;
+    while (arrow_pos != end) {
+      if (arrow_pos->type == gram::TokenType::BEGIN) {
+        ++indentation;
+      }
+      if (arrow_pos->type == gram::TokenType::END) {
+        --indentation;
+      }
+      if (indentation == 0 && (
+        arrow_pos->type == gram::TokenType::THIN_ARROW ||
+        arrow_pos->type == gram::TokenType::THICK_ARROW
+      )) {
+        break;
+      }
+      ++arrow_pos;
+    }
+    if (arrow_pos == end) {
+      throw gram::Error(
+        "This looks like the beginning of an abstraction or pi type, but there is no arrow.",
+        source, source_name,
+        begin->start_line, begin->start_col,
+        (begin + 1)->end_line, (begin + 1)->end_col
+      );
+    }
+
+    // Parse the argument type by recursive descent.
+    argument_type = node_to_term(source, source_name,
+      gram::parse(source, source_name, pos, arrow_pos, pos, false)
+    );
+    if (!argument_type) {
+    throw gram::Error(
+      "Expected a type annotation here.",
+      source, source_name,
+      pos->start_line, pos->start_col,
+      pos->end_line, pos->end_col
+    );
+    }
+  }
+
+  // Determine the type of arrow.
+  if (pos == end || (
+    pos->type != gram::TokenType::THIN_ARROW &&
+    pos->type == gram::TokenType::THICK_ARROW
+  )) {
+    throw gram::Error(
+      "Expected an arrow here.",
+      source, source_name,
+      pos->start_line, pos->start_col,
+      pos->end_line, pos->end_col
+    );
+  }
+  bool thin_arrow = (pos->type == gram::TokenType::THIN_ARROW);
+  ++pos;
+
+  // Parse the body by recursive descent.
+  auto body = node_to_term(source, source_name,
+    gram::parse(source, source_name, pos, end, pos, false));
+  if (!body) {
+    throw gram::Error(
+      "Missing body for abstraction or pi type.",
+      source, source_name,
+      pos->start_line, pos->start_col,
+      pos->end_line, pos->end_col
+    );
+  }
+
+  // Tell the caller where we ended up.
+  next = pos;
+
+  // Create the node and pass ownership to the caller.
+  std::unique_ptr<gram::Node> abstraction_or_pi_type;
+  if (thin_arrow) {
+    abstraction_or_pi_type = std::unique_ptr<gram::Node>(
+      new gram::Abstraction(argument_name, std::move(argument_type), std::move(body))
+    );
+  } else {
+    abstraction_or_pi_type = std::unique_ptr<gram::Node>(
+      new gram::PiType(argument_name, std::move(argument_type), std::move(body))
+    );
+  }
+  abstraction_or_pi_type->span_tokens(begin, next);
+  return abstraction_or_pi_type;
 }
 
 std::unique_ptr<gram::Node> gram::parse(
@@ -162,8 +337,14 @@ std::unique_ptr<gram::Node> gram::parse(
   // to do all the work. The following node is what we will return to the caller.
   std::unique_ptr<Node> node;
 
-  // Blocks (or the top-level source)
+  // Block (or the top-level source)
   node = parse_block(source, source_name, begin, end, next, top_level);
+  if (node) {
+    return node;
+  }
+
+  // Abstraction or pi type
+  node = parse_abstraction_or_pi_type(source, source_name, begin, end, next);
   if (node) {
     return node;
   }

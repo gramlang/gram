@@ -15,6 +15,12 @@ namespace gram {
   public:
     virtual std::string show() = 0;
     virtual ~Node();
+    size_t start_line, start_col, // Zero-indexed, inclusive
+      end_line, end_col; // Zero-indexed, exclusive
+    void span_tokens(
+      std::vector<gram::Token>::iterator begin,
+      std::vector<gram::Token>::iterator end
+    );
   };
 
   class Term : public Node {

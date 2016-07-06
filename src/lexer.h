@@ -39,10 +39,11 @@ namespace gram {
   public:
     gram::TokenType type;
     std::string literal;
-    size_t start_line, start_col, end_line, end_col;
+    size_t start_line, start_col, // Zero-indexed, inclusive
+      end_line, end_col; // Zero-indexed, exclusive
     Token(gram::TokenType type, const std::string &literal,
-      size_t start_line, size_t start_col, // Zero-indexed, inclusive
-      size_t end_line, size_t end_col); // Zero-indexed, exclusive
+      size_t start_line, size_t start_col,
+      size_t end_line, size_t end_col);
     std::string show();
   };
 
