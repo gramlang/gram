@@ -39,7 +39,7 @@ namespace gram {
   class Variable : public Term {
   public:
     std::string name;
-    Variable(std::string name);
+    explicit Variable(std::string name);
     std::string show();
   };
 
@@ -73,7 +73,7 @@ namespace gram {
   class Block : public Term {
   public:
     std::vector<std::unique_ptr<gram::Node>> body;
-    Block(std::vector<std::unique_ptr<gram::Node>> body);
+    explicit Block(std::vector<std::unique_ptr<gram::Node>> body);
     std::string show();
   };
 
