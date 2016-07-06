@@ -97,7 +97,7 @@ std::unique_ptr<gram::Node> gram::parse(
     return std::unique_ptr<Node>();
   }
 
-  // Blocks
+  // Blocks (or the top-level source)
   if (begin->type == TokenType::BEGIN || top_level) {
     std::vector<std::unique_ptr<gram::Node>> body;
     auto pos = begin;
