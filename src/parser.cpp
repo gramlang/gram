@@ -89,7 +89,8 @@ std::unique_ptr<gram::Node> gram::parse(
   const std::string &source,
   std::string source_name,
   std::vector<gram::Token>::iterator begin,
-  std::vector<gram::Token>::iterator &end
+  std::vector<gram::Token>::iterator &end,
+  bool top_level
 ) {
   // Make sure we have some tokens to read.
   if (begin == end) {
@@ -97,15 +98,18 @@ std::unique_ptr<gram::Node> gram::parse(
   }
 
   // Blocks
-  if (begin->type == TokenType::BEGIN) {
+  if (begin->type == TokenType::BEGIN || top_level) {
     std::vector<std::unique_ptr<gram::Node>> body;
-    auto pos = begin + 1;
-    while (pos->type != TokenType::END) {
+    auto pos = begin;
+    if (!top_level) {
+      ++pos;
+    }
+    while (pos != end && pos->type != TokenType::END) {
       while (pos->type == TokenType::SEQUENCER) {
         ++pos;
       }
       auto new_end = end;
-      auto node = parse(source, source_name, pos, new_end);
+      auto node = parse(source, source_name, pos, new_end, false);
       if (new_end == pos) {
         throw Error(
           "Unexpected token: " + new_end->show(),
@@ -114,10 +118,15 @@ std::unique_ptr<gram::Node> gram::parse(
           new_end->end_line, new_end->end_col
         );
       }
-      body.push_back(std::move(node));
+      if (node) {
+        body.push_back(std::move(node));
+      }
       pos = new_end;
     }
-    end = pos + 1;
+    end = pos;
+    if (!top_level) {
+      ++end;
+    }
     return std::unique_ptr<Node>(new Block(std::move(body)));
   }
 
