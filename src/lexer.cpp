@@ -3,7 +3,7 @@
 
 gram::Token::Token(
   gram::TokenType type,
-  std::string literal,
+  const std::string &literal,
   size_t start_line,
   size_t start_col,
   size_t end_line,
@@ -19,7 +19,11 @@ std::string gram::Token::show() {
   ) + ": '" + literal + "'";
 }
 
-void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::string &source_name) {
+std::unique_ptr<std::vector<gram::Token>> gram::lex(
+  const std::string &source,
+  std::string source_name
+) {
+  auto tokens = std::unique_ptr<std::vector<Token>>(new std::vector<Token>);
   size_t pos = 0;
   size_t start_line = 0;
   size_t start_col = 0;
@@ -38,21 +42,21 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
       if (source[pos] != '\n' && source[pos] != '#' && paren_depth == 0) {
         if (indentation == indentations.back()) {
           // Same indentation as before. Just insert a sequencer.
-          if (!tokens.empty()) {
-            tokens.push_back(Token(TokenType::SEQUENCER, "",
+          if (!tokens->empty()) {
+            tokens->push_back(Token(TokenType::SEQUENCER, "",
               start_line, start_col, start_line + 1, start_col));
           }
         } else if (indentation.find(indentations.back()) != std::string::npos) {
           // The indentation increased. Open a new block.
           indentations.push_back(indentation);
-          tokens.push_back(Token(TokenType::BEGIN,
+          tokens->push_back(Token(TokenType::BEGIN,
             source.substr(pos - start_col, start_col),
             start_line, 0, start_line + 1, start_col));
         } else if (indentations.back().find(indentation) != std::string::npos) {
           // The indentation decreased. Close blocks as appropriate.
           while (!indentations.empty() && indentation != indentations.back()) {
             indentations.pop_back();
-            tokens.push_back(Token(TokenType::END,
+            tokens->push_back(Token(TokenType::END,
               "", start_line, 0, start_line + 1, start_col));
           }
 
@@ -76,7 +80,7 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
 
     // Opening parenthesis
     if (source[pos] == '(') {
-      tokens.push_back(Token(TokenType::BEGIN, source.substr(pos, 1),
+      tokens->push_back(Token(TokenType::BEGIN, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
       ++start_col;
@@ -86,7 +90,7 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
 
     // Type annotation
     if (source[pos] == ':') {
-      tokens.push_back(Token(TokenType::COLON, source.substr(pos, 1),
+      tokens->push_back(Token(TokenType::COLON, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
       ++start_col;
@@ -95,7 +99,7 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
 
     // Closing parenthesis
     if (source[pos] == ')') {
-      tokens.push_back(Token(TokenType::END, source.substr(pos, 1),
+      tokens->push_back(Token(TokenType::END, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       if (paren_depth == 0) {
         throw Error("Unmatched ')'.",
@@ -109,7 +113,7 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
 
     // Equals sign
     if (source[pos] == '=' && !(pos < source.size() - 1 && source.substr(pos, 2) == "=>")) {
-      tokens.push_back(Token(TokenType::EQUALS, source.substr(pos, 1),
+      tokens->push_back(Token(TokenType::EQUALS, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
       ++start_col;
@@ -131,7 +135,7 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
         ++end_pos;
       }
       size_t length = end_pos - pos;
-      tokens.push_back(Token(TokenType::IDENTIFIER, source.substr(pos, length),
+      tokens->push_back(Token(TokenType::IDENTIFIER, source.substr(pos, length),
         start_line, start_col, start_line + 1, start_col + length));
       start_col += length;
       pos = end_pos;
@@ -147,7 +151,7 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
         ++end_pos;
       }
       size_t length = end_pos - pos;
-      tokens.push_back(Token(TokenType::INTEGER, source.substr(pos, length),
+      tokens->push_back(Token(TokenType::INTEGER, source.substr(pos, length),
         start_line, start_col, start_line + 1, start_col + length));
       start_col += length;
       pos = end_pos;
@@ -156,7 +160,7 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
 
     // Expression sequencer
     if (source[pos] == ';') {
-      tokens.push_back(Token(TokenType::SEQUENCER, source.substr(pos, 1),
+      tokens->push_back(Token(TokenType::SEQUENCER, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
       ++start_col;
@@ -165,7 +169,7 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
 
     // Dependent product type
     if (pos < source.size() - 1 && source.substr(pos, 2) == "=>") {
-      tokens.push_back(Token(TokenType::THICK_ARROW, source.substr(pos, 2),
+      tokens->push_back(Token(TokenType::THICK_ARROW, source.substr(pos, 2),
         start_line, start_col, start_line + 1, start_col + 2));
       pos += 2;
       start_col += 2;
@@ -174,14 +178,14 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
 
     // Abstraction
     if (pos < source.size() - 1 && source.substr(pos, 2) == "->") {
-      tokens.push_back(Token(TokenType::THIN_ARROW, source.substr(pos, 2),
+      tokens->push_back(Token(TokenType::THIN_ARROW, source.substr(pos, 2),
         start_line, start_col, start_line + 1, start_col + 2));
       pos += 2;
       start_col += 2;
       continue;
     }
 
-    // Ignore non-indentation whitespace; it is only used to separate other tokens.
+    // Ignore non-indentation whitespace; it is only used to separate other tokens->
     if (source[pos] == ' ' || source[pos] == '\t') {
       ++pos;
       ++start_col;
@@ -227,7 +231,10 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
   // Close any indentation blocks.
   while (indentations.size() > 1) {
     indentations.pop_back();
-    tokens.push_back(Token(TokenType::END,
+    tokens->push_back(Token(TokenType::END,
       "", start_line, start_col, start_line + 1, start_col));
   }
+
+  // Return an std::unique_ptr to the vector.
+  return tokens;
 }

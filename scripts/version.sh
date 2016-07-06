@@ -35,9 +35,9 @@ cat <<-ENDOFMESSAGE
 
 namespace gram {
 
-  const char *VERSION = "$VERSION";
-  const char *COMMIT_HASH = $(test -z "$COMMIT_HASH" && echo '0' || echo "\"$COMMIT_HASH\"");
-  const char *BUILD_TYPE = "$BUILD_TYPE";
+  const char * const VERSION = "$VERSION";
+  const char * const COMMIT_HASH = $(test -z "$COMMIT_HASH" && echo '0' || echo "\"$COMMIT_HASH\"");
+  const char * const BUILD_TYPE = "$BUILD_TYPE";
 
 }
 ENDOFMESSAGE

@@ -26,8 +26,8 @@
 llvm::llvm_shutdown_obj Y;
 
 int gram::execute_program(
-  const std::string &path,
-  const std::vector<std::string> &args,
+  std::string path,
+  std::vector<std::string> args,
   const std::string &stdin,
   std::string &stdout,
   std::string &stderr
@@ -190,7 +190,7 @@ int gram::execute_program(
 }
 
 void gram::llc(
-  const std::string &output_path,
+  std::string output_path,
   llvm::Module &module,
   gram::OutputType output_type
 ) {

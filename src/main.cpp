@@ -5,7 +5,7 @@
 
 int main(int argc, char *argv[]) {
   // Print this message if we are unable to parse the input.
-  std::string parse_error = "Try gram --help for more information.\n";
+  const std::string parse_error = "Try gram --help for more information.\n";
 
   // Get the help message.
   if (

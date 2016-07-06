@@ -17,8 +17,8 @@ namespace gram {
   // This function will use the PATH environment variable to find the program.
   // Raises a std::runtime_error if there was a problem running the program.
   int execute_program(
-    const std::string &path,
-    const std::vector<std::string> &args,
+    std::string path,
+    std::vector<std::string> args, // Do not include the path to the program
     const std::string &stdin,
     std::string &stdout,
     std::string &stderr
@@ -26,7 +26,7 @@ namespace gram {
 
   // Compile an LLVM module into a native binary.
   // Raises a std::runtime_error if compilation fails.
-  void llc(const std::string &output_path, llvm::Module &module, gram::OutputType output_type);
+  void llc(std::string output_path, llvm::Module &module, gram::OutputType output_type);
 
 }
 

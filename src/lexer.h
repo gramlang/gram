@@ -39,14 +39,17 @@ namespace gram {
     gram::TokenType type;
     std::string literal;
     size_t start_line, start_col, end_line, end_col;
-    Token(gram::TokenType type, std::string literal,
+    Token(gram::TokenType type, const std::string &literal,
       size_t start_line, size_t start_col, // Zero-indexed, inclusive
       size_t end_line, size_t end_col); // Zero-indexed, exclusive
     std::string show();
   };
 
   // Perform lexical analysis.
-  void lex(std::vector<gram::Token> &tokens, std::string &source, std::string &source_name);
+  std::unique_ptr<std::vector<gram::Token>> lex(
+    const std::string &source,
+    std::string source_name
+  );
 
 }
 

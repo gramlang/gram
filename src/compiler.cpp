@@ -17,11 +17,10 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
   std::stringstream file_buffer;
   file_buffer << file.rdbuf();
   file.close();
-  std::string source = file_buffer.str();
+  const auto source = file_buffer.str();
 
   // Perform lexical analysis.
-  std::vector<Token> tokens;
-  lex(tokens, source, input_path);
+  const auto tokens = lex(source, input_path);
 
   // Temporary code generation stub.
   try {
