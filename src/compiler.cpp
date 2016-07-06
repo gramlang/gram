@@ -26,7 +26,7 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
 
   // Parse the tokens into an AST.
   auto end = tokens->end();
-  auto node = parse(source, input_path, tokens->begin(), end, true);
+  auto node = parse(source, input_path, tokens->begin(), end);
   if (end != tokens->end()) {
     throw Error("Unexpected token: " + end->show(),
       source, input_path, end->start_line, end->start_col, end->end_line, end->end_col);

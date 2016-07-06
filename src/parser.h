@@ -94,7 +94,7 @@ namespace gram {
     std::string source_name,
     std::vector<gram::Token>::iterator begin,
     std::vector<gram::Token>::iterator &end,
-    bool top_level // Call this with true, and it will recurse with false.
+    bool top_level=true
   );
 
 }
