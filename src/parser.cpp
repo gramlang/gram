@@ -85,52 +85,89 @@ std::string gram::Definition::show() {
   return name + " = " + (value ? value->show() : "?");
 }
 
-std::unique_ptr<gram::Node> gram::parse(
+std::unique_ptr<gram::Node> parse_block(
   const std::string &source,
   std::string source_name,
   std::vector<gram::Token>::iterator begin,
-  std::vector<gram::Token>::iterator &end,
+  std::vector<gram::Token>::iterator end,
+  std::vector<gram::Token>::iterator &next,
   bool top_level
 ) {
   // Make sure we have some tokens to read.
   if (begin == end) {
-    return std::unique_ptr<Node>();
+    return std::unique_ptr<gram::Node>();
   }
 
-  // Blocks (or the top-level source)
-  if (begin->type == TokenType::BEGIN || top_level) {
-    std::vector<std::unique_ptr<gram::Node>> body;
-    auto pos = begin;
-    if (!top_level) {
+  // Make sure we are actually parsing a block
+  if (begin->type != gram::TokenType::BEGIN && !top_level) {
+    next = begin;
+    return std::unique_ptr<gram::Node>();
+  }
+
+  // Skip the BEGIN token, if there is one.
+  auto pos = begin;
+  if (!top_level) {
+    ++pos;
+  }
+
+  // Keep eating the input until we reach an END token or the end of the stream.
+  // Note: the lexer guarantees that all BEGIN/END tokens are matched, so we
+  // don't need to worry about ensuring there is an END.
+  std::vector<std::unique_ptr<gram::Node>> body;
+  while (pos != end && pos->type != gram::TokenType::END) {
+    // Skip sequencers.
+    if (pos->type == gram::TokenType::SEQUENCER) {
       ++pos;
+      continue;
     }
-    while (pos != end && pos->type != TokenType::END) {
-      while (pos->type == TokenType::SEQUENCER) {
-        ++pos;
-      }
-      auto new_end = end;
-      auto node = parse(source, source_name, pos, new_end, false);
-      if (new_end == pos) {
-        throw Error(
-          "Unexpected token: " + new_end->show(),
-          source, source_name,
-          new_end->start_line, new_end->start_col,
-          new_end->end_line, new_end->end_col
-        );
-      }
-      if (node) {
-        body.push_back(std::move(node));
-      }
-      pos = new_end;
+
+    // Do recursive descent to get a body node
+    auto node = gram::parse(source, source_name, pos, end, pos, false);
+
+    // If we are in this loop, there better be at least one node.
+    // If we didn't get one, throw an error.
+    if (!node) {
+      throw gram::Error(
+        "Unexpected token: " + pos->show(),
+        source, source_name,
+        pos->start_line, pos->start_col,
+        pos->end_line, pos->end_col
+      );
     }
-    end = pos;
-    if (!top_level) {
-      ++end;
-    }
-    return std::unique_ptr<Node>(new Block(std::move(body)));
+
+    // Add the node to the body.
+    body.push_back(std::move(node));
+  }
+
+  // Tell the caller where we ended up.
+  // Skip the END token if there is one.
+  next = pos;
+  if (!top_level) {
+    ++next;
+  }
+
+  // Create the node and pass ownership to the caller.
+  return std::unique_ptr<gram::Node>(new gram::Block(std::move(body)));
+}
+
+std::unique_ptr<gram::Node> gram::parse(
+  const std::string &source,
+  std::string source_name,
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator end,
+  std::vector<gram::Token>::iterator &next,
+  bool top_level
+) {
+  // This function just implements recursive descent, relying on the other functions
+  // to do all the work. The following node is what we will return to the caller.
+  std::unique_ptr<Node> node;
+
+  // Blocks (or the top-level source)
+  node = parse_block(source, source_name, begin, end, next, top_level);
+  if (node) {
+    return node;
   }
 
   // If we made it this far, nothing was parsed.
-  end = begin;
-  return std::unique_ptr<Node>();
+  return node;
 }
