@@ -32,7 +32,7 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
     std::cout << node->show() << "\n";
   }
 
-  // Temporary code generation stub to demonstrate LLVM code generation.
+  // Temporary stuff to demonstrate LLVM code generation.
   try {
     llvm::LLVMContext context;
     llvm::Module module("test", context);
