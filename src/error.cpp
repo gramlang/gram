@@ -18,19 +18,33 @@ gram::Error::Error(std::string message, std::string &source, std::string &source
     if (source[pos] == '\n') {
       ++line;
       if (line == start_line) {
-        start_pos = pos;
+        start_pos = pos + 1;
       }
       if (line == end_line) {
         // Output the line.
-        this->message += "\n\n" + source.substr(start_pos + 1, pos - start_pos - 1) + "\n";
+        this->message += "\n\n" + source.substr(start_pos, pos - start_pos) + "\n";
 
         // If there was only one line, highlight the offending section with carets.
         if (end_line - start_line == 1 && end_col - start_col > 0) {
           for (size_t i = 0; i < start_col; ++i) {
-            this->message += " ";
+            if (source[start_pos + i] == '\t') {
+              // Assume a tab takes up 8 spaces in whatever program
+              // this error message is being displayed in. Not ideal,
+              // but what else can we do?
+              this->message += "        ";
+            } else {
+              this->message += " ";
+            }
           }
           for (size_t j = 0; j < end_col - start_col; ++j) {
-            this->message += "^";
+            if (source[start_pos + start_col + j] == '\t') {
+              // Assume a tab takes up 8 carets in whatever program
+              // this error message is being displayed in. Not ideal,
+              // but what else can we do?
+              this->message += "^^^^^^^^";
+            } else {
+              this->message += "^";
+            }
           }
           this->message += "\n";
         }

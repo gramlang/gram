@@ -24,59 +24,52 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
   size_t start_line = 0;
   size_t start_col = 0;
   size_t paren_depth = 0;
-  std::vector<size_t> indentations;
+  std::vector<std::string> indentations = {""};
   while (pos < source.size()) {
     // If we are at the beginning of a line, consume any indentation.
     if (start_col == 0) {
-      while (source[pos] == ' ') {
+      while (source[pos] == ' ' || source[pos] == '\t') {
         ++pos;
         ++start_col;
-        continue;
       }
+      std::string indentation = source.substr(pos - start_col, start_col);
 
-      // If line wasn't empty and we aren't inside any parentheses, record the indentation.
+      // If line wasn't empty and we aren't inside any parentheses, interpret the indentation.
       if (source[pos] != '\n' && source[pos] != '#' && paren_depth == 0) {
-        if (start_col > 0) {
-          // There is some indentation. Match it up with the previous line.
-          if (indentations.empty() || start_col > indentations.back()) {
-            // The indentation increased. Open a new block.
-            indentations.push_back(start_col);
-            tokens.push_back(Token(TokenType::BEGIN,
-              source.substr(pos - start_col, start_col),
-              start_line, 0, start_line + 1, start_col));
-          } else if (start_col < indentations.back()) {
-            // The indentation decreased. Close blocks as appropriate.
-            while (!indentations.empty() && start_col < indentations.back()) {
-              indentations.pop_back();
-              tokens.push_back(Token(TokenType::END,
-                "", start_line, 0, start_line + 1, 0));
-            }
+        if (indentation == indentations.back()) {
+          // Same indentation as before. Just insert a sequencer.
+          if (!tokens.empty()) {
+            tokens.push_back(Token(TokenType::SEQUENCER, "",
+              start_line, start_col, start_line + 1, start_col));
+          }
+        } else if (indentation.find(indentations.back()) != std::string::npos) {
+          // The indentation increased. Open a new block.
+          indentations.push_back(indentation);
+          tokens.push_back(Token(TokenType::BEGIN,
+            source.substr(pos - start_col, start_col),
+            start_line, 0, start_line + 1, start_col));
+        } else if (indentations.back().find(indentation) != std::string::npos) {
+          // The indentation decreased. Close blocks as appropriate.
+          while (!indentations.empty() && indentation != indentations.back()) {
+            indentations.pop_back();
+            tokens.push_back(Token(TokenType::END,
+              "", start_line, 0, start_line + 1, start_col));
+          }
 
-            // Make sure we ended up at a previous indentation level.
-            if (indentations.empty() || start_col != indentations.back()) {
-              throw Error("Unmatched outdent.",
-                source, source_name, start_line, start_col, start_line + 1, start_col);
-            }
-          } else if (start_col == indentations.back() && !tokens.empty()) {
-            // Same indentation as before. Just insert a sequencer.
-            tokens.push_back(Token(TokenType::SEQUENCER, "",
-              start_line, start_col, start_line + 1, start_col));
+          // Make sure we ended up at a previous indentation level.
+          if (indentations.empty()) {
+            throw Error("Unmatched outdent.",
+              source, source_name, start_line, 0, start_line + 1, start_col);
           }
-          continue;
         } else {
-          // There is no indentation on this line.
-          if (indentations.empty() && !tokens.empty()) {
-            // Same indentation as before. Just insert a sequencer.
-            tokens.push_back(Token(TokenType::SEQUENCER, "",
-              start_line, start_col, start_line + 1, start_col));
-          } else {
-            // We were indented before. Close any indentation blocks.
-            while (!indentations.empty()) {
-              indentations.pop_back();
-              tokens.push_back(Token(TokenType::END,
-                "", start_line, 0, start_line + 1, 0));
-            }
-          }
+          // A strange possibility. The new indentation is neither a substring
+          // nor a superstring of the old indentation. This can happen if spaces
+          // and tabs are mixed.
+          throw Error(
+            "Unable to compare this indentation to that of previous lines.\n"
+            "This can happen if you are mixing tabs and spaces.",
+            source, source_name, start_line, 0, start_line + 1, start_col
+          );
         }
       }
     }
@@ -188,8 +181,8 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
       continue;
     }
 
-    // Ignore non-indentation spaces; they are only used to separate other tokens.
-    if (source[pos] == ' ') {
+    // Ignore non-indentation whitespace; it is only used to separate other tokens.
+    if (source[pos] == ' ' || source[pos] == '\t') {
       ++pos;
       ++start_col;
       continue;
@@ -204,11 +197,19 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
       }
     }
 
-    // Ignore newlines, but keep track of which line and column we are on.
+    // Ignore line feeds, but keep track of which line and column we are on.
     if (source[pos] == '\n') {
       ++pos;
       ++start_line;
       start_col = 0;
+      continue;
+    }
+
+    // Some platforms use carriage returns in combination with line feeds to break lines.
+    // Line feeds are handled above. Just ignore carriage returns.
+    if (source[pos] == '\r') {
+      ++pos;
+      ++start_col;
       continue;
     }
 
@@ -224,7 +225,7 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
   }
 
   // Close any indentation blocks.
-  while (!indentations.empty()) {
+  while (indentations.size() > 1) {
     indentations.pop_back();
     tokens.push_back(Token(TokenType::END,
       "", start_line, start_col, start_line + 1, start_col));
