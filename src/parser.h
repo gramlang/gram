@@ -10,8 +10,9 @@
 namespace gram {
 
   class Term {
-  protected:
-    Term();
+  public:
+    virtual std::string show() = 0;
+    virtual ~Term();
   };
 
   class Abstraction : public Term {
@@ -20,6 +21,7 @@ namespace gram {
     gram::Term *argument_type;
     gram::Term *body;
     Abstraction(std::string argument_name, gram::Term *argument_type, gram::Term *body);
+    std::string show();
   };
 
   class Variable : public Term {
@@ -27,6 +29,7 @@ namespace gram {
     std::string name;
     gram::Abstraction *abstraction;
     Variable(std::string name, gram::Abstraction *abstraction);
+    std::string show();
   };
 
   class Application : public Term {
@@ -34,6 +37,7 @@ namespace gram {
     gram::Term *abstraction;
     gram::Term *argument;
     Application(gram::Term *abstraction, gram::Term *argument);
+    std::string show();
   };
 
   class PiType : public Term {
@@ -42,6 +46,7 @@ namespace gram {
     gram::Term *argument_type;
     gram::Term *body;
     PiType(std::string argument_name, gram::Term *argument_type, gram::Term *body);
+    std::string show();
   };
 
   class Type : public Term {
@@ -54,6 +59,7 @@ namespace gram {
       static Type instance;
       return instance;
     }
+    std::string show();
   };
 
 }
