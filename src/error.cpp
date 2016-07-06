@@ -13,7 +13,7 @@ gram::Error::Error(std::string message, const std::string &source, std::string s
 
   // If we have a valid range in the source, we can show that context.
   if (start_line < end_line && start_col < end_col) {
-    // Try to find the line(s) from the source from the line numbers.
+    // Try to find the line(s) from the source by the line numbers.
     size_t line_number = 0;
     size_t start_pos = 0;
     size_t end_pos = source.size();
