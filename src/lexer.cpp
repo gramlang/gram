@@ -91,6 +91,15 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
       continue;
     }
 
+    // Type annotation
+    if (source[pos] == ':') {
+      tokens.push_back(Token(TokenType::COLON, source.substr(pos, 1),
+        start_line, start_col, start_line + 1, start_col + 1));
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
     // Closing parenthesis
     if (source[pos] == ')') {
       tokens.push_back(Token(TokenType::END, source.substr(pos, 1),
@@ -105,44 +114,8 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
       continue;
     }
 
-    // Type annotation
-    if (source[pos] == ':') {
-      tokens.push_back(Token(TokenType::COLON, source.substr(pos, 1),
-        start_line, start_col, start_line + 1, start_col + 1));
-      ++pos;
-      ++start_col;
-      continue;
-    }
-
-    // Expression sequencer
-    if (source[pos] == ';') {
-      tokens.push_back(Token(TokenType::SEQUENCER, source.substr(pos, 1),
-        start_line, start_col, start_line + 1, start_col + 1));
-      ++pos;
-      ++start_col;
-      continue;
-    }
-
-    // Dependent product type
-    if (pos < source.size() - 1 && source.substr(pos, 2) == "=>") {
-      tokens.push_back(Token(TokenType::THICK_ARROW, source.substr(pos, 2),
-        start_line, start_col, start_line + 1, start_col + 2));
-      pos += 2;
-      start_col += 2;
-      continue;
-    }
-
-    // Abstraction
-    if (pos < source.size() - 1 && source.substr(pos, 2) == "->") {
-      tokens.push_back(Token(TokenType::THIN_ARROW, source.substr(pos, 2),
-        start_line, start_col, start_line + 1, start_col + 2));
-      pos += 2;
-      start_col += 2;
-      continue;
-    }
-
     // Equals sign
-    if (source[pos] == '=') {
+    if (source[pos] == '=' && !(pos < source.size() - 1 && source.substr(pos, 2) == "=>")) {
       tokens.push_back(Token(TokenType::EQUALS, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
       ++pos;
@@ -185,6 +158,33 @@ void gram::lex(std::vector<gram::Token> &tokens, std::string &source, std::strin
         start_line, start_col, start_line + 1, start_col + length));
       start_col += length;
       pos = end_pos;
+      continue;
+    }
+
+    // Expression sequencer
+    if (source[pos] == ';') {
+      tokens.push_back(Token(TokenType::SEQUENCER, source.substr(pos, 1),
+        start_line, start_col, start_line + 1, start_col + 1));
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
+    // Dependent product type
+    if (pos < source.size() - 1 && source.substr(pos, 2) == "=>") {
+      tokens.push_back(Token(TokenType::THICK_ARROW, source.substr(pos, 2),
+        start_line, start_col, start_line + 1, start_col + 2));
+      pos += 2;
+      start_col += 2;
+      continue;
+    }
+
+    // Abstraction
+    if (pos < source.size() - 1 && source.substr(pos, 2) == "->") {
+      tokens.push_back(Token(TokenType::THIN_ARROW, source.substr(pos, 2),
+        start_line, start_col, start_line + 1, start_col + 2));
+      pos += 2;
+      start_col += 2;
       continue;
     }
 
