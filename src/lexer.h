@@ -7,6 +7,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace gram {
 
@@ -46,6 +47,7 @@ namespace gram {
   };
 
   // Perform lexical analysis.
+  // The lexer guarantees that all BEGIN/END tokens will be matched in the returned stream.
   std::unique_ptr<std::vector<gram::Token>> lex(
     const std::string &source,
     std::string source_name

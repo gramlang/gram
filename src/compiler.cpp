@@ -1,8 +1,10 @@
 #include "compiler.h"
 #include "error.h"
 #include "lexer.h"
+#include "parser.h"
 #include "platform.h"
 #include <fstream>
+#include <iostream>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <sstream>
@@ -22,7 +24,20 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
   // Perform lexical analysis.
   const auto tokens = lex(source, input_path);
 
-  // Temporary code generation stub.
+  // Parse the tokens into an AST.
+  auto end = tokens->end();
+  auto node = parse(source, input_path, tokens->begin(), end);
+  if (end != tokens->end()) {
+    throw Error("Unexpected token: " + end->show(),
+      source, input_path, end->start_line, end->start_col, end->end_line, end->end_col);
+  }
+
+  // If we got a node, print it!
+  if (node) {
+    std::cout << node->show() << "\n";
+  }
+
+  // Temporary code generation stub to demonstrate LLVM code generation.
   try {
     llvm::LLVMContext context;
     llvm::Module module("test", context);

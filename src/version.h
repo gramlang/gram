@@ -9,7 +9,7 @@
 namespace gram {
 
   extern const char * const VERSION;
-  extern const char * const COMMIT_HASH; // NULL if not built from a clean commit
+  extern const char * const COMMIT_HASH; // nullptr if not built from a clean commit
   extern const char * const BUILD_TYPE; // 'release' or 'debug'
 
 }

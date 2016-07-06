@@ -1,3 +1,4 @@
+#include "error.h"
 #include "parser.h"
 #include <utility>
 
@@ -85,8 +86,42 @@ std::string gram::Definition::show() {
 }
 
 std::unique_ptr<gram::Node> gram::parse(
-  std::vector<gram::Token> &tokens,
-  std::string &source_name
+  const std::string &source,
+  std::string source_name,
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator &end
 ) {
+  // Make sure we have some tokens to read.
+  if (begin == end) {
+    return std::unique_ptr<Node>();
+  }
+
+  // Blocks
+  if (begin->type == TokenType::BEGIN) {
+    std::vector<std::unique_ptr<gram::Node>> body;
+    auto pos = begin + 1;
+    while (pos->type != TokenType::END) {
+      while (pos->type == TokenType::SEQUENCER) {
+        ++pos;
+      }
+      auto new_end = end;
+      auto node = parse(source, source_name, pos, new_end);
+      if (new_end == pos) {
+        throw Error(
+          "Unexpected token: " + new_end->show(),
+          source, source_name,
+          new_end->start_line, new_end->start_col,
+          new_end->end_line, new_end->end_col
+        );
+      }
+      body.push_back(std::move(node));
+      pos = new_end;
+    }
+    end = pos + 1;
+    return std::unique_ptr<Node>(new Block(std::move(body)));
+  }
+
+  // If we made it this far, nothing was parsed.
+  end = begin;
   return std::unique_ptr<Node>();
 }

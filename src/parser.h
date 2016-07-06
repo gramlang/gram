@@ -85,7 +85,16 @@ namespace gram {
     std::string show();
   };
 
-  std::unique_ptr<gram::Node> parse(std::vector<gram::Token> &tokens, std::string &source_name);
+  // Parse a stream of tokens.
+  // The parser is greedy, meaning it will consume as many tokens as possible.
+  // The `end` iterator is passed by reference, so the parser can inform the
+  // caller how many tokens were parsed.
+  std::unique_ptr<gram::Node> parse(
+    const std::string &source,
+    std::string source_name,
+    std::vector<gram::Token>::iterator begin,
+    std::vector<gram::Token>::iterator &end
+  );
 
 }
 

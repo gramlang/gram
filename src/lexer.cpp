@@ -27,7 +27,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
   size_t pos = 0;
   size_t start_line = 0;
   size_t start_col = 0;
-  size_t paren_depth = 0;
+  std::vector<Token> opening_parens;
   std::vector<std::string> indentations = {""};
   while (pos < source.size()) {
     // If we are at the beginning of a line, consume any indentation.
@@ -39,7 +39,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       std::string indentation = source.substr(pos - start_col, start_col);
 
       // If line wasn't empty and we aren't inside any parentheses, interpret the indentation.
-      if (source[pos] != '\n' && source[pos] != '#' && paren_depth == 0) {
+      if (source[pos] != '\n' && source[pos] != '#' && opening_parens.empty()) {
         if (indentation == indentations.back()) {
           // Same indentation as before. Just insert a sequencer.
           if (!tokens->empty()) {
@@ -76,15 +76,21 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
           );
         }
       }
+
+      // If we consumed any characters, start again. We might be at the end of the stream now.
+      if (start_col > 0) {
+        continue;
+      }
     }
 
     // Opening parenthesis
     if (source[pos] == '(') {
-      tokens->push_back(Token(TokenType::BEGIN, source.substr(pos, 1),
-        start_line, start_col, start_line + 1, start_col + 1));
+      Token paren(TokenType::BEGIN, source.substr(pos, 1),
+        start_line, start_col, start_line + 1, start_col + 1);
+      tokens->push_back(paren);
+      opening_parens.push_back(paren);
       ++pos;
       ++start_col;
-      ++paren_depth;
       continue;
     }
 
@@ -101,13 +107,13 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     if (source[pos] == ')') {
       tokens->push_back(Token(TokenType::END, source.substr(pos, 1),
         start_line, start_col, start_line + 1, start_col + 1));
-      if (paren_depth == 0) {
+      if (opening_parens.empty()) {
         throw Error("Unmatched ')'.",
           source, source_name, start_line, start_col, start_line + 1, start_col + 1);
       }
+      opening_parens.pop_back();
       ++pos;
       ++start_col;
-      --paren_depth;
       continue;
     }
 
@@ -223,9 +229,11 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
   }
 
   // Make sure all parentheses have been closed.
-  if (paren_depth > 0) {
-    throw Error("Missing ')'.",
-      source, source_name, start_line, start_col, start_line + 1, start_col + 1);
+  if (!opening_parens.empty()) {
+    throw Error("Unmatched '('.",
+      source, source_name,
+      opening_parens.back().start_line, opening_parens.back().start_col,
+      opening_parens.back().end_line, opening_parens.back().end_col);
   }
 
   // Close any indentation blocks.
