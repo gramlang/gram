@@ -8,7 +8,7 @@ std::unique_ptr<gram::Node> greedy_parse(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  std::unique_ptr<gram::Node> prior_abstraction
+  std::unique_ptr<gram::Node> prior_node
 );
 
 gram::Node::~Node() {
@@ -322,11 +322,19 @@ std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
   ++pos;
 
   // Parse the body by recursive descent.
+  if (pos == end) {
+    throw gram::Error(
+      "Missing body for abstraction or pi type of '" + argument_name + "'.",
+      source, source_name,
+      (pos - 1)->start_line, (pos - 1)->start_col,
+      (pos - 1)->end_line, (pos - 1)->end_col
+    );
+  }
   auto body = node_to_term(source, source_name,
     greedy_parse(source, source_name, pos, end, pos, std::unique_ptr<gram::Node>()));
   if (!body) {
     throw gram::Error(
-      "Missing body for abstraction or pi type.",
+      "Missing body for abstraction or pi type of '" + argument_name + "'.",
       source, source_name,
       pos->start_line, pos->start_col,
       pos->end_line, pos->end_col
@@ -379,11 +387,19 @@ std::unique_ptr<gram::Node> parse_definition(
   pos += 2;
 
   // Parse the body by recursive descent.
+  if (pos == end) {
+    throw gram::Error(
+      "Missing definition of '" + variable_name + "'.",
+      source, source_name,
+      (pos - 1)->start_line, (pos - 1)->start_col,
+      (pos - 1)->end_line, (pos - 1)->end_col
+    );
+  }
   auto body = node_to_term(source, source_name,
     greedy_parse(source, source_name, pos, end, next, std::unique_ptr<gram::Node>()));
   if (!body) {
     throw gram::Error(
-      "Missing body for abstraction or pi type.",
+      "Missing definition of '" + variable_name + "'.",
       source, source_name,
       pos->start_line, pos->start_col,
       pos->end_line, pos->end_col
@@ -432,7 +448,7 @@ std::unique_ptr<gram::Node> greedy_parse(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  std::unique_ptr<gram::Node> prior_abstraction
+  std::unique_ptr<gram::Node> prior_node
 ) {
   // This function just implements recursive descent, relying on the other functions
   // to do all the work. The following node is what we will return to the caller.
@@ -459,14 +475,14 @@ std::unique_ptr<gram::Node> greedy_parse(
   }
 
   // Application
-  if (prior_abstraction && node) {
-    auto start_line = prior_abstraction->start_line;
-    auto start_col = prior_abstraction->start_col;
+  if (prior_node && node) {
+    auto start_line = prior_node->start_line;
+    auto start_col = prior_node->start_col;
     auto end_line = node->end_line;
     auto end_col = node->end_col;
     auto application = std::unique_ptr<gram::Node>(
       new gram::Application(
-        node_to_term(source, source_name, std::move(prior_abstraction)),
+        node_to_term(source, source_name, std::move(prior_node)),
         node_to_term(source, source_name, std::move(node))
       )
     );
@@ -476,9 +492,9 @@ std::unique_ptr<gram::Node> greedy_parse(
     application->end_col = end_col;
     node = greedy_parse(source, source_name, next, end, next, std::move(application));
   } else {
-    if (prior_abstraction && !node) {
-      node = std::move(prior_abstraction);
-    } else if (node && !prior_abstraction) {
+    if (prior_node && !node) {
+      node = std::move(prior_node);
+    } else if (node && !prior_node) {
       node = greedy_parse(source, source_name, next, end, next, std::move(node));
     }
   }
