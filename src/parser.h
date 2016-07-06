@@ -1,9 +1,9 @@
 /*
-  This header declares the abstract syntax tree.
+  This header declares the interface to the parser.
 */
 
-#ifndef GRAM_AST_H
-#define GRAM_AST_H
+#ifndef GRAM_PARSER_H
+#define GRAM_PARSER_H
 
 #include <string>
 

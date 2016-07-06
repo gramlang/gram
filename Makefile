@@ -10,8 +10,8 @@ override CC := $(shell ./scripts/get-compiler.sh CC)
 override CXX := $(shell ./scripts/get-compiler.sh CXX)
 
 # The headers and sources to compile relative to the src/ directory.
-override HEADERS := ast.h compiler.h error.h platform.h lexer.h version.h
-override SOURCES := main.cpp compiler.cpp error.cpp platform.cpp lexer.cpp ast.cpp
+override HEADERS := compiler.h error.h lexer.h parser.h platform.h version.h
+override SOURCES := compiler.cpp error.cpp lexer.cpp main.cpp parser.cpp platform.cpp
 
 # The targets will be placed in the $(BUILD_PREFIX)/bin/ directory.
 override TARGETS := gram
