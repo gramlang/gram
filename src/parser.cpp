@@ -111,7 +111,7 @@ std::unique_ptr<gram::Term> node_to_term(
     size_t end_col = node_ptr->end_col;
     delete node_ptr;
     throw gram::Error(
-      "Expected a term.", source, source_name, start_line, start_col, end_line, end_col
+      "Expected a term here.", source, source_name, start_line, start_col, end_line, end_col
     );
   }
   return std::unique_ptr<gram::Term>(term_ptr);
@@ -127,6 +127,7 @@ std::unique_ptr<gram::Node> parse_block(
 ) {
   // Make sure we have some tokens to read.
   if (begin == end) {
+    next = begin;
     return std::unique_ptr<gram::Node>();
   }
 
@@ -174,6 +175,7 @@ std::unique_ptr<gram::Node> parse_block(
   // Make sure the abstraction has something to return.
   if (body.empty()) {
     if (top_level) {
+      next = begin;
       return std::unique_ptr<gram::Node>();
     } else {
       throw gram::Error(
@@ -184,7 +186,7 @@ std::unique_ptr<gram::Node> parse_block(
       );
     }
   }
-  if (dynamic_cast<gram::Term *>(body.back().get()) == nullptr) {
+  if (!top_level && dynamic_cast<gram::Term *>(body.back().get()) == nullptr) {
     throw gram::Error(
       "A block must end with a term.",
       source, source_name,
@@ -215,6 +217,7 @@ std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
 ) {
   // Make sure we have some tokens to read.
   if (begin == end) {
+    next = begin;
     return std::unique_ptr<gram::Node>();
   }
 
@@ -325,6 +328,53 @@ std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
   return abstraction_or_pi_type;
 }
 
+std::unique_ptr<gram::Node> parse_definition(
+  const std::string &source,
+  std::string source_name,
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator end,
+  std::vector<gram::Token>::iterator &next
+) {
+  // Make sure we have some tokens to read.
+  if (begin == end) {
+    next = begin;
+    return std::unique_ptr<gram::Node>();
+  }
+
+  // Make sure we are actually parsing a definition.
+  if (begin + 1 >= end ||
+    begin->type != gram::TokenType::IDENTIFIER ||
+    (begin + 1)->type != gram::TokenType::EQUALS
+  ) {
+    next = begin;
+    return std::unique_ptr<gram::Node>();
+  }
+
+  // Get the name of the variable.
+  auto pos = begin;
+  std::string variable_name = pos->literal;
+  pos += 2;
+
+  // Parse the body by recursive descent.
+  auto body = node_to_term(source, source_name,
+    gram::parse(source, source_name, pos, end, next, false));
+  if (!body) {
+    throw gram::Error(
+      "Missing body for abstraction or pi type.",
+      source, source_name,
+      pos->start_line, pos->start_col,
+      pos->end_line, pos->end_col
+    );
+  }
+
+  // Create the node and pass ownership to the caller.
+  auto definition = std::unique_ptr<gram::Node>(
+    new gram::Definition(variable_name, std::move(body))
+  );
+  definition->span_tokens(begin, next);
+  return definition;
+}
+
 std::unique_ptr<gram::Node> parse_variable(
   const std::string &source,
   std::string source_name,
@@ -334,6 +384,7 @@ std::unique_ptr<gram::Node> parse_variable(
 ) {
   // Make sure we have some tokens to read.
   if (begin == end) {
+    next = begin;
     return std::unique_ptr<gram::Node>();
   }
 
@@ -372,6 +423,12 @@ std::unique_ptr<gram::Node> gram::parse(
 
   // Abstraction or pi type
   node = parse_abstraction_or_pi_type(source, source_name, begin, end, next);
+  if (node) {
+    return node;
+  }
+
+  // Definition
+  node = parse_definition(source, source_name, begin, end, next);
   if (node) {
     return node;
   }
