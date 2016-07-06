@@ -52,8 +52,8 @@ namespace gram {
   class Application : public Term {
   public:
     std::unique_ptr<gram::Term> abstraction;
-    std::unique_ptr<gram::Term> argument;
-    Application(std::unique_ptr<gram::Term> abstraction, std::unique_ptr<gram::Term> argument);
+    std::unique_ptr<gram::Term> operand;
+    Application(std::unique_ptr<gram::Term> abstraction, std::unique_ptr<gram::Term> operand);
     std::string show();
   };
 
@@ -92,14 +92,11 @@ namespace gram {
   };
 
   // Parse a stream of tokens.
-  // The parser is greedy, meaning it will consume as many tokens as possible.
   std::unique_ptr<gram::Node> parse(
     const std::string &source,
     std::string source_name,
     std::vector<gram::Token>::iterator begin,
-    std::vector<gram::Token>::iterator end,
-    std::vector<gram::Token>::iterator &next, // Where the parsing ended, exclusive
-    bool top_level
+    std::vector<gram::Token>::iterator end
   );
 
 }

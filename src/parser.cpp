@@ -2,6 +2,15 @@
 #include "parser.h"
 #include <utility>
 
+std::unique_ptr<gram::Node> greedy_parse(
+  const std::string &source,
+  std::string source_name,
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator end,
+  std::vector<gram::Token>::iterator &next,
+  std::unique_ptr<gram::Node> prior_abstraction
+);
+
 gram::Node::~Node() {
 }
 
@@ -41,13 +50,13 @@ std::string gram::Variable::show() {
 }
 
 gram::Application::Application(
-  std::unique_ptr<gram::Term> abstraction, std::unique_ptr<gram::Term> argument
-) : abstraction(std::move(abstraction)), argument(std::move(argument)) {
+  std::unique_ptr<gram::Term> abstraction, std::unique_ptr<gram::Term> operand
+) : abstraction(std::move(abstraction)), operand(std::move(operand)) {
 }
 
 std::string gram::Application::show() {
-  return std::string(abstraction ? abstraction->show() : "?") + " " +
-    std::string(argument ? argument->show() : "?");
+  return "(" + std::string(abstraction ? abstraction->show() : "?") + " " +
+    std::string(operand ? operand->show() : "?") + ")";
 }
 
 gram::PiType::PiType(
@@ -155,7 +164,14 @@ std::unique_ptr<gram::Node> parse_block(
     }
 
     // Do recursive descent to get a body node.
-    auto node = gram::parse(source, source_name, pos, end, pos, false);
+    auto node = greedy_parse(
+      source,
+      source_name,
+      pos,
+      end,
+      pos,
+      std::unique_ptr<gram::Node>()
+    );
 
     // If we are in this loop, there better be at least one node.
     // If we didn't get one, throw an error.
@@ -278,7 +294,7 @@ std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
 
     // Parse the argument type by recursive descent.
     argument_type = node_to_term(source, source_name,
-      gram::parse(source, source_name, pos, arrow_pos, pos, false)
+      greedy_parse(source, source_name, pos, arrow_pos, pos, std::unique_ptr<gram::Node>())
     );
     if (!argument_type) {
     throw gram::Error(
@@ -307,7 +323,7 @@ std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
 
   // Parse the body by recursive descent.
   auto body = node_to_term(source, source_name,
-    gram::parse(source, source_name, pos, end, pos, false));
+    greedy_parse(source, source_name, pos, end, pos, std::unique_ptr<gram::Node>()));
   if (!body) {
     throw gram::Error(
       "Missing body for abstraction or pi type.",
@@ -364,7 +380,7 @@ std::unique_ptr<gram::Node> parse_definition(
 
   // Parse the body by recursive descent.
   auto body = node_to_term(source, source_name,
-    gram::parse(source, source_name, pos, end, next, false));
+    greedy_parse(source, source_name, pos, end, next, std::unique_ptr<gram::Node>()));
   if (!body) {
     throw gram::Error(
       "Missing body for abstraction or pi type.",
@@ -410,42 +426,87 @@ std::unique_ptr<gram::Node> parse_variable(
   return variable;
 }
 
-std::unique_ptr<gram::Node> gram::parse(
+std::unique_ptr<gram::Node> greedy_parse(
   const std::string &source,
   std::string source_name,
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  bool top_level
+  std::unique_ptr<gram::Node> prior_abstraction
 ) {
   // This function just implements recursive descent, relying on the other functions
   // to do all the work. The following node is what we will return to the caller.
-  std::unique_ptr<Node> node;
+  std::unique_ptr<gram::Node> node;
 
   // Block (or the top-level source)
-  node = parse_block(source, source_name, begin, end, next, top_level);
-  if (node) {
-    return node;
+  if (!node) {
+    node = parse_block(source, source_name, begin, end, next, false);
   }
 
   // Abstraction or pi type
-  node = parse_abstraction_or_pi_type(source, source_name, begin, end, next);
-  if (node) {
-    return node;
+  if (!node) {
+    node = parse_abstraction_or_pi_type(source, source_name, begin, end, next);
   }
 
   // Definition
-  node = parse_definition(source, source_name, begin, end, next);
-  if (node) {
-    return node;
+  if (!node) {
+    node = parse_definition(source, source_name, begin, end, next);
   }
 
   // Variable
-  node = parse_variable(source, source_name, begin, end, next);
-  if (node) {
-    return node;
+  if (!node) {
+    node = parse_variable(source, source_name, begin, end, next);
   }
 
-  // If we made it this far, nothing was parsed.
+  // Application
+  if (prior_abstraction && node) {
+    auto start_line = prior_abstraction->start_line;
+    auto start_col = prior_abstraction->start_col;
+    auto end_line = node->end_line;
+    auto end_col = node->end_col;
+    auto application = std::unique_ptr<gram::Node>(
+      new gram::Application(
+        node_to_term(source, source_name, std::move(prior_abstraction)),
+        node_to_term(source, source_name, std::move(node))
+      )
+    );
+    application->start_line = start_line;
+    application->start_col = start_col;
+    application->end_line = end_line;
+    application->end_col = end_col;
+    node = greedy_parse(source, source_name, next, end, next, std::move(application));
+  } else {
+    if (prior_abstraction && !node) {
+      node = std::move(prior_abstraction);
+    } else if (node && !prior_abstraction) {
+      node = greedy_parse(source, source_name, next, end, next, std::move(node));
+    }
+  }
+
+  // Return whatever we parsed.
+  return node;
+}
+
+std::unique_ptr<gram::Node> gram::parse(
+  const std::string &source,
+  std::string source_name,
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator end
+) {
+  // Let the helper do all the work.
+  std::vector<gram::Token>::iterator next;
+  std::unique_ptr<gram::Node> node = parse_block(source, source_name, begin, end, next, true);
+
+  // Make sure we parsed the whole file.
+  if (next != end) {
+    throw gram::Error(
+      "Unexpected token encountered here.",
+      source, source_name,
+      next->start_line, next->start_col,
+      next->end_line, next->end_col
+    );
+  }
+
+  // Go on to type checking!
   return node;
 }
