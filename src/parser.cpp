@@ -245,6 +245,7 @@ std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
     // We do this so that the argument type isn't greedily parsed until the end of the file.
     auto arrow_pos = pos;
     int indentation = 0;
+    int colons_minus_arrows = 0;
     while (arrow_pos != end) {
       if (arrow_pos->type == gram::TokenType::BEGIN) {
         ++indentation;
@@ -252,11 +253,17 @@ std::unique_ptr<gram::Node> parse_abstraction_or_pi_type(
       if (arrow_pos->type == gram::TokenType::END) {
         --indentation;
       }
-      if (indentation == 0 && (
-        arrow_pos->type == gram::TokenType::THIN_ARROW ||
-        arrow_pos->type == gram::TokenType::THICK_ARROW
-      )) {
-        break;
+      if (indentation == 0) {
+        if (arrow_pos->type == gram::TokenType::COLON) {
+          ++colons_minus_arrows;
+        }
+        if (arrow_pos->type == gram::TokenType::THIN_ARROW ||
+          arrow_pos->type == gram::TokenType::THICK_ARROW) {
+          if (colons_minus_arrows == 0) {
+            break;
+          }
+          --colons_minus_arrows;
+        }
       }
       ++arrow_pos;
     }
