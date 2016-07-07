@@ -113,6 +113,8 @@ namespace gram {
   };
 
   // Parse a stream of tokens.
+  // Even though the nodes reference each other by std::shared_ptr, the parser
+  // guarantees that no nodes will be shared (i.e., the result is a tree).
   std::shared_ptr<gram::Node> parse(std::vector<gram::Token> &tokens);
 
 }
