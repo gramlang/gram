@@ -68,7 +68,10 @@ namespace gram {
     std::unique_ptr<gram::Term> abstraction;
     std::unique_ptr<gram::Term> operand;
 
-    Application(std::unique_ptr<gram::Term> abstraction, std::unique_ptr<gram::Term> operand);
+    Application(
+      std::unique_ptr<gram::Term> abstraction,
+      std::unique_ptr<gram::Term> operand
+    );
     std::string show();
   };
 

@@ -33,12 +33,17 @@ gram::Abstraction::Abstraction(
   std::string argument_name,
   std::unique_ptr<gram::Term> argument_type,
   std::unique_ptr<gram::Term> body) :
-  argument_name(argument_name), argument_type(std::move(argument_type)), body(std::move(body)) {
+  argument_name(argument_name),
+  argument_type(std::move(argument_type)),
+  body(std::move(body)) {
 }
 
 std::string gram::Abstraction::show() {
-  return "(" + argument_name + ": " + (argument_type ? argument_type->show() : "?") + " -> " +
-    (body ? body->show() : "?") + ")";
+  return "(" +
+    argument_name + ": " +
+    (argument_type ? argument_type->show() : "?") + " -> " +
+    (body ? body->show() : "?") +
+  ")";
 }
 
 gram::Variable::Variable(std::string name) :
@@ -50,25 +55,34 @@ std::string gram::Variable::show() {
 }
 
 gram::Application::Application(
-  std::unique_ptr<gram::Term> abstraction, std::unique_ptr<gram::Term> operand
-) : abstraction(std::move(abstraction)), operand(std::move(operand)) {
+  std::unique_ptr<gram::Term> abstraction,
+  std::unique_ptr<gram::Term> operand) :
+  abstraction(std::move(abstraction)),
+  operand(std::move(operand)) {
 }
 
 std::string gram::Application::show() {
-  return "(" + std::string(abstraction ? abstraction->show() : "?") + " " +
-    std::string(operand ? operand->show() : "?") + ")";
+  return "(" +
+    std::string(abstraction ? abstraction->show() : "?") + " " +
+    std::string(operand ? operand->show() : "?") +
+  ")";
 }
 
 gram::PiType::PiType(
   std::string argument_name,
   std::unique_ptr<gram::Term> argument_type,
   std::unique_ptr<gram::Term> body) :
-  argument_name(argument_name), argument_type(std::move(argument_type)), body(std::move(body)) {
+  argument_name(argument_name),
+  argument_type(std::move(argument_type)),
+  body(std::move(body)) {
 }
 
 std::string gram::PiType::show() {
-  return "(" + argument_name + ": " + (argument_type ? argument_type->show() : "?") + " => " +
-    (body ? body->show() : "?") + ")";
+  return "(" +
+    argument_name + ": " +
+    (argument_type ? argument_type->show() : "?") + " => " +
+    (body ? body->show() : "?") +
+  ")";
 }
 
 gram::Type::Type() {
@@ -118,7 +132,10 @@ std::unique_ptr<gram::Term> node_to_term(std::unique_ptr<gram::Node> node) {
     auto end_col = node_ptr->end_col;
     delete node_ptr;
     throw gram::Error(
-      "Expected a term here.", *source, *source_name, start_line, start_col, end_line, end_col
+      "Expected a term here.",
+      *source, *source_name,
+      start_line, start_col,
+      end_line, end_col
     );
   }
   return std::unique_ptr<gram::Term>(term_ptr);
@@ -460,7 +477,10 @@ std::unique_ptr<gram::Node> greedy_parse(
     auto end_line = node->end_line;
     auto end_col = node->end_col;
     auto application = std::unique_ptr<gram::Node>(
-      new gram::Application(node_to_term(std::move(prior_node)), node_to_term(std::move(node)))
+      new gram::Application(
+        node_to_term(std::move(prior_node)),
+        node_to_term(std::move(node))
+      )
     );
     application->start_line = start_line;
     application->start_col = start_col;

@@ -3,10 +3,14 @@
 
 gram::Token::Token(
   gram::TokenType type, const std::string &literal,
-  std::shared_ptr<std::string> source_name, std::shared_ptr<std::string> source,
-  size_t start_line, size_t start_col, size_t end_line, size_t end_col) :
-  type(type), literal(literal), source_name(source_name), source(source),
-  start_line(start_line), start_col(start_col), end_line(end_line), end_col(end_col) {
+  std::shared_ptr<std::string> source_name,
+  std::shared_ptr<std::string> source,
+  size_t start_line, size_t start_col,
+  size_t end_line, size_t end_col) :
+  type(type), literal(literal),
+  source_name(source_name), source(source),
+  start_line(start_line), start_col(start_col),
+  end_line(end_line), end_col(end_col) {
 }
 
 std::string gram::Token::show() {
@@ -40,35 +44,53 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         if (indentation == indentations.back()) {
           // Same indentation as before. Just insert a sequencer.
           if (!tokens->empty()) {
-            tokens->push_back(Token(TokenType::SEQUENCER, "", source_name, source,
-              start_line, start_col, start_line + 1, start_col));
+            tokens->push_back(Token(
+              TokenType::SEQUENCER, "",
+              source_name, source,
+              start_line, start_col,
+              start_line + 1, start_col
+            ));
           }
         } else if (indentation.find(indentations.back()) != std::string::npos) {
           // The indentation increased. Open a new block.
           indentations.push_back(indentation);
-          tokens->push_back(Token(TokenType::BEGIN, source->substr(pos - start_col, start_col),
-            source_name, source, start_line, 0, start_line + 1, start_col));
+          tokens->push_back(Token(
+            TokenType::BEGIN, source->substr(pos - start_col, start_col),
+            source_name, source,
+            start_line, 0,
+            start_line + 1, start_col
+          ));
         } else if (indentations.back().find(indentation) != std::string::npos) {
           // The indentation decreased. Close blocks as appropriate.
           while (!indentations.empty() && indentation != indentations.back()) {
             indentations.pop_back();
-            tokens->push_back(Token(TokenType::END, "", source_name, source,
-              start_line, 0, start_line + 1, start_col));
+            tokens->push_back(Token(
+              TokenType::END, "",
+              source_name, source,
+              start_line, 0,
+              start_line + 1, start_col
+            ));
           }
 
           // Make sure we ended up at a previous indentation level.
           if (indentations.empty()) {
-            throw Error("Unmatched outdent.",
-              *source, *source_name, start_line, 0, start_line + 1, start_col);
+            throw Error(
+              "Unmatched outdent.",
+              *source, *source_name,
+              start_line, 0,
+              start_line + 1, start_col
+            );
           }
         } else {
           // A strange possibility. The new indentation is neither a substring
           // nor a superstring of the old indentation. This can happen if spaces
           // and tabs are mixed.
           throw Error(
-            "Unable to compare this indentation to that of previous lines.\n"
+            "Unable to compare this indentation to that of previous lines. "
             "This can happen if you are mixing tabs and spaces.",
-            *source, *source_name, start_line, 0, start_line + 1, start_col
+            *source, *source_name,
+            start_line, 0,
+            start_line + 1, start_col
           );
         }
       }
@@ -79,7 +101,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       }
     }
 
-    // Opening parenthesis
+    // BEGIN
     if ((*source)[pos] == '(') {
       Token paren(TokenType::BEGIN, source->substr(pos, 1), source_name, source,
         start_line, start_col, start_line + 1, start_col + 1);
@@ -90,22 +112,34 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
-    // Type annotation
+    // COLON
     if ((*source)[pos] == ':') {
-      tokens->push_back(Token(TokenType::COLON, source->substr(pos, 1), source_name, source,
-        start_line, start_col, start_line + 1, start_col + 1));
+      tokens->push_back(Token(
+        TokenType::COLON, source->substr(pos, 1),
+        source_name, source,
+        start_line, start_col,
+        start_line + 1, start_col + 1
+      ));
       ++pos;
       ++start_col;
       continue;
     }
 
-    // Closing parenthesis
+    // END
     if ((*source)[pos] == ')') {
-      tokens->push_back(Token(TokenType::END, source->substr(pos, 1), source_name, source,
-        start_line, start_col, start_line + 1, start_col + 1));
+      tokens->push_back(Token(
+        TokenType::END, source->substr(pos, 1),
+        source_name, source,
+        start_line, start_col,
+        start_line + 1, start_col + 1
+      ));
       if (opening_parens.empty()) {
-        throw Error("Unmatched ')'.",
-          *source, *source_name, start_line, start_col, start_line + 1, start_col + 1);
+        throw Error(
+          "Unmatched ')'.",
+          *source, *source_name,
+          start_line, start_col,
+          start_line + 1, start_col + 1
+        );
       }
       opening_parens.pop_back();
       ++pos;
@@ -113,15 +147,20 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
-    // Equals sign
+    // EQUALS
     if ((*source)[pos] == '=' && !(pos < source->size() - 1 && source->substr(pos, 2) == "=>")) {
-      tokens->push_back(Token(TokenType::EQUALS, source->substr(pos, 1), source_name, source,
-        start_line, start_col, start_line + 1, start_col + 1));
+      tokens->push_back(Token(
+        TokenType::EQUALS, source->substr(pos, 1),
+        source_name, source,
+        start_line, start_col,
+        start_line + 1, start_col + 1
+      ));
       ++pos;
       ++start_col;
       continue;
     }
 
+    // IDENTIFIER
     // Identifiers consist of ASCII letters, digits, and underscores, and must not start
     // with a letter. We also accept any bytes >= 0x80, which allows for Unicode symbols.
     if ((*source)[pos] == '_' ||
@@ -137,13 +176,18 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         ++end_pos;
       }
       size_t length = end_pos - pos;
-      tokens->push_back(Token(TokenType::IDENTIFIER, source->substr(pos, length), source_name, source,
-        start_line, start_col, start_line + 1, start_col + length));
+      tokens->push_back(Token(
+        TokenType::IDENTIFIER, source->substr(pos, length),
+        source_name, source,
+        start_line, start_col,
+        start_line + 1, start_col + length
+      ));
       start_col += length;
       pos = end_pos;
       continue;
     }
 
+    // INTEGER
     // Integers are composed of digits optionally preceded by a '-' sign.
     if ((pos < source->size() - 1 && (*source)[pos] == '-' &&
       (*source)[pos + 1] >= '0' && (*source)[pos + 1] <= '9') ||
@@ -153,35 +197,51 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         ++end_pos;
       }
       size_t length = end_pos - pos;
-      tokens->push_back(Token(TokenType::INTEGER, source->substr(pos, length), source_name, source,
-        start_line, start_col, start_line + 1, start_col + length));
+      tokens->push_back(Token(
+        TokenType::INTEGER, source->substr(pos, length),
+        source_name, source,
+        start_line, start_col,
+        start_line + 1, start_col + length
+      ));
       start_col += length;
       pos = end_pos;
       continue;
     }
 
-    // Expression sequencer
+    // SEQUENCER
     if ((*source)[pos] == ';') {
-      tokens->push_back(Token(TokenType::SEQUENCER, source->substr(pos, 1), source_name, source,
-        start_line, start_col, start_line + 1, start_col + 1));
+      tokens->push_back(Token(
+        TokenType::SEQUENCER, source->substr(pos, 1),
+        source_name, source,
+        start_line, start_col,
+        start_line + 1, start_col + 1
+      ));
       ++pos;
       ++start_col;
       continue;
     }
 
-    // Dependent product type
+    // THICK_ARROW
     if (pos < source->size() - 1 && source->substr(pos, 2) == "=>") {
-      tokens->push_back(Token(TokenType::THICK_ARROW, source->substr(pos, 2), source_name, source,
-        start_line, start_col, start_line + 1, start_col + 2));
+      tokens->push_back(Token(
+        TokenType::THICK_ARROW, source->substr(pos, 2),
+        source_name, source,
+        start_line, start_col,
+        start_line + 1, start_col + 2
+      ));
       pos += 2;
       start_col += 2;
       continue;
     }
 
-    // Abstraction
+    // THIN_ARROW
     if (pos < source->size() - 1 && source->substr(pos, 2) == "->") {
-      tokens->push_back(Token(TokenType::THIN_ARROW, source->substr(pos, 2), source_name, source,
-        start_line, start_col, start_line + 1, start_col + 2));
+      tokens->push_back(Token(
+        TokenType::THIN_ARROW, source->substr(pos, 2),
+        source_name, source,
+        start_line, start_col,
+        start_line + 1, start_col + 2
+      ));
       pos += 2;
       start_col += 2;
       continue;
@@ -220,8 +280,12 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     }
 
     // If we made it this far, the input wasn't recognized and should be rejected.
-    throw Error("Unexpected character '" + source->substr(pos, 1) + "'.",
-      *source, *source_name, start_line, start_col, start_line + 1, start_col + 1);
+    throw Error(
+      "Unexpected character '" + source->substr(pos, 1) + "'.",
+      *source, *source_name,
+      start_line, start_col,
+      start_line + 1, start_col + 1
+    );
   }
 
   // Make sure all parentheses have been closed.
@@ -235,8 +299,12 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
   // Close any indentation blocks.
   while (indentations.size() > 1) {
     indentations.pop_back();
-    tokens->push_back(Token(TokenType::END, "", source_name, source,
-      start_line, start_col, start_line + 1, start_col));
+    tokens->push_back(Token(
+      TokenType::END, "",
+      source_name, source,
+      start_line, start_col,
+      start_line + 1, start_col
+    ));
   }
 
   // Return an std::unique_ptr to the vector.

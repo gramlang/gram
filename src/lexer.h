@@ -44,9 +44,13 @@ namespace gram {
     size_t start_line, start_col, // Zero-indexed, inclusive
       end_line, end_col; // Zero-indexed, exclusive
 
-    Token(gram::TokenType type, const std::string &literal,
-      std::shared_ptr<std::string> source_name, std::shared_ptr<std::string> source,
-      size_t start_line, size_t start_col, size_t end_line, size_t end_col);
+    Token(
+      gram::TokenType type, const std::string &literal,
+      std::shared_ptr<std::string> source_name,
+      std::shared_ptr<std::string> source,
+      size_t start_line, size_t start_col,
+      size_t end_line, size_t end_col
+    );
     std::string show();
   };
 

@@ -3,8 +3,12 @@
 gram::Error::Error(std::string message) : message(message) {
 }
 
-gram::Error::Error(std::string message, const std::string &source, std::string source_name,
-      size_t start_line, size_t start_col, size_t end_line, size_t end_col) {
+gram::Error::Error(
+  std::string message,
+  const std::string &source, std::string source_name,
+  size_t start_line, size_t start_col,
+  size_t end_line, size_t end_col
+) {
   // The linter gives a nonsensical warning about the line below, so we suppress it.
   // cppcheck-suppress useInitializationList
   this->message = source_name +
