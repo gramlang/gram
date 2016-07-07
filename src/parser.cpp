@@ -145,9 +145,7 @@ std::string gram::Block::show() {
     } else {
       result += "; ";
     }
-    if (term) {
-      result += term->show();
-    }
+    result += term ? term->show() : "<null>";
   }
   result += ")";
   return result;
