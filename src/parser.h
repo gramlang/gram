@@ -13,12 +13,13 @@ namespace gram {
 
   class Node {
   public:
-    virtual std::string show() = 0;
-    virtual ~Node();
     std::shared_ptr<std::string> source_name;
     std::shared_ptr<std::string> source;
     size_t start_line, start_col, // Zero-indexed, inclusive
       end_line, end_col; // Zero-indexed, exclusive
+
+    virtual ~Node();
+    virtual std::string show() = 0;
 
     // Sets the following members based on a slice of tokens,
     // assumed to be from the same source file:
@@ -36,8 +37,8 @@ namespace gram {
 
   class Term : public Node {
   public:
-    virtual std::string show() = 0;
     virtual ~Term();
+    virtual std::string show() = 0;
   };
 
   class Abstraction : public Term {
@@ -45,6 +46,7 @@ namespace gram {
     std::string argument_name;
     std::unique_ptr<gram::Term> argument_type;
     std::unique_ptr<gram::Term> body;
+
     Abstraction(
       std::string argument_name,
       std::unique_ptr<gram::Term> argument_type,
@@ -56,6 +58,7 @@ namespace gram {
   class Variable : public Term {
   public:
     std::string name;
+
     explicit Variable(std::string name);
     std::string show();
   };
@@ -64,6 +67,7 @@ namespace gram {
   public:
     std::unique_ptr<gram::Term> abstraction;
     std::unique_ptr<gram::Term> operand;
+
     Application(std::unique_ptr<gram::Term> abstraction, std::unique_ptr<gram::Term> operand);
     std::string show();
   };
@@ -73,6 +77,7 @@ namespace gram {
     std::string argument_name;
     std::unique_ptr<gram::Term> argument_type;
     std::unique_ptr<gram::Term> body;
+
     PiType(
       std::string argument_name,
       std::unique_ptr<gram::Term> argument_type,
@@ -90,6 +95,7 @@ namespace gram {
   class Block : public Term {
   public:
     std::vector<std::unique_ptr<gram::Node>> body;
+
     explicit Block(std::vector<std::unique_ptr<gram::Node>> body);
     std::string show();
   };
@@ -98,6 +104,7 @@ namespace gram {
   public:
     std::string name;
     std::unique_ptr<gram::Term> value;
+
     Definition(std::string name, std::unique_ptr<gram::Term> value);
     std::string show();
   };
