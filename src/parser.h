@@ -15,8 +15,19 @@ namespace gram {
   public:
     virtual std::string show() = 0;
     virtual ~Node();
+    std::shared_ptr<std::string> source_name;
+    std::shared_ptr<std::string> source;
     size_t start_line, start_col, // Zero-indexed, inclusive
       end_line, end_col; // Zero-indexed, exclusive
+
+    // Sets the following members based on a slice of tokens,
+    // assumed to be from the same source file:
+    // - source_name
+    // - source
+    // - start_line
+    // - start_col
+    // - end_line
+    // - end_col
     void span_tokens(
       std::vector<gram::Token>::iterator begin,
       std::vector<gram::Token>::iterator end
@@ -92,12 +103,7 @@ namespace gram {
   };
 
   // Parse a stream of tokens.
-  std::unique_ptr<gram::Node> parse(
-    const std::string &source,
-    std::string source_name,
-    std::vector<gram::Token>::iterator begin,
-    std::vector<gram::Token>::iterator end
-  );
+  std::unique_ptr<gram::Node> parse(std::vector<gram::Token> &tokens);
 
 }
 

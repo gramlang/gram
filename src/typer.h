@@ -10,7 +10,7 @@
 namespace gram {
 
   // Parse a stream of tokens.
-  void type(const std::string &source, gram::Node &node);
+  void type(gram::Node &node);
 
 }
 

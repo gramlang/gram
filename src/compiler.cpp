@@ -2,12 +2,13 @@
 #include "error.h"
 #include "lexer.h"
 #include "parser.h"
-#include "typer.h"
 #include "platform.h"
+#include "typer.h"
 #include <fstream>
 #include <iostream>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
+#include <memory>
 #include <sstream>
 #include <stdexcept>
 
@@ -20,17 +21,18 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
   std::stringstream file_buffer;
   file_buffer << file.rdbuf();
   file.close();
-  auto source = file_buffer.str();
+  auto source = std::shared_ptr<std::string>(new std::string(file_buffer.str()));
+  auto source_name = std::shared_ptr<std::string>(new std::string(input_path));
 
   // Perform lexical analysis.
-  auto tokens = lex(source, input_path);
+  auto tokens = lex(source_name, source);
 
   // Parse the tokens into an AST.
-  auto node = parse(source, input_path, tokens->begin(), tokens->end());
+  auto node = parse(*tokens);
 
   // Perform type checking and inference.
   if (node) {
-    type(source, *node);
+    type(*node);
   }
 
   // If we got a node, print it!
