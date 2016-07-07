@@ -177,7 +177,7 @@ std::unique_ptr<gram::Node> parse_block(
     // If we didn't get one, throw an error.
     if (!node) {
       throw gram::Error(
-        "Unexpected token encountered in block.",
+        "Unexpected token encountered here.",
         source, source_name,
         pos->start_line, pos->start_col,
         pos->end_line, pos->end_col
