@@ -2,6 +2,7 @@
 #include "error.h"
 #include "lexer.h"
 #include "parser.h"
+#include "typer.h"
 #include "platform.h"
 #include <fstream>
 #include <iostream>
@@ -26,6 +27,11 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
 
   // Parse the tokens into an AST.
   auto node = parse(source, input_path, tokens->begin(), tokens->end());
+
+  // Perform type checking and inference.
+  if (node) {
+    type(source, *node);
+  }
 
   // If we got a node, print it!
   if (node) {
