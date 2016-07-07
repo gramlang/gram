@@ -61,11 +61,17 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
             start_line + 1, start_col
           ));
         } else if (indentations.back().find(indentation) != std::string::npos) {
-          // The indentation decreased. Close blocks as appropriate.
+          // The indentation decreased. Close blocks and add sequencers as appropriate.
           while (!indentations.empty() && indentation != indentations.back()) {
             indentations.pop_back();
             tokens->push_back(Token(
               TokenType::END, "",
+              source_name, source,
+              start_line, 0,
+              start_line + 1, start_col
+            ));
+            tokens->push_back(Token(
+              TokenType::SEQUENCER, "",
               source_name, source,
               start_line, 0,
               start_line + 1, start_col
