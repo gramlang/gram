@@ -21,8 +21,8 @@ void gram::compile(std::string input_path, std::string output_path, gram::Output
   std::stringstream file_buffer;
   file_buffer << file.rdbuf();
   file.close();
-  auto source = std::shared_ptr<std::string>(new std::string(file_buffer.str()));
-  auto source_name = std::shared_ptr<std::string>(new std::string(input_path));
+  auto source = std::make_shared<std::string>(file_buffer.str());
+  auto source_name = std::make_shared<std::string>(input_path);
 
   // Perform lexical analysis.
   auto tokens = lex(source_name, source);

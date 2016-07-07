@@ -217,7 +217,7 @@ std::shared_ptr<gram::Node> parse_block(
   }
 
   // Create the node and pass ownership to the caller.
-  auto block = std::shared_ptr<gram::Node>(new gram::Block(std::move(body)));
+  auto block = std::make_shared<gram::Block>(std::move(body));
   block->span_tokens(begin, next);
   return block;
 }
@@ -342,12 +342,16 @@ std::shared_ptr<gram::Node> parse_abstraction_or_pi_type(
   // Create the node and pass ownership to the caller.
   std::shared_ptr<gram::Node> abstraction_or_pi_type;
   if (thin_arrow) {
-    abstraction_or_pi_type = std::shared_ptr<gram::Node>(
-      new gram::Abstraction(argument_name, std::move(argument_type), std::move(body))
+    abstraction_or_pi_type = std::make_shared<gram::Abstraction>(
+      argument_name,
+      std::move(argument_type),
+      std::move(body)
     );
   } else {
-    abstraction_or_pi_type = std::shared_ptr<gram::Node>(
-      new gram::PiType(argument_name, std::move(argument_type), std::move(body))
+    abstraction_or_pi_type = std::make_shared<gram::PiType>(
+      argument_name,
+      std::move(argument_type),
+      std::move(body)
     );
   }
   abstraction_or_pi_type->span_tokens(begin, next);
@@ -399,9 +403,7 @@ std::shared_ptr<gram::Node> parse_definition(
   }
 
   // Create the node and pass ownership to the caller.
-  auto definition = std::shared_ptr<gram::Node>(
-    new gram::Definition(variable_name, std::move(body))
-  );
+  auto definition = std::make_shared<gram::Definition>(variable_name, std::move(body));
   definition->span_tokens(begin, next);
   return definition;
 }
@@ -427,7 +429,7 @@ std::shared_ptr<gram::Node> parse_variable(
   next = begin + 1;
 
   // Create the node and pass ownership to the caller.
-  auto variable = std::shared_ptr<gram::Node>(new gram::Variable(begin->literal));
+  auto variable = std::make_shared<gram::Variable>(begin->literal);
   variable->span_tokens(begin, next);
   return variable;
 }
@@ -468,11 +470,9 @@ std::shared_ptr<gram::Node> greedy_parse(
     auto start_col = prior_node->start_col;
     auto end_line = node->end_line;
     auto end_col = node->end_col;
-    auto application = std::shared_ptr<gram::Node>(
-      new gram::Application(
-        node_to_term(std::move(prior_node)),
-        node_to_term(std::move(node))
-      )
+    auto application = std::make_shared<gram::Application>(
+      node_to_term(std::move(prior_node)),
+      node_to_term(std::move(node))
     );
     application->start_line = start_line;
     application->start_col = start_col;
