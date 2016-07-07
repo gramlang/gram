@@ -7,8 +7,8 @@ std::unique_ptr<gram::Node> greedy_parse(
   std::string source_name,
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
-  std::vector<gram::Token>::iterator &next,
-  std::unique_ptr<gram::Node> prior_node
+  std::vector<gram::Token>::iterator &next, // Only mutated if a Node is returned
+  std::unique_ptr<gram::Node> prior_node // Used to parse abstractions with left-associativity
 );
 
 gram::Node::~Node() {
