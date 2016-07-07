@@ -20,6 +20,7 @@ namespace gram {
 
     virtual ~Node();
     virtual std::string show() = 0;
+    virtual std::unique_ptr<Node> clone() = 0;
 
     // Sets the following members based on a slice of tokens,
     // assumed to be from the same source file:
@@ -38,7 +39,6 @@ namespace gram {
   class Term : public Node {
   public:
     virtual ~Term();
-    virtual std::string show() = 0;
   };
 
   class Abstraction : public Term {
@@ -52,6 +52,7 @@ namespace gram {
       std::shared_ptr<gram::Term> argument_type,
       std::shared_ptr<gram::Term> body
     );
+    std::unique_ptr<Node> clone();
     std::string show();
   };
 
@@ -60,6 +61,7 @@ namespace gram {
     std::string name;
 
     explicit Variable(std::string name);
+    std::unique_ptr<Node> clone();
     std::string show();
   };
 
@@ -72,6 +74,7 @@ namespace gram {
       std::shared_ptr<gram::Term> abstraction,
       std::shared_ptr<gram::Term> operand
     );
+    std::unique_ptr<Node> clone();
     std::string show();
   };
 
@@ -86,12 +89,7 @@ namespace gram {
       std::shared_ptr<gram::Term> argument_type,
       std::shared_ptr<gram::Term> body
     );
-    std::string show();
-  };
-
-  class Type : public Term {
-  public:
-    Type();
+    std::unique_ptr<Node> clone();
     std::string show();
   };
 
@@ -100,6 +98,7 @@ namespace gram {
     std::vector<std::shared_ptr<gram::Node>> body;
 
     explicit Block(std::vector<std::shared_ptr<gram::Node>> body);
+    std::unique_ptr<Node> clone();
     std::string show();
   };
 
@@ -109,12 +108,12 @@ namespace gram {
     std::shared_ptr<gram::Term> value;
 
     Definition(std::string name, std::shared_ptr<gram::Term> value);
+    std::unique_ptr<Node> clone();
     std::string show();
   };
 
-  // Parse a stream of tokens.
-  // Even though the nodes reference each other by std::shared_ptr, the parser
-  // guarantees that no nodes will be shared (i.e., the result is a tree).
+  // Parse a stream of tokens. Nodes may be shared (i.e., the result is a DAG,
+  // but not necessarily a tree).
   std::shared_ptr<gram::Node> parse(std::vector<gram::Token> &tokens);
 
 }
