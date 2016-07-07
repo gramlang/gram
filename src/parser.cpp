@@ -187,14 +187,19 @@ std::unique_ptr<gram::Node> gram::Definition::clone() {
 ////////////////
 
 using MemoizingKey = std::tuple<
-  std::vector<gram::Token>::iterator,
-  std::vector<gram::Token>::iterator,
-  std::shared_ptr<gram::Node>
+  std::vector<gram::Token>::iterator, // begin
+  std::vector<gram::Token>::iterator, // end
+  std::shared_ptr<gram::Node> // prior_node
+>;
+
+using MemoizingValue = std::tuple<
+  std::shared_ptr<gram::Node>, // the returned node
+  std::vector<gram::Token>::iterator // next
 >;
 
 using MemoizingMap = std::unordered_map<
   MemoizingKey,
-  std::shared_ptr<gram::Node>,
+  MemoizingValue,
   std::function<size_t(const MemoizingKey &key)>
 >;
 
@@ -206,6 +211,9 @@ std::shared_ptr<gram::Node> greedy_parse(
   MemoizingMap &partial_results
 );
 
+// Cast a std::shared_ptr<gram::Node> to a std::shared_ptr<gram::Term>.
+// If the input is a null pointer, the result will be a null pointer.
+// Throw an error if the cast was unsuccessful.
 std::shared_ptr<gram::Term> node_to_term(std::shared_ptr<gram::Node> node) {
   auto term = std::dynamic_pointer_cast<gram::Term>(node);
   if (node && !term) {
@@ -392,12 +400,12 @@ std::shared_ptr<gram::Node> parse_abstraction_or_pi_type(
       )
     );
     if (!argument_type) {
-    throw gram::Error(
-      "Expected a type annotation here.",
-      *(pos->source), *(pos->source_name),
-      pos->start_line, pos->start_col,
-      pos->end_line, pos->end_col
-    );
+      throw gram::Error(
+        "Expected a type annotation here.",
+        *(pos->source), *(pos->source_name),
+        pos->start_line, pos->start_col,
+        pos->end_line, pos->end_col
+      );
     }
   }
 
@@ -507,7 +515,7 @@ std::shared_ptr<gram::Node> parse_definition(
   ));
   if (!body) {
     throw gram::Error(
-      "Missing definition of '" + variable_name + "'.",
+      "Unexpected token encountered here.",
       *(pos->source), *(pos->source_name),
       pos->start_line, pos->start_col,
       pos->end_line, pos->end_col
@@ -557,7 +565,8 @@ std::shared_ptr<gram::Node> greedy_parse(
   // Check if we can reuse a memoized result.
   auto memoized_result = partial_results.find(make_tuple(begin, end, prior_node));
   if (memoized_result != partial_results.end()) {
-    return memoized_result->second;
+    next = std::get<1>(memoized_result->second);
+    return std::get<0>(memoized_result->second);
   }
 
   // This is what we will return to the caller.
@@ -607,7 +616,7 @@ std::shared_ptr<gram::Node> greedy_parse(
   }
 
   // Memoize whatever we parsed and return it.
-  partial_results.insert({make_tuple(begin, end, prior_node), node});
+  partial_results.insert({make_tuple(begin, end, prior_node), make_tuple(node, next)});
   return node;
 }
 
