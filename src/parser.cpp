@@ -474,7 +474,7 @@ std::unique_ptr<gram::Node> greedy_parse(
     node = parse_variable(source, source_name, begin, end, next);
   }
 
-  // Application
+  // Application (we use the foldl method to parse with left-associativity)
   if (prior_node && node) {
     auto start_line = prior_node->start_line;
     auto start_col = prior_node->start_col;
