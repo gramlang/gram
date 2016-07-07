@@ -44,13 +44,13 @@ namespace gram {
   class Abstraction : public Term {
   public:
     std::string argument_name;
-    std::unique_ptr<gram::Term> argument_type;
-    std::unique_ptr<gram::Term> body;
+    std::shared_ptr<gram::Term> argument_type;
+    std::shared_ptr<gram::Term> body;
 
     Abstraction(
       std::string argument_name,
-      std::unique_ptr<gram::Term> argument_type,
-      std::unique_ptr<gram::Term> body
+      std::shared_ptr<gram::Term> argument_type,
+      std::shared_ptr<gram::Term> body
     );
     std::string show();
   };
@@ -65,12 +65,12 @@ namespace gram {
 
   class Application : public Term {
   public:
-    std::unique_ptr<gram::Term> abstraction;
-    std::unique_ptr<gram::Term> operand;
+    std::shared_ptr<gram::Term> abstraction;
+    std::shared_ptr<gram::Term> operand;
 
     Application(
-      std::unique_ptr<gram::Term> abstraction,
-      std::unique_ptr<gram::Term> operand
+      std::shared_ptr<gram::Term> abstraction,
+      std::shared_ptr<gram::Term> operand
     );
     std::string show();
   };
@@ -78,13 +78,13 @@ namespace gram {
   class PiType : public Term {
   public:
     std::string argument_name;
-    std::unique_ptr<gram::Term> argument_type;
-    std::unique_ptr<gram::Term> body;
+    std::shared_ptr<gram::Term> argument_type;
+    std::shared_ptr<gram::Term> body;
 
     PiType(
       std::string argument_name,
-      std::unique_ptr<gram::Term> argument_type,
-      std::unique_ptr<gram::Term> body
+      std::shared_ptr<gram::Term> argument_type,
+      std::shared_ptr<gram::Term> body
     );
     std::string show();
   };
@@ -97,23 +97,23 @@ namespace gram {
 
   class Block : public Term {
   public:
-    std::vector<std::unique_ptr<gram::Node>> body;
+    std::vector<std::shared_ptr<gram::Node>> body;
 
-    explicit Block(std::vector<std::unique_ptr<gram::Node>> body);
+    explicit Block(std::vector<std::shared_ptr<gram::Node>> body);
     std::string show();
   };
 
   class Definition : public Node {
   public:
     std::string name;
-    std::unique_ptr<gram::Term> value;
+    std::shared_ptr<gram::Term> value;
 
-    Definition(std::string name, std::unique_ptr<gram::Term> value);
+    Definition(std::string name, std::shared_ptr<gram::Term> value);
     std::string show();
   };
 
   // Parse a stream of tokens.
-  std::unique_ptr<gram::Node> parse(std::vector<gram::Token> &tokens);
+  std::shared_ptr<gram::Node> parse(std::vector<gram::Token> &tokens);
 
 }
 
