@@ -208,7 +208,7 @@ std::shared_ptr<gram::Node> greedy_parse(
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next, // Only mutated if a Node is returned
   std::shared_ptr<gram::Node> prior_node, // Used to parse abstractions with left-associativity
-  MemoizingMap &partial_results
+  MemoizingMap &memo
 );
 
 // Cast a std::shared_ptr<gram::Node> to a std::shared_ptr<gram::Term>.
@@ -232,7 +232,7 @@ std::shared_ptr<gram::Node> parse_block(
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
   bool top_level,
-  MemoizingMap &partial_results
+  MemoizingMap &memo
 ) {
   // Make sure we have some tokens to read.
   if (begin == end) {
@@ -269,7 +269,7 @@ std::shared_ptr<gram::Node> parse_block(
       end,
       pos,
       std::shared_ptr<gram::Node>(),
-      partial_results
+      memo
     );
 
     // If we are in this loop, there better be at least one node.
@@ -327,7 +327,7 @@ std::shared_ptr<gram::Node> parse_abstraction_or_pi_type(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &partial_results
+  MemoizingMap &memo
 ) {
   // Make sure we have some tokens to read.
   if (begin == end) {
@@ -396,7 +396,7 @@ std::shared_ptr<gram::Node> parse_abstraction_or_pi_type(
         arrow_pos,
         pos,
         std::shared_ptr<gram::Node>(),
-        partial_results
+        memo
       )
     );
     if (!argument_type) {
@@ -438,7 +438,7 @@ std::shared_ptr<gram::Node> parse_abstraction_or_pi_type(
     end,
     pos,
     std::shared_ptr<gram::Node>(),
-    partial_results
+    memo
   ));
   if (!body) {
     throw gram::Error(
@@ -475,7 +475,7 @@ std::shared_ptr<gram::Node> parse_definition(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &partial_results
+  MemoizingMap &memo
 ) {
   // Make sure we have some tokens to read.
   if (begin == end) {
@@ -511,7 +511,7 @@ std::shared_ptr<gram::Node> parse_definition(
     end,
     next,
     std::shared_ptr<gram::Node>(),
-    partial_results
+    memo
   ));
   if (!body) {
     throw gram::Error(
@@ -532,7 +532,7 @@ std::shared_ptr<gram::Node> parse_variable(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &partial_results
+  MemoizingMap &memo
 ) {
   // Make sure we have some tokens to read.
   if (begin == end) {
@@ -560,11 +560,11 @@ std::shared_ptr<gram::Node> greedy_parse(
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
   std::shared_ptr<gram::Node> prior_node,
-  MemoizingMap &partial_results
+  MemoizingMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memoized_result = partial_results.find(make_tuple(begin, end, prior_node));
-  if (memoized_result != partial_results.end()) {
+  auto memoized_result = memo.find(make_tuple(begin, end, prior_node));
+  if (memoized_result != memo.end()) {
     next = std::get<1>(memoized_result->second);
     return std::get<0>(memoized_result->second);
   }
@@ -574,22 +574,22 @@ std::shared_ptr<gram::Node> greedy_parse(
 
   // Block
   if (!node) {
-    node = parse_block(begin, end, next, false, partial_results);
+    node = parse_block(begin, end, next, false, memo);
   }
 
   // Abstraction or pi type
   if (!node) {
-    node = parse_abstraction_or_pi_type(begin, end, next, partial_results);
+    node = parse_abstraction_or_pi_type(begin, end, next, memo);
   }
 
   // Definition
   if (!node) {
-    node = parse_definition(begin, end, next, partial_results);
+    node = parse_definition(begin, end, next, memo);
   }
 
   // Variable
   if (!node) {
-    node = parse_variable(begin, end, next, partial_results);
+    node = parse_variable(begin, end, next, memo);
   }
 
   // Application (we use the foldl method to parse with left-associativity)
@@ -606,24 +606,24 @@ std::shared_ptr<gram::Node> greedy_parse(
     application->start_col = start_col;
     application->end_line = end_line;
     application->end_col = end_col;
-    node = greedy_parse(next, end, next, std::move(application), partial_results);
+    node = greedy_parse(next, end, next, std::move(application), memo);
   } else {
     if (prior_node && !node) {
       node = std::move(prior_node);
     } else if (node && !prior_node) {
-      node = greedy_parse(next, end, next, std::move(node), partial_results);
+      node = greedy_parse(next, end, next, std::move(node), memo);
     }
   }
 
   // Memoize whatever we parsed and return it.
-  partial_results.insert({make_tuple(begin, end, prior_node), make_tuple(node, next)});
+  memo.insert({make_tuple(begin, end, prior_node), make_tuple(node, next)});
   return node;
 }
 
 std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
   // Memoize the results of all recursive descent calls.
   // This is the "packrat parser" technique.
-  MemoizingMap partial_results(1000, [=](const MemoizingKey &key) {
+  MemoizingMap memo(1000, [=](const MemoizingKey &key) {
     // Unpack the tuple.
     auto begin = std::get<0>(key);
     auto end = std::get<1>(key);
@@ -657,7 +657,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
     tokens.end(),
     next,
     true,
-    partial_results
+    memo
   );
 
   // Make sure we parsed the whole file.
