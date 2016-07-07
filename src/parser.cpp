@@ -156,9 +156,11 @@ std::string gram::Block::show() {
 std::unique_ptr<gram::Node> gram::Block::clone() {
   std::vector<std::shared_ptr<Node>> clone_body;
   for (const auto & node : body) {
-    if (node) {
-      clone_body.push_back(std::shared_ptr<Node>(node->clone().release()));
-    }
+    clone_body.push_back(
+      node ?
+        std::shared_ptr<Node>(node->clone().release()) :
+        nullptr
+    );
   }
   return std::unique_ptr<Node>(new Block(clone_body));
 }
