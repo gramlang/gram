@@ -256,14 +256,14 @@ std::shared_ptr<gram::Node> parse_node(
   // This is what we will return to the caller.
   std::shared_ptr<gram::Node> node;
 
-  // Term
-  if (!node) {
-    node = parse_term(begin, end, next, std::shared_ptr<gram::Term>(), memo);
-  }
-
   // Definition
   if (!node) {
     node = parse_definition(begin, end, next, memo);
+  }
+
+  // Term
+  if (!node) {
+    node = parse_term(begin, end, next, std::shared_ptr<gram::Term>(), memo);
   }
 
   // Return whatever we parsed.
@@ -490,9 +490,7 @@ std::shared_ptr<gram::Term> parse_variable(
   }
 
   // Make sure we are actually parsing a variable.
-  if (begin->type != gram::TokenType::IDENTIFIER || (
-    begin + 1 < end && (begin + 1)->type == gram::TokenType::EQUALS
-  )) {
+  if (begin->type != gram::TokenType::IDENTIFIER) {
     next = begin;
     return std::shared_ptr<gram::Term>();
   }
