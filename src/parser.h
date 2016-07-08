@@ -56,6 +56,21 @@ namespace gram {
     std::string show();
   };
 
+  class PiType : public Term {
+  public:
+    std::string argument_name;
+    std::shared_ptr<gram::Term> argument_type;
+    std::shared_ptr<gram::Term> body;
+
+    PiType(
+      std::string argument_name,
+      std::shared_ptr<gram::Term> argument_type,
+      std::shared_ptr<gram::Term> body
+    );
+    std::unique_ptr<Node> clone();
+    std::string show();
+  };
+
   class Variable : public Term {
   public:
     std::string name;
@@ -73,21 +88,6 @@ namespace gram {
     Application(
       std::shared_ptr<gram::Term> abstraction,
       std::shared_ptr<gram::Term> operand
-    );
-    std::unique_ptr<Node> clone();
-    std::string show();
-  };
-
-  class PiType : public Term {
-  public:
-    std::string argument_name;
-    std::shared_ptr<gram::Term> argument_type;
-    std::shared_ptr<gram::Term> body;
-
-    PiType(
-      std::string argument_name,
-      std::shared_ptr<gram::Term> argument_type,
-      std::shared_ptr<gram::Term> body
     );
     std::unique_ptr<Node> clone();
     std::string show();
