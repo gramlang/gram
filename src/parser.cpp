@@ -360,7 +360,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(MemoType::ABSTRACTION_OR_PI_TYPE, begin, end, std::shared_ptr<gram::Term>());
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
@@ -520,7 +520,7 @@ std::shared_ptr<gram::Term> parse_variable(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(MemoType::VARIABLE, begin, end, std::shared_ptr<gram::Term>());
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
@@ -562,7 +562,7 @@ std::shared_ptr<gram::Term> parse_block(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(MemoType::BLOCK, begin, end, std::shared_ptr<gram::Term>());
   auto memo_result = memo.find(memo_key);
   if (!top_level && memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
@@ -670,7 +670,7 @@ std::shared_ptr<gram::Node> parse_definition(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(MemoType::DEFINITION, begin, end, std::shared_ptr<gram::Term>());
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
