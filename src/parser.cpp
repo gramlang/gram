@@ -186,28 +186,38 @@ std::unique_ptr<gram::Node> gram::Definition::clone() {
 // THE PARSER //
 ////////////////
 
-using MemoizingKey = std::tuple<
+enum class MemoType {
+  NODE,
+  TERM,
+  ABSTRACTION_OR_PI_TYPE,
+  VARIABLE,
+  BLOCK,
+  DEFINITION
+};
+
+using MemoKey = std::tuple<
+  MemoType,
   std::vector<gram::Token>::iterator, // begin
   std::vector<gram::Token>::iterator, // end
   std::shared_ptr<gram::Term> // prior_term
 >;
 
-using MemoizingValue = std::tuple<
-  std::shared_ptr<gram::Term>, // the returned term
+using MemoValue = std::tuple<
+  std::shared_ptr<gram::Node>, // the returned term
   std::vector<gram::Token>::iterator // next
 >;
 
-using MemoizingMap = std::unordered_map<
-  MemoizingKey,
-  MemoizingValue,
-  std::function<size_t(const MemoizingKey &key)>
+using MemoMap = std::unordered_map<
+  MemoKey,
+  MemoValue,
+  std::function<size_t(const MemoKey &key)>
 >;
 
 std::shared_ptr<gram::Node> parse_node(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next, // Only mutated if a Node is returned
-  MemoizingMap &memo
+  MemoMap &memo
 );
 
 std::shared_ptr<gram::Term> parse_term(
@@ -215,21 +225,21 @@ std::shared_ptr<gram::Term> parse_term(
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next, // Only mutated if a Node is returned
   std::shared_ptr<gram::Term> prior_term, // Used to parse abstractions with left-associativity
-  MemoizingMap &memo
+  MemoMap &memo
 );
 
 std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &memo
+  MemoMap &memo
 );
 
 std::shared_ptr<gram::Term> parse_variable(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &memo
+  MemoMap &memo
 );
 
 std::shared_ptr<gram::Term> parse_block(
@@ -237,22 +247,30 @@ std::shared_ptr<gram::Term> parse_block(
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
   bool top_level,
-  MemoizingMap &memo
+  MemoMap &memo
 );
 
 std::shared_ptr<gram::Node> parse_definition(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &memo
+  MemoMap &memo
 );
 
 std::shared_ptr<gram::Node> parse_node(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &memo
+  MemoMap &memo
 ) {
+  // Check if we can reuse a memoized result.
+  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_result = memo.find(memo_key);
+  if (memo_result != memo.end()) {
+    next = std::get<1>(memo_result->second);
+    return std::get<0>(memo_result->second);
+  }
+
   // This is what we will return to the caller.
   std::shared_ptr<gram::Node> node;
 
@@ -266,7 +284,8 @@ std::shared_ptr<gram::Node> parse_node(
     node = parse_term(begin, end, next, std::shared_ptr<gram::Term>(), memo);
   }
 
-  // Return whatever we parsed.
+  // Memoize whatever we parsed and return it.
+  memo.insert({memo_key, make_tuple(node, next)});
   return node;
 }
 
@@ -275,14 +294,14 @@ std::shared_ptr<gram::Term> parse_term(
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
   std::shared_ptr<gram::Term> prior_term,
-  MemoizingMap &memo
+  MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(begin, end, prior_term);
+  auto memo_key = make_tuple(MemoType::TERM, begin, end, prior_term);
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
-    return std::get<0>(memo_result->second);
+    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
   }
 
   // This is what we will return to the caller.
@@ -327,7 +346,10 @@ std::shared_ptr<gram::Term> parse_term(
   }
 
   // Memoize whatever we parsed and return it.
-  memo.insert({memo_key, make_tuple(term, next)});
+  memo.insert({memo_key, make_tuple(
+    std::dynamic_pointer_cast<gram::Node>(term),
+    next
+  )});
   return term;
 }
 
@@ -335,8 +357,16 @@ std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &memo
+  MemoMap &memo
 ) {
+  // Check if we can reuse a memoized result.
+  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_result = memo.find(memo_key);
+  if (memo_result != memo.end()) {
+    next = std::get<1>(memo_result->second);
+    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
+  }
+
   // Make sure we have some tokens to read.
   if (begin == end) {
     next = begin;
@@ -458,7 +488,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
   // Tell the caller where we ended up.
   next = pos;
 
-  // Create the node and pass ownership to the caller.
+  // Construct the node.
   std::shared_ptr<gram::Term> abstraction_or_pi_type;
   if (thin_arrow) {
     abstraction_or_pi_type = std::make_shared<gram::Abstraction>(
@@ -474,6 +504,12 @@ std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
     );
   }
   abstraction_or_pi_type->span_tokens(begin, next);
+
+  // Memoize whatever we parsed and return it.
+  memo.insert({memo_key, make_tuple(
+    std::dynamic_pointer_cast<gram::Node>(abstraction_or_pi_type),
+    next
+  )});
   return abstraction_or_pi_type;
 }
 
@@ -481,8 +517,16 @@ std::shared_ptr<gram::Term> parse_variable(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &memo
+  MemoMap &memo
 ) {
+  // Check if we can reuse a memoized result.
+  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_result = memo.find(memo_key);
+  if (memo_result != memo.end()) {
+    next = std::get<1>(memo_result->second);
+    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
+  }
+
   // Make sure we have some tokens to read.
   if (begin == end) {
     next = begin;
@@ -498,9 +542,15 @@ std::shared_ptr<gram::Term> parse_variable(
   // Tell the caller where we ended up.
   next = begin + 1;
 
-  // Create the node and pass ownership to the caller.
+  // Construct the node.
   auto variable = std::make_shared<gram::Variable>(begin->literal);
   variable->span_tokens(begin, next);
+
+  // Memoize whatever we parsed and return it.
+  memo.insert({memo_key, make_tuple(
+    std::dynamic_pointer_cast<gram::Node>(variable),
+    next
+  )});
   return variable;
 }
 
@@ -509,8 +559,16 @@ std::shared_ptr<gram::Term> parse_block(
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
   bool top_level,
-  MemoizingMap &memo
+  MemoMap &memo
 ) {
+  // Check if we can reuse a memoized result.
+  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_result = memo.find(memo_key);
+  if (!top_level && memo_result != memo.end()) {
+    next = std::get<1>(memo_result->second);
+    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
+  }
+
   // Make sure we have some tokens to read.
   if (begin == end) {
     next = begin;
@@ -577,7 +635,7 @@ std::shared_ptr<gram::Term> parse_block(
       );
     }
   }
-  if (!top_level && dynamic_cast<gram::Term *>(body.back().get()) == nullptr) {
+  if (!top_level && !std::dynamic_pointer_cast<gram::Term>(body.back())) {
     throw gram::Error(
       "A block must end with a term.",
       *(pos->source), *(pos->source_name),
@@ -593,9 +651,15 @@ std::shared_ptr<gram::Term> parse_block(
     ++next;
   }
 
-  // Create the node and pass ownership to the caller.
+  // Construct the node.
   auto block = std::make_shared<gram::Block>(body);
   block->span_tokens(begin, next);
+
+  // Memoize whatever we parsed and return it.
+  memo.insert({memo_key, make_tuple(
+    std::dynamic_pointer_cast<gram::Node>(block),
+    next
+  )});
   return block;
 }
 
@@ -603,8 +667,16 @@ std::shared_ptr<gram::Node> parse_definition(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
-  MemoizingMap &memo
+  MemoMap &memo
 ) {
+  // Check if we can reuse a memoized result.
+  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_result = memo.find(memo_key);
+  if (memo_result != memo.end()) {
+    next = std::get<1>(memo_result->second);
+    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
+  }
+
   // Make sure we have some tokens to read.
   if (begin == end) {
     next = begin;
@@ -650,22 +722,30 @@ std::shared_ptr<gram::Node> parse_definition(
     );
   }
 
-  // Create the node and pass ownership to the caller.
+  // Construct the node.
   auto definition = std::make_shared<gram::Definition>(variable_name, body);
   definition->span_tokens(begin, next);
+
+  // Memoize whatever we parsed and return it.
+  memo.insert({memo_key, make_tuple(
+    std::dynamic_pointer_cast<gram::Node>(definition),
+    next
+  )});
   return definition;
 }
 
 std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
   // Memoize the results of recursive descent calls.
   // This is the "packrat parser" technique.
-  MemoizingMap memo(1000, [=](const MemoizingKey &key) {
+  MemoMap memo(1000, [=](const MemoKey &key) {
     // Unpack the tuple.
-    auto begin = std::get<0>(key);
-    auto end = std::get<1>(key);
-    auto prior_term = std::get<2>(key);
+    auto memo_type = std::get<0>(key);
+    auto begin = std::get<1>(key);
+    auto end = std::get<2>(key);
+    auto prior_term = std::get<3>(key);
 
     // Get the hash of each component.
+    size_t memo_type_hash = static_cast<typename std::underlying_type<MemoType>::type>(memo_type);
     size_t begin_hash = 0;
     size_t end_hash = 0;
     size_t prior_term_hash = 0;
@@ -681,8 +761,9 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
 
     // To combine the hashes, we use the hash_combine trick from Boost.
     size_t combined_hash = begin_hash;
-    combined_hash ^= end_hash + 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2);
-    combined_hash ^= prior_term_hash + 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2);
+    combined_hash ^= 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2) + memo_type_hash;
+    combined_hash ^= 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2) + end_hash;
+    combined_hash ^= 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2) + prior_term_hash;
     return combined_hash;
   });
 
