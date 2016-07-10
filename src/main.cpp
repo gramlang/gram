@@ -21,9 +21,13 @@ int main(int argc, char *argv[]) {
       "  gram -v\n"
       "  gram --version\n"
       "  gram source dest\n"
-      "  gram --emit-asm source dest\n"
+      "  gram --emit-tokens source dest\n"
+      "  gram --emit-ast source dest\n"
+      "  gram --emit-types source dest\n"
       "  gram --emit-llvm-asm source dest\n"
-      "  gram --emit-llvm-bitcode source dest\n";
+      "  gram --emit-llvm-bitcode source dest\n"
+      "  gram --emit-asm source dest\n"
+      "  gram --emit-binary source dest\n";
     return 0;
   }
 
@@ -41,12 +45,20 @@ int main(int argc, char *argv[]) {
   if (argc == 3 || argc == 4) {
     try {
       if (argc == 4) {
-        if (std::string(argv[1]) == "--emit-llvm-bitcode") {
-          gram::compile(argv[2], argv[3], gram::OutputType::LLVM_BITCODE);
+        if (std::string(argv[1]) == "--emit-tokens") {
+          gram::compile(argv[2], argv[3], gram::OutputType::TOKENS);
+        } else if (std::string(argv[1]) == "--emit-ast") {
+          gram::compile(argv[2], argv[3], gram::OutputType::AST);
+        } else if (std::string(argv[1]) == "--emit-types") {
+          gram::compile(argv[2], argv[3], gram::OutputType::TYPES);
         } else if (std::string(argv[1]) == "--emit-llvm-asm") {
           gram::compile(argv[2], argv[3], gram::OutputType::LLVM_ASM);
+        } else if (std::string(argv[1]) == "--emit-llvm-bitcode") {
+          gram::compile(argv[2], argv[3], gram::OutputType::LLVM_BITCODE);
         } else if (std::string(argv[1]) == "--emit-asm") {
           gram::compile(argv[2], argv[3], gram::OutputType::ASM);
+        } else if (std::string(argv[1]) == "--emit-binary") {
+          gram::compile(argv[2], argv[3], gram::OutputType::BINARY);
         } else {
           // We didn't recognize the syntax.
           std::cout << parse_error;

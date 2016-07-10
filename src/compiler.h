@@ -10,10 +10,13 @@
 namespace gram {
 
   enum class OutputType {
-    ASM,
-    BINARY,
+    TOKENS,
+    AST,
+    TYPES,
     LLVM_ASM,
-    LLVM_BITCODE
+    LLVM_BITCODE,
+    ASM,
+    BINARY
   };
 
   void compile(std::string input_path, std::string output_path, gram::OutputType output_type);
