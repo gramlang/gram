@@ -61,7 +61,7 @@ std::unique_ptr<gram::Node> gram::Abstraction::clone() {
   ));
 }
 
-gram::PiType::PiType(
+gram::ArrowType::ArrowType(
   std::string argument_name,
   std::shared_ptr<gram::Term> argument_type,
   std::shared_ptr<gram::Term> body) :
@@ -70,7 +70,7 @@ gram::PiType::PiType(
   body(body) {
 }
 
-std::string gram::PiType::show() {
+std::string gram::ArrowType::show() {
   return "(" +
     argument_name + ": " +
     (argument_type ? argument_type->show() : "?") + " => " +
@@ -78,8 +78,8 @@ std::string gram::PiType::show() {
   ")";
 }
 
-std::unique_ptr<gram::Node> gram::PiType::clone() {
-  return std::unique_ptr<Node>(new PiType(
+std::unique_ptr<gram::Node> gram::ArrowType::clone() {
+  return std::unique_ptr<Node>(new ArrowType(
     argument_name,
     std::shared_ptr<Term>(
       argument_type ?
@@ -228,7 +228,7 @@ std::shared_ptr<gram::Term> parse_term(
   MemoMap &memo
 );
 
-std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
+std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
@@ -312,9 +312,9 @@ std::shared_ptr<gram::Term> parse_term(
     term = parse_block(begin, end, next, false, memo);
   }
 
-  // Abstraction or pi type
+  // Abstraction or arrow type
   if (!term) {
-    term = parse_abstraction_or_pi_type(begin, end, next, memo);
+    term = parse_abstraction_or_arrow_type(begin, end, next, memo);
   }
 
   // Variable
@@ -353,7 +353,7 @@ std::shared_ptr<gram::Term> parse_term(
   return term;
 }
 
-std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
+std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
@@ -373,7 +373,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
     return std::shared_ptr<gram::Term>();
   }
 
-  // Make sure we are actually parsing an abstraction or pi type.
+  // Make sure we are actually parsing an abstraction or arrow type.
   if (begin + 1 >= end || begin->type != gram::TokenType::IDENTIFIER || (
     (begin + 1)->type != gram::TokenType::COLON &&
     (begin + 1)->type != gram::TokenType::THIN_ARROW &&
@@ -421,7 +421,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
     }
     if (arrow_pos == end) {
       throw gram::Error(
-        "This looks like the beginning of an abstraction or pi type, but there is no arrow.",
+        "This looks like the beginning of an abstraction or arrow type, but there is no arrow.",
         *(begin->source), *(begin->source_name),
         begin->start_line, begin->start_col,
         (begin + 1)->end_line, (begin + 1)->end_col
@@ -463,7 +463,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
   // Parse the body by recursive descent.
   if (pos == end) {
     throw gram::Error(
-      "Missing body for abstraction or pi type of '" + argument_name + "'.",
+      "Missing body for abstraction or arrow type of '" + argument_name + "'.",
       *((pos - 1)->source), *((pos - 1)->source_name),
       (pos - 1)->start_line, (pos - 1)->start_col,
       (pos - 1)->end_line, (pos - 1)->end_col
@@ -478,7 +478,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
   );
   if (!body) {
     throw gram::Error(
-      "Missing body for abstraction or pi type of '" + argument_name + "'.",
+      "Missing body for abstraction or arrow type of '" + argument_name + "'.",
       *(pos->source), *(pos->source_name),
       pos->start_line, pos->start_col,
       pos->end_line, pos->end_col
@@ -489,28 +489,28 @@ std::shared_ptr<gram::Term> parse_abstraction_or_pi_type(
   next = pos;
 
   // Construct the node.
-  std::shared_ptr<gram::Term> abstraction_or_pi_type;
+  std::shared_ptr<gram::Term> abstraction_or_arrow_type;
   if (thin_arrow) {
-    abstraction_or_pi_type = std::make_shared<gram::Abstraction>(
+    abstraction_or_arrow_type = std::make_shared<gram::Abstraction>(
       argument_name,
       argument_type,
       body
     );
   } else {
-    abstraction_or_pi_type = std::make_shared<gram::PiType>(
+    abstraction_or_arrow_type = std::make_shared<gram::ArrowType>(
       argument_name,
       argument_type,
       body
     );
   }
-  abstraction_or_pi_type->span_tokens(begin, next);
+  abstraction_or_arrow_type->span_tokens(begin, next);
 
   // Memoize whatever we parsed and return it.
   memo.insert({memo_key, make_tuple(
-    std::dynamic_pointer_cast<gram::Node>(abstraction_or_pi_type),
+    std::dynamic_pointer_cast<gram::Node>(abstraction_or_arrow_type),
     next
   )});
-  return abstraction_or_pi_type;
+  return abstraction_or_arrow_type;
 }
 
 std::shared_ptr<gram::Term> parse_variable(

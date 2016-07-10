@@ -56,13 +56,13 @@ namespace gram {
     std::string show();
   };
 
-  class PiType : public Term {
+  class ArrowType : public Term {
   public:
     std::string argument_name;
     std::shared_ptr<gram::Term> argument_type;
     std::shared_ptr<gram::Term> body;
 
-    PiType(
+    ArrowType(
       std::string argument_name,
       std::shared_ptr<gram::Term> argument_type,
       std::shared_ptr<gram::Term> body
