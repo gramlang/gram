@@ -107,6 +107,23 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       }
     }
 
+    // A '~' can be used to continue a line.
+    if ((*source)[pos] == '~') {
+      // Consume the symbol.
+      if (tokens->empty() || tokens->back().type != TokenType::SEQUENCER) {
+        throw Error(
+          "Unexpected '~'.",
+          *source, *source_name,
+          start_line, start_col,
+          start_line + 1, start_col + 1
+        );
+      }
+      tokens->pop_back();
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
     // BEGIN
     if ((*source)[pos] == '(') {
       Token paren(TokenType::BEGIN, source->substr(pos, 1), source_name, source,
