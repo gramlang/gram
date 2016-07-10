@@ -189,7 +189,7 @@ std::unique_ptr<gram::Node> gram::Definition::clone() {
 enum class MemoType {
   NODE,
   TERM,
-  ABSTRACTION_OR_PI_TYPE,
+  ABSTRACTION_OR_ARROW_TYPE,
   VARIABLE,
   BLOCK,
   DEFINITION
@@ -360,7 +360,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::ABSTRACTION_OR_PI_TYPE, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(MemoType::ABSTRACTION_OR_ARROW_TYPE, begin, end, std::shared_ptr<gram::Term>());
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
