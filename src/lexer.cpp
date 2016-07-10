@@ -33,14 +33,19 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     // If we are at the beginning of a line, process any indentation.
     if (start_col == 0) {
       // Consume it.
-      while ((*source)[pos] == ' ' || (*source)[pos] == '\t') {
+      while (pos < source->size() && ((*source)[pos] == ' ' || (*source)[pos] == '\t')) {
         ++pos;
         ++start_col;
       }
       std::string indentation = source->substr(pos - start_col, start_col);
 
       // If line wasn't empty and we aren't inside any parentheses, interpret the indentation.
-      if ((*source)[pos] != '\n' && (*source)[pos] != '#' && opening_parens.empty()) {
+      if (
+        pos < source->size() &&
+        (*source)[pos] != '\n' &&
+        (*source)[pos] != '#' &&
+        opening_parens.empty()
+      ) {
         if (indentation == indentations.back()) {
           // Same indentation as before. Just insert a sequencer.
           if (!tokens->empty()) {
