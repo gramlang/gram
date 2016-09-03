@@ -4,7 +4,7 @@ set -eu -o pipefail
 # This script tries to download and install the build tools needed to build Gram:
 # - GNU Make >= 3.79.1
 # - GCC >= 4.9 or Clang >= 3.1
-# - CMake >= 2.8.12.2
+# - CMake >= 3.4.3
 
 # Usage:
 #   ./install-deps.sh
@@ -79,10 +79,10 @@ echo "Found $CC: $($CC --version | head -n 1)"
 echo "Found $CXX: $($CXX --version | head -n 1)"
 
 # Install CMake if necessary.
-# Gram requires CMake >= 2.8.12.2.
+# Gram requires CMake >= 3.4.3.
 echo 'Looking for sufficient cmake...'
 if ! (which cmake >/dev/null 2>&1 &&
-  (cmake --version | grep -qi 'cmake version 3')); then
+  (cmake --version | grep -qi 'cmake version 3\.\(\(4\.[3-9]\)\|[5-9]\)')); then
   echo 'No sufficient cmake found.'
   if (uname | grep -qi 'darwin') && which brew >/dev/null 2>&1; then # OS X + Homebrew
     # Install via Homebrew.
@@ -97,7 +97,7 @@ if ! (which cmake >/dev/null 2>&1 &&
     fi
     if (uname -a | grep -qi 'ubuntu\|debian') &&
       (DEBIAN_FRONTEND=noninteractive apt-get -Vs install cmake |
-        grep -qi 'cmake (3\.'); then # Ubuntu
+        grep -qi 'cmake (3\.\(\(4\.[3-9]\)\|[5-9]\)'); then # Ubuntu
       # Install via apt-get.
       echo 'Installing cmake via apt-get...'
       sudo DEBIAN_FRONTEND=noninteractive apt-get -y install cmake

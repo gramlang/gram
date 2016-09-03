@@ -250,7 +250,7 @@ void gram::llc(
     "",
     "",
     options,
-    llvm::Reloc::Default,
+    llvm::Reloc::PIC_,
     llvm::CodeModel::Default,
     llvm::CodeGenOpt::Aggressive
   ));

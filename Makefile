@@ -63,10 +63,10 @@ $(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCE
 		-o $(BUILD_PREFIX)/bin/gram \
 		$(shell $(BUILD_PREFIX)/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs)
 
-$(BUILD_PREFIX)/llvm/build/bin/llvm-config: deps/llvm-3.8.0.src.tar.xz
+$(BUILD_PREFIX)/llvm/build/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
 	rm -rf $(BUILD_PREFIX)/llvm
 	mkdir -p $(BUILD_PREFIX)/llvm/llvm
-	tar -xf deps/llvm-3.8.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/llvm --strip-components=1
+	tar -xf deps/llvm-3.9.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/llvm --strip-components=1
 	mkdir -p $(BUILD_PREFIX)/llvm/build
 	cd $(BUILD_PREFIX)/llvm/build && cmake ../llvm \
 		-G 'Unix Makefiles' \
