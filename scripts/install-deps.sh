@@ -35,9 +35,8 @@ echo "Found make: $(make --version | head -n 1)"
 # Install compilers if necessary.
 # Gram requires GCC >= 4.9 or Clang >= 3.1.
 echo 'Looking for sufficient C and C++ compilers...'
-CC="$("${BASH_SOURCE%/*}/get-compiler.sh" CC)"
-CXX="$("${BASH_SOURCE%/*}/get-compiler.sh" CXX)"
-if (echo "$CC" | grep -qi 'none') || (echo "$CXX" | grep -qi 'none'); then
+if (! "${BASH_SOURCE%/*}/get-compiler.sh" CC >/dev/null 2>&1) ||
+  (! "${BASH_SOURCE%/*}/get-compiler.sh" CXX >/dev/null 2>&1); then
   echo 'No sufficient C and C++ compilers found.'
   if uname -a | grep -qi 'ubuntu\|debian'; then # Ubuntu or Debian
     # Update package index.
@@ -72,9 +71,9 @@ if (echo "$CC" | grep -qi 'none') || (echo "$CXX" | grep -qi 'none'); then
       fi
     fi
   fi
-  CC="$("${BASH_SOURCE%/*}/get-compiler.sh" CC)"
-  CXX="$("${BASH_SOURCE%/*}/get-compiler.sh" CXX)"
 fi
+CC="$("${BASH_SOURCE%/*}/get-compiler.sh" CC)"
+CXX="$("${BASH_SOURCE%/*}/get-compiler.sh" CXX)"
 echo "Found $CC: $($CC --version | head -n 1)"
 echo "Found $CXX: $($CXX --version | head -n 1)"
 
