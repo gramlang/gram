@@ -18,15 +18,13 @@ else
 fi
 
 # Get the build type (release or debug).
-if test "$#" -ne 1; then
-  echo 'Missing build type.'
-  exit 1
+if echo "$1" | grep -qi 'release'; then
+  BUILD_TYPE='release'
+elif echo "$1" | grep -qi 'debug'; then
+  BUILD_TYPE='debug'
 else
-  if test "$1" = 'release' || test "$1" = 'debug'; then
-    BUILD_TYPE="$1"
-  else
-    echo "BUILD_TYPE must be 'release' or 'debug'"
-  fi
+  echo "BUILD_TYPE must be 'release' or 'debug'" >&2
+  exit 1
 fi
 
 # Print the version information as a C++ source file.
