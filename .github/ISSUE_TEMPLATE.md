@@ -1,6 +1,4 @@
-# Description
-
-[Description of the change]
+[Description of the issue]
 
 # Steps to reproduce
 You can omit this section if not applicable.
