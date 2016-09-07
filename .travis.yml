@@ -8,5 +8,6 @@ matrix:
       osx_image: xcode7.3
 install:
   - make install-deps
+  - make install-lint-deps
 script:
-  - make && sudo make install
+  - make && make lint && sudo make install
