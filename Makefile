@@ -6,8 +6,13 @@ NPROCS := $(shell ./scripts/count-cores.sh)
 BUILD_TYPE := release
 
 # Determine which compiler to use.
-override CC := $(shell ./scripts/get-compiler.sh CC)
-override CXX := $(shell ./scripts/get-compiler.sh CXX)
+# The SCAN_BUILD option disables automatic compiler detection.
+# This is needed by the Clang Static Analyzer (see the lint target).
+SCAN_BUILD := no
+ifeq ($(SCAN_BUILD),no)
+	override CC := $(shell ./scripts/get-compiler.sh CC 2> /dev/null)
+	override CXX := $(shell ./scripts/get-compiler.sh CXX 2> /dev/null)
+endif
 
 # The headers and sources to compile relative to the src/ directory.
 override HEADERS := compiler.h error.h lexer.h parser.h platform.h typer.h version.h
@@ -36,12 +41,22 @@ clean:
 clean-all:
 	rm -rf $(BUILD_PREFIX)
 
-lint:
+lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
+		$(BUILD_PREFIX)/llvm/build/bin/llvm-config
 	shellcheck scripts/*.sh
 	cppcheck src --enable=all --force --error-exitcode=1 \
 		-I $(BUILD_PREFIX)/llvm/llvm/include \
 		-I $(BUILD_PREFIX)/llvm/build/include \
 		--suppressions-list=cppcheck-suppressions.txt
+	which scan-build 2> /dev/null && \
+		rm -f $(BUILD_PREFIX)/bin/gram && \
+		scan-build \
+			--status-bugs \
+			--use-analyzer $$(which clang) \
+			--use-cc $$(./scripts/get-compiler.sh CC) \
+			--use-c++ $$(./scripts/get-compiler.sh CXX) \
+			make $(BUILD_PREFIX)/bin/gram SCAN_BUILD=yes || \
+		true # TODO: Remove this once we enable the Clang Static Analyzer in CI.
 
 install-deps:
 	./scripts/install-deps.sh
