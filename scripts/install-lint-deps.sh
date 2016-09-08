@@ -10,8 +10,8 @@ set -eu -o pipefail
 
 # Install ShellCheck if necessary.
 echo 'Looking for shellcheck...'
-if ! (which shellcheck >/dev/null 2>&1); then
-  if (uname | grep -qi 'darwin') && which brew >/dev/null 2>&1; then # OS X + Homebrew
+if ! (which shellcheck > /dev/null 2>&1); then
+  if (uname | grep -qi 'darwin') && which brew > /dev/null 2>&1; then # OS X + Homebrew
     # Install via Homebrew.
     echo 'Installing shellcheck via Homebrew...'
     brew update
@@ -33,8 +33,8 @@ echo "Found shellcheck: $(shellcheck -V | grep '^version:')"
 
 # Install Cppcheck if necessary.
 echo 'Looking for cppcheck...'
-if ! (which cppcheck >/dev/null 2>&1); then
-  if (uname | grep -qi 'darwin') && which brew >/dev/null 2>&1; then # OS X + Homebrew
+if ! (which cppcheck > /dev/null 2>&1); then
+  if (uname | grep -qi 'darwin') && which brew > /dev/null 2>&1; then # OS X + Homebrew
     # Install via Homebrew.
     echo 'Installing cppcheck via Homebrew...'
     brew update

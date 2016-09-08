@@ -13,22 +13,22 @@ if ! echo "$1" | grep -qi 'CC\|CXX'; then
 fi
 
 # Clang >= 3.1
-if (clang --version 2>/dev/null | grep -qi ' 3\.[1-9]') &&
-  clang++ --version 2>/dev/null | grep -qi ' 3\.[1-9]'; then
+if (clang --version 2> /dev/null | grep -qi ' 3\.[1-9]') &&
+  clang++ --version 2> /dev/null | grep -qi ' 3\.[1-9]'; then
   if echo "$1" | grep -qi 'CC'; then echo clang; exit; fi
   if echo "$1" | grep -qi 'CXX'; then echo clang++; exit; fi
 fi
 
 # Clang that ships with Xcode >= 5.0, based on Clang >= 3.3
-if (clang --version 2>/dev/null | grep -qi 'apple llvm version [5-9]\.') &&
-  clang++ --version 2>/dev/null | grep -qi 'apple llvm version [5-9]\.'; then
+if (clang --version 2> /dev/null | grep -qi 'apple llvm version [5-9]\.') &&
+  clang++ --version 2> /dev/null | grep -qi 'apple llvm version [5-9]\.'; then
   if echo "$1" | grep -qi 'CC'; then echo clang; exit; fi
   if echo "$1" | grep -qi 'CXX'; then echo clang++; exit; fi
 fi
 
 # GCC >= 4.9
-if (gcc --version 2>/dev/null | grep -qi ' \(4\.9\.\)\|\([5-9]\.\)') &&
-  (gcc++ --version 2>/dev/null | grep -qi ' \(4\.9\.\)\|\([5-9]\.\)'); then
+if (gcc --version 2> /dev/null | grep -qi ' \(4\.9\.\)\|\([5-9]\.\)') &&
+  (gcc++ --version 2> /dev/null | grep -qi ' \(4\.9\.\)\|\([5-9]\.\)'); then
   if echo "$1" | grep -qi 'CC'; then echo gcc; exit; fi
   if echo "$1" | grep -qi 'CXX'; then echo g++; exit; fi
 fi
