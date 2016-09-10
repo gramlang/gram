@@ -4,6 +4,7 @@ set -eu -o pipefail
 # This script tries to download and install the tools needed to lint:
 # - ShellCheck
 # - Cppcheck
+# - The Clang Static Analyzer (must be installed manually)
 
 # Usage:
 #   ./install-lint-deps.sh
@@ -53,5 +54,15 @@ if ! (which cppcheck > /dev/null 2>&1); then
   fi
 fi
 echo "Found cppcheck: $(cppcheck --version)"
+
+# Check for the Clang Static Analyzer (scan-build).
+echo 'Looking for scan-build...'
+if ! (which scan-build >/dev/null 2>&1); then
+  # We don't have a good way to install this automatically.
+  # Just report that it needs to be installed.
+  echo 'No sufficient scan-build found. Ensure you have the Clang Static Analyzer installed.'
+  exit # TODO: Change this to `exit 1` once we enable the Clang Static Analyzer in CI.
+fi
+echo "Found scan-build: $(scan-build -h | grep 'ANALYZER BUILD')"
 
 echo 'Ready to lint.'
