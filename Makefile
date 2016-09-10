@@ -41,6 +41,12 @@ clean:
 clean-all:
 	rm -rf $(BUILD_PREFIX)
 
+docker: Dockerfile-gram
+	docker build -f Dockerfile-gram -t gramlang/gram .
+
+docker-deps: Dockerfile-gram-deps
+	docker build -f Dockerfile-gram-deps -t gramlang/gram:deps .
+
 lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 		$(BUILD_PREFIX)/llvm/build/bin/llvm-config
 	shellcheck scripts/*.sh
@@ -55,14 +61,7 @@ lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 			--use-analyzer $$(which clang) \
 			--use-cc $$(./scripts/get-compiler.sh CC) \
 			--use-c++ $$(./scripts/get-compiler.sh CXX) \
-			make $(BUILD_PREFIX)/bin/gram SCAN_BUILD=yes || \
-		true # TODO: Remove this once we enable the Clang Static Analyzer in CI.
-
-install-deps:
-	./scripts/install-deps.sh
-
-install-lint-deps:
-	./scripts/install-lint-deps.sh
+			make $(BUILD_PREFIX)/bin/gram SCAN_BUILD=yes
 
 install: all
 	cp $(addprefix $(BUILD_PREFIX)/bin/,$(TARGETS)) $(PREFIX)

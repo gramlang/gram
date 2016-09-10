@@ -1,0 +1,11 @@
+FROM gramlang/gram:deps
+MAINTAINER Stephan Boyer <stephan@stephanboyer.com>
+
+# Build and lint Gram.
+COPY . /home/gram
+RUN cd /home/gram && \
+  make && \
+  make install && \
+  make lint && \
+  cd .. && \
+  rm -rf gram
