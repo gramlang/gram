@@ -18,11 +18,11 @@ override TARGETS := gram
 
 # Determine build paths based on the build type.
 ifeq ($(BUILD_TYPE),release)
-  override CMAKE_BUILD_TYPE := Release
+	override CMAKE_BUILD_TYPE := Release
 else ifeq ($(BUILD_TYPE),debug)
-  override CMAKE_BUILD_TYPE := Debug
+	override CMAKE_BUILD_TYPE := Debug
 else
-  $(error BUILD_TYPE must be 'release' or 'debug')
+	$(error BUILD_TYPE must be 'release' or 'debug')
 endif
 override BUILD_PREFIX := build/$(BUILD_TYPE)
 
