@@ -50,18 +50,17 @@ docker-deps: Dockerfile-gram-deps
 lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 		$(BUILD_PREFIX)/llvm/build/bin/llvm-config
 	shellcheck scripts/*.sh
-	cppcheck src --enable=all --force --error-exitcode=1 \
+	cppcheck src --enable=all --force --error-exitcode=1 -j $(NPROCS) \
 		-I $(BUILD_PREFIX)/llvm/llvm/include \
 		-I $(BUILD_PREFIX)/llvm/build/include \
 		--suppressions-list=cppcheck-suppressions.txt
-	which scan-build 2> /dev/null && \
-		rm -f $(BUILD_PREFIX)/bin/gram && \
-		scan-build \
-			--status-bugs \
-			--use-analyzer $$(which clang) \
-			--use-cc $$(./scripts/get-compiler.sh CC) \
-			--use-c++ $$(./scripts/get-compiler.sh CXX) \
-			make $(BUILD_PREFIX)/bin/gram SCAN_BUILD=yes
+	rm -f $(BUILD_PREFIX)/bin/gram && \
+	scan-build \
+		--status-bugs \
+		--use-analyzer $$(which clang) \
+		--use-cc $$(./scripts/get-compiler.sh CC) \
+		--use-c++ $$(./scripts/get-compiler.sh CXX) \
+		make $(BUILD_PREFIX)/bin/gram SCAN_BUILD=yes
 
 install: all
 	cp $(addprefix $(BUILD_PREFIX)/bin/,$(TARGETS)) $(PREFIX)
