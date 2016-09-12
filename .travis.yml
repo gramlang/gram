@@ -9,5 +9,5 @@ after_success:
   - test "$TRAVIS_PULL_REQUEST" = "false" &&
     test "$TRAVIS_BRANCH" = "master" &&
     docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" &&
-    docker push gramlang/gram ||
+    docker push gramlang/gram:latest ||
     true
