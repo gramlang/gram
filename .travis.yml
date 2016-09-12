@@ -4,4 +4,5 @@ services:
   - docker
 script:
   - make docker
+after_success:
   - docker run gramlang/gram gram -v

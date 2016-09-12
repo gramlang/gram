@@ -1,35 +1,26 @@
-FROM ubuntu:16.04
-MAINTAINER Stephan Boyer <stephan@stephanboyer.com>
+FROM debian:jessie
+COPY . /root/gram
+RUN cd /root && \
 
-# Install GCC, CppCheck, ShellCheck, and Subversion.
-RUN DEBIAN_FRONTEND=noninteractive apt-get -y update && \
+  # Install various dependencies from Debian.
+  echo 'deb http://httpredir.debian.org/debian sid main' >> /etc/apt/sources.list && \
+  DEBIAN_FRONTEND=noninteractive apt-get -y update && \
   DEBIAN_FRONTEND=noninteractive apt-get -y install \
   build-essential \
+  clang-4.0 \
+  cmake=3.6.2-1 \
   cppcheck \
-  shellcheck \
-  subversion
+  git \
+  perl \
+  shellcheck && \
+  rm -rf /var/lib/apt/lists/* && \
+  update-alternatives --install /usr/bin/clang clang /usr/bin/clang-4.0 100 && \
+  update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-4.0 100 && \
+  update-alternatives --install /usr/bin/scan-build scan-build /usr/bin/scan-build-4.0 100 && \
 
-# Delete all the apt list files since they're big and get stale quickly.
-RUN rm -rf /var/lib/apt/lists/*
-
-# Build and install CMake.
-COPY deps/cmake-3.5.2.tar.gz /home/cmake-3.5.2/cmake-3.5.2.tar.gz
-RUN cd /home/cmake-3.5.2 && \
-  tar -xf cmake-3.5.2.tar.gz -C . --strip-components=1 && \
-  ./bootstrap && \
-  make -j $(grep -c '^processor' /proc/cpuinfo) && \
-  make install && \
+  # Build LLVM for Gram.
+  cd gram && \
+  make build/release/llvm/build/bin/llvm-config && \
   cd .. && \
-  rm -rf cmake-3.5.2
-
-# Build and install Clang.
-RUN cd /home && \
-  svn co http://llvm.org/svn/llvm-project/llvm/trunk llvm && \
-  svn co http://llvm.org/svn/llvm-project/cfe/trunk llvm/tools/clang && \
-  mkdir clang && \
-  cd clang && \
-  cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ../llvm && \
-  make -j $(grep -c '^processor' /proc/cpuinfo) && \
-  make install && \
-  cd .. && \
-  rm -rf llvm clang
+  mv gram/build build && \
+  rm -rf gram

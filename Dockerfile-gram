@@ -1,11 +1,29 @@
 FROM gramlang/gram:deps
-MAINTAINER Stephan Boyer <stephan@stephanboyer.com>
+COPY . /root/gram
+RUN cd /root && \
 
-# Build and lint Gram.
-COPY . /home/gram
-RUN cd /home/gram && \
+  # Build and lint Gram.
+  cd gram && \
+  rm -rf build && \
+  mv ../build build && \
+  touch build/release/llvm/build/bin/llvm-config && \
   make && \
   make install && \
   make lint && \
   cd .. && \
-  rm -rf gram
+  rm -rf gram && \
+
+  # Remove build dependencies.
+  update-alternatives --remove clang /usr/bin/clang && \
+  update-alternatives --remove clang++ /usr/bin/clang++ && \
+  update-alternatives --remove scan-build /usr/bin/scan-build && \
+  DEBIAN_FRONTEND=noninteractive apt-get -y purge \
+  build-essential \
+  clang-4.0 \
+  cmake=3.6.2-1 \
+  cppcheck \
+  git \
+  perl \
+  shellcheck && \
+  DEBIAN_FRONTEND=noninteractive apt-get -y autoremove && \
+  rm -rf /var/lib/apt/lists/*
