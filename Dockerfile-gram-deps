@@ -11,6 +11,7 @@ RUN cd /root && \
   cmake=3.6.2-1 \
   cppcheck \
   git \
+  libncurses5-dev \
   perl \
   shellcheck && \
   rm -rf /var/lib/apt/lists/* && \

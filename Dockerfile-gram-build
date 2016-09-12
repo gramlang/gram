@@ -1,0 +1,14 @@
+FROM gramlang/gram:deps
+COPY . /root/gram
+RUN cd /root && \
+
+  # Build and lint Gram.
+  cd gram && \
+  rm -rf build && \
+  mv ../build build && \
+  touch build/release/llvm/build/bin/llvm-config && \
+  make && \
+  make install && \
+  make lint && \
+  cd .. && \
+  rm -rf gram

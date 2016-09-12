@@ -18,9 +18,6 @@ endif
 override HEADERS := compiler.h error.h lexer.h parser.h platform.h typer.h version.h
 override SOURCES := compiler.cpp error.cpp lexer.cpp main.cpp parser.cpp platform.cpp typer.cpp
 
-# The targets will be placed in the $(BUILD_PREFIX)/bin/ directory.
-override TARGETS := gram
-
 # Determine build paths based on the build type.
 ifeq ($(BUILD_TYPE),release)
 	override CMAKE_BUILD_TYPE := Release
@@ -33,7 +30,7 @@ override BUILD_PREFIX := build/$(BUILD_TYPE)
 
 .PHONY: all clean clean-all lint install-deps install uninstall
 
-all: $(addprefix $(BUILD_PREFIX)/bin/,$(TARGETS))
+all: $(BUILD_PREFIX)/bin/gram
 
 clean:
 	rm -rf $(BUILD_PREFIX)/bin $(BUILD_PREFIX)/gram
@@ -41,10 +38,17 @@ clean:
 clean-all:
 	rm -rf $(BUILD_PREFIX)
 
-docker: Dockerfile-gram
+docker-gram:
+	export CONTAINER=$$(docker create gramlang/gram:build) && \
+		docker cp $$CONTAINER:/usr/local/bin/gram gram-docker && \
+		docker rm $$CONTAINER
 	docker build -f Dockerfile-gram -t gramlang/gram .
+	rm gram-docker
 
-docker-deps: Dockerfile-gram-deps
+docker-gram-build:
+	docker build -f Dockerfile-gram-build -t gramlang/gram:build .
+
+docker-gram-deps:
 	docker build -f Dockerfile-gram-deps -t gramlang/gram:deps .
 
 lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
@@ -63,10 +67,10 @@ lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 		make $(BUILD_PREFIX)/bin/gram SCAN_BUILD=yes
 
 install: all
-	cp $(addprefix $(BUILD_PREFIX)/bin/,$(TARGETS)) $(PREFIX)
+	cp $(BUILD_PREFIX)/bin/gram $(PREFIX)
 
 uninstall:
-	rm $(addprefix $(PREFIX)/,$(TARGETS))
+	rm $(PREFIX)/gram
 
 $(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 		$(BUILD_PREFIX)/llvm/build/bin/llvm-config
@@ -75,7 +79,8 @@ $(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCE
 	mkdir -p $(BUILD_PREFIX)/bin
 	$(CXX) $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/version.cpp \
 		-o $(BUILD_PREFIX)/bin/gram \
-		$(shell $(BUILD_PREFIX)/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs)
+		$(shell $(BUILD_PREFIX)/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs) \
+		$$( (uname -s | grep -qi 'Darwin') || echo -static) -lncurses -static-libstdc++
 
 $(BUILD_PREFIX)/llvm/build/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
 	rm -rf $(BUILD_PREFIX)/llvm
