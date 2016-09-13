@@ -67,8 +67,8 @@ lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 	scan-build \
 		--status-bugs \
 		--use-analyzer $$(which clang) \
-		--use-cc $CC \
-		--use-c++ $CXX \
+		--use-cc $(CC) \
+		--use-c++ $(CXX) \
 		make $(BUILD_PREFIX)/bin/gram
 
 install: all
