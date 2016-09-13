@@ -39,11 +39,12 @@ clean-all:
 	rm -rf $(BUILD_PREFIX)
 
 docker-gram:
+	mkdir -p build/release/bin
 	export CONTAINER=$$(docker create gramlang/gram:build) && \
-		docker cp $$CONTAINER:/usr/local/bin/gram gram-docker && \
+		docker cp $$CONTAINER:/usr/local/bin/gram build/release/bin/gram-docker && \
 		docker rm $$CONTAINER
 	docker build -f Dockerfile-gram -t gramlang/gram .
-	rm gram-docker
+	rm build/release/bin/gram-docker
 
 docker-gram-build:
 	docker build -f Dockerfile-gram-build -t gramlang/gram:build .
