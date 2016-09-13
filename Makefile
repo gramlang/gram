@@ -1,24 +1,14 @@
-# These options can be overridden by the user, for example:
-# $ make NPROCS=4 BUILD_TYPE=debug
-# $ make install PREFIX=~/bin
+# This is where the final binary will be installed.
 PREFIX := /usr/local/bin
-NPROCS := $(shell ./scripts/count-cores.sh)
-BUILD_TYPE := release
 
-# Determine which compiler to use.
-# The SCAN_BUILD option disables automatic compiler detection.
-# This is needed by the Clang Static Analyzer (see the lint target).
-SCAN_BUILD := no
-ifeq ($(SCAN_BUILD),no)
-	override CC := $(shell ./scripts/get-compiler.sh CC 2> /dev/null)
-	override CXX := $(shell ./scripts/get-compiler.sh CXX 2> /dev/null)
+# Determine the amount of parallelism to use.
+NPROCS := $(shell ./scripts/count-cores.sh)
+ifndef NPROCS
+  $(error Please pass an NPROCS argument.)
 endif
 
-# The headers and sources to compile relative to the src/ directory.
-override HEADERS := compiler.h error.h lexer.h parser.h platform.h typer.h version.h
-override SOURCES := compiler.cpp error.cpp lexer.cpp main.cpp parser.cpp platform.cpp typer.cpp
-
-# Determine build paths based on the build type.
+# Determine the build type (release or debug).
+BUILD_TYPE := release
 ifeq ($(BUILD_TYPE),release)
 	override CMAKE_BUILD_TYPE := Release
 else ifeq ($(BUILD_TYPE),debug)
@@ -27,6 +17,20 @@ else
 	$(error BUILD_TYPE must be 'release' or 'debug')
 endif
 override BUILD_PREFIX := build/$(BUILD_TYPE)
+
+# Determine which compilers to use.
+CC := $(shell ./scripts/get-compiler.sh CC)
+ifndef CC
+  $(error Please pass a CC argument.)
+endif
+CXX := $(shell ./scripts/get-compiler.sh CXX)
+ifndef CXX
+  $(error Please pass a CXX argument.)
+endif
+
+# The headers and sources to compile relative to the src/ directory.
+override HEADERS := compiler.h error.h lexer.h parser.h platform.h typer.h version.h
+override SOURCES := compiler.cpp error.cpp lexer.cpp main.cpp parser.cpp platform.cpp typer.cpp
 
 .PHONY: all clean clean-all lint install-deps install uninstall
 
@@ -63,9 +67,9 @@ lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 	scan-build \
 		--status-bugs \
 		--use-analyzer $$(which clang) \
-		--use-cc $$(./scripts/get-compiler.sh CC) \
-		--use-c++ $$(./scripts/get-compiler.sh CXX) \
-		make $(BUILD_PREFIX)/bin/gram SCAN_BUILD=yes
+		--use-cc $CC \
+		--use-c++ $CXX \
+		make $(BUILD_PREFIX)/bin/gram
 
 install: all
 	cp $(BUILD_PREFIX)/bin/gram $(PREFIX)
