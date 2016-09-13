@@ -3,9 +3,8 @@ sudo: required
 services:
   - docker
 script:
-  - make docker-gram-build && make docker-gram
+  - make docker-gram-build && make docker-gram && docker run gramlang/gram gram -v
 after_success:
-  - docker run gramlang/gram gram -v
   - test "$TRAVIS_PULL_REQUEST" = "false" &&
     test "$TRAVIS_BRANCH" = "master" &&
     docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" &&

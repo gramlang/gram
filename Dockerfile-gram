@@ -1,2 +1,2 @@
 FROM debian:jessie
-COPY gram-docker /usr/local/bin/gram
+COPY build/release/bin/gram-docker /usr/local/bin/gram
