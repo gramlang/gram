@@ -85,7 +85,7 @@ $(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCE
 	$(CXX) $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/version.cpp \
 		-o $(BUILD_PREFIX)/bin/gram \
 		$(shell $(BUILD_PREFIX)/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs) \
-		$$( (uname -s | grep -qi 'Darwin') || echo -static) -static-libstdc++
+		$$( (uname -s | grep -qi 'Darwin') || echo '-static -static-libstdc++')
 
 $(BUILD_PREFIX)/llvm/build/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
 	rm -rf $(BUILD_PREFIX)/llvm
