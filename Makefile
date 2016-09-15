@@ -99,5 +99,6 @@ $(BUILD_PREFIX)/llvm/build/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
 		-DCMAKE_CXX_COMPILER=$(CXX) \
 		-DLLVM_ENABLE_EH=ON \
 		-DLLVM_ENABLE_RTTI=ON \
-		-DLLVM_ENABLE_TERMINFO=OFF
+		-DLLVM_ENABLE_TERMINFO=OFF \
+		-DLLVM_ENABLE_ZLIB=OFF
 	cd $(BUILD_PREFIX)/llvm/build && make -j $(NPROCS)
