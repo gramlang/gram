@@ -11,6 +11,7 @@ RUN cd /root && \
   cmake=3.6.2-1 \
   cppcheck \
   git \
+  ninja-build \
   perl \
   shellcheck && \
   rm -rf /var/lib/apt/lists/* && \
@@ -20,7 +21,7 @@ RUN cd /root && \
 
   # Build LLVM for Gram.
   cd gram && \
-  make build/release/llvm/build/bin/llvm-config && \
+  make build/release/llvm/install/bin/llvm-config && \
   cd .. && \
   mv gram/build build && \
   rm -rf gram

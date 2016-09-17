@@ -6,7 +6,7 @@ RUN cd /root && \
   cd gram && \
   rm -rf build && \
   mv ../build build && \
-  touch build/release/llvm/build/bin/llvm-config && \
+  touch build/release/llvm/install/bin/llvm-config && \
   make && \
   make install && \
   make lint && \
