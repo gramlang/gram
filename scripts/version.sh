@@ -10,13 +10,6 @@ set -eu -o pipefail
 # The source of truth for the version number.
 VERSION='0.0.1'
 
-# Fetch the git commit hash.
-if git diff --quiet HEAD > /dev/null 2>&1; then
-  COMMIT_HASH="$(git rev-parse --verify 'HEAD^{commit}')"
-else
-  COMMIT_HASH=''
-fi
-
 # Get the build type (release or debug).
 if echo "$1" | grep -qi 'release'; then
   BUILD_TYPE='release'
@@ -25,6 +18,13 @@ elif echo "$1" | grep -qi 'debug'; then
 else
   echo "BUILD_TYPE must be 'release' or 'debug'" >&2
   exit 1
+fi
+
+# Fetch the git commit hash.
+if git diff --quiet HEAD > /dev/null 2>&1; then
+  COMMIT_HASH="$(git rev-parse --verify 'HEAD^{commit}')"
+else
+  COMMIT_HASH=''
 fi
 
 # Print the version information as a C++ source file.

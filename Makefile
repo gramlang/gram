@@ -1,11 +1,5 @@
 # This is where the final binary will be installed.
-PREFIX := /usr/local/bin
-
-# Determine the amount of parallelism to use.
-NPROCS := $(shell ./scripts/count-cores.sh)
-ifndef NPROCS
-  $(error Please pass an NPROCS argument.)
-endif
+PREFIX := /usr/local
 
 # Determine the build type (release or debug).
 BUILD_TYPE := release
@@ -39,8 +33,11 @@ all: $(BUILD_PREFIX)/bin/gram
 clean:
 	rm -rf $(BUILD_PREFIX)/bin $(BUILD_PREFIX)/gram
 
-clean-all:
+clean-deps:
 	rm -rf $(BUILD_PREFIX)
+
+clean-all:
+	rm -rf build
 
 docker-gram:
 	mkdir -p build/release/bin
@@ -57,11 +54,10 @@ docker-gram-deps:
 	docker build -f Dockerfile-gram-deps -t gramlang/gram:deps .
 
 lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
-		$(BUILD_PREFIX)/llvm/build/bin/llvm-config
+		$(BUILD_PREFIX)/llvm/install/bin/llvm-config
 	shellcheck scripts/*.sh
-	cppcheck src --enable=all --force --error-exitcode=1 -j $(NPROCS) \
-		-I $(BUILD_PREFIX)/llvm/llvm/include \
-		-I $(BUILD_PREFIX)/llvm/build/include \
+	cppcheck src --enable=all --force --error-exitcode=1 \
+		-I $(BUILD_PREFIX)/llvm/install/include \
 		--suppressions-list=cppcheck-suppressions.txt
 	rm -f $(BUILD_PREFIX)/bin/gram && \
 	scan-build \
@@ -72,28 +68,30 @@ lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 		make $(BUILD_PREFIX)/bin/gram
 
 install: all
-	cp $(BUILD_PREFIX)/bin/gram $(PREFIX)
+	mkdir -p $(PREFIX)/bin
+	cp $(BUILD_PREFIX)/bin/gram $(PREFIX)/bin
 
 uninstall:
-	rm $(PREFIX)/gram
+	rm $(PREFIX)/bin/gram
 
 $(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
-		$(BUILD_PREFIX)/llvm/build/bin/llvm-config
+		$(BUILD_PREFIX)/llvm/install/bin/llvm-config
 	mkdir -p $(BUILD_PREFIX)/gram
 	./scripts/version.sh $(BUILD_TYPE) > $(BUILD_PREFIX)/gram/version.cpp
 	mkdir -p $(BUILD_PREFIX)/bin
 	$(CXX) $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/version.cpp \
 		-o $(BUILD_PREFIX)/bin/gram \
-		$(shell $(BUILD_PREFIX)/llvm/build/bin/llvm-config --cxxflags --ldflags --libs --system-libs) \
-		$$( (uname -s | grep -qi 'Darwin') || echo '-static -static-libstdc++')
+		$(shell $(BUILD_PREFIX)/llvm/install/bin/llvm-config --cxxflags --ldflags --libs --system-libs) \
+		$$( (uname -s | grep -qi 'Darwin') || echo '-static -static-libstdc++' )
 
-$(BUILD_PREFIX)/llvm/build/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
+$(BUILD_PREFIX)/llvm/install/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
 	rm -rf $(BUILD_PREFIX)/llvm
-	mkdir -p $(BUILD_PREFIX)/llvm/llvm
-	tar -xf deps/llvm-3.9.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/llvm --strip-components=1
+	mkdir -p $(BUILD_PREFIX)/llvm/src
+	tar -xf deps/llvm-3.9.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/src --strip-components=1
 	mkdir -p $(BUILD_PREFIX)/llvm/build
-	cd $(BUILD_PREFIX)/llvm/build && cmake ../llvm \
-		-G 'Unix Makefiles' \
+	cd $(BUILD_PREFIX)/llvm/build && cmake ../src \
+		$$( which ninja > /dev/null 2>&1 && echo '-GNinja' || echo '' ) \
+		-DCMAKE_INSTALL_PREFIX=../install \
 		-DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) \
 		-DCMAKE_C_COMPILER=$(CC) \
 		-DCMAKE_CXX_COMPILER=$(CXX) \
@@ -101,4 +99,4 @@ $(BUILD_PREFIX)/llvm/build/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
 		-DLLVM_ENABLE_RTTI=ON \
 		-DLLVM_ENABLE_TERMINFO=OFF \
 		-DLLVM_ENABLE_ZLIB=OFF
-	cd $(BUILD_PREFIX)/llvm/build && make -j $(NPROCS)
+	cd $(BUILD_PREFIX)/llvm/build && cmake --build . --target install

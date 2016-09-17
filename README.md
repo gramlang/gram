@@ -26,8 +26,6 @@ You also need the usual set of Unix tools, such as `echo`, `grep`, etc.
 
 ### Other build and installation options
 
-Normally, all of your CPU cores will be used to build Gram. You can override this behavior with the `NPROCS` option. For example, you can run `make NPROCS=1` to build Gram with only one core.
-
 By default, Gram will be built in release mode for maximum performance. You can run `make BUILD_TYPE=debug` to build Gram with debugging information. This is useful if you are working on the Gram compiler.
 
 If you want to remove the artifacts created during the build process, run `make clean` for Gram-specific artifacts or `make clean-all` for all artifacts including dependencies. Normally, these files are retained so future builds can use them instead of starting from scratch.
