@@ -75,10 +75,14 @@ $(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCE
 	mkdir -p $(BUILD_PREFIX)/gram
 	./scripts/version.sh $(BUILD_TYPE) > $(BUILD_PREFIX)/gram/version.cpp
 	mkdir -p $(BUILD_PREFIX)/bin
-	$(CXX) $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/version.cpp \
+	$(CXX) \
+		$(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/version.cpp \
+		-flto -O3 -std=c++11 -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter \
 		-o $(BUILD_PREFIX)/bin/gram \
-		$$( $(BUILD_PREFIX)/llvm/install/bin/llvm-config --cxxflags --ldflags --libs --system-libs ) \
-		$$( (uname -s | grep -qi 'Darwin') || echo '-static -static-libstdc++' )
+		-I $(BUILD_PREFIX)/llvm/install/include \
+		-L $(BUILD_PREFIX)/llvm/install/lib \
+		$$( $(BUILD_PREFIX)/llvm/install/bin/llvm-config --libs --system-libs ) \
+		$$( (uname -s | grep -qi 'Darwin') || echo '-static' )
 
 $(BUILD_PREFIX)/llvm/install/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
 	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient C and C++ compilers.
