@@ -14,13 +14,7 @@ override BUILD_PREFIX := build/$(BUILD_TYPE)
 
 # Determine which compilers to use.
 CC := $(shell ./scripts/get-compiler.sh CC)
-ifndef CC
-  $(error Please pass a CC argument.)
-endif
 CXX := $(shell ./scripts/get-compiler.sh CXX)
-ifndef CXX
-  $(error Please pass a CXX argument.)
-endif
 
 # The headers and sources to compile relative to the src/ directory.
 override HEADERS := compiler.h error.h lexer.h parser.h platform.h typer.h version.h
@@ -55,6 +49,7 @@ docker-gram-deps:
 
 lint: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 		$(BUILD_PREFIX)/llvm/install/bin/llvm-config
+	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient C and C++ compilers.
 	shellcheck scripts/*.sh
 	cppcheck src --enable=all --force --error-exitcode=1 \
 		-I $(BUILD_PREFIX)/llvm/install/include \
@@ -76,15 +71,17 @@ uninstall:
 
 $(BUILD_PREFIX)/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
 		$(BUILD_PREFIX)/llvm/install/bin/llvm-config
+	[ -n "$(CXX)" ] # Ensure we have a sufficient C++ compiler.
 	mkdir -p $(BUILD_PREFIX)/gram
 	./scripts/version.sh $(BUILD_TYPE) > $(BUILD_PREFIX)/gram/version.cpp
 	mkdir -p $(BUILD_PREFIX)/bin
 	$(CXX) $(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/version.cpp \
 		-o $(BUILD_PREFIX)/bin/gram \
-		$(shell $(BUILD_PREFIX)/llvm/install/bin/llvm-config --cxxflags --ldflags --libs --system-libs) \
+		$$( $(BUILD_PREFIX)/llvm/install/bin/llvm-config --cxxflags --ldflags --libs --system-libs ) \
 		$$( (uname -s | grep -qi 'Darwin') || echo '-static -static-libstdc++' )
 
 $(BUILD_PREFIX)/llvm/install/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
+	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient C and C++ compilers.
 	rm -rf $(BUILD_PREFIX)/llvm
 	mkdir -p $(BUILD_PREFIX)/llvm/src
 	tar -xf deps/llvm-3.9.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/src --strip-components=1
