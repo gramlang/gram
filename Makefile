@@ -16,7 +16,7 @@ override BUILD_PREFIX := build/$(BUILD_TYPE)
 CC := $(shell ./scripts/get-compiler.sh CC 2> /dev/null)
 CXX := $(shell ./scripts/get-compiler.sh CXX 2> /dev/null)
 
-# The headers and sources to compile relative to the src/ directory.
+# The headers and sources to compile relative to the src directory.
 override HEADERS := compiler.h error.h lexer.h parser.h platform.h typer.h version.h
 override SOURCES := compiler.cpp error.cpp lexer.cpp main.cpp parser.cpp platform.cpp typer.cpp
 
