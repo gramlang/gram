@@ -24,16 +24,6 @@ To build Gram, you need the following:
 
 You also need the usual set of Unix tools, such as `echo`, `grep`, etc.
 
-### Other build and installation options
-
-By default, Gram will be built in release mode for maximum performance. You can run `make BUILD_TYPE=debug` to build Gram with debugging information. This is useful if you are working on the Gram compiler.
-
-If you want to remove the artifacts created during the build process, run `make clean` for Gram-specific artifacts or `make clean-all` for all artifacts including dependencies. Normally, these files are retained so future builds can use them instead of starting from scratch.
-
-The default installation directory is `/usr/local/bin`. You can run `make install PREFIX=path` to install to a different directory.
-
-If Gram was installed to the default location, you can uninstall it with `sudo make uninstall`. You can uninstall from a different directory with `make uninstall PREFIX=path`.
-
 ## How to contribute
 
 See the file [CONTRIBUTING.md](https://github.com/gramlang/gram/blob/master/CONTRIBUTING.md).
