@@ -35,7 +35,7 @@ namespace gram {
 
   const char * const VERSION = "$VERSION";
   const char * const COMMIT_HASH = $(
-    test -z "$COMMIT_HASH" && echo 'nullptr' || echo "\"$COMMIT_HASH\""
+    [ -z "$COMMIT_HASH" ] && echo 'nullptr' || echo "\"$COMMIT_HASH\""
   );
   const char * const BUILD_TYPE = "$BUILD_TYPE";
 
