@@ -12,7 +12,6 @@ RUN cd /root && \
   cppcheck \
   git \
   ninja-build \
-  perl \
   shellcheck && \
   rm -rf /var/lib/apt/lists/* && \
   update-alternatives --install /usr/bin/clang clang /usr/bin/clang-4.0 100 && \

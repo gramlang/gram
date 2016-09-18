@@ -13,8 +13,8 @@ endif
 override BUILD_PREFIX := build/$(BUILD_TYPE)
 
 # Determine which compilers to use.
-CC := $(shell ./scripts/get-compiler.sh CC)
-CXX := $(shell ./scripts/get-compiler.sh CXX)
+CC := $(shell ./scripts/get-compiler.sh CC 2> /dev/null)
+CXX := $(shell ./scripts/get-compiler.sh CXX 2> /dev/null)
 
 # The headers and sources to compile relative to the src/ directory.
 override HEADERS := compiler.h error.h lexer.h parser.h platform.h typer.h version.h
@@ -97,6 +97,7 @@ $(BUILD_PREFIX)/llvm/install/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
 		-DCMAKE_C_COMPILER=$(CC) \
 		-DCMAKE_CXX_COMPILER=$(CXX) \
 		-DLLVM_ENABLE_EH=ON \
+		-DLLVM_ENABLE_PIC=OFF \
 		-DLLVM_ENABLE_RTTI=ON \
 		-DLLVM_ENABLE_TERMINFO=OFF \
 		-DLLVM_ENABLE_ZLIB=OFF
