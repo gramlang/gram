@@ -1,2 +1,3 @@
 FROM scratch
-COPY build/gram-docker /usr/local/bin/gram
+ARG GRAM_BINARY_PATH
+COPY $GRAM_BINARY_PATH /usr/local/bin/gram
