@@ -29,7 +29,7 @@ fi
 
 # Print the version information as a C++ source file.
 cat <<-ENDOFMESSAGE
-#include "../../../src/version.h"
+#include "../../../../src/version.h"
 
 namespace gram {
 

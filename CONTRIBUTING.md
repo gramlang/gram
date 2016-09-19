@@ -7,7 +7,6 @@ All code must strictly adhere to the appropriate style guide. If a style guide i
 All code must pass the linters in order to be accepted:
 
 - [Clang Static Analyzer](http://clang-analyzer.llvm.org/)
-- [CppCheck](http://cppcheck.sourceforge.net/)
 - [ShellCheck](http://www.shellcheck.net/)
 
 If you have these tools installed, you can run them with `make lint`.
