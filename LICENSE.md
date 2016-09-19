@@ -20,4 +20,4 @@ The Gram Project is distributed under a 3-clause BSD License.
 
 The Gram Project contains software written by third parties. Such software packages carry their own copyright notices and licenses:
 
-* LLVM. The source and license for this package are included in a compressed archive in the `deps` directory. LLVM is packaged with additional libraries carrying their own licenses.
+* [LLVM](http://llvm.org/). The source and license for this package are included in a compressed archive in the `deps` directory. LLVM is packaged with additional libraries carrying their own licenses.
