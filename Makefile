@@ -55,12 +55,15 @@ clean-all:
 # It requires the gramlang/gram:build Docker image, which is built by:
 #   make docker-gram-build
 docker-gram:
-	mkdir -p build
-	export CONTAINER=$$(docker create gramlang/gram:build) && \
-		docker cp $$CONTAINER:/root/gram/$(BUILD_PREFIX)/dist/bin/gram build/gram-docker && \
-		docker rm $$CONTAINER
-	docker build -f docker/Dockerfile-gram -t gramlang/gram .
-	rm build/gram-docker
+	CONTAINER="$$(docker create gramlang/gram:build)" && \
+		GRAM_BINARY_PATH="$$(mktemp XXXXXXXXXX)" && \
+		docker cp "$$CONTAINER:/root/gram/$(BUILD_PREFIX)/dist/bin/gram" "$$GRAM_BINARY_PATH" && \
+		docker rm "$$CONTAINER" && \
+		docker build \
+			-f docker/Dockerfile-gram \
+			-t gramlang/gram \
+			--build-arg "GRAM_BINARY_PATH=$$GRAM_BINARY_PATH" . && \
+		rm "$$GRAM_BINARY_PATH"
 
 # This target builds the gramlang/gram:build Docker container.
 # Building this image amounts to building and linting Gram.
@@ -84,16 +87,16 @@ lint: $(BUILD_PREFIX)/llvm/dist/bin/llvm-config
 	shellcheck scripts/*.sh
 	make clean && scan-build \
 		--status-bugs \
-		--use-analyzer $$(which clang) \
-		--use-cc $(CC) \
-		--use-c++ $(CXX) \
+		--use-analyzer "$$(which clang)" \
+		--use-cc "$(CC)" \
+		--use-c++ "$(CXX)" \
 		make
 
 # This target installs Gram to the $(PREFIX) directory.
 # Artifacts will be placed in subdirectories such as $(PREFIX)/bin.
 install: all
-	mkdir -p $(PREFIX)/bin
-	cp $(BUILD_PREFIX)/dist/bin/* $(PREFIX)/bin
+	mkdir -p "$(PREFIX)/bin"
+	cp "$(BUILD_PREFIX)/dist/bin/"* "$(PREFIX)/bin"
 
 # This target removes all installed artifacts from the $(PREFIX) directory.
 uninstall:
