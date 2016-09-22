@@ -6,7 +6,7 @@
 
 ## Getting started
 
-Gram is supported on popular Unix-like operating systems, such as Ubuntu and OS X. To install Gram, follow these steps from the root of this repository:
+Gram is supported on popular Unix-like operating systems, such as Ubuntu and macOS. To install Gram, follow these steps from the root of this repository:
 
 1. Make sure you have the dependencies listed below.
 2. Run `make` to build.
