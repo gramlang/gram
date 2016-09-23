@@ -3,7 +3,8 @@ COPY . /root/gram
 RUN cd /root && \
 
   # Install various dependencies from Debian.
-  echo 'deb http://httpredir.debian.org/debian sid main' >> /etc/apt/sources.list && \
+  echo 'deb http://httpredir.debian.org/debian sid main' >> \
+    /etc/apt/sources.list && \
   DEBIAN_FRONTEND=noninteractive apt-get -y update && \
   DEBIAN_FRONTEND=noninteractive apt-get -y install \
   build-essential \
@@ -13,9 +14,12 @@ RUN cd /root && \
   ninja-build \
   shellcheck && \
   rm -rf /var/lib/apt/lists/* && \
-  update-alternatives --install /usr/bin/clang clang /usr/bin/clang-4.0 100 && \
-  update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-4.0 100 && \
-  update-alternatives --install /usr/bin/scan-build scan-build /usr/bin/scan-build-4.0 100 && \
+  update-alternatives --install /usr/bin/clang clang \
+    /usr/bin/clang-4.0 100 && \
+  update-alternatives --install /usr/bin/clang++ clang++ \
+    /usr/bin/clang++-4.0 100 && \
+  update-alternatives --install /usr/bin/scan-build scan-build \
+    /usr/bin/scan-build-4.0 100 && \
 
   # Build LLVM for Gram.
   cd gram && \

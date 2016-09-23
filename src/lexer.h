@@ -36,9 +36,11 @@ namespace gram {
   };
 
   // Notes about line and column numbering (also noted in error.h):
-  // - Line feeds exist on the lines they are terminating, not the following line.
-  // - All indices must point to a valid character, with one exception: the end of the file is
-  //   represented by the last column number + 1, with no change to the line number.
+  // - Line feeds exist on the lines they are terminating,
+  //   not the following line.
+  // - All indices must point to a valid character, with one exception:
+  //   the end of the file is represented by the last column number + 1,
+  //   with no change to the line number.
 
   class Token {
   public:
@@ -60,7 +62,8 @@ namespace gram {
   };
 
   // Perform lexical analysis.
-  // The lexer guarantees that all BEGIN/END tokens will be matched in the returned stream.
+  // The lexer guarantees that all BEGIN/END tokens will be matched
+  // in the returned stream.
   std::unique_ptr<std::vector<gram::Token>> lex(
     std::shared_ptr<std::string> source_name,
     std::shared_ptr<std::string> source

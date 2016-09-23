@@ -15,7 +15,9 @@ gram::Token::Token(
 
 std::string gram::Token::show() {
   return std::string(
-    TokenTypeName[static_cast<typename std::underlying_type<TokenType>::type>(type)]
+    TokenTypeName[
+      static_cast<typename std::underlying_type<TokenType>::type>(type)
+    ]
   ) + ": '" + literal + "'";
 }
 
@@ -33,7 +35,9 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     // If we are at the beginning of a line, process any indentation.
     if (start_col == 0) {
       // Consume it.
-      while (pos < source->size() && ((*source)[pos] == ' ' || (*source)[pos] == '\t')) {
+      while (pos < source->size() && (
+        (*source)[pos] == ' ' || (*source)[pos] == '\t'
+      )) {
         ++pos;
         ++start_col;
       }
@@ -55,7 +59,9 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
               start_line, start_col
             ));
           }
-        } else if (indentation.find(indentations.back()) != std::string::npos) {
+        } else if (
+          indentation.find(indentations.back()) != std::string::npos
+        ) {
           // The indentation increased. Open a new block.
           indentations.push_back(indentation);
           tokens->push_back(Token(
@@ -64,9 +70,14 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
             start_line, 0,
             start_line, start_col
           ));
-        } else if (indentations.back().find(indentation) != std::string::npos) {
-          // The indentation decreased. Close blocks and add sequencers as appropriate.
-          while (!indentations.empty() && indentation != indentations.back()) {
+        } else if (
+          indentations.back().find(indentation) != std::string::npos
+        ) {
+          // The indentation decreased.
+          // Close blocks and add sequencers as appropriate.
+          while (
+            !indentations.empty() && indentation != indentations.back()
+          ) {
             indentations.pop_back();
             tokens->push_back(Token(
               TokenType::END, "",
@@ -93,8 +104,8 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
           }
         } else {
           // A strange possibility. The new indentation is neither a substring
-          // nor a superstring of the old indentation. This can happen if spaces
-          // and tabs are mixed.
+          // nor a superstring of the old indentation. This can happen if
+          // spaces and tabs are mixed.
           throw Error(
             "Unable to compare this indentation to that of previous lines. "
             "This can happen if you are mixing tabs and spaces.",
@@ -105,7 +116,8 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         }
       }
 
-      // If we consumed any characters, start again. We might be at the end of the stream now.
+      // If we consumed any characters, start again. We might be at the end of
+      // the stream now.
       if (start_col > 0) {
         continue;
       }
@@ -130,8 +142,10 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
 
     // BEGIN
     if ((*source)[pos] == '(') {
-      Token paren(TokenType::BEGIN, source->substr(pos, 1), source_name, source,
-        start_line, start_col, start_line, start_col + 1);
+      Token paren(
+        TokenType::BEGIN, source->substr(pos, 1), source_name, source,
+        start_line, start_col, start_line, start_col + 1
+      );
       tokens->push_back(paren);
       opening_parens.push_back(paren);
       ++pos;
@@ -175,7 +189,9 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     }
 
     // EQUALS
-    if ((*source)[pos] == '=' && !(pos < source->size() - 1 && source->substr(pos, 2) == "=>")) {
+    if ((*source)[pos] == '=' && !(
+      pos < source->size() - 1 && source->substr(pos, 2) == "=>"
+    )) {
       tokens->push_back(Token(
         TokenType::EQUALS, source->substr(pos, 1),
         source_name, source,
@@ -188,8 +204,9 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     }
 
     // IDENTIFIER
-    // Identifiers consist of ASCII letters, digits, and underscores, and must not start
-    // with a letter. We also accept any bytes >= 0x80, which allows for Unicode symbols.
+    // Identifiers consist of ASCII letters, digits, and underscores, and must
+    // not start with a letter. We also accept any bytes >= 0x80, which allows
+    // for Unicode symbols.
     if ((*source)[pos] == '_' ||
       ((*source)[pos] >= 'A' && (*source)[pos] <= 'Z') ||
       ((*source)[pos] >= 'a' && (*source)[pos] <= 'z') ||
@@ -220,7 +237,11 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       (*source)[pos + 1] >= '0' && (*source)[pos + 1] <= '9') ||
       ((*source)[pos] >= '0' && (*source)[pos] <= '9')) {
       size_t end_pos = pos + 1;
-      while (end_pos < source->size() && (*source)[end_pos] >= '0' && (*source)[end_pos] <= '9') {
+      while (
+        end_pos < source->size() &&
+        (*source)[end_pos] >= '0' &&
+        (*source)[end_pos] <= '9'
+      ) {
         ++end_pos;
       }
       size_t length = end_pos - pos;
@@ -274,7 +295,8 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
-    // Ignore non-indentation whitespace; it is only used to separate other tokens.
+    // Ignore non-indentation whitespace;
+    // it is only used to separate other tokens.
     if ((*source)[pos] == ' ' || (*source)[pos] == '\t') {
       ++pos;
       ++start_col;
@@ -292,10 +314,12 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
 
     // Ignore line feeds, but keep track of which line and column we are on.
     if ((*source)[pos] == '\n') {
-      // Don't let parentheses groups span multiple lines. We have indentation for that!
+      // Don't let parentheses groups span multiple lines.
+      // We have indentation for that!
       if (!opening_parens.empty()) {
         throw Error(
-          "Unmatched '('. Note that parentheses groups may not span multiple lines.",
+          "Unmatched '('. Note that parentheses groups may "
+            "not span multiple lines.",
           *source, *source_name,
           opening_parens.back().start_line, opening_parens.back().start_col,
           opening_parens.back().end_line, opening_parens.back().end_col
@@ -308,15 +332,16 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
-    // Some platforms use carriage returns in combination with line feeds to break lines.
-    // Line feeds are handled above. Just ignore carriage returns.
+    // Some platforms use carriage returns in combination with line feeds to
+    // break lines. Line feeds are handled above. Just ignore carriage returns.
     if ((*source)[pos] == '\r') {
       ++pos;
       ++start_col;
       continue;
     }
 
-    // If we made it this far, the input wasn't recognized and should be rejected.
+    // If we made it this far, the input wasn't recognized and
+    // should be rejected.
     throw Error(
       "Unexpected character '" + source->substr(pos, 1) + "'.",
       *source, *source_name,

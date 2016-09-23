@@ -19,8 +19,10 @@ CXX := $(shell ./scripts/get-compiler.sh CXX 2> /dev/null)
 # The headers and sources to compile relative to the src directory.
 # There is an additional source file not listed here called version.cpp,
 # which is built from scripts/version.sh and included in the build.
-override HEADERS := compiler.h error.h lexer.h parser.h platform.h typer.h version.h
-override SOURCES := compiler.cpp error.cpp lexer.cpp main.cpp parser.cpp platform.cpp typer.cpp
+override HEADERS := compiler.h error.h lexer.h parser.h platform.h \
+	typer.h version.h
+override SOURCES := compiler.cpp error.cpp lexer.cpp main.cpp parser.cpp \
+	platform.cpp typer.cpp
 
 # The default targets to build relative to the $(BUILD_PREFIX)/dist directory.
 # These will be installed relative to the $(PREFIX) directory.
@@ -37,15 +39,18 @@ override TARGETS := bin/gram
 # It builds all Gram artifacts.
 all: $(addprefix $(BUILD_PREFIX)/dist/,$(TARGETS))
 
-# This target removes Gram build artifacts, excluding dependencies, for the specified build type.
+# This target removes Gram build artifacts, excluding dependencies,
+# for the specified build type.
 clean:
 	rm -rf $(BUILD_PREFIX)/dist $(BUILD_PREFIX)/gram
 
-# This target removes Gram build artifacts, including dependencies, for the specified build type.
+# This target removes Gram build artifacts, including dependencies,
+# for the specified build type.
 clean-deps:
 	rm -rf $(BUILD_PREFIX)
 
-# This target removes Gram build artifacts, including dependencies, for all build types.
+# This target removes Gram build artifacts, including dependencies,
+# for all build types.
 clean-all:
 	rm -rf build
 
@@ -57,7 +62,8 @@ clean-all:
 docker-gram:
 	CONTAINER="$$(docker create gramlang/gram:build)" && \
 		GRAM_BINARY_PATH="$$(mktemp XXXXXXXXXX)" && \
-		docker cp "$$CONTAINER:/root/gram/$(BUILD_PREFIX)/dist/bin/gram" "$$GRAM_BINARY_PATH" && \
+		docker cp "$$CONTAINER:/root/gram/$(BUILD_PREFIX)/dist/bin/gram" \
+			"$$GRAM_BINARY_PATH" && \
 		docker rm "$$CONTAINER" && \
 		docker build \
 			-f docker/Dockerfile-gram \
@@ -72,8 +78,8 @@ docker-gram:
 docker-gram-build:
 	docker build -f docker/Dockerfile-gram-build -t gramlang/gram:build .
 
-# This target builds the gramlang/gram:deps Docker image, which is based on Debian.
-# It includes all the tools needed to build and lint Gram.
+# This target builds the gramlang/gram:deps Docker image, which is based
+# on Debian. It includes all the tools needed to build and lint Gram.
 # This is the only target that requires a network connection.
 docker-gram-deps:
 	docker build -f docker/Dockerfile-gram-deps -t gramlang/gram:deps .
@@ -83,8 +89,26 @@ docker-gram-deps:
 # - Clang Static Analyzer
 # - ShellCheck
 lint: $(BUILD_PREFIX)/llvm/dist/bin/llvm-config
-	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient C and C++ compilers.
+	# Make sure all lines conform to the line length limit.
+	test $$( \
+		awk '{print length}' \
+			docker/* \
+			.github/* \
+			Makefile \
+			scripts/* \
+			src/* \
+			.travis.yml \
+			| sort -n \
+			| tail -n 1 \
+	) -lt 80
+
+	# Ensure we have sufficient C and C++ compilers.
+	[ -n "$(CC)" -a -n "$(CXX)" ]
+
+	# Run ShellCheck on any shell scripts.
 	shellcheck scripts/*.sh
+
+	# Run Clang Static Analyzer on C++ source files.
 	make clean && scan-build \
 		--status-bugs \
 		--use-analyzer "$$(which clang)" \
@@ -103,7 +127,9 @@ uninstall:
 	rm $(addprefix $(PREFIX)/,$(TARGETS))
 
 # This target builds the main Gram binary.
-$(BUILD_PREFIX)/dist/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(SOURCES)) \
+$(BUILD_PREFIX)/dist/bin/gram: \
+		$(addprefix src/,$(HEADERS)) \
+		$(addprefix src/,$(SOURCES)) \
 		$(BUILD_PREFIX)/llvm/dist/bin/llvm-config
 	[ -n "$(CXX)" ] # Ensure we have a sufficient C++ compiler.
 	mkdir -p $(BUILD_PREFIX)/gram/build
@@ -111,7 +137,8 @@ $(BUILD_PREFIX)/dist/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(S
 	mkdir -p $(BUILD_PREFIX)/dist/bin
 	$(CXX) \
 		$(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/build/version.cpp \
-		-flto -O3 -std=c++11 -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter \
+		-flto -O3 -std=c++11 \
+		-Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter \
 		-o $(BUILD_PREFIX)/dist/bin/gram \
 		-I $(BUILD_PREFIX)/llvm/dist/include \
 		-L $(BUILD_PREFIX)/llvm/dist/lib \
@@ -120,10 +147,11 @@ $(BUILD_PREFIX)/dist/bin/gram: $(addprefix src/,$(HEADERS)) $(addprefix src/,$(S
 
 # This target builds LLVM, which is a dependency for Gram.
 $(BUILD_PREFIX)/llvm/dist/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
-	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient C and C++ compilers.
+	[ -n "$(CC)" -a -n "$(CXX)" ]
 	rm -rf $(BUILD_PREFIX)/llvm
 	mkdir -p $(BUILD_PREFIX)/llvm/src
-	tar -xf deps/llvm-3.9.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/src --strip-components=1
+	tar -xf deps/llvm-3.9.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/src \
+		--strip-components=1
 	mkdir -p $(BUILD_PREFIX)/llvm/build
 	cd $(BUILD_PREFIX)/llvm/build && cmake ../src \
 		$$( which ninja > /dev/null 2>&1 && echo '-GNinja' || echo '' ) \

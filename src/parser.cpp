@@ -133,7 +133,9 @@ std::unique_ptr<gram::Node> gram::Application::clone() {
   ));
 }
 
-gram::Block::Block(std::vector<std::shared_ptr<gram::Node>> body) : body(body) {
+gram::Block::Block(
+  std::vector<std::shared_ptr<gram::Node>> body
+) : body(body) {
 }
 
 std::string gram::Block::show() {
@@ -163,8 +165,9 @@ std::unique_ptr<gram::Node> gram::Block::clone() {
   return std::unique_ptr<Node>(new Block(clone_body));
 }
 
-gram::Definition::Definition(std::string name, std::shared_ptr<gram::Term> value) :
-  name(name), value(value) {
+gram::Definition::Definition(
+  std::string name, std::shared_ptr<gram::Term> value
+) : name(name), value(value) {
 }
 
 std::string gram::Definition::show() {
@@ -216,15 +219,23 @@ using MemoMap = std::unordered_map<
 std::shared_ptr<gram::Node> parse_node(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
-  std::vector<gram::Token>::iterator &next, // Only mutated if a Node is returned
+
+  // Only mutated if a Node is returned
+  std::vector<gram::Token>::iterator &next,
+
   MemoMap &memo
 );
 
 std::shared_ptr<gram::Term> parse_term(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
-  std::vector<gram::Token>::iterator &next, // Only mutated if a Node is returned
-  std::shared_ptr<gram::Term> prior_term, // Used to parse abstractions with left-associativity
+
+  // Only mutated if a Node is returned
+  std::vector<gram::Token>::iterator &next,
+
+  // Used to parse abstractions with left-associativity
+  std::shared_ptr<gram::Term> prior_term,
+
   MemoMap &memo
 );
 
@@ -264,7 +275,9 @@ std::shared_ptr<gram::Node> parse_node(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::TERM, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(
+    MemoType::TERM, begin, end, std::shared_ptr<gram::Term>()
+  );
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
@@ -301,7 +314,9 @@ std::shared_ptr<gram::Term> parse_term(
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
-    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
+    return std::dynamic_pointer_cast<gram::Term>(
+      std::get<0>(memo_result->second)
+    );
   }
 
   // This is what we will return to the caller.
@@ -360,11 +375,18 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::ABSTRACTION_OR_ARROW_TYPE, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(
+    MemoType::ABSTRACTION_OR_ARROW_TYPE,
+    begin,
+    end,
+    std::shared_ptr<gram::Term>()
+  );
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
-    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
+    return std::dynamic_pointer_cast<gram::Term>(
+      std::get<0>(memo_result->second)
+    );
   }
 
   // Make sure we have some tokens to read.
@@ -394,7 +416,8 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
     ++pos;
 
     // Find the position of the arrow.
-    // We do this so that the argument type isn't greedily parsed until the end of the file.
+    // We do this so that the argument type isn't greedily parsed until the
+    // end of the file.
     auto arrow_pos = pos;
     int indentation = 0;
     int colons_minus_arrows = 0;
@@ -421,7 +444,8 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
     }
     if (arrow_pos == end) {
       throw gram::Error(
-        "This looks like the beginning of an abstraction or arrow type, but there is no arrow.",
+        "This looks like the beginning of an abstraction or arrow type, "
+          "but there is no arrow.",
         *(begin->source), *(begin->source_name),
         begin->start_line, begin->start_col,
         (begin + 1)->end_line, (begin + 1)->end_col
@@ -520,11 +544,15 @@ std::shared_ptr<gram::Term> parse_variable(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::VARIABLE, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(
+    MemoType::VARIABLE, begin, end, std::shared_ptr<gram::Term>()
+  );
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
-    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
+    return std::dynamic_pointer_cast<gram::Term>(
+      std::get<0>(memo_result->second)
+    );
   }
 
   // Make sure we have some tokens to read.
@@ -562,11 +590,15 @@ std::shared_ptr<gram::Term> parse_block(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::BLOCK, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(
+    MemoType::BLOCK, begin, end, std::shared_ptr<gram::Term>()
+  );
   auto memo_result = memo.find(memo_key);
   if (!top_level && memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
-    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
+    return std::dynamic_pointer_cast<gram::Term>(
+      std::get<0>(memo_result->second)
+    );
   }
 
   // Make sure we have some tokens to read.
@@ -587,9 +619,9 @@ std::shared_ptr<gram::Term> parse_block(
     ++pos;
   }
 
-  // Keep eating the input until we reach an END token or the end of the stream.
-  // Note: the lexer guarantees that all BEGIN/END tokens are matched, so we
-  // don't need to worry about ensuring there is an END.
+  // Keep eating the input until we reach an END token or the end of the
+  // stream. Note: the lexer guarantees that all BEGIN/END tokens are matched,
+  // so we don't need to worry about ensuring there is an END.
   std::vector<std::shared_ptr<gram::Node>> body;
   while (pos != end && pos->type != gram::TokenType::END) {
     // Skip sequencers.
@@ -670,11 +702,15 @@ std::shared_ptr<gram::Node> parse_definition(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = make_tuple(MemoType::DEFINITION, begin, end, std::shared_ptr<gram::Term>());
+  auto memo_key = make_tuple(
+    MemoType::DEFINITION, begin, end, std::shared_ptr<gram::Term>()
+  );
   auto memo_result = memo.find(memo_key);
   if (memo_result != memo.end()) {
     next = std::get<1>(memo_result->second);
-    return std::dynamic_pointer_cast<gram::Term>(std::get<0>(memo_result->second));
+    return std::dynamic_pointer_cast<gram::Term>(
+      std::get<0>(memo_result->second)
+    );
   }
 
   // Make sure we have some tokens to read.
@@ -745,7 +781,8 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
     auto prior_term = std::get<3>(key);
 
     // Get the hash of each component.
-    size_t memo_type_hash = static_cast<typename std::underlying_type<MemoType>::type>(memo_type);
+    size_t memo_type_hash =
+      static_cast<typename std::underlying_type<MemoType>::type>(memo_type);
     size_t begin_hash = 0;
     size_t end_hash = 0;
     size_t prior_term_hash = 0;
@@ -761,9 +798,12 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
 
     // To combine the hashes, we use the hash_combine trick from Boost.
     size_t combined_hash = begin_hash;
-    combined_hash ^= 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2) + memo_type_hash;
-    combined_hash ^= 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2) + end_hash;
-    combined_hash ^= 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2) + prior_term_hash;
+    combined_hash ^= 0x9e3779b9 +
+      (combined_hash << 6) + (combined_hash >> 2) + memo_type_hash;
+    combined_hash ^= 0x9e3779b9 +
+      (combined_hash << 6) + (combined_hash >> 2) + end_hash;
+    combined_hash ^= 0x9e3779b9 +
+      (combined_hash << 6) + (combined_hash >> 2) + prior_term_hash;
     return combined_hash;
   });
 
