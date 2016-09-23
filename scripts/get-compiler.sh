@@ -34,5 +34,6 @@ if (gcc --version 2> /dev/null | grep -qi ' \(4\.7\.\|[5-9]\.\)') &&
 fi
 
 # If we made it this far, we were unable to determine the compiler.
-echo 'No suitable compiler found. You must have Clang >= 3.1 or GCC >= 4.7.' >&2
+echo \
+  'No suitable compiler found. You must have Clang >= 3.1 or GCC >= 4.7.' >&2
 exit 1

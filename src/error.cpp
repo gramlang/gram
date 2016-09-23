@@ -71,7 +71,8 @@ gram::Error::Error(
         }
       }
 
-      // We have a line feed before the context, so we add one after for symmetry.
+      // We have a line feed before the context,
+      // so we add one after for symmetry.
       this->message += "\n";
     }
   }

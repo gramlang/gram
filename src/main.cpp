@@ -10,7 +10,9 @@ int main(int argc, char *argv[]) {
   // Display the help message.
   if (
     argc == 1 ||
-    (argc == 2 && (std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"))
+    (argc == 2 && (
+      std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help")
+    )
   ) {
     std::cout <<
       "Gram (https://www.gram.org/)\n"
@@ -32,7 +34,9 @@ int main(int argc, char *argv[]) {
   }
 
   // Display the version information.
-  if (argc == 2 && (std::string(argv[1]) == "-v" || std::string(argv[1]) == "--version")) {
+  if (argc == 2 && (
+    std::string(argv[1]) == "-v" || std::string(argv[1]) == "--version")
+  ) {
     std::cout << "Version: " << gram::VERSION << "\n";
     if (gram::COMMIT_HASH) {
       std::cout << "Commit: " << gram::COMMIT_HASH << "\n";

@@ -1,6 +1,6 @@
 /*
-  This header abstracts away details about the operating system and environment.
-  All platform-specific code lives in these functions.
+  This header abstracts away details about the operating system and
+  environment. All platform-specific code lives in these functions.
 */
 
 #ifndef GRAM_PLATFORM_H
@@ -26,7 +26,11 @@ namespace gram {
 
   // Compile an LLVM module into a native binary.
   // Raises a std::runtime_error if compilation fails.
-  void llc(std::string output_path, llvm::Module &module, gram::OutputType output_type);
+  void llc(
+    std::string output_path,
+    llvm::Module &module,
+    gram::OutputType output_type
+  );
 
 }
 

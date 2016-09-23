@@ -19,7 +19,11 @@ namespace gram {
     BINARY
   };
 
-  void compile(std::string input_path, std::string output_path, gram::OutputType output_type);
+  void compile(
+    std::string input_path,
+    std::string output_path,
+    gram::OutputType output_type
+  );
 
 }
 

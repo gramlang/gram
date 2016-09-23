@@ -144,8 +144,12 @@ int gram::execute_program(
     char stdout_buffer[4096];
     char stderr_buffer[4096];
     while (true) {
-      ssize_t stdout_count = read(stdout_pipe[0], stdout_buffer, sizeof(stdout_buffer));
-      ssize_t stderr_count = read(stderr_pipe[0], stderr_buffer, sizeof(stderr_buffer));
+      ssize_t stdout_count = read(
+        stdout_pipe[0], stdout_buffer, sizeof(stdout_buffer)
+      );
+      ssize_t stderr_count = read(
+        stderr_pipe[0], stderr_buffer, sizeof(stderr_buffer)
+      );
       if (stdout_count == -1) {
         if (errno != EINTR) {
           close(stdout_pipe[0]);
@@ -181,7 +185,9 @@ int gram::execute_program(
 
     // Make sure the process exited successfully.
     if (!WIFEXITED(status)) {
-      throw std::runtime_error("The child process did not exit successfully.");
+      throw std::runtime_error(
+        "The child process did not exit successfully."
+      );
     }
 
     // Return the exit status.
@@ -198,7 +204,9 @@ void gram::llc(
   llvm::SmallString<0> module_error;
   llvm::raw_svector_ostream module_error_ostream(module_error);
   if (llvm::verifyModule(module, &module_error_ostream)) {
-    throw std::runtime_error(("LLVM module verification failed: " + module_error).str());
+    throw std::runtime_error(
+      ("LLVM module verification failed: " + module_error).str()
+    );
   }
 
   // The native assembly will be written to this string.
@@ -240,36 +248,43 @@ void gram::llc(
     target_error
   );
   if (!target) {
-    throw std::runtime_error("Unable to find LLVM target for triple '" + triple.getTriple() + "'.");
+    throw std::runtime_error(
+      "Unable to find LLVM target for triple '" + triple.getTriple() + "'."
+    );
   }
 
   // Set up the target machine.
   llvm::TargetOptions options;
-  std::unique_ptr<llvm::TargetMachine> target_machine(target->createTargetMachine(
-    triple.getTriple(),
-    "",
-    "",
-    options,
-    llvm::Reloc::PIC_,
-    llvm::CodeModel::Default,
-    llvm::CodeGenOpt::Aggressive
-  ));
+  std::unique_ptr<llvm::TargetMachine>
+    target_machine(target->createTargetMachine(
+      triple.getTriple(),
+      "",
+      "",
+      options,
+      llvm::Reloc::PIC_,
+      llvm::CodeModel::Default,
+      llvm::CodeGenOpt::Aggressive
+    ));
   module.setDataLayout(target_machine->createDataLayout());
 
   // Set up a pass manager to schedule the optimizations.
   llvm::legacy::PassManager pass_manager;
   llvm::legacy::FunctionPassManager function_pass_manager(&module);
 
-  // Add information about which built-in functions (from the C standard library)
+  // Add information about which functions from the C standard library
   // are supported for optimization purposes.
   pass_manager.add(new llvm::TargetLibraryInfoWrapperPass(triple));
 
   // Add internal analysis passes from the target machine.
   pass_manager.add(
-    llvm::createTargetTransformInfoWrapperPass(target_machine->getTargetIRAnalysis())
+    llvm::createTargetTransformInfoWrapperPass(
+      target_machine->getTargetIRAnalysis()
+    )
   );
   function_pass_manager.add(
-    llvm::createTargetTransformInfoWrapperPass(target_machine->getTargetIRAnalysis())
+    llvm::createTargetTransformInfoWrapperPass(
+      target_machine->getTargetIRAnalysis()
+    )
   );
 
   // Add optimization passes.
@@ -299,7 +314,10 @@ void gram::llc(
 
   // Add passes to emit native assembly if needed.
   llvm::raw_svector_ostream native_asm_ostream(native_asm);
-  if (output_type == gram::OutputType::ASM || output_type == gram::OutputType::BINARY) {
+  if (
+    output_type == gram::OutputType::ASM ||
+    output_type == gram::OutputType::BINARY
+  ) {
     target_machine->addPassesToEmitFile(
       pass_manager,
       native_asm_ostream,
@@ -322,7 +340,9 @@ void gram::llc(
     std::error_code ec;
     llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
     if (ec) {
-      throw std::runtime_error("Unable to write to file '" + output_path + "'.");
+      throw std::runtime_error(
+        "Unable to write to file '" + output_path + "'."
+      );
     }
     llvm::WriteBitcodeToFile(&module, out);
     return;
@@ -333,7 +353,9 @@ void gram::llc(
     std::error_code ec;
     llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
     if (ec) {
-      throw std::runtime_error("Unable to write to file '" + output_path + "'.");
+      throw std::runtime_error(
+        "Unable to write to file '" + output_path + "'."
+      );
     }
     module.print(out, 0);
     return;
@@ -344,7 +366,9 @@ void gram::llc(
     std::error_code ec;
     llvm::raw_fd_ostream out(output_path, ec, llvm::sys::fs::F_None);
     if (ec) {
-      throw std::runtime_error("Unable to write to file '" + output_path + "'.");
+      throw std::runtime_error(
+        "Unable to write to file '" + output_path + "'."
+      );
     }
     out << native_asm;
     return;
@@ -366,20 +390,26 @@ void gram::llc(
     std::string stderr;
     std::string cc = "Clang";
     try {
-      status = gram::execute_program("clang", cc_args, native_asm.str(), stdout, stderr);
+      status = gram::execute_program(
+        "clang", cc_args, native_asm.str(), stdout, stderr
+      );
     } catch(std::runtime_error &e) {
       std::string cc = "GCC";
       try {
-        status = gram::execute_program("gcc", cc_args, native_asm.str(), stdout, stderr);
+        status = gram::execute_program(
+          "gcc", cc_args, native_asm.str(), stdout, stderr
+        );
       } catch(std::runtime_error &e) {
         throw std::runtime_error(
-          "Unable to invoke Clang or GCC. Ensure that at least one of these is installed."
+          "Unable to invoke Clang or GCC. Ensure that at least "
+            "one of these is installed."
         );
       }
     }
     if (status != 0) {
       throw std::runtime_error(
-        cc + " failed with status " + std::to_string(status) + ".\n" + stdout + "\n" + stderr
+        cc + " failed with status " + std::to_string(status) + ".\n" +
+          stdout + "\n" + stderr
       );
     }
     return;

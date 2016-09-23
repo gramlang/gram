@@ -15,7 +15,7 @@ If you have these tools installed, you can run them with `make lint`.
 
 ### Formatting
 
-Lines should not exceed 100 bytes, including the line feed.
+Lines should be less than or equal to 80 bytes, including whitespace and newline characters.
 
 **Motivation:** We don't want lines to grow without bound.
 
@@ -69,7 +69,7 @@ Put all platform-specific code in the [`src/platform.cpp`](https://github.com/gr
 
 ### Formatting
 
-Lines should not exceed 100 bytes, including the line feed.
+Lines should be less than or equal to 80 bytes, including whitespace and newline characters.
 
 **Motivation:** We don't want lines to grow without bound.
 
