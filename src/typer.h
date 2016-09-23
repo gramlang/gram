@@ -9,7 +9,7 @@
 
 namespace gram {
 
-  // Parse a stream of tokens.
+  // Perform type inference and checking.
   void type(gram::Node &node);
 
 }
