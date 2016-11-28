@@ -35,28 +35,20 @@ namespace gram {
     "THIN_ARROW"
   };
 
-  // Notes about line and column numbering (also noted in error.h):
-  // - Line feeds exist on the lines they are terminating,
-  //   not the following line.
-  // - All indices must point to a valid character, with one exception:
-  //   the end of the file is represented by the last column number + 1,
-  //   with no change to the line number.
-
   class Token {
   public:
     gram::TokenType type;
     std::string literal;
     std::shared_ptr<std::string> source_name;
     std::shared_ptr<std::string> source;
-    size_t start_line, start_col, // Zero-indexed, inclusive
-      end_line, end_col; // Zero-indexed, exclusive
+    size_t start_pos; // Inclusive
+    size_t end_pos; // Exclusive
 
     Token(
       gram::TokenType type, const std::string &literal,
       std::shared_ptr<std::string> source_name,
       std::shared_ptr<std::string> source,
-      size_t start_line, size_t start_col,
-      size_t end_line, size_t end_col
+      size_t start_pos, size_t end_pos
     );
     std::string show();
   };

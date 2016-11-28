@@ -5,12 +5,10 @@ gram::Token::Token(
   gram::TokenType type, const std::string &literal,
   std::shared_ptr<std::string> source_name,
   std::shared_ptr<std::string> source,
-  size_t start_line, size_t start_col,
-  size_t end_line, size_t end_col) :
+  size_t start_pos, size_t end_pos) :
   type(type), literal(literal),
   source_name(source_name), source(source),
-  start_line(start_line), start_col(start_col),
-  end_line(end_line), end_col(end_col) {
+  start_pos(start_pos), end_pos(end_pos) {
 }
 
 std::string gram::Token::show() {
@@ -27,7 +25,6 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
 ) {
   auto tokens = std::unique_ptr<std::vector<Token>>(new std::vector<Token>);
   size_t pos = 0;
-  size_t start_line = 0;
   size_t start_col = 0;
   std::vector<Token> opening_parens;
   std::vector<std::string> indentations = {""};
@@ -55,8 +52,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
             tokens->push_back(Token(
               TokenType::SEQUENCER, "",
               source_name, source,
-              start_line, 0,
-              start_line, start_col
+              pos - start_col, pos
             ));
           }
         } else if (
@@ -67,8 +63,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
           tokens->push_back(Token(
             TokenType::BEGIN, source->substr(pos - start_col, start_col),
             source_name, source,
-            start_line, 0,
-            start_line, start_col
+            pos - start_col, pos
           ));
         } else if (
           indentations.back().find(indentation) != std::string::npos
@@ -82,14 +77,12 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
             tokens->push_back(Token(
               TokenType::END, "",
               source_name, source,
-              start_line, 0,
-              start_line, start_col
+              pos - start_col, pos
             ));
             tokens->push_back(Token(
               TokenType::SEQUENCER, "",
               source_name, source,
-              start_line, 0,
-              start_line, start_col
+              pos - start_col, pos
             ));
           }
 
@@ -98,8 +91,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
             throw Error(
               "Unmatched outdent.",
               *source, *source_name,
-              start_line, 0,
-              start_line, start_col
+              pos - start_col, pos
             );
           }
         } else {
@@ -110,8 +102,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
             "Unable to compare this indentation to that of previous lines. "
             "This can happen if you are mixing tabs and spaces.",
             *source, *source_name,
-            start_line, 0,
-            start_line, start_col
+            pos - start_col, pos
           );
         }
       }
@@ -130,8 +121,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         throw Error(
           "Unexpected '~'.",
           *source, *source_name,
-          start_line, start_col,
-          start_line, start_col + 1
+          pos, pos + 1
         );
       }
       tokens->pop_back();
@@ -143,8 +133,9 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     // BEGIN
     if ((*source)[pos] == '(') {
       Token paren(
-        TokenType::BEGIN, source->substr(pos, 1), source_name, source,
-        start_line, start_col, start_line, start_col + 1
+        TokenType::BEGIN, source->substr(pos, 1),
+        source_name, source,
+        pos, pos + 1
       );
       tokens->push_back(paren);
       opening_parens.push_back(paren);
@@ -158,8 +149,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       tokens->push_back(Token(
         TokenType::COLON, source->substr(pos, 1),
         source_name, source,
-        start_line, start_col,
-        start_line, start_col + 1
+        pos, pos + 1
       ));
       ++pos;
       ++start_col;
@@ -172,15 +162,13 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         throw Error(
           "Unmatched ')'.",
           *source, *source_name,
-          start_line, start_col,
-          start_line, start_col + 1
+          pos, pos + 1
         );
       }
       tokens->push_back(Token(
         TokenType::END, source->substr(pos, 1),
         source_name, source,
-        start_line, start_col,
-        start_line, start_col + 1
+        pos, pos + 1
       ));
       opening_parens.pop_back();
       ++pos;
@@ -195,8 +183,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       tokens->push_back(Token(
         TokenType::EQUALS, source->substr(pos, 1),
         source_name, source,
-        start_line, start_col,
-        start_line, start_col + 1
+        pos, pos + 1
       ));
       ++pos;
       ++start_col;
@@ -216,15 +203,14 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         ((*source)[end_pos] >= 'A' && (*source)[end_pos] <= 'Z') ||
         ((*source)[end_pos] >= 'a' && (*source)[end_pos] <= 'z') ||
         ((*source)[end_pos] >= '0' && (*source)[end_pos] <= '9') ||
-        ((*source)[pos] & 0x80) != 0)) {
+        ((*source)[end_pos] & 0x80) != 0)) {
         ++end_pos;
       }
       size_t length = end_pos - pos;
       tokens->push_back(Token(
         TokenType::IDENTIFIER, source->substr(pos, length),
         source_name, source,
-        start_line, start_col,
-        start_line, start_col + length
+        pos, end_pos
       ));
       start_col += length;
       pos = end_pos;
@@ -248,8 +234,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       tokens->push_back(Token(
         TokenType::INTEGER, source->substr(pos, length),
         source_name, source,
-        start_line, start_col,
-        start_line, start_col + length
+        pos, end_pos
       ));
       start_col += length;
       pos = end_pos;
@@ -261,8 +246,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       tokens->push_back(Token(
         TokenType::SEQUENCER, source->substr(pos, 1),
         source_name, source,
-        start_line, start_col,
-        start_line, start_col + 1
+        pos, pos + 1
       ));
       ++pos;
       ++start_col;
@@ -274,8 +258,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       tokens->push_back(Token(
         TokenType::THICK_ARROW, source->substr(pos, 2),
         source_name, source,
-        start_line, start_col,
-        start_line, start_col + 2
+        pos, pos + 2
       ));
       pos += 2;
       start_col += 2;
@@ -287,8 +270,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       tokens->push_back(Token(
         TokenType::THIN_ARROW, source->substr(pos, 2),
         source_name, source,
-        start_line, start_col,
-        start_line, start_col + 2
+        pos, pos + 2
       ));
       pos += 2;
       start_col += 2;
@@ -321,13 +303,11 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
           "Unmatched '('. Note that parentheses groups may "
             "not span multiple lines.",
           *source, *source_name,
-          opening_parens.back().start_line, opening_parens.back().start_col,
-          opening_parens.back().end_line, opening_parens.back().end_col
+          opening_parens.back().start_pos, opening_parens.back().end_pos
         );
       }
 
       ++pos;
-      ++start_line;
       start_col = 0;
       continue;
     }
@@ -345,8 +325,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     throw Error(
       "Unexpected character '" + source->substr(pos, 1) + "'.",
       *source, *source_name,
-      start_line, start_col,
-      start_line, start_col + 1
+      pos, pos + 1
     );
   }
 
@@ -354,8 +333,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
   if (!opening_parens.empty()) {
     throw Error("Unmatched '('.",
       *source, *source_name,
-      opening_parens.back().start_line, opening_parens.back().start_col,
-      opening_parens.back().end_line, opening_parens.back().end_col
+      opening_parens.back().start_pos, opening_parens.back().end_pos
     );
   }
 
@@ -365,8 +343,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     tokens->push_back(Token(
       TokenType::END, "",
       source_name, source,
-      start_line, start_col,
-      start_line, start_col
+      pos, pos
     ));
   }
 

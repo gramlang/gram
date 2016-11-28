@@ -19,10 +19,8 @@ void gram::Node::span_tokens(
   if (begin < end) {
     source_name = begin->source_name;
     source = begin->source;
-    start_line = begin->start_line;
-    start_col = begin->start_col;
-    end_line = (end - 1)->end_line;
-    end_col = (end - 1)->end_col;
+    start_pos = begin->start_pos;
+    end_pos = (end - 1)->end_pos;
   }
 }
 
@@ -339,18 +337,14 @@ std::shared_ptr<gram::Term> parse_term(
 
   // Application (we use the foldl method to parse with left-associativity)
   if (prior_term && term) {
-    auto start_line = prior_term->start_line;
-    auto start_col = prior_term->start_col;
-    auto end_line = term->end_line;
-    auto end_col = term->end_col;
+    auto start_pos = prior_term->start_pos;
+    auto end_pos = term->end_pos;
     auto application = std::make_shared<gram::Application>(
       prior_term,
       term
     );
-    application->start_line = start_line;
-    application->start_col = start_col;
-    application->end_line = end_line;
-    application->end_col = end_col;
+    application->start_pos = start_pos;
+    application->end_pos = end_pos;
     term = parse_term(next, end, next, application, memo);
   } else {
     if (prior_term && !term) {
@@ -447,8 +441,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
         "This looks like the beginning of an abstraction or arrow type, "
           "but there is no arrow.",
         *(begin->source), *(begin->source_name),
-        begin->start_line, begin->start_col,
-        (begin + 1)->end_line, (begin + 1)->end_col
+        begin->start_pos, (begin + 1)->end_pos
       );
     }
 
@@ -463,8 +456,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
       throw gram::Error(
         "Expected a type annotation here.",
         *(pos->source), *(pos->source_name),
-        pos->start_line, pos->start_col,
-        pos->end_line, pos->end_col
+        pos->start_pos, pos->end_pos
       );
     }
   }
@@ -477,8 +469,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
     throw gram::Error(
       "Expected an arrow here.",
       *(pos->source), *(pos->source_name),
-      pos->start_line, pos->start_col,
-      pos->end_line, pos->end_col
+      pos->start_pos, pos->end_pos
     );
   }
   bool thin_arrow = (pos->type == gram::TokenType::THIN_ARROW);
@@ -489,8 +480,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
     throw gram::Error(
       "Missing body for abstraction or arrow type of '" + argument_name + "'.",
       *((pos - 1)->source), *((pos - 1)->source_name),
-      (pos - 1)->start_line, (pos - 1)->start_col,
-      (pos - 1)->end_line, (pos - 1)->end_col
+      (pos - 1)->start_pos, (pos - 1)->end_pos
     );
   }
   auto body = parse_term(
@@ -504,8 +494,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
     throw gram::Error(
       "Missing body for abstraction or arrow type of '" + argument_name + "'.",
       *(pos->source), *(pos->source_name),
-      pos->start_line, pos->start_col,
-      pos->end_line, pos->end_col
+      pos->start_pos, pos->end_pos
     );
   }
 
@@ -644,8 +633,7 @@ std::shared_ptr<gram::Term> parse_block(
       throw gram::Error(
         "Unexpected token encountered here.",
         *(pos->source), *(pos->source_name),
-        pos->start_line, pos->start_col,
-        pos->end_line, pos->end_col
+        pos->start_pos, pos->end_pos
       );
     }
 
@@ -662,8 +650,7 @@ std::shared_ptr<gram::Term> parse_block(
       throw gram::Error(
         "A block must end with a term.",
         *(pos->source), *(pos->source_name),
-        pos->start_line, pos->start_col,
-        pos->end_line, pos->end_col
+        pos->start_pos, pos->end_pos
       );
     }
   }
@@ -671,8 +658,7 @@ std::shared_ptr<gram::Term> parse_block(
     throw gram::Error(
       "A block must end with a term.",
       *(pos->source), *(pos->source_name),
-      body.back()->start_line, body.back()->start_col,
-      body.back()->end_line, body.back()->end_col
+      body.back()->start_pos, body.back()->end_pos
     );
   }
 
@@ -738,8 +724,7 @@ std::shared_ptr<gram::Node> parse_definition(
     throw gram::Error(
       "Missing definition of '" + variable_name + "'.",
       *((pos - 1)->source), *((pos - 1)->source_name),
-      (pos - 1)->start_line, (pos - 1)->start_col,
-      (pos - 1)->end_line, (pos - 1)->end_col
+      (pos - 1)->start_pos, (pos - 1)->end_pos
     );
   }
   auto body = parse_term(
@@ -753,8 +738,7 @@ std::shared_ptr<gram::Node> parse_definition(
     throw gram::Error(
       "Unexpected token encountered here.",
       *(pos->source), *(pos->source_name),
-      pos->start_line, pos->start_col,
-      pos->end_line, pos->end_col
+      pos->start_pos, pos->end_pos
     );
   }
 
@@ -822,8 +806,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
     throw gram::Error(
       "Unexpected token encountered here.",
       *(next->source), *(next->source_name),
-      next->start_line, next->start_col,
-      next->end_line, next->end_col
+      next->start_pos, next->end_pos
     );
   }
 
