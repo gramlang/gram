@@ -31,8 +31,9 @@ override TARGETS := bin/gram
 # These targets do not name actual files.
 # They are just recipes which may be executed by explicit request.
 .PHONY: all \
-	clean clean-deps clean-all \
+	clean clean-deps clean-all clean-docs \
 	docker-gram docker-gram-build docker-gram-deps \
+	docs serve-docs
 	lint install uninstall
 
 # This is the default target.
@@ -50,9 +51,17 @@ clean-deps:
 	rm -rf $(BUILD_PREFIX)
 
 # This target removes Gram build artifacts, including dependencies,
-# for all build types.
+# for all build types. This also removes build artifacts for the
+# website.
 clean-all:
 	rm -rf build
+	make clean-docs
+
+# This target removes build artifacts for the website.
+clean-docs:
+	rm -rf docs/_site
+	rm -rf .sass-cache
+	rm -rf .jekyll-metadata
 
 # This target produces the gramlang/gram Docker image.
 # This image contains a complete Gram installation, and nothing more.
@@ -83,6 +92,16 @@ docker-gram-build:
 # This is the only target that requires a network connection.
 docker-gram-deps:
 	docker build -f docker/Dockerfile-gram-deps -t gramlang/gram:deps .
+
+# This target builds the website.
+# You must have github-pages installed.
+docs:
+	cd docs && jekyll build
+
+# This target starts a local server for the website.
+# You must have github-pages installed.
+serve-docs:
+	cd docs && jekyll serve
 
 # This target runs the linters and static analyzers.
 # The following must be installed:
