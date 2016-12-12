@@ -1,0 +1,96 @@
+---
+---
+
+@import "normalize", "grid";
+
+$line-height: 24px;
+
+@mixin background-gradient($start, $end) {
+  background-color: $start;
+  background-image: -webkit-gradient(linear, left top, left bottom, from($start), to($end));
+  background-image: -webkit-linear-gradient(top, $start, $end);
+  background-image: -moz-linear-gradient(top, $start, $end);
+  background-image: -ms-linear-gradient(top, $start, $end);
+  background-image: -o-linear-gradient(top, $start, $end);
+  background-image: linear-gradient(top, $start, $end);
+  filter: progid:DXImageTransform.Microsoft.gradient(startStr='#{$start}', endStr='#{$end}');
+}
+
+@mixin transition($property, $duration) {
+  -o-transition: $property $duration;
+  -moz-transition: $property $duration;
+  -webkit-transition: $property $duration;
+  transition: $property $duration;
+}
+
+body {
+  color: #333;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol";
+  line-height: $line-height;
+}
+
+a {
+  color: #1092f5;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.header {
+  @include background-gradient(#43aeff, #3EA7F6);
+  margin-bottom: $line-height * 2;
+  padding: ($line-height / 2) 0;
+
+  @media (max-width: ($min-width-tablet - 1)) {
+    text-align: center;
+  }
+
+  a {
+    @include transition(opacity, 0.2s);
+
+    &:hover {
+      opacity: 0.5;
+      text-decoration: none;
+    }
+  }
+
+  h1 {
+    height: $line-height;
+    line-height: $line-height;
+    margin: 0;
+
+    @media (max-width: ($min-width-tablet - 1)) {
+      margin-bottom: $line-height / 2;
+    }
+
+    a {
+      display: inline-block;
+      height: $line-height;
+
+      img {
+        display: inline-block;
+        height: $line-height;
+      }
+    }
+  }
+
+  .nav {
+    @media (min-width: $min-width-tablet) {
+      text-align: right;
+    }
+
+    a {
+      color: #fff;
+      display: inline-block;
+      padding: 0 16px;
+
+      &:last-child {
+        padding-right: 0;
+      }
+    }
+  }
+}

@@ -1,9 +1,13 @@
-language: generic
+language: ruby
+rvm: 2.3.3
 sudo: required
 services:
   - docker
+install:
+  - gem install github-pages -v 108
 script:
-  - make docker-gram-build &&
+  - cd docs && jekyll build && cd .. &&
+    make docker-gram-build &&
     make docker-gram &&
     docker run gramlang/gram gram -v && (
       test "$TRAVIS_PULL_REQUEST" != "false" ||
