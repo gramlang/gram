@@ -6,7 +6,7 @@ services:
 install:
   - gem install github-pages -v 108
 script:
-  - cd docs && jekyll build && cd .. &&
+  - make docs &&
     make docker-gram-build &&
     make docker-gram &&
     docker run gramlang/gram gram -v && (
