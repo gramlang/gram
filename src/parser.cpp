@@ -757,7 +757,7 @@ std::shared_ptr<gram::Node> parse_definition(
 std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
   // Memoize the results of recursive descent calls.
   // This is the "packrat parser" technique.
-  MemoMap memo(1000, [=](const MemoKey &key) {
+  MemoMap memo(1000, [&tokens](const MemoKey &key) {
     // Unpack the tuple.
     auto memo_type = std::get<0>(key);
     auto begin = std::get<1>(key);
