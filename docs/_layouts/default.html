@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang=en>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+    <meta name="description" content="{% if page.excerpt %}{{ page.excerpt }}{% else %}{{ site.description | strip_newlines }}{% endif %}">
+    <title>{% if page.title %}{{ page.title }}{% else %}{{ site.title }}{% endif %}</title>
+    <link rel="canonical" href="{{ page.permalink | prepend: site.url }}">
+    <link rel="stylesheet" href="/css/main.css">
+    <script src="/script/main.js"></script>
+    {% if page.permalink %}
+      <script>
+        if (window.location.pathname !== '{{ page.permalink }}') {
+          window.location.replace(
+            window.location.protocol + '//' + window.location.host + '{{ page.permalink }}'
+          );
+        }
+      </script>
+    {% endif %}
+    <script>
+      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+      })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+      ga('create', 'UA-75334742-1', 'auto');
+      ga('send', 'pageview');
+    </script>
+  </head>
+  <body>
+    <div class="header">
+      <div class="container">
+        <div class="row">
+          <div class="span6">
+            <h1><a href="/"><img src="/images/logo.svg" alt="Gram logo"></a></h1>
+          </div>
+          <div class="span6">
+            <div class="nav">
+              <a href="/">
+                Home
+              </a><a href="https://github.com/gramlang/gram">
+                GitHub
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="container">
+      {{ content }}
+    </div>
+  </body>
+</html>
