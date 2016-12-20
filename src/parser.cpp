@@ -3,189 +3,6 @@
 #include <functional>
 #include <tuple>
 #include <unordered_map>
-#include <utility>
-
-///////////////
-// AST NODES //
-///////////////
-
-gram::Node::~Node() {
-}
-
-void gram::Node::span_tokens(
-  std::vector<gram::Token>::iterator begin,
-  std::vector<gram::Token>::iterator end
-) {
-  if (begin < end) {
-    source_name = begin->source_name;
-    source = begin->source;
-    start_pos = begin->start_pos;
-    end_pos = (end - 1)->end_pos;
-  }
-}
-
-gram::Term::~Term() {
-}
-
-gram::Abstraction::Abstraction(
-  std::string argument_name,
-  std::shared_ptr<gram::Term> argument_type,
-  std::shared_ptr<gram::Term> body) :
-  argument_name(argument_name),
-  argument_type(argument_type),
-  body(body) {
-}
-
-std::string gram::Abstraction::show() {
-  return "(" +
-    argument_name + ": " +
-    (argument_type ? argument_type->show() : "?") + " -> " +
-    (body ? body->show() : "?") +
-  ")";
-}
-
-std::unique_ptr<gram::Node> gram::Abstraction::clone() {
-  return std::unique_ptr<Node>(new Abstraction(
-    argument_name,
-    std::shared_ptr<Term>(
-      argument_type ?
-        static_cast<Term*>(argument_type->clone().release()) :
-        nullptr
-    ), std::shared_ptr<Term>(
-      body ?
-        static_cast<Term*>(body->clone().release()) :
-        nullptr
-    )
-  ));
-}
-
-gram::ArrowType::ArrowType(
-  std::string argument_name,
-  std::shared_ptr<gram::Term> argument_type,
-  std::shared_ptr<gram::Term> body) :
-  argument_name(argument_name),
-  argument_type(argument_type),
-  body(body) {
-}
-
-std::string gram::ArrowType::show() {
-  return "(" +
-    argument_name + ": " +
-    (argument_type ? argument_type->show() : "?") + " => " +
-    (body ? body->show() : "?") +
-  ")";
-}
-
-std::unique_ptr<gram::Node> gram::ArrowType::clone() {
-  return std::unique_ptr<Node>(new ArrowType(
-    argument_name,
-    std::shared_ptr<Term>(
-      argument_type ?
-        static_cast<Term*>(argument_type->clone().release()) :
-        nullptr
-    ), std::shared_ptr<Term>(
-      body ?
-        static_cast<Term*>(body->clone().release()) :
-        nullptr
-    )
-  ));
-}
-
-gram::Variable::Variable(std::string name) :
-  name(name) {
-}
-
-std::string gram::Variable::show() {
-  return name;
-}
-
-std::unique_ptr<gram::Node> gram::Variable::clone() {
-  return std::unique_ptr<Node>(new Variable(name));
-}
-
-gram::Application::Application(
-  std::shared_ptr<gram::Term> abstraction,
-  std::shared_ptr<gram::Term> operand) :
-  abstraction(abstraction),
-  operand(operand) {
-}
-
-std::string gram::Application::show() {
-  return "(" +
-    std::string(abstraction ? abstraction->show() : "?") + " " +
-    std::string(operand ? operand->show() : "?") +
-  ")";
-}
-
-std::unique_ptr<gram::Node> gram::Application::clone() {
-  return std::unique_ptr<Node>(new Application(
-    std::shared_ptr<Term>(
-      abstraction ?
-        static_cast<Term*>(abstraction->clone().release()) :
-        nullptr
-    ), std::shared_ptr<Term>(
-      operand ?
-        static_cast<Term*>(operand->clone().release()) :
-        nullptr
-    )
-  ));
-}
-
-gram::Block::Block(
-  std::vector<std::shared_ptr<gram::Node>> body
-) : body(body) {
-}
-
-std::string gram::Block::show() {
-  std::string result = "(";
-  bool first = true;
-  for (const auto &term : body) {
-    if (first) {
-      first = false;
-    } else {
-      result += "; ";
-    }
-    result += term ? term->show() : "<null>";
-  }
-  result += ")";
-  return result;
-}
-
-std::unique_ptr<gram::Node> gram::Block::clone() {
-  std::vector<std::shared_ptr<Node>> clone_body;
-  for (const auto & node : body) {
-    clone_body.push_back(
-      node ?
-        std::shared_ptr<Node>(node->clone().release()) :
-        nullptr
-    );
-  }
-  return std::unique_ptr<Node>(new Block(clone_body));
-}
-
-gram::Definition::Definition(
-  std::string name, std::shared_ptr<gram::Term> value
-) : name(name), value(value) {
-}
-
-std::string gram::Definition::show() {
-  return name + " = " + (value ? value->show() : "?");
-}
-
-std::unique_ptr<gram::Node> gram::Definition::clone() {
-  return std::unique_ptr<Node>(new Definition(
-    name,
-    std::shared_ptr<Term>(
-      value ?
-        static_cast<Term*>(value->clone().release()) :
-        nullptr
-    )
-  ));
-}
-
-////////////////
-// THE PARSER //
-////////////////
 
 enum class MemoType {
   NODE,
@@ -213,6 +30,12 @@ using MemoMap = std::unordered_map<
   MemoValue,
   std::function<size_t(const MemoKey &key)>
 >;
+
+void span_tokens(
+  gram::Node &node,
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator end
+);
 
 std::shared_ptr<gram::Node> parse_node(
   std::vector<gram::Token>::iterator begin,
@@ -265,6 +88,19 @@ std::shared_ptr<gram::Node> parse_definition(
   std::vector<gram::Token>::iterator &next,
   MemoMap &memo
 );
+
+void span_tokens(
+  gram::Node &node,
+  std::vector<gram::Token>::iterator begin,
+  std::vector<gram::Token>::iterator end
+) {
+  if (begin < end) {
+    node.source_name = begin->source_name;
+    node.source = begin->source;
+    node.start_pos = begin->start_pos;
+    node.end_pos = (end - 1)->end_pos;
+  }
+}
 
 std::shared_ptr<gram::Node> parse_node(
   std::vector<gram::Token>::iterator begin,
@@ -516,7 +352,7 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
       body
     );
   }
-  abstraction_or_arrow_type->span_tokens(begin, next);
+  span_tokens(*abstraction_or_arrow_type, begin, next);
 
   // Memoize whatever we parsed and return it.
   memo.insert({memo_key, make_tuple(
@@ -561,7 +397,7 @@ std::shared_ptr<gram::Term> parse_variable(
 
   // Construct the node.
   auto variable = std::make_shared<gram::Variable>(begin->literal);
-  variable->span_tokens(begin, next);
+  span_tokens(*variable, begin, next);
 
   // Memoize whatever we parsed and return it.
   memo.insert({memo_key, make_tuple(
@@ -671,7 +507,7 @@ std::shared_ptr<gram::Term> parse_block(
 
   // Construct the node.
   auto block = std::make_shared<gram::Block>(body);
-  block->span_tokens(begin, next);
+  span_tokens(*block, begin, next);
 
   // Memoize whatever we parsed and return it.
   memo.insert({memo_key, make_tuple(
@@ -744,7 +580,7 @@ std::shared_ptr<gram::Node> parse_definition(
 
   // Construct the node.
   auto definition = std::make_shared<gram::Definition>(variable_name, body);
-  definition->span_tokens(begin, next);
+  span_tokens(*definition, begin, next);
 
   // Memoize whatever we parsed and return it.
   memo.insert({memo_key, make_tuple(

@@ -19,10 +19,26 @@ CXX := $(shell ./scripts/get-compiler.sh CXX 2> /dev/null)
 # The headers and sources to compile relative to the src directory.
 # There is an additional source file not listed here called version.cpp,
 # which is built from scripts/version.sh and included in the build.
-override HEADERS := compiler.h error.h lexer.h parser.h platform.h \
-	typer.h version.h
-override SOURCES := compiler.cpp error.cpp lexer.cpp main.cpp parser.cpp \
-	platform.cpp typer.cpp
+override HEADERS := \
+	ast.h \
+	compiler.h \
+	error.h \
+	lexer.h \
+	parser.h \
+	platform.h \
+	tokens.h \
+	typer.h \
+	version.h
+override SOURCES := \
+	ast.cpp \
+	compiler.cpp \
+	error.cpp \
+	lexer.cpp \
+	main.cpp \
+	parser.cpp \
+	platform.cpp \
+	tokens.cpp \
+	typer.cpp
 
 # The default targets to build relative to the $(BUILD_PREFIX)/dist directory.
 # These will be installed relative to the $(PREFIX) directory.
