@@ -3,7 +3,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "platform.h"
-#include "typer.h"
+#include "typechecker.h"
 #include <fstream>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
@@ -61,7 +61,7 @@ void gram::compile(
 
   // Perform type checking and inference.
   if (node) {
-    type(*node);
+    typecheck(*node);
   }
 
   // Output the types, if requested.

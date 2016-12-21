@@ -27,7 +27,7 @@ override HEADERS := \
 	parser.h \
 	platform.h \
 	tokens.h \
-	typer.h \
+	typechecker.h \
 	version.h
 override SOURCES := \
 	ast.cpp \
@@ -38,7 +38,7 @@ override SOURCES := \
 	parser.cpp \
 	platform.cpp \
 	tokens.cpp \
-	typer.cpp
+	typechecker.cpp
 
 # The default targets to build relative to the $(BUILD_PREFIX)/dist directory.
 # These will be installed relative to the $(PREFIX) directory.
@@ -182,7 +182,7 @@ $(BUILD_PREFIX)/dist/bin/gram: \
 
 # This target builds LLVM, which is a dependency for Gram.
 $(BUILD_PREFIX)/llvm/dist/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
-	[ -n "$(CC)" -a -n "$(CXX)" ]
+	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient C and C++ compilers.
 	rm -rf $(BUILD_PREFIX)/llvm
 	mkdir -p $(BUILD_PREFIX)/llvm/src
 	tar -xf deps/llvm-3.9.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/src \
