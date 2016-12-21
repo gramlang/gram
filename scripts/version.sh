@@ -11,9 +11,9 @@ set -eu -o pipefail
 VERSION='0.0.1'
 
 # Get the build type (release or debug).
-if echo "$1" | grep -qi 'release'; then
+if echo "$1" | grep -qi '^release$'; then
   BUILD_TYPE='release'
-elif echo "$1" | grep -qi 'debug'; then
+elif echo "$1" | grep -qi '^debug$'; then
   BUILD_TYPE='debug'
 else
   echo "BUILD_TYPE must be 'release' or 'debug'" >&2
