@@ -9,107 +9,61 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
   size_t pos = 0;
   size_t start_col = 0;
   std::vector<Token> opening_parens;
-  std::vector<std::string> indentations = {""};
+  size_t line_continuation_marker_pos = source->size(); // Sentinel value
   while (pos < source->size()) {
-    // If we are at the beginning of a line, process any indentation.
-    if (start_col == 0) {
-      // Consume it.
-      while (pos < source->size() && (
-        (*source)[pos] == ' ' || (*source)[pos] == '\t'
-      )) {
+    // Comments begin with '#' and continue to the end of the line.
+    if ((*source)[pos] == '#') {
+      while (pos < source->size() && (*source)[pos] != '\n') {
         ++pos;
         ++start_col;
-      }
-      std::string indentation = source->substr(pos - start_col, start_col);
-
-      // If line wasn't empty, interpret the indentation (or lack thereof).
-      if (
-        pos < source->size() &&
-        (*source)[pos] != '\n' &&
-        (*source)[pos] != '#'
-      ) {
-        if (indentation == indentations.back()) {
-          // Same indentation as before. Just insert a sequencer.
-          if (!tokens->empty()) {
-            tokens->push_back(Token(
-              TokenType::SEQUENCER, "",
-              source_name, source,
-              pos - start_col, pos
-            ));
-          }
-        } else if (
-          indentation.find(indentations.back()) != std::string::npos
-        ) {
-          // The indentation increased. Open a new block.
-          indentations.push_back(indentation);
-          tokens->push_back(Token(
-            TokenType::BEGIN, source->substr(pos - start_col, start_col),
-            source_name, source,
-            pos - start_col, pos
-          ));
-        } else if (
-          indentations.back().find(indentation) != std::string::npos
-        ) {
-          // The indentation decreased.
-          // Close blocks and add sequencers as appropriate.
-          while (
-            !indentations.empty() && indentation != indentations.back()
-          ) {
-            indentations.pop_back();
-            tokens->push_back(Token(
-              TokenType::END, "",
-              source_name, source,
-              pos - start_col, pos
-            ));
-            tokens->push_back(Token(
-              TokenType::SEQUENCER, "",
-              source_name, source,
-              pos - start_col, pos
-            ));
-          }
-
-          // Make sure we ended up at a previous indentation level.
-          if (indentations.empty()) {
-            throw Error(
-              "Unmatched outdent.",
-              *source, *source_name,
-              pos - start_col, pos
-            );
-          }
-        } else {
-          // A strange possibility. The new indentation is neither a substring
-          // nor a superstring of the old indentation. This can happen if
-          // spaces and tabs are mixed.
-          throw Error(
-            "Unable to compare this indentation to that of previous lines. "
-            "This can happen if you are mixing tabs and spaces.",
-            *source, *source_name,
-            pos - start_col, pos
-          );
-        }
-      }
-
-      // If we consumed any characters, start again. We might be at the end of
-      // the stream now.
-      if (start_col > 0) {
         continue;
       }
     }
 
-    // A '~' can be used to continue a line.
-    if ((*source)[pos] == '~') {
-      // Consume the symbol.
-      if (tokens->empty() || tokens->back().type != TokenType::SEQUENCER) {
-        throw Error(
-          "Unexpected '~'.",
-          *source, *source_name,
-          pos, pos + 1
-        );
-      }
-      tokens->pop_back();
+    // Ignore whitespace except for line feeds;
+    // it is only used to separate other tokens.
+    if (
+      (*source)[pos] == ' ' ||
+      (*source)[pos] == '\t' ||
+      (*source)[pos] == '\r'
+    ) {
       ++pos;
       ++start_col;
       continue;
+    }
+
+    // Parse line continuation markers.
+    if ((*source)[pos] == '\\') {
+      line_continuation_marker_pos = pos;
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
+    // Ignore line feeds, but keep track of which line and column we are on.
+    if ((*source)[pos] == '\n') {
+      if (line_continuation_marker_pos == source->size()) {
+        tokens->push_back(Token(
+          TokenType::SEQUENCER, "",
+          source_name, source,
+          pos - start_col, pos
+        ));
+      }
+
+      ++pos;
+      start_col = 0;
+      line_continuation_marker_pos = source->size();
+      continue;
+    }
+
+    // If we parsed a line continuation marker, there
+    // should have been a subsequent line feed.
+    if (line_continuation_marker_pos != source->size()) {
+      throw Error(
+        "Unexpected '\\'.",
+        *source, *source_name,
+        line_continuation_marker_pos, line_continuation_marker_pos + 1
+      );
     }
 
     // BEGIN
@@ -259,49 +213,6 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
-    // Ignore non-indentation whitespace;
-    // it is only used to separate other tokens.
-    if ((*source)[pos] == ' ' || (*source)[pos] == '\t') {
-      ++pos;
-      ++start_col;
-      continue;
-    }
-
-    // Comments begin with '#' and continue to the end of the line.
-    if ((*source)[pos] == '#') {
-      while (pos < source->size() && (*source)[pos] != '\n') {
-        ++pos;
-        ++start_col;
-        continue;
-      }
-    }
-
-    // Ignore line feeds, but keep track of which line and column we are on.
-    if ((*source)[pos] == '\n') {
-      // Don't let parentheses groups span multiple lines.
-      // We have indentation for that!
-      if (!opening_parens.empty()) {
-        throw Error(
-          "Unmatched '('. Note that parentheses groups may "
-            "not span multiple lines.",
-          *source, *source_name,
-          opening_parens.back().start_pos, opening_parens.back().end_pos
-        );
-      }
-
-      ++pos;
-      start_col = 0;
-      continue;
-    }
-
-    // Some platforms use carriage returns in combination with line feeds to
-    // break lines. Line feeds are handled above. Just ignore carriage returns.
-    if ((*source)[pos] == '\r') {
-      ++pos;
-      ++start_col;
-      continue;
-    }
-
     // If we made it this far, the input wasn't recognized and
     // should be rejected.
     throw Error(
@@ -317,16 +228,6 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       *source, *source_name,
       opening_parens.back().start_pos, opening_parens.back().end_pos
     );
-  }
-
-  // Close any indentation blocks.
-  while (indentations.size() > 1) {
-    indentations.pop_back();
-    tokens->push_back(Token(
-      TokenType::END, "",
-      source_name, source,
-      pos, pos
-    ));
   }
 
   // Return an std::unique_ptr to the vector.
