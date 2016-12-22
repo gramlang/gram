@@ -1,6 +1,6 @@
 ---
 layout: default
-permalink: /docs
+permalink: /guide
 ---
 
 ## The Gram Programming Language
