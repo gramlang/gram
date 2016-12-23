@@ -66,20 +66,6 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       );
     }
 
-    // BEGIN
-    if ((*source)[pos] == '(') {
-      Token paren(
-        TokenType::BEGIN, source->substr(pos, 1),
-        source_name, source,
-        pos, pos + 1
-      );
-      tokens->push_back(paren);
-      opening_parens.push_back(paren);
-      ++pos;
-      ++start_col;
-      continue;
-    }
-
     // COLON
     if ((*source)[pos] == ':') {
       tokens->push_back(Token(
@@ -87,26 +73,6 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         source_name, source,
         pos, pos + 1
       ));
-      ++pos;
-      ++start_col;
-      continue;
-    }
-
-    // END
-    if ((*source)[pos] == ')') {
-      if (opening_parens.empty()) {
-        throw Error(
-          "Unmatched ')'.",
-          *source, *source_name,
-          pos, pos + 1
-        );
-      }
-      tokens->push_back(Token(
-        TokenType::END, source->substr(pos, 1),
-        source_name, source,
-        pos, pos + 1
-      ));
-      opening_parens.pop_back();
       ++pos;
       ++start_col;
       continue;
@@ -150,6 +116,40 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       ));
       start_col += length;
       pos = end_pos;
+      continue;
+    }
+
+    // LEFT_PAREN
+    if ((*source)[pos] == '(') {
+      Token paren(
+        TokenType::LEFT_PAREN, source->substr(pos, 1),
+        source_name, source,
+        pos, pos + 1
+      );
+      tokens->push_back(paren);
+      opening_parens.push_back(paren);
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
+    // RIGHT_PAREN
+    if ((*source)[pos] == ')') {
+      if (opening_parens.empty()) {
+        throw Error(
+          "Unmatched ')'.",
+          *source, *source_name,
+          pos, pos + 1
+        );
+      }
+      tokens->push_back(Token(
+        TokenType::RIGHT_PAREN, source->substr(pos, 1),
+        source_name, source,
+        pos, pos + 1
+      ));
+      opening_parens.pop_back();
+      ++pos;
+      ++start_col;
       continue;
     }
 
