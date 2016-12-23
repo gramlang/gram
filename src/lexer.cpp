@@ -153,30 +153,6 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
-    // INTEGER
-    // Integers are composed of digits optionally preceded by a '-' sign.
-    if ((pos < source->size() - 1 && (*source)[pos] == '-' &&
-      (*source)[pos + 1] >= '0' && (*source)[pos + 1] <= '9') ||
-      ((*source)[pos] >= '0' && (*source)[pos] <= '9')) {
-      size_t end_pos = pos + 1;
-      while (
-        end_pos < source->size() &&
-        (*source)[end_pos] >= '0' &&
-        (*source)[end_pos] <= '9'
-      ) {
-        ++end_pos;
-      }
-      size_t length = end_pos - pos;
-      tokens->push_back(Token(
-        TokenType::INTEGER, source->substr(pos, length),
-        source_name, source,
-        pos, end_pos
-      ));
-      start_col += length;
-      pos = end_pos;
-      continue;
-    }
-
     // SEQUENCER
     if ((*source)[pos] == ';') {
       tokens->push_back(Token(

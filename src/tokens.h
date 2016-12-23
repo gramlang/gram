@@ -16,7 +16,6 @@ namespace gram {
     END,
     EQUALS,
     IDENTIFIER,
-    INTEGER,
     SEQUENCER,
     THICK_ARROW,
     THIN_ARROW
@@ -28,7 +27,6 @@ namespace gram {
     "END",
     "EQUALS",
     "IDENTIFIER",
-    "INTEGER",
     "SEQUENCER",
     "THICK_ARROW",
     "THIN_ARROW"
