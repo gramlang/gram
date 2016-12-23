@@ -92,6 +92,18 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
+    // FULL_STOP
+    if ((*source)[pos] == '.') {
+      tokens->push_back(Token(
+        TokenType::FULL_STOP, source->substr(pos, 1),
+        source_name, source,
+        pos, pos + 1
+      ));
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
     // IDENTIFIER
     // Identifiers consist of ASCII letters, digits, and underscores, and must
     // not start with a letter. We also accept any bytes >= 0x80, which allows

@@ -13,6 +13,7 @@ namespace gram {
   enum class TokenType {
     COLON,
     EQUALS,
+    FULL_STOP,
     IDENTIFIER,
     LEFT_CURLY,
     LEFT_PAREN,
@@ -28,6 +29,7 @@ namespace gram {
   const char * const TokenTypeName[] = {
     "COLON",
     "EQUALS",
+    "FULL_STOP",
     "IDENTIFIER",
     "LEFT_CURLY",
     "LEFT_PAREN",
