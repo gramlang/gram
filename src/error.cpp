@@ -51,17 +51,17 @@ gram::Error::Error(
 
   // Output the source name, position, and message.
   if (end_pos == start_pos || end_pos == start_pos + 1) {
-    this->message = source_name +
+    this->message = message +
+      "\n" + source_name +
       " @ " + std::to_string(start_line + 1) +
-      ":" + std::to_string(start_col + 1) +
-      "\n" + message;
+      ":" + std::to_string(start_col + 1);
   } else {
-    this->message = source_name +
+    this->message = message +
+      "\n" + source_name +
       " @ " + std::to_string(start_line + 1) +
       ":" + std::to_string(start_col + 1) +
       " - " + std::to_string(end_line + 1) +
-      ":" + std::to_string(end_col) +
-      "\n" + message;
+      ":" + std::to_string(end_col);
   }
 
   // Check if the context has only whitespace.
