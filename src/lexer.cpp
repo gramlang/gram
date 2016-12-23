@@ -8,7 +8,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
   auto tokens = std::unique_ptr<std::vector<Token>>(new std::vector<Token>);
   size_t pos = 0;
   size_t start_col = 0;
-  std::vector<Token> opening_parens;
+  std::vector<Token> grouping_stack;
   size_t line_continuation_marker_pos = source->size(); // Sentinel value
   while (pos < source->size()) {
     // Comments begin with '#' and continue to the end of the line.
@@ -119,15 +119,69 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
+    // LEFT_CURLY
+    if ((*source)[pos] == '{') {
+      Token token(
+        TokenType::LEFT_CURLY, source->substr(pos, 1),
+        source_name, source,
+        pos, pos + 1
+      );
+      tokens->push_back(token);
+      grouping_stack.push_back(token);
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
     // LEFT_PAREN
     if ((*source)[pos] == '(') {
-      Token paren(
+      Token token(
         TokenType::LEFT_PAREN, source->substr(pos, 1),
         source_name, source,
         pos, pos + 1
       );
-      tokens->push_back(paren);
-      opening_parens.push_back(paren);
+      tokens->push_back(token);
+      grouping_stack.push_back(token);
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
+    // LEFT_SQUARE
+    if ((*source)[pos] == '[') {
+      Token token(
+        TokenType::LEFT_SQUARE, source->substr(pos, 1),
+        source_name, source,
+        pos, pos + 1
+      );
+      tokens->push_back(token);
+      grouping_stack.push_back(token);
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
+    // RIGHT_CURLY
+    if ((*source)[pos] == '}') {
+      if (grouping_stack.empty()) {
+        throw Error(
+          "Unmatched '}'.",
+          *source, *source_name,
+          pos, pos + 1
+        );
+      } else if (grouping_stack.back().type != TokenType::LEFT_CURLY) {
+        throw Error(
+          "Unmatched '" + grouping_stack.back().literal + "'.",
+          *source, *source_name,
+          grouping_stack.back().start_pos, grouping_stack.back().end_pos
+        );
+      }
+      tokens->push_back(Token(
+        TokenType::RIGHT_CURLY, source->substr(pos, 1),
+        source_name, source,
+        pos, pos + 1
+      ));
+      grouping_stack.pop_back();
       ++pos;
       ++start_col;
       continue;
@@ -135,11 +189,17 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
 
     // RIGHT_PAREN
     if ((*source)[pos] == ')') {
-      if (opening_parens.empty()) {
+      if (grouping_stack.empty()) {
         throw Error(
           "Unmatched ')'.",
           *source, *source_name,
           pos, pos + 1
+        );
+      } else if (grouping_stack.back().type != TokenType::LEFT_PAREN) {
+        throw Error(
+          "Unmatched '" + grouping_stack.back().literal + "'.",
+          *source, *source_name,
+          grouping_stack.back().start_pos, grouping_stack.back().end_pos
         );
       }
       tokens->push_back(Token(
@@ -147,7 +207,33 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         source_name, source,
         pos, pos + 1
       ));
-      opening_parens.pop_back();
+      grouping_stack.pop_back();
+      ++pos;
+      ++start_col;
+      continue;
+    }
+
+    // RIGHT_SQUARE
+    if ((*source)[pos] == ']') {
+      if (grouping_stack.empty()) {
+        throw Error(
+          "Unmatched ']'.",
+          *source, *source_name,
+          pos, pos + 1
+        );
+      } else if (grouping_stack.back().type != TokenType::LEFT_SQUARE) {
+        throw Error(
+          "Unmatched '" + grouping_stack.back().literal + "'.",
+          *source, *source_name,
+          grouping_stack.back().start_pos, grouping_stack.back().end_pos
+        );
+      }
+      tokens->push_back(Token(
+        TokenType::RIGHT_SQUARE, source->substr(pos, 1),
+        source_name, source,
+        pos, pos + 1
+      ));
+      grouping_stack.pop_back();
       ++pos;
       ++start_col;
       continue;
@@ -198,11 +284,11 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     );
   }
 
-  // Make sure all parentheses have been closed.
-  if (!opening_parens.empty()) {
-    throw Error("Unmatched '('.",
+  // Make sure all braces/brackets have been closed.
+  if (!grouping_stack.empty()) {
+    throw Error("Unmatched '" + grouping_stack.back().literal + "'.",
       *source, *source_name,
-      opening_parens.back().start_pos, opening_parens.back().end_pos
+      grouping_stack.back().start_pos, grouping_stack.back().end_pos
     );
   }
 

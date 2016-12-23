@@ -468,7 +468,7 @@ std::shared_ptr<gram::Term> parse_block(
     // If we didn't get one, throw an error.
     if (!node) {
       throw gram::Error(
-        "Unexpected token encountered here.",
+        "Unexpected symbol encountered here.",
         *(pos->source), *(pos->source_name),
         pos->start_pos, pos->end_pos
       );
@@ -573,7 +573,7 @@ std::shared_ptr<gram::Node> parse_definition(
   );
   if (!body) {
     throw gram::Error(
-      "Unexpected token encountered here.",
+      "Unexpected symbol encountered here.",
       *(pos->source), *(pos->source_name),
       pos->start_pos, pos->end_pos
     );
@@ -641,7 +641,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
   // Make sure we parsed the whole file.
   if (next != tokens.end()) {
     throw gram::Error(
-      "Unexpected token encountered here.",
+      "Unexpected symbol encountered here.",
       *(next->source), *(next->source_name),
       next->start_pos, next->end_pos
     );
