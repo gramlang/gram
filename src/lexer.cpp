@@ -11,7 +11,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
   std::shared_ptr<std::string> source_name,
   std::shared_ptr<std::string> source
 ) {
-  auto tokens = std::unique_ptr<std::vector<Token>>(new std::vector<Token>);
+  std::vector<Token> tokens;
   size_t pos = 0;
   std::vector<Token> grouping_stack;
   LineContinuationStatus line_continuation_status =
@@ -57,7 +57,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     // there was a line continuation marker.
     if ((*source)[pos] == '\n') {
       if (line_continuation_status == LineContinuationStatus::LCS_DEFAULT) {
-        tokens->push_back(Token(
+        tokens.push_back(Token(
           TokenType::SEQUENCER, "",
           source_name, source,
           pos, pos
@@ -112,7 +112,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         ++end_pos;
       }
       size_t length = end_pos - pos;
-      tokens->push_back(Token(
+      tokens.push_back(Token(
         TokenType::IDENTIFIER, source->substr(pos, length),
         source_name, source,
         pos, end_pos
@@ -156,7 +156,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         if (opener) {
           grouping_stack.push_back(token);
         }
-        tokens->push_back(token);
+        tokens.push_back(token);
         pos += literal.size();
         return true;
       }
@@ -269,65 +269,56 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     );
   }
 
-  // Remove extra SEQUENCER tokens from the beginning.
-  auto prefix_end = tokens->begin();
-  for (
-    ;
-    prefix_end != tokens->end() &&
-      prefix_end->type == TokenType::SEQUENCER;
-    ++prefix_end
+  // Filter out unnecessary SEQUENCER tokens.
+  auto filtered_tokens = std::unique_ptr<std::vector<Token>>(
+    new std::vector<Token>
   );
-  tokens->erase(tokens->begin(), prefix_end);
+  for (auto iter = tokens.begin(); iter != tokens.end(); ++iter) {
+    // If we have a SEQUENCER token, do some tests to see if we can skip it.
+    if (iter->type == TokenType::SEQUENCER) {
+      // Skip redundant SEQUENCER tokens.
+      if (
+        (iter + 1) != tokens.end() &&
+        (iter + 1)->type == TokenType::SEQUENCER
+      ) {
+        continue;
+      }
 
-  // Remove extra SEQUENCER tokens from the end.
-  auto suffix_begin = tokens->end();
-  for (
-    ;
-    suffix_begin != tokens->begin() &&
-      (suffix_begin - 1)->type == TokenType::SEQUENCER;
-    --suffix_begin
-  );
-  tokens->erase(suffix_begin, tokens->end());
+      // Don't add SEQUENCER tokens at the beginning.
+      if (filtered_tokens->empty()) {
+        continue;
+      }
 
-  // Remove extra SEQUENCER tokens from the middle.
-  for (auto iter = tokens->begin(); iter != tokens->end(); ++iter) {
-    // Remove extra SEQUENCER tokens after a group opener.
-    // Also remove redundant SEQUENCER tokens.
-    if (
-      iter->type == TokenType::LEFT_CURLY ||
-      iter->type == TokenType::LEFT_PAREN ||
-      iter->type == TokenType::LEFT_SQUARE ||
-      iter->type == TokenType::SEQUENCER
-    ) {
-      auto section_end = iter + 1;
-      for (
-        ;
-        section_end != tokens->end() &&
-          section_end->type == TokenType::SEQUENCER;
-        ++section_end
-      );
-      iter = tokens->erase(iter + 1, section_end) - 1;
-      continue;
+      // Don't add SEQUENCER tokens at the end.
+      if ((iter + 1) == tokens.end()) {
+        continue;
+      }
+
+      // Don't add SEQUENCER tokens after a group opener.
+      auto next_token = *(iter + 1);
+      if (
+        next_token.type == TokenType::RIGHT_CURLY ||
+        next_token.type == TokenType::RIGHT_PAREN ||
+        next_token.type == TokenType::RIGHT_SQUARE
+      ) {
+        continue;
+      }
+
+      // Don't add SEQUENCER tokens before a group closer.
+      auto prev_token = filtered_tokens->back();
+      if (
+        prev_token.type == TokenType::LEFT_CURLY ||
+        prev_token.type == TokenType::LEFT_PAREN ||
+        prev_token.type == TokenType::LEFT_SQUARE
+      ) {
+        continue;
+      }
     }
 
-    // Remove extra SEQUENCER tokens before a group closer.
-    if (
-      iter->type == TokenType::RIGHT_CURLY ||
-      iter->type == TokenType::RIGHT_PAREN ||
-      iter->type == TokenType::RIGHT_SQUARE
-    ) {
-      auto section_begin = iter;
-      for (
-        ;
-        section_begin != tokens->begin() &&
-          (section_begin - 1)->type == TokenType::SEQUENCER;
-        --section_begin
-      );
-      iter = tokens->erase(section_begin, iter);
-      continue;
-    }
+    // Add the token to the filtered vector.
+    filtered_tokens->push_back(*iter);
   }
 
   // Return an std::unique_ptr to the vector.
-  return tokens;
+  return filtered_tokens;
 }
