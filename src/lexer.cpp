@@ -1,21 +1,28 @@
 #include "error.h"
 #include "lexer.h"
 
+enum class LineContinuationStatus {
+  LCS_DEFAULT,
+  LCS_WAIT_FOR_NEWLINE,
+  LCS_WAIT_FOR_TOKEN
+};
+
 std::unique_ptr<std::vector<gram::Token>> gram::lex(
   std::shared_ptr<std::string> source_name,
   std::shared_ptr<std::string> source
 ) {
   auto tokens = std::unique_ptr<std::vector<Token>>(new std::vector<Token>);
   size_t pos = 0;
-  size_t start_col = 0;
-  std::vector<Token> opening_parens;
-  size_t line_continuation_marker_pos = source->size(); // Sentinel value
+  std::vector<Token> grouping_stack;
+  LineContinuationStatus line_continuation_status =
+    LineContinuationStatus::LCS_DEFAULT;
+  size_t line_continuation_marker_pos = 0;
+
   while (pos < source->size()) {
     // Comments begin with '#' and continue to the end of the line.
     if ((*source)[pos] == '#') {
       while (pos < source->size() && (*source)[pos] != '\n') {
         ++pos;
-        ++start_col;
         continue;
       }
     }
@@ -28,37 +35,52 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       (*source)[pos] == '\r'
     ) {
       ++pos;
-      ++start_col;
       continue;
     }
 
     // Parse line continuation markers.
     if ((*source)[pos] == '\\') {
+      if (line_continuation_status != LineContinuationStatus::LCS_DEFAULT) {
+        throw Error(
+          "Duplicate '\\'.",
+          *source, *source_name,
+          pos, pos + 1
+        );
+      }
+      line_continuation_status = LineContinuationStatus::LCS_WAIT_FOR_NEWLINE;
       line_continuation_marker_pos = pos;
       ++pos;
-      ++start_col;
       continue;
     }
 
-    // Ignore line feeds, but keep track of which line and column we are on.
+    // For line feeds, insert a SEQUENCER unless
+    // there was a line continuation marker.
     if ((*source)[pos] == '\n') {
-      if (line_continuation_marker_pos == source->size()) {
+      if (line_continuation_status == LineContinuationStatus::LCS_DEFAULT) {
         tokens->push_back(Token(
           TokenType::SEQUENCER, "",
           source_name, source,
-          pos - start_col, pos
+          pos, pos
         ));
       }
+      if (
+        line_continuation_status ==
+        LineContinuationStatus::LCS_WAIT_FOR_NEWLINE
+      ) {
+        line_continuation_status = LineContinuationStatus::LCS_WAIT_FOR_TOKEN;
+      }
 
-      ++pos;
-      start_col = 0;
       line_continuation_marker_pos = source->size();
+      ++pos;
       continue;
     }
 
     // If we parsed a line continuation marker, there
     // should have been a subsequent line feed.
-    if (line_continuation_marker_pos != source->size()) {
+    if (
+      line_continuation_status ==
+      LineContinuationStatus::LCS_WAIT_FOR_NEWLINE
+    ) {
       throw Error(
         "Unexpected '\\'.",
         *source, *source_name,
@@ -66,64 +88,11 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       );
     }
 
-    // BEGIN
-    if ((*source)[pos] == '(') {
-      Token paren(
-        TokenType::BEGIN, source->substr(pos, 1),
-        source_name, source,
-        pos, pos + 1
-      );
-      tokens->push_back(paren);
-      opening_parens.push_back(paren);
-      ++pos;
-      ++start_col;
-      continue;
-    }
-
-    // COLON
-    if ((*source)[pos] == ':') {
-      tokens->push_back(Token(
-        TokenType::COLON, source->substr(pos, 1),
-        source_name, source,
-        pos, pos + 1
-      ));
-      ++pos;
-      ++start_col;
-      continue;
-    }
-
-    // END
-    if ((*source)[pos] == ')') {
-      if (opening_parens.empty()) {
-        throw Error(
-          "Unmatched ')'.",
-          *source, *source_name,
-          pos, pos + 1
-        );
-      }
-      tokens->push_back(Token(
-        TokenType::END, source->substr(pos, 1),
-        source_name, source,
-        pos, pos + 1
-      ));
-      opening_parens.pop_back();
-      ++pos;
-      ++start_col;
-      continue;
-    }
-
-    // EQUALS
-    if ((*source)[pos] == '=' && !(
-      pos < source->size() - 1 && source->substr(pos, 2) == "=>"
-    )) {
-      tokens->push_back(Token(
-        TokenType::EQUALS, source->substr(pos, 1),
-        source_name, source,
-        pos, pos + 1
-      ));
-      ++pos;
-      ++start_col;
-      continue;
+    if (
+      line_continuation_status ==
+      LineContinuationStatus::LCS_WAIT_FOR_TOKEN
+    ) {
+      line_continuation_status = LineContinuationStatus::LCS_DEFAULT;
     }
 
     // IDENTIFIER
@@ -148,44 +117,138 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         source_name, source,
         pos, end_pos
       ));
-      start_col += length;
       pos = end_pos;
       continue;
     }
 
-    // SEQUENCER
-    if ((*source)[pos] == ';') {
-      tokens->push_back(Token(
-        TokenType::SEQUENCER, source->substr(pos, 1),
-        source_name, source,
-        pos, pos + 1
-      ));
-      ++pos;
-      ++start_col;
-      continue;
-    }
+    auto parse_symbol = [&](
+      TokenType type,
+      std::string literal,
+      bool opener,
+      bool closer,
+      TokenType opener_type
+    ) {
+      if (
+        pos + literal.size() <= source->size() &&
+        source->substr(pos, literal.size()) == literal
+      ) {
+        if (closer) {
+          if (grouping_stack.empty()) {
+            throw Error(
+              "Unmatched '" + literal + "'.",
+              *source, *source_name,
+              pos, pos + 1
+            );
+          } else if (grouping_stack.back().type != opener_type) {
+            throw Error(
+              "Unmatched '" + grouping_stack.back().literal + "'.",
+              *source, *source_name,
+              grouping_stack.back().start_pos, grouping_stack.back().end_pos
+            );
+          }
+          grouping_stack.pop_back();
+        }
+        Token token(
+          type, literal,
+          source_name, source,
+          pos, pos + literal.size()
+        );
+        if (opener) {
+          grouping_stack.push_back(token);
+        }
+        tokens->push_back(token);
+        pos += literal.size();
+        return true;
+      }
+      return false;
+    };
+
+    // Parse two-character symbols first to prevent them from
+    // being parsed as one-character symbols.
 
     // THICK_ARROW
-    if (pos < source->size() - 1 && source->substr(pos, 2) == "=>") {
-      tokens->push_back(Token(
-        TokenType::THICK_ARROW, source->substr(pos, 2),
-        source_name, source,
-        pos, pos + 2
-      ));
-      pos += 2;
-      start_col += 2;
+    if (parse_symbol(
+      TokenType::THICK_ARROW, "=>", false, false, static_cast<TokenType>(0)
+    )) {
       continue;
     }
 
     // THIN_ARROW
-    if (pos < source->size() - 1 && source->substr(pos, 2) == "->") {
-      tokens->push_back(Token(
-        TokenType::THIN_ARROW, source->substr(pos, 2),
-        source_name, source,
-        pos, pos + 2
-      ));
-      pos += 2;
-      start_col += 2;
+    if (parse_symbol(
+      TokenType::THIN_ARROW, "->", false, false, static_cast<TokenType>(0)
+    )) {
+      continue;
+    }
+
+    // Parse one-character symbols.
+
+    // COLON
+    if (parse_symbol(
+      TokenType::COLON, ":", false, false, static_cast<TokenType>(0)
+    )) {
+      continue;
+    }
+
+    // EQUALS
+    if (parse_symbol(
+      TokenType::EQUALS, "=", false, false, static_cast<TokenType>(0)
+    )) {
+      continue;
+    }
+
+    // FULL_STOP
+    if (parse_symbol(
+      TokenType::FULL_STOP, ".", false, false, static_cast<TokenType>(0)
+    )) {
+      continue;
+    }
+
+    // LEFT_CURLY
+    if (parse_symbol(
+      TokenType::LEFT_CURLY, "{", true, false, static_cast<TokenType>(0)
+    )) {
+      continue;
+    }
+
+    // LEFT_PAREN
+    if (parse_symbol(
+      TokenType::LEFT_PAREN, "(", true, false, static_cast<TokenType>(0)
+    )) {
+      continue;
+    }
+
+    // LEFT_SQUARE
+    if (parse_symbol(
+      TokenType::LEFT_SQUARE, "[", true, false, static_cast<TokenType>(0)
+    )) {
+      continue;
+    }
+
+    // RIGHT_CURLY
+    if (parse_symbol(
+      TokenType::RIGHT_CURLY, "}", false, true, TokenType::LEFT_CURLY
+    )) {
+      continue;
+    }
+
+    // RIGHT_PAREN
+    if (parse_symbol(
+      TokenType::RIGHT_PAREN, ")", false, true, TokenType::LEFT_PAREN
+    )) {
+      continue;
+    }
+
+    // RIGHT_SQUARE
+    if (parse_symbol(
+      TokenType::RIGHT_SQUARE, "]", false, true, TokenType::LEFT_SQUARE
+    )) {
+      continue;
+    }
+
+    // SEQUENCER
+    if (parse_symbol(
+      TokenType::SEQUENCER, ";", false, false, static_cast<TokenType>(0)
+    )) {
       continue;
     }
 
@@ -198,12 +261,71 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     );
   }
 
-  // Make sure all parentheses have been closed.
-  if (!opening_parens.empty()) {
-    throw Error("Unmatched '('.",
+  // Make sure all braces/brackets have been closed.
+  if (!grouping_stack.empty()) {
+    throw Error("Unmatched '" + grouping_stack.back().literal + "'.",
       *source, *source_name,
-      opening_parens.back().start_pos, opening_parens.back().end_pos
+      grouping_stack.back().start_pos, grouping_stack.back().end_pos
     );
+  }
+
+  // Remove extra SEQUENCER tokens from the beginning.
+  auto prefix_end = tokens->begin();
+  for (
+    ;
+    prefix_end != tokens->end() &&
+      prefix_end->type == TokenType::SEQUENCER;
+    ++prefix_end
+  );
+  tokens->erase(tokens->begin(), prefix_end);
+
+  // Remove extra SEQUENCER tokens from the end.
+  auto suffix_begin = tokens->end();
+  for (
+    ;
+    suffix_begin != tokens->begin() &&
+      (suffix_begin - 1)->type == TokenType::SEQUENCER;
+    --suffix_begin
+  );
+  tokens->erase(suffix_begin, tokens->end());
+
+  // Remove extra SEQUENCER tokens from the middle.
+  for (auto iter = tokens->begin(); iter != tokens->end(); ++iter) {
+    // Remove extra SEQUENCER tokens after a group opener.
+    // Also remove redundant SEQUENCER tokens.
+    if (
+      iter->type == TokenType::LEFT_CURLY ||
+      iter->type == TokenType::LEFT_PAREN ||
+      iter->type == TokenType::LEFT_SQUARE ||
+      iter->type == TokenType::SEQUENCER
+    ) {
+      auto section_end = iter + 1;
+      for (
+        ;
+        section_end != tokens->end() &&
+          section_end->type == TokenType::SEQUENCER;
+        ++section_end
+      );
+      iter = tokens->erase(iter + 1, section_end) - 1;
+      continue;
+    }
+
+    // Remove extra SEQUENCER tokens before a group closer.
+    if (
+      iter->type == TokenType::RIGHT_CURLY ||
+      iter->type == TokenType::RIGHT_PAREN ||
+      iter->type == TokenType::RIGHT_SQUARE
+    ) {
+      auto section_begin = iter;
+      for (
+        ;
+        section_begin != tokens->begin() &&
+          (section_begin - 1)->type == TokenType::SEQUENCER;
+        --section_begin
+      );
+      iter = tokens->erase(section_begin, iter);
+      continue;
+    }
   }
 
   // Return an std::unique_ptr to the vector.

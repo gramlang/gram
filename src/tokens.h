@@ -11,22 +11,32 @@
 namespace gram {
 
   enum class TokenType {
-    BEGIN,
     COLON,
-    END,
     EQUALS,
+    FULL_STOP,
     IDENTIFIER,
+    LEFT_CURLY,
+    LEFT_PAREN,
+    LEFT_SQUARE,
+    RIGHT_CURLY,
+    RIGHT_PAREN,
+    RIGHT_SQUARE,
     SEQUENCER,
     THICK_ARROW,
     THIN_ARROW
   };
 
   const char * const TokenTypeName[] = {
-    "BEGIN",
     "COLON",
-    "END",
     "EQUALS",
+    "FULL_STOP",
     "IDENTIFIER",
+    "LEFT_CURLY",
+    "LEFT_PAREN",
+    "LEFT_SQUARE",
+    "RIGHT_CURLY",
+    "RIGHT_PAREN",
+    "RIGHT_SQUARE",
     "SEQUENCER",
     "THICK_ARROW",
     "THIN_ARROW"

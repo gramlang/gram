@@ -249,16 +249,16 @@ std::shared_ptr<gram::Term> parse_abstraction_or_arrow_type(
     // We do this so that the argument type isn't greedily parsed until the
     // end of the file.
     auto arrow_pos = pos;
-    int indentation = 0;
+    int nesting = 0;
     int colons_minus_arrows = 0;
     while (arrow_pos != end) {
-      if (arrow_pos->type == gram::TokenType::BEGIN) {
-        ++indentation;
+      if (arrow_pos->type == gram::TokenType::LEFT_PAREN) {
+        ++nesting;
       }
-      if (arrow_pos->type == gram::TokenType::END) {
-        --indentation;
+      if (arrow_pos->type == gram::TokenType::RIGHT_PAREN) {
+        --nesting;
       }
-      if (indentation == 0) {
+      if (nesting == 0) {
         if (arrow_pos->type == gram::TokenType::COLON) {
           ++colons_minus_arrows;
         }
@@ -433,22 +433,23 @@ std::shared_ptr<gram::Term> parse_block(
   }
 
   // Make sure we are actually parsing a block.
-  if (begin->type != gram::TokenType::BEGIN && !top_level) {
+  if (begin->type != gram::TokenType::LEFT_PAREN && !top_level) {
     next = begin;
     return std::shared_ptr<gram::Term>();
   }
 
-  // Skip the BEGIN token, if there is one.
+  // Skip the LEFT_PAREN token, if there is one.
   auto pos = begin;
   if (!top_level) {
     ++pos;
   }
 
-  // Keep eating the input until we reach an END token or the end of the
-  // stream. Note: the lexer guarantees that all BEGIN/END tokens are matched,
-  // so we don't need to worry about ensuring there is an END.
+  // Keep eating the input until we reach a RIGHT_PAREN token or the end of
+  // the stream. Note: the lexer guarantees that all LEFT_*/RIGHT_* tokens
+  // are matched, so we don't need to worry about ensuring there is a
+  // RIGHT_PAREN.
   std::vector<std::shared_ptr<gram::Node>> body;
-  while (pos != end && pos->type != gram::TokenType::END) {
+  while (pos != end && pos->type != gram::TokenType::RIGHT_PAREN) {
     // Skip sequencers.
     if (pos->type == gram::TokenType::SEQUENCER) {
       ++pos;
@@ -467,7 +468,7 @@ std::shared_ptr<gram::Term> parse_block(
     // If we didn't get one, throw an error.
     if (!node) {
       throw gram::Error(
-        "Unexpected token encountered here.",
+        "Unexpected symbol encountered here.",
         *(pos->source), *(pos->source_name),
         pos->start_pos, pos->end_pos
       );
@@ -499,7 +500,7 @@ std::shared_ptr<gram::Term> parse_block(
   }
 
   // Tell the caller where we ended up.
-  // Skip the END token if there is one.
+  // Skip the RIGHT_PAREN token if there is one.
   next = pos;
   if (!top_level) {
     ++next;
@@ -572,7 +573,7 @@ std::shared_ptr<gram::Node> parse_definition(
   );
   if (!body) {
     throw gram::Error(
-      "Unexpected token encountered here.",
+      "Unexpected symbol encountered here.",
       *(pos->source), *(pos->source_name),
       pos->start_pos, pos->end_pos
     );
@@ -640,7 +641,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
   // Make sure we parsed the whole file.
   if (next != tokens.end()) {
     throw gram::Error(
-      "Unexpected token encountered here.",
+      "Unexpected symbol encountered here.",
       *(next->source), *(next->source_name),
       next->start_pos, next->end_pos
     );

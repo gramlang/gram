@@ -13,7 +13,7 @@
 namespace gram {
 
   // Perform lexical analysis.
-  // The lexer guarantees that all BEGIN/END tokens will be matched
+  // The lexer guarantees that all LEFT_*/RIGHT_* tokens will be matched
   // in the returned stream.
   std::unique_ptr<std::vector<gram::Token>> lex(
     std::shared_ptr<std::string> source_name,
