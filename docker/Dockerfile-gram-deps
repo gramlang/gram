@@ -9,7 +9,7 @@ RUN cd /root && \
   DEBIAN_FRONTEND=noninteractive apt-get -y install \
   build-essential \
   clang-4.0 \
-  cmake=3.6.2-1 \
+  cmake>=3.7.1-1 \
   git \
   ninja-build \
   shellcheck && \
@@ -23,7 +23,7 @@ RUN cd /root && \
 
   # Build LLVM for Gram.
   cd gram && \
-  make build/release/llvm/dist/bin/llvm-config && \
+  make build/release/llvm && \
   cd .. && \
   mv gram/build build && \
   rm -rf gram
