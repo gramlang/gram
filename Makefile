@@ -163,6 +163,7 @@ uninstall:
 $(BUILD_PREFIX)/dist/bin/gram: \
 		$(HEADERS) \
 		$(SOURCES) \
+		scripts/version.sh \
 		$(BUILD_PREFIX)/llvm
 	[ -n "$(CXX)" ] # Ensure we have a sufficient C++ compiler.
 	mkdir -p $(BUILD_PREFIX)/gram/build
