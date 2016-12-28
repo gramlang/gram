@@ -1,1 +1,5 @@
+# This directory is sometimes generated during `make docs`.
+.sass-cache
+
+# Build artifacts are written here.
 build

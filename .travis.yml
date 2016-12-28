@@ -4,7 +4,7 @@ sudo: required
 services:
   - docker
 install:
-  - gem install github-pages -v 108
+  - gem install github-pages -v 111
 script:
   - make docs &&
     make docker-gram-build &&

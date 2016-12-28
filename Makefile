@@ -11,34 +11,17 @@ else
 	$(error BUILD_TYPE must be 'release' or 'debug')
 endif
 override BUILD_PREFIX := build/$(BUILD_TYPE)
+override BUILD_PREFIX_COMMON := build/common
 
 # Determine which compilers to use.
 CC := $(shell ./scripts/get-compiler.sh CC 2> /dev/null)
 CXX := $(shell ./scripts/get-compiler.sh CXX 2> /dev/null)
 
-# The headers and sources to compile relative to the src directory.
+# The headers and sources to compile.
 # There is an additional source file not listed here called version.cpp,
 # which is built from scripts/version.sh and included in the build.
-override HEADERS := \
-	ast.h \
-	compiler.h \
-	error.h \
-	lexer.h \
-	parser.h \
-	platform.h \
-	tokens.h \
-	typechecker.h \
-	version.h
-override SOURCES := \
-	ast.cpp \
-	compiler.cpp \
-	error.cpp \
-	lexer.cpp \
-	main.cpp \
-	parser.cpp \
-	platform.cpp \
-	tokens.cpp \
-	typechecker.cpp
+override HEADERS := $(shell find src/*.h -type f)
+override SOURCES := $(shell find src/*.cpp -type f)
 
 # The default targets to build relative to the $(BUILD_PREFIX)/dist directory.
 # These will be installed relative to the $(PREFIX) directory.
@@ -47,13 +30,14 @@ override TARGETS := bin/gram
 # These targets do not name actual files.
 # They are just recipes which may be executed by explicit request.
 .PHONY: all \
-	clean clean-deps clean-all clean-docs \
+	clean clean-docs clean-deps clean-all \
 	docker-gram docker-gram-build docker-gram-deps \
 	docs serve-docs
 	lint install uninstall
 
 # This is the default target.
-# It builds all Gram artifacts.
+# It builds the Gram binary and all its dependencies
+# for the specified build type.
 all: $(addprefix $(BUILD_PREFIX)/dist/,$(TARGETS))
 
 # This target removes Gram build artifacts, excluding dependencies,
@@ -61,23 +45,33 @@ all: $(addprefix $(BUILD_PREFIX)/dist/,$(TARGETS))
 clean:
 	rm -rf $(BUILD_PREFIX)/dist $(BUILD_PREFIX)/gram
 
+# This target removes build artifacts for the website.
+clean-docs:
+	jekyll clean --source docs --destination $(BUILD_PREFIX_COMMON)/docs
+
+	# This directory is created by Jekyll and needs to be deleted.
+	# Ideally `jekyll clean` would remove it, but that's not currently the case
+	# due to a bug in Jekyll. See the discussion here:
+	# https://github.com/jekyll/jekyll/pull/5701
+	rm -rf .sass-cache
+
 # This target removes Gram build artifacts, including dependencies,
-# for the specified build type.
+# for the specified build type (and common).
 clean-deps:
 	rm -rf $(BUILD_PREFIX)
+	rm -rf $(BUILD_PREFIX_COMMON)
 
 # This target removes Gram build artifacts, including dependencies,
 # for all build types. This also removes build artifacts for the
 # website.
 clean-all:
 	rm -rf build
-	make clean-docs
 
-# This target removes build artifacts for the website.
-clean-docs:
-	rm -rf docs/_site
+	# This directory is created by Jekyll and needs to be deleted.
+	# Ideally `jekyll clean` would remove it, but that's not currently the case
+	# due to a bug in Jekyll. See the discussion here:
+	# https://github.com/jekyll/jekyll/pull/5701
 	rm -rf .sass-cache
-	rm -rf .jekyll-metadata
 
 # This target produces the gramlang/gram Docker image.
 # This image contains a complete Gram installation, and nothing more.
@@ -111,19 +105,23 @@ docker-gram-deps:
 
 # This target builds the website.
 # You must have github-pages installed.
-docs:
-	cd docs && jekyll build
+docs: $(BUILD_PREFIX_COMMON)/docs
+
+# This target uses Jekyll to compile the website.
+# You probably want to run `make docs` instead of using this directly.
+$(BUILD_PREFIX_COMMON)/docs: $(shell find docs -type f)
+	jekyll build --source docs --destination $(BUILD_PREFIX_COMMON)/docs
 
 # This target starts a local server for the website.
 # You must have github-pages installed.
 serve-docs:
-	cd docs && jekyll serve
+	jekyll serve --source docs --destination $(BUILD_PREFIX_COMMON)/docs
 
 # This target runs the linters and static analyzers.
 # The following must be installed:
 # - Clang Static Analyzer
 # - ShellCheck
-lint: $(BUILD_PREFIX)/llvm/dist/bin/llvm-config
+lint: $(BUILD_PREFIX)/llvm
 	# Make sure all lines conform to the line length limit.
 	test $$( \
 		awk '{print length}' \
@@ -163,15 +161,15 @@ uninstall:
 
 # This target builds the main Gram binary.
 $(BUILD_PREFIX)/dist/bin/gram: \
-		$(addprefix src/,$(HEADERS)) \
-		$(addprefix src/,$(SOURCES)) \
-		$(BUILD_PREFIX)/llvm/dist/bin/llvm-config
+		$(HEADERS) \
+		$(SOURCES) \
+		$(BUILD_PREFIX)/llvm
 	[ -n "$(CXX)" ] # Ensure we have a sufficient C++ compiler.
 	mkdir -p $(BUILD_PREFIX)/gram/build
 	./scripts/version.sh $(BUILD_TYPE) > $(BUILD_PREFIX)/gram/build/version.cpp
 	mkdir -p $(BUILD_PREFIX)/dist/bin
 	$(CXX) \
-		$(addprefix src/,$(SOURCES)) $(BUILD_PREFIX)/gram/build/version.cpp \
+		$(SOURCES) $(BUILD_PREFIX)/gram/build/version.cpp \
 		-flto -O3 -std=c++11 \
 		-Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter \
 		-o $(BUILD_PREFIX)/dist/bin/gram \
@@ -181,7 +179,7 @@ $(BUILD_PREFIX)/dist/bin/gram: \
 		$$( (uname -s | grep -qi 'Darwin') || echo '-static' )
 
 # This target builds LLVM, which is a dependency for Gram.
-$(BUILD_PREFIX)/llvm/dist/bin/llvm-config: deps/llvm-3.9.0.src.tar.xz
+$(BUILD_PREFIX)/llvm: deps/llvm-3.9.0.src.tar.xz
 	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient C and C++ compilers.
 	rm -rf $(BUILD_PREFIX)/llvm
 	mkdir -p $(BUILD_PREFIX)/llvm/src
