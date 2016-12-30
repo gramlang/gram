@@ -10,7 +10,7 @@ RUN cd /root && \
   DEBIAN_FRONTEND=noninteractive apt-get -y update && \
 
   # Install various packages.
-  # Note: `libssl1.0-dev` is needed for Ruby 2.2.3.
+  # Note: `libssl1.0-dev` is needed for Ruby 2.3.3.
   DEBIAN_FRONTEND=noninteractive apt-get -y install \
   build-essential \
   clang-4.0 \
@@ -33,7 +33,7 @@ RUN cd /root && \
     --keyserver hkp://keys.gnupg.net \
     --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 && \
   \curl -sSL https://get.rvm.io | bash -s stable && \
-  bash -l -c 'rvm install 2.2.3 --autolibs=0' && \
+  bash -l -c 'rvm install 2.3.3 --autolibs=0' && \
   bash -l -c 'gem install github-pages -v 111' && \
 
   # Build LLVM for Gram.
