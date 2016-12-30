@@ -8,11 +8,8 @@ RUN cd /root && \
   mv ../build build && \
   touch build/release/llvm && \
 
-  # Build and lint Gram. Notes:
-  # - We run `make clean` because we don't trust the binary produced by the
-  #   Clang Static Analyzer during `make lint`.
-  # - We run `make docs` in a login shell (bash -l) because the Ruby
-  #   installation only works in login shells. This is due to RVM.
-  make lint && make clean && \
+  # Build and lint Gram. We run `make docs` in a login shell (bash -l) because
+  # the Ruby installation only works in login shells. This is due to RVM.
+  make lint && \
   bash -l -c 'make docs' && \
   make

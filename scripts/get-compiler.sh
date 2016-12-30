@@ -2,6 +2,7 @@
 set -eu -o pipefail
 
 # This script tries to find a version of Clang >= 3.1 or GCC >= 4.7.
+# It returns the absolute path to the compiler.
 
 # Usage:
 #   ./get-compiler.sh CC
