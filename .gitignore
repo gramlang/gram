@@ -1,3 +1,6 @@
+# NOTE: If you change this file, you probably
+#       also want to change .dockerignore.
+
 # This directory is sometimes generated during `make docs`.
 .sass-cache
 

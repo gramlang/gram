@@ -2,15 +2,22 @@ FROM debian:jessie
 COPY . /root/gram
 RUN cd /root && \
 
-  # Install various dependencies from Debian.
-  echo 'deb http://httpredir.debian.org/debian sid main' >> \
+  # Sid (unstable) is needed for the `clang-4.0` package.
+  echo 'deb http://deb.debian.org/debian sid main' >> \
     /etc/apt/sources.list && \
+
+  # Update package lists.
   DEBIAN_FRONTEND=noninteractive apt-get -y update && \
+
+  # Install various packages.
+  # Note: `libssl1.0-dev` is needed for Ruby 2.2.3.
   DEBIAN_FRONTEND=noninteractive apt-get -y install \
   build-essential \
   clang-4.0 \
   cmake>=3.7.1-1 \
+  curl \
   git \
+  libssl1.0-dev \
   ninja-build \
   shellcheck && \
   rm -rf /var/lib/apt/lists/* && \
@@ -20,6 +27,14 @@ RUN cd /root && \
     /usr/bin/clang++-4.0 100 && \
   update-alternatives --install /usr/bin/scan-build scan-build \
     /usr/bin/scan-build-4.0 100 && \
+
+  # Install Ruby and Jekyll (for `make docs`).
+  gpg \
+    --keyserver hkp://keys.gnupg.net \
+    --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 && \
+  \curl -sSL https://get.rvm.io | bash -s stable && \
+  bash -l -c 'rvm install 2.2.3 --autolibs=0' && \
+  bash -l -c 'gem install github-pages -v 111' && \
 
   # Build LLVM for Gram.
   cd gram && \

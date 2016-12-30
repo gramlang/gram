@@ -2,11 +2,17 @@ FROM gramlang/gram:deps
 COPY . /root/gram
 RUN cd /root && \
 
-  # Build and lint Gram.
+  # Speed up the build by using pre-compiled LLVM artifacts.
   cd gram && \
   rm -rf build && \
   mv ../build build && \
   touch build/release/llvm && \
-  make lint && \
-  make clean && \
+
+  # Build and lint Gram. Notes:
+  # - We run `make clean` because we don't trust the binary produced by the
+  #   Clang Static Analyzer during `make lint`.
+  # - We run `make docs` in a login shell (bash -l) because the Ruby
+  #   installation only works in login shells. This is due to RVM.
+  make lint && make clean && \
+  bash -l -c 'make docs' && \
   make
