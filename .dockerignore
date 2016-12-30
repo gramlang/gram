@@ -1,1 +1,8 @@
+# NOTE: If you change this file, you probably
+#       also want to change .gitignore.
+
+# This directory is sometimes generated during `make docs`.
+.sass-cache
+
+# Build artifacts are written here.
 build

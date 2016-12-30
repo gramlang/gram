@@ -1,18 +1,20 @@
-language: ruby
-rvm: 2.3.3
-sudo: required
+language: generic
 services:
   - docker
-install:
-  - gem install github-pages -v 111
 script:
-  - make docs &&
+  - (
+      test "$TRAVIS_PULL_REQUEST" != "false" ||
+      test "$TRAVIS_BRANCH" != "master" ||
+      make docker-gram-deps
+    ) &&
     make docker-gram-build &&
     make docker-gram &&
     docker run gramlang/gram gram -v && (
       test "$TRAVIS_PULL_REQUEST" != "false" ||
       test "$TRAVIS_BRANCH" != "master" || (
         docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" &&
+        docker push gramlang/gram:deps &&
+        docker push gramlang/gram:build &&
         docker push gramlang/gram:latest
       )
     )
