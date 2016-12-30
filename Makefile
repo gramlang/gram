@@ -123,31 +123,31 @@ serve-docs:
 # - ShellCheck
 lint: $(BUILD_PREFIX)/llvm
 	# Make sure all lines conform to the line length limit.
-	test $$( \
-		awk '{print length}' \
-			docker/* \
-			.github/* \
-			Makefile \
-			scripts/* \
-			src/* \
-			.travis.yml \
-			| sort -n \
-			| tail -n 1 \
-	) -lt 80
-
-	# Ensure we have sufficient C and C++ compilers.
-	[ -n "$(CC)" -a -n "$(CXX)" ]
+	scripts/check-line-lengths.sh \
+		.github/* \
+		.travis.yml \
+		docker/* \
+		Makefile \
+		scripts/* \
+		src/*
 
 	# Run ShellCheck on any shell scripts.
 	shellcheck scripts/*.sh
 
-	# Run Clang Static Analyzer on C++ source files.
-	make clean && scan-build \
-		--status-bugs \
-		--use-analyzer "$$(which clang)" \
-		--use-cc "$(CC)" \
-		--use-c++ "$(CXX)" \
-		make
+	# Ensure we have sufficient compilers.
+	[ -n "$(CC)" -a -n "$(CXX)" ]
+
+	# Run the Clang Static Analyzer on source files. Afterward, we
+	# run `make clean` because we don't trust the binary produced
+	# during the analysis.
+	make clean && \
+		scan-build \
+			--status-bugs \
+			--use-analyzer "$$(which clang)" \
+			--use-cc "$(CC)" \
+			--use-c++ "$(CXX)" \
+			make && \
+		make clean
 
 # This target installs Gram to the $(PREFIX) directory.
 # Artifacts will be placed in subdirectories such as $(PREFIX)/bin.
@@ -181,7 +181,7 @@ $(BUILD_PREFIX)/dist/bin/gram: \
 
 # This target builds LLVM, which is a dependency for Gram.
 $(BUILD_PREFIX)/llvm: deps/llvm-3.9.0.src.tar.xz
-	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient C and C++ compilers.
+	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient compilers.
 	rm -rf $(BUILD_PREFIX)/llvm
 	mkdir -p $(BUILD_PREFIX)/llvm/src
 	tar -xf deps/llvm-3.9.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/src \
