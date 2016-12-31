@@ -406,11 +406,44 @@ std::shared_ptr<gram::Group> parse_group(
   // are matched, so we don't need to worry about ensuring there is a
   // RIGHT_PAREN.
   std::vector<std::shared_ptr<gram::Node>> body;
+  bool expecting_separator = false;
+  auto explicit_separator_pos = end; // Sentinel value
   while (next != end && next->type != gram::TokenType::RIGHT_PAREN) {
     // Skip SEPARATOR tokens.
     if (next->type == gram::TokenType::SEPARATOR) {
+      if (next->explicit_separator) {
+        explicit_separator_pos = next;
+        if (!expecting_separator) {
+          throw gram::Error(
+            "Unnecessary separator encountered here.",
+            *(next->source), *(next->source_name),
+            next->start_pos, next->end_pos
+          );
+        }
+      } else {
+        if (explicit_separator_pos != end) {
+          throw gram::Error(
+            "Unnecessary separator encountered here.",
+            *(explicit_separator_pos->source),
+            *(explicit_separator_pos->source_name),
+            explicit_separator_pos->start_pos,
+            explicit_separator_pos->end_pos
+          );
+        }
+      }
+
+      expecting_separator = false;
       ++next;
       continue;
+    }
+
+    if (expecting_separator) {
+      // There shouldn't be any situations where this could happen.
+      throw gram::Error(
+        "Missing separator before this.",
+        *(next->source), *(next->source_name),
+        next->start_pos, next->end_pos
+      );
     }
 
     // Do recursive descent to get a body node.
@@ -434,6 +467,18 @@ std::shared_ptr<gram::Group> parse_group(
 
     // Add the node to the body.
     body.push_back(node);
+    expecting_separator = true;
+    explicit_separator_pos = end;
+  }
+
+  if (explicit_separator_pos != end) {
+    throw gram::Error(
+      "Unnecessary separator encountered here.",
+      *(explicit_separator_pos->source),
+      *(explicit_separator_pos->source_name),
+      explicit_separator_pos->start_pos,
+      explicit_separator_pos->end_pos
+    );
   }
 
   // Make sure the abstraction has something to return.

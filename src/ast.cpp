@@ -122,7 +122,7 @@ std::string gram::Group::show() {
     if (first) {
       first = false;
     } else {
-      result += "; ";
+      result += ", ";
     }
     result += term ? term->show() : "<null>";
   }
