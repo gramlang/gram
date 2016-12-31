@@ -21,7 +21,7 @@ namespace gram {
     RIGHT_CURLY,
     RIGHT_PAREN,
     RIGHT_SQUARE,
-    SEQUENCER,
+    SEPARATOR,
     THICK_ARROW,
     THIN_ARROW
   };
@@ -37,7 +37,7 @@ namespace gram {
     "RIGHT_CURLY",
     "RIGHT_PAREN",
     "RIGHT_SQUARE",
-    "SEQUENCER",
+    "SEPARATOR",
     "THICK_ARROW",
     "THIN_ARROW"
   };

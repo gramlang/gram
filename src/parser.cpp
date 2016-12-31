@@ -10,7 +10,7 @@ enum class MemoType {
   VARIABLE,
   ABSTRACTION,
   ARROW_TYPE,
-  BLOCK,
+  GROUP,
   DEFINITION
 };
 
@@ -122,7 +122,7 @@ std::shared_ptr<gram::ArrowType> parse_arrow_type(
   MemoMap &memo
 );
 
-std::shared_ptr<gram::Block> parse_block(
+std::shared_ptr<gram::Group> parse_group(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
@@ -202,9 +202,9 @@ std::shared_ptr<gram::Term> parse_term(
   // This is what we will return to the caller.
   std::shared_ptr<gram::Term> term;
 
-  // Block
+  // Group
   if (!term) {
-    term = parse_block(begin, end, next, false, memo);
+    term = parse_group(begin, end, next, false, memo);
   }
 
   // Abstraction
@@ -375,7 +375,7 @@ std::shared_ptr<gram::ArrowType> parse_arrow_type(
   MEMOIZE_AND_RETURN(memo_key, arrow_type, next);
 }
 
-std::shared_ptr<gram::Block> parse_block(
+std::shared_ptr<gram::Group> parse_group(
   std::vector<gram::Token>::iterator begin,
   std::vector<gram::Token>::iterator end,
   std::vector<gram::Token>::iterator &next,
@@ -383,17 +383,17 @@ std::shared_ptr<gram::Block> parse_block(
   MemoMap &memo
 ) {
   // Check if we can reuse a memoized result.
-  auto memo_key = MEMO_KEY_WITHOUT_PRIOR_TERM(BLOCK, begin, end);
-  MEMO_CHECK(memo, memo_key, Block);
+  auto memo_key = MEMO_KEY_WITHOUT_PRIOR_TERM(GROUP, begin, end);
+  MEMO_CHECK(memo, memo_key, Group);
 
   // Make sure we have some tokens to read.
   if (next == end) {
-    MEMOIZE_AND_FAIL(memo_key, Block, begin, next);
+    MEMOIZE_AND_FAIL(memo_key, Group, begin, next);
   }
 
-  // Make sure we are actually parsing a block.
+  // Make sure we are actually parsing a group.
   if (next->type != gram::TokenType::LEFT_PAREN && !top_level) {
-    MEMOIZE_AND_FAIL(memo_key, Block, begin, next);
+    MEMOIZE_AND_FAIL(memo_key, Group, begin, next);
   }
 
   // Skip the LEFT_PAREN token, if there is one.
@@ -407,8 +407,8 @@ std::shared_ptr<gram::Block> parse_block(
   // RIGHT_PAREN.
   std::vector<std::shared_ptr<gram::Node>> body;
   while (next != end && next->type != gram::TokenType::RIGHT_PAREN) {
-    // Skip sequencers.
-    if (next->type == gram::TokenType::SEQUENCER) {
+    // Skip SEPARATOR tokens.
+    if (next->type == gram::TokenType::SEPARATOR) {
       ++next;
       continue;
     }
@@ -439,10 +439,10 @@ std::shared_ptr<gram::Block> parse_block(
   // Make sure the abstraction has something to return.
   if (body.empty()) {
     if (top_level) {
-      MEMOIZE_AND_FAIL(memo_key, Block, begin, next);
+      MEMOIZE_AND_FAIL(memo_key, Group, begin, next);
     } else {
       throw gram::Error(
-        "A block cannot be empty.",
+        "A group cannot be empty.",
         *(begin->source), *(begin->source_name),
         begin->start_pos, (next - 1)->end_pos
       );
@@ -450,7 +450,7 @@ std::shared_ptr<gram::Block> parse_block(
   }
   if (!top_level && !std::dynamic_pointer_cast<gram::Term>(body.back())) {
     throw gram::Error(
-      "A block must end with a term.",
+      "A group must end with a term.",
       *(body.back()->source), *(body.back()->source_name),
       body.back()->start_pos, body.back()->end_pos
     );
@@ -462,11 +462,11 @@ std::shared_ptr<gram::Block> parse_block(
   }
 
   // Construct the node.
-  auto block = std::make_shared<gram::Block>(body);
-  span_tokens(*block, begin, next);
+  auto group = std::make_shared<gram::Group>(body);
+  span_tokens(*group, begin, next);
 
   // Memoize whatever we parsed and return it.
-  MEMOIZE_AND_RETURN(memo_key, block, next);
+  MEMOIZE_AND_RETURN(memo_key, group, next);
 }
 
 std::shared_ptr<gram::Definition> parse_definition(
@@ -561,7 +561,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
 
   // Let the helper do all the work.
   std::vector<gram::Token>::iterator next = tokens.begin();
-  std::shared_ptr<gram::Node> node = parse_block(
+  std::shared_ptr<gram::Node> node = parse_group(
     tokens.begin(),
     tokens.end(),
     next,

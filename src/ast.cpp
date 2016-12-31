@@ -110,12 +110,12 @@ std::unique_ptr<gram::Node> gram::Application::clone() {
   ));
 }
 
-gram::Block::Block(
+gram::Group::Group(
   std::vector<std::shared_ptr<gram::Node>> body
 ) : body(body) {
 }
 
-std::string gram::Block::show() {
+std::string gram::Group::show() {
   std::string result = "(";
   bool first = true;
   for (const auto &term : body) {
@@ -130,7 +130,7 @@ std::string gram::Block::show() {
   return result;
 }
 
-std::unique_ptr<gram::Node> gram::Block::clone() {
+std::unique_ptr<gram::Node> gram::Group::clone() {
   std::vector<std::shared_ptr<Node>> clone_body;
   for (const auto & node : body) {
     clone_body.push_back(
@@ -139,7 +139,7 @@ std::unique_ptr<gram::Node> gram::Block::clone() {
         nullptr
     );
   }
-  return std::unique_ptr<Node>(new Block(clone_body));
+  return std::unique_ptr<Node>(new Group(clone_body));
 }
 
 gram::Definition::Definition(

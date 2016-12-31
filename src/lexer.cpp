@@ -53,12 +53,12 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
-    // For line feeds, insert a SEQUENCER unless
+    // For line feeds, insert a SEPARATOR unless
     // there was a line continuation marker.
     if ((*source)[pos] == '\n') {
       if (line_continuation_status == LineContinuationStatus::LCS_DEFAULT) {
         tokens.push_back(Token(
-          TokenType::SEQUENCER, "",
+          TokenType::SEPARATOR, "",
           source_name, source,
           pos, pos
         ));
@@ -245,9 +245,9 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
       continue;
     }
 
-    // SEQUENCER
+    // SEPARATOR
     if (parse_symbol(
-      TokenType::SEQUENCER, ";", false, false, static_cast<TokenType>(0)
+      TokenType::SEPARATOR, ";", false, false, static_cast<TokenType>(0)
     )) {
       continue;
     }
@@ -269,32 +269,32 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     );
   }
 
-  // Filter out unnecessary SEQUENCER tokens.
+  // Filter out unnecessary SEPARATOR tokens.
   auto filtered_tokens = std::unique_ptr<std::vector<Token>>(
     new std::vector<Token>
   );
   for (auto iter = tokens.begin(); iter != tokens.end(); ++iter) {
-    // If we have a SEQUENCER token, do some tests to see if we can skip it.
-    if (iter->type == TokenType::SEQUENCER) {
-      // Skip redundant SEQUENCER tokens.
+    // If we have a SEPARATOR token, do some tests to see if we can skip it.
+    if (iter->type == TokenType::SEPARATOR) {
+      // Skip redundant SEPARATOR tokens.
       if (
         (iter + 1) != tokens.end() &&
-        (iter + 1)->type == TokenType::SEQUENCER
+        (iter + 1)->type == TokenType::SEPARATOR
       ) {
         continue;
       }
 
-      // Don't add SEQUENCER tokens at the beginning.
+      // Don't add SEPARATOR tokens at the beginning.
       if (filtered_tokens->empty()) {
         continue;
       }
 
-      // Don't add SEQUENCER tokens at the end.
+      // Don't add SEPARATOR tokens at the end.
       if ((iter + 1) == tokens.end()) {
         continue;
       }
 
-      // Don't add SEQUENCER tokens after a group opener.
+      // Don't add SEPARATOR tokens after a group opener.
       auto next_token = *(iter + 1);
       if (
         next_token.type == TokenType::RIGHT_CURLY ||
@@ -304,7 +304,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         continue;
       }
 
-      // Don't add SEQUENCER tokens before a group closer.
+      // Don't add SEPARATOR tokens before a group closer.
       auto prev_token = filtered_tokens->back();
       if (
         prev_token.type == TokenType::LEFT_CURLY ||

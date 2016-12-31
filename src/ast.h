@@ -80,11 +80,11 @@ namespace gram {
     std::string show();
   };
 
-  class Block : public Term {
+  class Group : public Term {
   public:
     std::vector<std::shared_ptr<gram::Node>> body;
 
-    explicit Block(std::vector<std::shared_ptr<gram::Node>> body);
+    explicit Group(std::vector<std::shared_ptr<gram::Node>> body);
     std::unique_ptr<Node> clone();
     std::string show();
   };
