@@ -171,7 +171,12 @@ $(BUILD_PREFIX)/dist/bin/gram: \
 	mkdir -p $(BUILD_PREFIX)/dist/bin
 	$(CXX) \
 		$(SOURCES) $(BUILD_PREFIX)/gram/build/version.cpp \
-		-flto -O3 -std=c++11 \
+		$$( \
+			echo $(BUILD_TYPE) | grep -qi 'debug' && \
+			echo '-g -O0' || \
+			echo '-flto -O3' \
+		) \
+		-std=c++11 \
 		-Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter \
 		-o $(BUILD_PREFIX)/dist/bin/gram \
 		-I $(BUILD_PREFIX)/llvm/dist/include \

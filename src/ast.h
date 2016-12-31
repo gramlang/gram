@@ -25,18 +25,29 @@ namespace gram {
 
   class Term : public Node {
   public:
+    std::shared_ptr<gram::Term> ascription; // User-provided type
+    std::shared_ptr<gram::Term> type; // Computed type
+
     virtual ~Term();
+    std::string show_type_and_ascription();
+  };
+
+  class Variable : public Term {
+  public:
+    std::string name;
+
+    explicit Variable(std::string name);
+    std::unique_ptr<Node> clone();
+    std::string show();
   };
 
   class Abstraction : public Term {
   public:
-    std::string argument_name;
-    std::shared_ptr<gram::Term> argument_type;
+    std::shared_ptr<gram::Variable> variable;
     std::shared_ptr<gram::Term> body;
 
     Abstraction(
-      std::string argument_name,
-      std::shared_ptr<gram::Term> argument_type,
+      std::shared_ptr<gram::Variable> variable,
       std::shared_ptr<gram::Term> body
     );
     std::unique_ptr<Node> clone();
@@ -45,24 +56,13 @@ namespace gram {
 
   class ArrowType : public Term {
   public:
-    std::string argument_name;
-    std::shared_ptr<gram::Term> argument_type;
-    std::shared_ptr<gram::Term> body;
+    std::shared_ptr<gram::Term> domain;
+    std::shared_ptr<gram::Term> codomain;
 
     ArrowType(
-      std::string argument_name,
-      std::shared_ptr<gram::Term> argument_type,
-      std::shared_ptr<gram::Term> body
+      std::shared_ptr<gram::Term> domain,
+      std::shared_ptr<gram::Term> codomain
     );
-    std::unique_ptr<Node> clone();
-    std::string show();
-  };
-
-  class Variable : public Term {
-  public:
-    std::string name;
-
-    explicit Variable(std::string name);
     std::unique_ptr<Node> clone();
     std::string show();
   };
@@ -91,10 +91,13 @@ namespace gram {
 
   class Definition : public Node {
   public:
-    std::string name;
+    std::shared_ptr<gram::Variable> variable;
     std::shared_ptr<gram::Term> value;
 
-    Definition(std::string name, std::shared_ptr<gram::Term> value);
+    Definition(
+      std::shared_ptr<gram::Variable> variable,
+      std::shared_ptr<gram::Term> value
+    );
     std::unique_ptr<Node> clone();
     std::string show();
   };
