@@ -51,6 +51,8 @@ namespace gram {
     size_t start_pos; // Inclusive
     size_t end_pos; // Exclusive
 
+    bool explicit_separator; // Only used for SEPARATOR tokens
+
     Token(
       gram::TokenType type, const std::string &literal,
       std::shared_ptr<std::string> source_name,
