@@ -1,8 +1,8 @@
 #include "compiler.h"
 #include "error.h"
-#include "lexer.h"
 #include "parser.h"
 #include "platform.h"
+#include "tokenizer.h"
 #include "typechecker.h"
 #include <fstream>
 #include <llvm/IR/IRBuilder.h>
@@ -28,7 +28,7 @@ void gram::compile(
   auto source_name = std::make_shared<std::string>(input_path);
 
   // Perform lexical analysis.
-  auto tokens = lex(source_name, source);
+  auto tokens = tokenize(source_name, source);
 
   // Output the tokens, if requested.
   if (output_type == OutputType::TOKENS) {

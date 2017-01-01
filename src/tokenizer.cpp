@@ -1,5 +1,5 @@
 #include "error.h"
-#include "lexer.h"
+#include "tokenizer.h"
 
 enum class LineContinuationStatus {
   LCS_DEFAULT,
@@ -7,11 +7,11 @@ enum class LineContinuationStatus {
   LCS_WAIT_FOR_TOKEN
 };
 
-std::unique_ptr<std::vector<gram::Token>> gram::lex(
+std::unique_ptr<std::vector<gram::Token>> gram::tokenize(
   std::shared_ptr<std::string> source_name,
   std::shared_ptr<std::string> source
 ) {
-  std::unique_ptr<std::vector<Token>> tokens(new std::vector<Token>);
+  std::vector<Token> tokens;
   size_t pos = 0;
   std::vector<Token> grouping_stack;
   LineContinuationStatus line_continuation_status =
@@ -57,12 +57,12 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     // there was a line continuation marker.
     if ((*source)[pos] == '\n') {
       if (line_continuation_status == LineContinuationStatus::LCS_DEFAULT) {
-        tokens->push_back(Token(
+        tokens.push_back(Token(
           TokenType::SEPARATOR, "",
           source_name, source,
           pos, pos
         ));
-        tokens->back().explicit_separator = false;
+        tokens.back().explicit_separator = false;
       }
       if (
         line_continuation_status ==
@@ -113,7 +113,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         ++end_pos;
       }
       size_t length = end_pos - pos;
-      tokens->push_back(Token(
+      tokens.push_back(Token(
         TokenType::IDENTIFIER, source->substr(pos, length),
         source_name, source,
         pos, end_pos
@@ -157,7 +157,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
         if (opener) {
           grouping_stack.push_back(token);
         }
-        tokens->push_back(token);
+        tokens.push_back(token);
         pos += literal.size();
         return true;
       }
@@ -250,7 +250,7 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     if (parse_symbol(
       TokenType::SEPARATOR, ",", false, false, static_cast<TokenType>(0)
     )) {
-      tokens->back().explicit_separator = true;
+      tokens.back().explicit_separator = true;
       continue;
     }
 
@@ -271,6 +271,63 @@ std::unique_ptr<std::vector<gram::Token>> gram::lex(
     );
   }
 
+// Filter out superfluous implicit SEPARATOR tokens.
+auto filtered_tokens = std::unique_ptr<std::vector<Token>>(
+  new std::vector<Token>
+);
+for (auto iter = tokens.begin(); iter != tokens.end(); ++iter) {
+  // If we have an implicit SEPARATOR token,
+  // do some tests to see if we can skip it.
+  if (iter->type == TokenType::SEPARATOR && !iter->explicit_separator) {
+    // Skip redundant SEPARATOR tokens.
+    if (
+      (iter + 1) != tokens.end() &&
+      (iter + 1)->type == TokenType::SEPARATOR
+    ) {
+      continue;
+    }
+    if (
+      !filtered_tokens->empty() &&
+      filtered_tokens->back().type == TokenType::SEPARATOR
+    ) {
+      continue;
+    }
+
+    // Don't add SEPARATOR tokens at the beginning of the file.
+    if (filtered_tokens->empty()) {
+      continue;
+    }
+
+    // Don't add SEPARATOR tokens at the end of the file.
+    if ((iter + 1) == tokens.end()) {
+      continue;
+    }
+
+    // Don't add SEPARATOR tokens after a group opener.
+    auto next_token = *(iter + 1);
+    if (
+      next_token.type == TokenType::RIGHT_CURLY ||
+      next_token.type == TokenType::RIGHT_PAREN ||
+      next_token.type == TokenType::RIGHT_SQUARE
+    ) {
+      continue;
+    }
+
+    // Don't add SEPARATOR tokens before a group closer.
+    auto prev_token = filtered_tokens->back();
+    if (
+      prev_token.type == TokenType::LEFT_CURLY ||
+      prev_token.type == TokenType::LEFT_PAREN ||
+      prev_token.type == TokenType::LEFT_SQUARE
+    ) {
+      continue;
+    }
+  }
+
+  // Add the token to the filtered vector.
+  filtered_tokens->push_back(*iter);
+}
+
   // Return an std::unique_ptr to the vector.
-  return tokens;
+  return filtered_tokens;
 }

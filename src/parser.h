@@ -6,7 +6,7 @@
 #define GRAM_PARSER_H
 
 #include "ast.h"
-#include "lexer.h"
+#include "tokenizer.h"
 #include <memory>
 
 namespace gram {

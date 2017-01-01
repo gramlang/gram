@@ -148,10 +148,11 @@ gram::Definition::Definition(
 }
 
 std::string gram::Definition::show() {
-  return
+  return "(" +
     (variable ? variable->show() : "?") +
     " = " +
-    (value ? value->show() : "?");
+    (value ? value->show() : "?") +
+  ")";
 }
 
 std::unique_ptr<gram::Node> gram::Definition::clone() {
