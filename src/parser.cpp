@@ -367,6 +367,13 @@ std::shared_ptr<gram::Abstraction> parse_abstraction(
   ++next;
 
   // Parse the body.
+  if (next == tokens.end()) {
+    throw gram::Error(
+      "This function needs a body.",
+      *(begin->source), *(begin->source_name),
+      begin->start_pos, (next - 1)->end_pos
+    );
+  }
   std::shared_ptr<gram::Term> body;
   auto body_begin = next;
   TRY_RULE(body_begin, next, body, parse_variable(memo, tokens, next));
@@ -380,9 +387,9 @@ std::shared_ptr<gram::Abstraction> parse_abstraction(
   );
   if (!body) {
     throw gram::Error(
-      "Missing abstraction body.",
-      *((next - 1)->source), *((next - 1)->source_name),
-      (next - 1)->start_pos, (next - 1)->end_pos
+      "Unexpected symbol. A function body was expected.",
+      *(next->source), *(next->source_name),
+      next->start_pos, next->end_pos
     );
   }
 
@@ -432,12 +439,19 @@ std::shared_ptr<gram::ArrowType> parse_arrow_type(
   ++next;
 
   // Parse the codomain.
+  if (next == tokens.end()) {
+    throw gram::Error(
+      "This function type needs a codomain.",
+      *(begin->source), *(begin->source_name),
+      begin->start_pos, (next - 1)->end_pos
+    );
+  }
   auto codomain = parse_term(memo, tokens, next);
   if (!codomain) {
     throw gram::Error(
-      "Missing codomain.",
-      *((next - 1)->source), *((next - 1)->source_name),
-      (next - 1)->start_pos, (next - 1)->end_pos
+      "Unexpected symbol. A codomain was expected.",
+      *(next->source), *(next->source_name),
+      next->start_pos, next->end_pos
     );
   }
 
@@ -589,34 +603,22 @@ std::shared_ptr<gram::Group> parse_group(
   }
 
   // Keep eating the input until we reach a RIGHT_PAREN token or the end of
-  // the stream. Note: the lexer guarantees that all LEFT_*/RIGHT_* tokens
+  // the stream. Note: the tokenizer guarantees that all LEFT_*/RIGHT_* tokens
   // are matched, so we don't need to worry about ensuring there is a
   // RIGHT_PAREN.
   std::vector<std::shared_ptr<gram::Node>> body;
   bool expecting_separator = false;
-  auto explicit_separator_pos = tokens.end(); // Sentinel value
+  auto last_separator_iter = tokens.end(); // Sentinel value
   while (next != tokens.end() && next->type != gram::TokenType::RIGHT_PAREN) {
     // Skip SEPARATOR tokens.
     if (next->type == gram::TokenType::SEPARATOR) {
-      if (next->explicit_separator) {
-        explicit_separator_pos = next;
-        if (!expecting_separator) {
-          throw gram::Error(
-            "Unnecessary separator encountered here.",
-            *(next->source), *(next->source_name),
-            next->start_pos, next->end_pos
-          );
-        }
-      } else {
-        if (explicit_separator_pos != tokens.end()) {
-          throw gram::Error(
-            "Unnecessary separator encountered here.",
-            *(explicit_separator_pos->source),
-            *(explicit_separator_pos->source_name),
-            explicit_separator_pos->start_pos,
-            explicit_separator_pos->end_pos
-          );
-        }
+      last_separator_iter = next;
+      if (!expecting_separator) {
+        throw gram::Error(
+          "Superfluous separator.",
+          *(next->source), *(next->source_name),
+          next->start_pos, next->end_pos
+        );
       }
 
       expecting_separator = false;
@@ -627,7 +629,7 @@ std::shared_ptr<gram::Group> parse_group(
     if (expecting_separator) {
       // There shouldn't be any situations where this could happen.
       throw gram::Error(
-        "Missing separator before this.",
+        "Missing separator before this symbol.",
         *(next->source), *(next->source_name),
         next->start_pos, next->end_pos
       );
@@ -641,7 +643,7 @@ std::shared_ptr<gram::Group> parse_group(
     // If we didn't get one, throw an error.
     if (!node) {
       throw gram::Error(
-        "Unexpected symbol encountered here.",
+        "Unexpected symbol.",
         *(prev->source), *(prev->source_name),
         prev->start_pos, prev->end_pos
       );
@@ -650,16 +652,16 @@ std::shared_ptr<gram::Group> parse_group(
     // Add the node to the body.
     body.push_back(node);
     expecting_separator = true;
-    explicit_separator_pos = tokens.end();
+    last_separator_iter = tokens.end();
   }
 
-  if (explicit_separator_pos != tokens.end()) {
+  if (last_separator_iter != tokens.end()) {
     throw gram::Error(
-      "Unnecessary separator encountered here.",
-      *(explicit_separator_pos->source),
-      *(explicit_separator_pos->source_name),
-      explicit_separator_pos->start_pos,
-      explicit_separator_pos->end_pos
+      "Superfluous separator.",
+      *(last_separator_iter->source),
+      *(last_separator_iter->source_name),
+      last_separator_iter->start_pos,
+      last_separator_iter->end_pos
     );
   }
 
@@ -669,7 +671,7 @@ std::shared_ptr<gram::Group> parse_group(
       MEMOIZE_AND_FAIL(memo_key, Group, begin, next);
     } else {
       throw gram::Error(
-        "A group cannot be empty.",
+        "Empty group.",
         *(begin->source), *(begin->source_name),
         begin->start_pos, (next - 1)->end_pos
       );
@@ -677,7 +679,7 @@ std::shared_ptr<gram::Group> parse_group(
   }
   if (!top_level && !std::dynamic_pointer_cast<gram::Term>(body.back())) {
     throw gram::Error(
-      "A group must end with a term.",
+      "A group must end with an expression.",
       *(body.back()->source), *(body.back()->source_name),
       body.back()->start_pos, body.back()->end_pos
     );
@@ -719,12 +721,20 @@ std::shared_ptr<gram::Definition> parse_definition(
   ++next;
 
   // Parse the body.
+  if (next == tokens.end()) {
+    throw gram::Error(
+      "This binding needs a definition.",
+      *(begin->source), *(begin->source_name),
+      begin->start_pos, (next - 1)->end_pos
+    );
+  }
   auto body = parse_term(memo, tokens, next);
   if (!body) {
     throw gram::Error(
-      "Missing definition body.",
-      *((next - 1)->source), *((next - 1)->source_name),
-      (next - 1)->start_pos, (next - 1)->end_pos
+      "Unexpected symbol. A definition for '" +
+        variable->name + "' was expected.",
+      *(next->source), *(next->source_name),
+      next->start_pos, next->end_pos
     );
   }
 
@@ -781,7 +791,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
   // Make sure we parsed the whole file.
   if (next != tokens.end()) {
     throw gram::Error(
-      "Unexpected symbol encountered here.",
+      "Unexpected symbol. The end of the file was expected.",
       *(next->source), *(next->source_name),
       next->start_pos, next->end_pos
     );
