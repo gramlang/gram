@@ -101,6 +101,7 @@ enum class MemoType {
 using MemoKey = std::tuple<
   MemoType,
   std::vector<gram::Token>::iterator, // begin
+  bool, // group_top_level
   std::shared_ptr<gram::Term> // application_prior
 >;
 
@@ -115,13 +116,23 @@ using MemoMap = std::unordered_map<
   std::function<size_t(const MemoKey &key)>
 >;
 
-#define MEMO_KEY_GENERAL(memo_type, begin, application_prior) \
-  make_tuple(MemoType::memo_type, (begin), (application_prior))
+#define MEMO_KEY_GENERAL( \
+  memo_type, \
+  begin, \
+  group_top_level, \
+  application_prior \
+) \
+  make_tuple( \
+    MemoType::memo_type, \
+    (begin), \
+    (group_top_level), \
+    (application_prior) \
+  )
 #define MEMO_KEY_SIMPLE(memo_type, begin) \
-  MEMO_KEY_GENERAL(memo_type, (begin), std::shared_ptr<gram::Term>())
+  MEMO_KEY_GENERAL(memo_type, (begin), false, std::shared_ptr<gram::Term>())
 
 #define MEMO_CHECK(memo, key, return_type, next) do { \
-  auto m = (memo); \
+  auto &m = (memo); \
   auto memo_result = m.find((key)); \
   if (memo_result != m.end()) { \
     (next) = std::get<1>(memo_result->second); \
@@ -446,7 +457,12 @@ std::shared_ptr<gram::Application> parse_application(
 ) {
   // Check if we can reuse a memoized result.
   auto begin = next;
-  auto memo_key = MEMO_KEY_GENERAL(APPLICATION, begin, application_prior);
+  auto memo_key = MEMO_KEY_GENERAL(
+    APPLICATION,
+    begin,
+    false,
+    application_prior
+  );
   MEMO_CHECK(memo, memo_key, Application, next);
 
   // Parse the left term.
@@ -553,7 +569,12 @@ std::shared_ptr<gram::Group> parse_group(
 ) {
   // Check if we can reuse a memoized result.
   auto begin = next;
-  auto memo_key = MEMO_KEY_SIMPLE(GROUP, begin);
+  auto memo_key = MEMO_KEY_GENERAL(
+    GROUP,
+    begin,
+    top_level,
+    std::shared_ptr<gram::Term>()
+  );
   MEMO_CHECK(memo, memo_key, Group, next);
 
   // Parse the LEFT_PAREN, if applicable.
@@ -726,7 +747,8 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
     // Unpack the tuple.
     auto memo_type = std::get<0>(key);
     auto begin = std::get<1>(key);
-    auto application_prior = std::get<2>(key);
+    auto group_top_level = std::get<2>(key);
+    auto application_prior = std::get<3>(key);
 
     // Get the hash of each component.
     size_t memo_type_hash =
@@ -735,6 +757,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
     if (begin != tokens.end()) {
       begin_hash = reinterpret_cast<size_t>(&(*begin));
     }
+    size_t group_top_level_hash = group_top_level ? 1 : 0;
     size_t application_prior_hash = 0;
     if (application_prior) {
       application_prior_hash = reinterpret_cast<size_t>(&(*application_prior));
@@ -744,6 +767,8 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
     size_t combined_hash = memo_type_hash;
     combined_hash ^= 0x9e3779b9 +
       (combined_hash << 6) + (combined_hash >> 2) + begin_hash;
+    combined_hash ^= 0x9e3779b9 +
+      (combined_hash << 6) + (combined_hash >> 2) + group_top_level_hash;
     combined_hash ^= 0x9e3779b9 +
       (combined_hash << 6) + (combined_hash >> 2) + application_prior_hash;
     return combined_hash;
