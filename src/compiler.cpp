@@ -36,7 +36,7 @@ void gram::compile(
     if (!output_file.is_open()) {
       throw Error("Unable to write to file '" + output_path + "'.");
     }
-    for (auto token : *tokens) {
+    for (auto &token : *tokens) {
       output_file << token.show() << "\n";
     }
     output_file.close();
