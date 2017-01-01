@@ -10,16 +10,18 @@ RUN cd /root && \
   DEBIAN_FRONTEND=noninteractive apt-get -y update && \
 
   # Install various packages.
-  # Note: `libssl1.0-dev` is needed for Ruby 2.3.3.
+  # `ruby2.3`, `ruby2.3-dev`, and `zlib1g-dev` are needed for the
+  # `github-pages` gem (installed below).
   DEBIAN_FRONTEND=noninteractive apt-get -y install \
   build-essential \
   clang-4.0 \
   cmake>=3.7.1-1 \
-  curl \
   git \
-  libssl1.0-dev \
   ninja-build \
-  shellcheck && \
+  ruby2.3 \
+  ruby2.3-dev \
+  shellcheck \
+  zlib1g-dev && \
   rm -rf /var/lib/apt/lists/* && \
   update-alternatives --install /usr/bin/clang clang \
     /usr/bin/clang-4.0 100 && \
@@ -28,13 +30,8 @@ RUN cd /root && \
   update-alternatives --install /usr/bin/scan-build scan-build \
     /usr/bin/scan-build-4.0 100 && \
 
-  # Install Ruby and Jekyll (for `make docs`).
-  gpg \
-    --keyserver hkp://keys.gnupg.net \
-    --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 && \
-  \curl -sSL https://get.rvm.io | bash -s stable && \
-  bash -l -c 'rvm install 2.3.3 --autolibs=0' && \
-  bash -l -c 'gem install github-pages -v 111' && \
+  # Install the `github-pages` gem (for `make docs`).
+  gem install github-pages -v 111 && \
 
   # Build LLVM for Gram.
   cd gram && \

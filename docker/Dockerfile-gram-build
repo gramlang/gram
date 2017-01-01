@@ -8,8 +8,7 @@ RUN cd /root && \
   mv ../build build && \
   touch build/release/llvm && \
 
-  # Build and lint Gram. We run `make docs` in a login shell (bash -l) because
-  # the Ruby installation only works in login shells. This is due to RVM.
+  # Build and lint Gram.
   make lint && \
-  bash -l -c 'make docs' && \
+  make docs && \
   make
