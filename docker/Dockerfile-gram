@@ -1,3 +1,4 @@
 FROM scratch
 ARG GRAM_BINARY_PATH
 COPY $GRAM_BINARY_PATH /usr/local/bin/gram
+ENTRYPOINT ["gram"]

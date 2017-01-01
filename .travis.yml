@@ -9,7 +9,7 @@ script:
     ) &&
     make docker-gram-build &&
     make docker-gram &&
-    docker run gramlang/gram gram -v && (
+    docker run gramlang/gram -v && (
       test "$TRAVIS_PULL_REQUEST" != "false" ||
       test "$TRAVIS_BRANCH" != "master" || (
         docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" &&
