@@ -185,11 +185,11 @@ $(BUILD_PREFIX)/dist/bin/gram: \
 		$$( (uname -s | grep -qi 'Darwin') || echo '-static' )
 
 # This target builds LLVM, which is a dependency for Gram.
-$(BUILD_PREFIX)/llvm: deps/llvm-3.9.0.src.tar.xz
+$(BUILD_PREFIX)/llvm: deps/llvm-4.0.0.src.tar.xz
 	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient compilers.
 	rm -rf $(BUILD_PREFIX)/llvm
 	mkdir -p $(BUILD_PREFIX)/llvm/src
-	tar -xf deps/llvm-3.9.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/src \
+	tar -xf deps/llvm-4.0.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/src \
 		--strip-components=1
 	mkdir -p $(BUILD_PREFIX)/llvm/build
 	cd $(BUILD_PREFIX)/llvm/build && cmake ../src \

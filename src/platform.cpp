@@ -4,7 +4,7 @@
 #include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
 #include <llvm/Analysis/TargetTransformInfo.h>
-#include <llvm/Bitcode/ReaderWriter.h>
+#include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/FileSystem.h>
@@ -220,6 +220,7 @@ void gram::llc(
   // Initialize passes.
   llvm::PassRegistry &pass_registry = *llvm::PassRegistry::getPassRegistry();
   llvm::initializeCore(pass_registry);
+  llvm::initializeCoroutines(pass_registry);
   llvm::initializeScalarOpts(pass_registry);
   llvm::initializeObjCARCOpts(pass_registry);
   llvm::initializeVectorization(pass_registry);
@@ -231,10 +232,16 @@ void gram::llc(
   llvm::initializeTarget(pass_registry);
   llvm::initializeCodeGenPreparePass(pass_registry);
   llvm::initializeAtomicExpandPass(pass_registry);
-  llvm::initializeRewriteSymbolsPass(pass_registry);
+  llvm::initializeRewriteSymbolsLegacyPassPass(pass_registry);
   llvm::initializeWinEHPreparePass(pass_registry);
   llvm::initializeDwarfEHPreparePass(pass_registry);
+  llvm::initializeSafeStackPass(pass_registry);
   llvm::initializeSjLjEHPreparePass(pass_registry);
+  llvm::initializePreISelIntrinsicLoweringLegacyPassPass(pass_registry);
+  llvm::initializeGlobalMergePass(pass_registry);
+  llvm::initializeInterleavedAccessPass(pass_registry);
+  llvm::initializeCountingFunctionInserterPass(pass_registry);
+  llvm::initializeUnreachableBlockElimLegacyPassPass(pass_registry);
 
   // Get the target triple for this machine.
   llvm::Triple triple;
@@ -267,13 +274,16 @@ void gram::llc(
     ));
   module.setDataLayout(target_machine->createDataLayout());
 
+  // This memory is freed by the PassManagerBuilder destructor.
+  auto library_info = new llvm::TargetLibraryInfoImpl(triple);
+
   // Set up a pass manager to schedule the optimizations.
   llvm::legacy::PassManager pass_manager;
   llvm::legacy::FunctionPassManager function_pass_manager(&module);
 
   // Add information about which functions from the C standard library
   // are supported for optimization purposes.
-  pass_manager.add(new llvm::TargetLibraryInfoWrapperPass(triple));
+  pass_manager.add(new llvm::TargetLibraryInfoWrapperPass(*library_info));
 
   // Add internal analysis passes from the target machine.
   pass_manager.add(
@@ -291,6 +301,7 @@ void gram::llc(
   llvm::PassManagerBuilder pass_manager_builder;
   pass_manager_builder.OptLevel = 3;
   pass_manager_builder.SizeLevel = 1;
+  pass_manager_builder.LibraryInfo = library_info;
   pass_manager_builder.Inliner = llvm::createFunctionInliningPass(
     pass_manager_builder.OptLevel,
     pass_manager_builder.SizeLevel
@@ -303,14 +314,34 @@ void gram::llc(
   pass_manager_builder.LoopVectorize = true;
   pass_manager_builder.RerollLoops = false;
   pass_manager_builder.LoadCombine = true;
+  pass_manager_builder.NewGVN = false;
   pass_manager_builder.DisableGVNLoadPRE = false;
   pass_manager_builder.VerifyInput = false;
   pass_manager_builder.VerifyOutput = false;
   pass_manager_builder.MergeFunctions = true;
   pass_manager_builder.PrepareForLTO = true;
+  pass_manager_builder.PrepareForThinLTO = false;
+  pass_manager_builder.PerformThinLTO = false;
+  pass_manager_builder.EnablePGOInstrGen = false;
+  pass_manager_builder.addExtension(
+    llvm::PassManagerBuilder::EP_EarlyAsPossible,
+    [&](
+      const llvm::PassManagerBuilder &,
+      llvm::legacy::PassManagerBase &pass_manager
+    ) {
+      target_machine->addEarlyAsPossiblePasses(pass_manager);
+    }
+  );
   pass_manager_builder.populateFunctionPassManager(function_pass_manager);
   pass_manager_builder.populateModulePassManager(pass_manager);
   pass_manager_builder.populateLTOPassManager(pass_manager);
+
+  // Run all function passes.
+  function_pass_manager.doInitialization();
+  for (llvm::Function &func : module) {
+    function_pass_manager.run(func);
+  }
+  function_pass_manager.doFinalization();
 
   // Add passes to emit native assembly if needed.
   llvm::raw_svector_ostream native_asm_ostream(native_asm);
@@ -324,13 +355,6 @@ void gram::llc(
       llvm::TargetMachine::CGFT_AssemblyFile
     );
   }
-
-  // Run all function passes.
-  function_pass_manager.doInitialization();
-  for (llvm::Function &func : module) {
-    function_pass_manager.run(func);
-  }
-  function_pass_manager.doFinalization();
 
   // Run all the module passes.
   pass_manager.run(module);
