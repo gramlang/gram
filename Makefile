@@ -30,9 +30,9 @@ override TARGETS := bin/gram
 # These targets do not name actual files.
 # They are just recipes which may be executed by explicit request.
 .PHONY: all \
-	clean clean-docs clean-deps clean-all \
+	clean clean-docs clean-spec clean-deps clean-all \
 	docker-gram docker-gram-build docker-gram-deps \
-	docs serve-docs
+	docs serve-docs spec \
 	lint install uninstall
 
 # This is the default target.
@@ -40,8 +40,35 @@ override TARGETS := bin/gram
 # for the specified build type.
 all: $(addprefix $(BUILD_PREFIX)/dist/,$(TARGETS))
 
-# This target removes Gram build artifacts.
+# This target removes Gram build artifacts, excluding dependencies,
+# for the specified build type.
 clean:
+	rm -rf $(BUILD_PREFIX)/dist $(BUILD_PREFIX)/gram
+
+# This target removes build artifacts for the website.
+clean-docs:
+	jekyll clean --source docs --destination $(BUILD_PREFIX_COMMON)/docs
+
+	# This directory is created by Jekyll and needs to be deleted.
+	# Ideally `jekyll clean` would remove it, but that's not currently the case
+	# due to a bug in Jekyll. See the discussion here:
+	# https://github.com/jekyll/jekyll/pull/5701
+	rm -rf .sass-cache
+
+# This target removes build artifacts for the formal specification.
+clean-spec:
+	rm -rf $(BUILD_PREFIX_COMMON)/spec
+
+# This target removes Gram build artifacts, including dependencies,
+# for the specified build type (and common).
+clean-deps:
+	rm -rf $(BUILD_PREFIX)
+	rm -rf $(BUILD_PREFIX_COMMON)
+
+# This target removes Gram build artifacts, including dependencies,
+# for all build types. This also removes build artifacts for the
+# website.
+clean-all:
 	rm -rf build
 
 	# This directory is created by Jekyll and needs to be deleted.
