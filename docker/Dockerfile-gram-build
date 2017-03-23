@@ -11,4 +11,5 @@ RUN cd /root && \
   # Build and lint Gram.
   make lint && \
   make docs && \
+  make spec && \
   make
