@@ -1,0 +1,165 @@
+%%%%%%%%%%%%%%%%%%%%%
+% Document settings %
+%%%%%%%%%%%%%%%%%%%%%
+
+\documentclass[12pt]{article}
+
+\author{}
+\date{}
+\title{The Gram Programming Language}
+
+%%%%%%%%%%%%
+% Packages %
+%%%%%%%%%%%%
+
+\usepackage[colorlinks]{hyperref}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{bussproofs}
+\usepackage{mathtools}
+\usepackage{mdframed}
+
+%%%%%%%%%%
+% Macros %
+%%%%%%%%%%
+
+% Misc
+\newcommand\parens[1]{\left( #1 \right)}
+\newcommand\sub[3]{#1 \left[ #2 \mapsto #3 \right]}
+
+% Terms
+\newcommand\eterm{t}
+\newcommand\evalue{v}
+\newcommand\econst{c}
+\newcommand\evar{x}
+\newcommand\eabs[2]{\lambda #1 \ . \ #2}
+\newcommand\eapp[2]{#1 \ #2}
+
+% Types
+\newcommand\ttype{\tau}
+\newcommand\tconst{\kappa}
+\newcommand\tvar{\alpha}
+\newcommand\tarrow[2]{#1 \rightarrow #2}
+\newcommand\hastype[2]{#1 : #2}
+\newcommand\tjudgment[3]{#1 \vdash \hastype{#2}{#3}}
+
+% Contexts
+\newcommand\ccontext{\Gamma}
+\newcommand\cempty{\varnothing}
+\newcommand\cextend[3]{#1, \ \hastype{#2}{#3}}
+
+% Operational semantics
+\newcommand\sstep[2]{#1 \longrightarrow #2}
+\newcommand\sjudgment[2]{\sstep{#1}{#2}}
+
+%%%%%%%%%%%%%%%%%%%%%
+% The specification %
+%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+  \maketitle
+
+  \section*{Introduction}
+
+  \href{https://www.gram.org/}{Gram} is a high-level programming language with a small, extensible core and a strong, static type system. This document provides a formal specification for the kernel underlying the language. Some knowledge of programming language theory is assumed.
+
+  \section*{The specification}
+
+  The specification is given incrementally. We start with the simply-typed lambda calculus. The syntax is given in Figure~\ref{fig:syntax}. Figure~\ref{fig:typing_rules} defines the typing rules. The operational semantics is listed in Figure~\ref{fig:semantics}.
+
+  \begin{figure}
+    \begin{mdframed}
+      \begin{center}
+        \begin{tabular}{l l l}
+          $\eterm \Coloneqq $ & & term \\
+          & $\evalue$ & value \\
+          & $\evar$ & variable \\
+          & $\eapp{\eterm}{\eterm}$ & application \\
+          $\evalue \Coloneqq $ & & value \\
+          & $\econst$ & constant \\
+          & $\eabs{\hastype{\evar}{\ttype}}{\eterm}$ & abstraction \\
+          $\ttype \Coloneqq$ & & type \\
+          & $\tconst$ & type of constants \\
+          & $\tarrow{\ttype}{\ttype}$ & arrow type \\
+          $\ccontext \Coloneqq$ & & context \\
+          & $\cempty$ & empty context \\
+          & $\cextend{\ccontext}{\evar}{\ttype}$ & variable binding \\
+        \end{tabular}
+      \end{center}
+
+      \caption{Syntax}
+      \label{fig:syntax}
+    \end{mdframed}
+  \end{figure}
+
+  \begin{figure}
+    \begin{mdframed}
+      \begin{center}
+        \framebox{$\tjudgment{\ccontext}{\eterm}{\ttype}$}
+      \end{center}
+
+      \medskip
+
+      \begin{prooftree}
+          \AxiomC{}
+        \RightLabel{(\textsc{T-Constant})}
+        \UnaryInfC{$\tjudgment{\ccontext}{\econst}{\tconst}$}
+      \end{prooftree}
+
+      \begin{prooftree}
+          \AxiomC{$\hastype{\evar}{\ttype} \in \ccontext$}
+        \RightLabel{(\textsc{T-Variable})}
+        \UnaryInfC{$\tjudgment{\ccontext}{\evar}{\ttype}$}
+      \end{prooftree}
+
+      \begin{prooftree}
+          \AxiomC{$\tjudgment{\cextend{\ccontext}{\evar}{\ttype_1}}{\eterm}{\ttype_2}$}
+        \RightLabel{(\textsc{T-Abstraction})}
+        \UnaryInfC{$\tjudgment{\ccontext}{\eabs{\hastype{\evar}{\ttype_1}}{\eterm}}{\tarrow{\ttype_1}{\ttype_2}}$}
+      \end{prooftree}
+
+      \begin{prooftree}
+          \AxiomC{$\tjudgment{\ccontext}{\eterm_1}{\ttype_1}$}
+          \AxiomC{$\tjudgment{\ccontext}{\eterm_2}{\tarrow{\ttype_1}{\ttype_2}}$}
+        \RightLabel{(\textsc{T-Application})}
+        \BinaryInfC{$\tjudgment{\ccontext}{\eapp{\eterm_2}{\eterm_1}}{\ttype_2}$}
+      \end{prooftree}
+
+      \caption{Typing rules}
+      \label{fig:typing_rules}
+    \end{mdframed}
+  \end{figure}
+
+  \begin{figure}
+    \begin{mdframed}
+      \begin{center}
+        \framebox{$\sjudgment{\eterm}{\eterm}$}
+      \end{center}
+
+      \medskip
+
+      \begin{prooftree}
+          \AxiomC{$\sjudgment{\eterm_1}{\eterm'_1}$}
+        \RightLabel{(\textsc{E-LeftApp})}
+        \UnaryInfC{$\sjudgment{\eapp{\eterm_1}{\eterm_2}}{\eapp{\eterm'_1}{\eterm_2}}$}
+      \end{prooftree}
+
+      \begin{prooftree}
+          \AxiomC{$\sjudgment{\eterm}{\eterm'}$}
+        \RightLabel{(\textsc{E-RightApp})}
+        \UnaryInfC{$\sjudgment{\eapp{\evalue}{\eterm}}{\eapp{\evalue}{\eterm'}}$}
+      \end{prooftree}
+
+      \begin{prooftree}
+          \AxiomC{}
+        \RightLabel{(\textsc{E-Beta})}
+        \UnaryInfC{$\sjudgment{\eapp{\parens{\eabs{\hastype{\evar}{\ttype}}{\eterm}}{\evalue}}}{\sub{\eterm}{\evar}{\evalue}}$}
+      \end{prooftree}
+
+      \caption{Operational semantics}
+      \label{fig:semantics}
+    \end{mdframed}
+  \end{figure}
+
+\end{document}

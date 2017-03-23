@@ -40,31 +40,8 @@ override TARGETS := bin/gram
 # for the specified build type.
 all: $(addprefix $(BUILD_PREFIX)/dist/,$(TARGETS))
 
-# This target removes Gram build artifacts, excluding dependencies,
-# for the specified build type.
+# This target removes Gram build artifacts.
 clean:
-	rm -rf $(BUILD_PREFIX)/dist $(BUILD_PREFIX)/gram
-
-# This target removes build artifacts for the website.
-clean-docs:
-	jekyll clean --source docs --destination $(BUILD_PREFIX_COMMON)/docs
-
-	# This directory is created by Jekyll and needs to be deleted.
-	# Ideally `jekyll clean` would remove it, but that's not currently the case
-	# due to a bug in Jekyll. See the discussion here:
-	# https://github.com/jekyll/jekyll/pull/5701
-	rm -rf .sass-cache
-
-# This target removes Gram build artifacts, including dependencies,
-# for the specified build type (and common).
-clean-deps:
-	rm -rf $(BUILD_PREFIX)
-	rm -rf $(BUILD_PREFIX_COMMON)
-
-# This target removes Gram build artifacts, including dependencies,
-# for all build types. This also removes build artifacts for the
-# website.
-clean-all:
 	rm -rf build
 
 	# This directory is created by Jekyll and needs to be deleted.
@@ -110,12 +87,27 @@ docs: $(BUILD_PREFIX_COMMON)/docs
 # This target uses Jekyll to compile the website.
 # You probably want to run `make docs` instead of using this directly.
 $(BUILD_PREFIX_COMMON)/docs: $(shell find docs -type f)
-	jekyll build --source docs --destination $(BUILD_PREFIX_COMMON)/docs
+	jekyll build --source docs --destination "$(BUILD_PREFIX_COMMON)/docs"
 
 # This target starts a local server for the website.
 # You must have github-pages installed.
 serve-docs:
-	jekyll serve --source docs --destination $(BUILD_PREFIX_COMMON)/docs
+	jekyll serve --source docs --destination "$(BUILD_PREFIX_COMMON)/docs"
+
+# This target builds the formal specification.
+# You must have pdflatex installed.
+spec: $(BUILD_PREFIX_COMMON)/spec/gram.pdf
+
+$(BUILD_PREFIX_COMMON)/spec/gram.pdf: spec/gram.tex
+	mkdir -p "$(BUILD_PREFIX_COMMON)/spec"
+	pdflatex -output-directory "$(BUILD_PREFIX_COMMON)/spec" spec/gram.tex
+	while ( \
+		grep -qi \
+			'^LaTeX Warning: Label(s) may have changed' \
+			"$(BUILD_PREFIX_COMMON)/spec/gram.log" \
+	) do \
+		pdflatex -output-directory "$(BUILD_PREFIX_COMMON)/spec" spec/gram.tex; \
+	done
 
 # This target runs the linters and static analyzers.
 # The following must be installed:
@@ -166,9 +158,10 @@ $(BUILD_PREFIX)/dist/bin/gram: \
 		scripts/version.sh \
 		$(BUILD_PREFIX)/llvm
 	[ -n "$(CXX)" ] # Ensure we have a sufficient C++ compiler.
-	mkdir -p $(BUILD_PREFIX)/gram/build
-	./scripts/version.sh $(BUILD_TYPE) > $(BUILD_PREFIX)/gram/build/version.cpp
-	mkdir -p $(BUILD_PREFIX)/dist/bin
+	mkdir -p "$(BUILD_PREFIX)/gram/build"
+	./scripts/version.sh "$(BUILD_TYPE)" > \
+		"$(BUILD_PREFIX)/gram/build/version.cpp"
+	mkdir -p "$(BUILD_PREFIX)/dist/bin"
 	$(CXX) \
 		$(SOURCES) $(BUILD_PREFIX)/gram/build/version.cpp \
 		$$( \
@@ -178,29 +171,29 @@ $(BUILD_PREFIX)/dist/bin/gram: \
 		) \
 		-std=c++11 \
 		-Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter \
-		-o $(BUILD_PREFIX)/dist/bin/gram \
-		-I $(BUILD_PREFIX)/llvm/dist/include \
-		-L $(BUILD_PREFIX)/llvm/dist/lib \
+		-o "$(BUILD_PREFIX)/dist/bin/gram" \
+		-I "$(BUILD_PREFIX)/llvm/dist/include" \
+		-L "$(BUILD_PREFIX)/llvm/dist/lib" \
 		$$( $(BUILD_PREFIX)/llvm/dist/bin/llvm-config --libs --system-libs ) \
 		$$( (uname -s | grep -qi 'Darwin') || echo '-static' )
 
 # This target builds LLVM, which is a dependency for Gram.
 $(BUILD_PREFIX)/llvm: deps/llvm-4.0.0.src.tar.xz
 	[ -n "$(CC)" -a -n "$(CXX)" ] # Ensure we have sufficient compilers.
-	rm -rf $(BUILD_PREFIX)/llvm
-	mkdir -p $(BUILD_PREFIX)/llvm/src
-	tar -xf deps/llvm-4.0.0.src.tar.xz -C $(BUILD_PREFIX)/llvm/src \
+	rm -rf "$(BUILD_PREFIX)/llvm"
+	mkdir -p "$(BUILD_PREFIX)/llvm/src"
+	tar -xf deps/llvm-4.0.0.src.tar.xz -C "$(BUILD_PREFIX)/llvm/src" \
 		--strip-components=1
-	mkdir -p $(BUILD_PREFIX)/llvm/build
-	cd $(BUILD_PREFIX)/llvm/build && cmake ../src \
+	mkdir -p "$(BUILD_PREFIX)/llvm/build"
+	cd "$(BUILD_PREFIX)/llvm/build" && cmake ../src \
 		$$( which ninja > /dev/null 2>&1 && echo '-GNinja' || echo '' ) \
 		-DCMAKE_INSTALL_PREFIX=../dist \
-		-DCMAKE_BUILD_TYPE=$(CMAKE_BUILD_TYPE) \
-		-DCMAKE_C_COMPILER=$(CC) \
-		-DCMAKE_CXX_COMPILER=$(CXX) \
+		-DCMAKE_BUILD_TYPE="$(CMAKE_BUILD_TYPE)" \
+		-DCMAKE_C_COMPILER="$(CC)" \
+		-DCMAKE_CXX_COMPILER="$(CXX)" \
 		-DLLVM_ENABLE_EH=ON \
 		-DLLVM_ENABLE_PIC=OFF \
 		-DLLVM_ENABLE_RTTI=ON \
 		-DLLVM_ENABLE_TERMINFO=OFF \
 		-DLLVM_ENABLE_ZLIB=OFF
-	cd $(BUILD_PREFIX)/llvm/build && cmake --build . --target install
+	cd "$(BUILD_PREFIX)/llvm/build" && cmake --build . --target install
