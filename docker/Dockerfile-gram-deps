@@ -40,7 +40,7 @@ RUN cd /root && \
   gem install github-pages -v 111 && \
 
   # Install the AWS CLI (for `make spec`).
-  pip install awscli \
+  pip install awscli && \
 
   # Build LLVM for Gram.
   cd gram && \
