@@ -12,13 +12,17 @@ RUN cd /root && \
   # Install various packages.
   # `ruby2.3`, `ruby2.3-dev`, and `zlib1g-dev` are needed for the
   # `github-pages` gem (installed below). `texlive-full` is needed
-  # for building the formal specification.
+  # for building the formal specification. `python-pip` is needed
+  # to install the AWS CLI (installed below). `groff` is also
+  # needed for the AWS CLI.
   DEBIAN_FRONTEND=noninteractive apt-get -y install \
   build-essential \
   clang-4.0 \
   cmake>=3.7.1-1 \
   git \
+  groff \
   ninja-build \
+  python-pip \
   ruby2.3 \
   ruby2.3-dev \
   shellcheck \
@@ -34,6 +38,9 @@ RUN cd /root && \
 
   # Install the `github-pages` gem (for `make docs`).
   gem install github-pages -v 111 && \
+
+  # Install the AWS CLI (for `make spec`).
+  pip install awscli \
 
   # Build LLVM for Gram.
   cd gram && \
