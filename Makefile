@@ -1,4 +1,5 @@
-# This is where the final binary will be installed.
+# The final build artifacts will be installed in subdirectories of this path.
+# For example, binaries will be located in "$PREFIX/bin".
 PREFIX := /usr/local
 
 # Determine the build type (release or debug).
