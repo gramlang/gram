@@ -2,12 +2,7 @@ language: generic
 services:
   - docker
 script:
-  - (
-      test "$TRAVIS_PULL_REQUEST" != "false" ||
-      test "$TRAVIS_BRANCH" != "master" ||
-      make docker-gram-deps
-    ) &&
-    make docker-gram-build &&
+  - make docker-gram-build &&
     make docker-gram &&
     docker run gramlang/gram -v && (
       test "$TRAVIS_PULL_REQUEST" != "false" ||
