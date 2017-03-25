@@ -11,17 +11,6 @@ script:
     make docker-gram &&
     docker run gramlang/gram -v && (
       test "$TRAVIS_PULL_REQUEST" != "false" ||
-      test "$TRAVIS_BRANCH" != "master" || (
-        docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD" &&
-        docker push gramlang/gram:deps &&
-        docker push gramlang/gram:build &&
-        docker push gramlang/gram:latest &&
-        docker run
-          -e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION"
-          -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
-          -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
-          -it gramlang/gram:build aws s3 cp --acl public-read
-          /root/gram/build/common/spec/gram.pdf
-          s3://static.gram.org/
-      )
+      test "$TRAVIS_BRANCH" != "master" ||
+      ./scripts/deploy.sh
     )
