@@ -23,7 +23,7 @@ RUN cd /root && \
     # For building LLVM
     cmake>=3.7.1-1 \
 
-    # For embedding the commit hash in the metadata reported by `gram -v`.
+    # For embedding the commit hash in the metadata reported by `gram -v`
     git \
 
     # Used by the AWS CLI (installed below)
