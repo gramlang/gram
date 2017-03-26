@@ -5,14 +5,14 @@ set -eu -o pipefail
 # integration system. It does the following:
 # - Upload the spec (gram.pdf) to the `static.gram.org` S3 bucket
 # - Push the following Docker images:
-#   - gramlang/gram:deps
+#   - gramlang/gram:deps (optional, see SKIP_DOCKER_GRAM_DEPS_PUSH below)
 #   - gramlang/gram:build
 #   - gramlang/gram:latest
 #
 # Notes:
 # - This script assumes the Docker images have already been built via the
 #   appropriate make commands:
-#   - make docker-gram-deps
+#   - make docker-gram-deps (optional, see SKIP_DOCKER_GRAM_DEPS_PUSH below)
 #   - make docker-gram-build
 #   - make docker-gram
 # - Deploying the website (www.gram.org) happens automatically thanks to
@@ -24,6 +24,7 @@ set -eu -o pipefail
 #   AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
 #   DOCKER_USERNAME=gram \
 #   DOCKER_PASSWORD=KFHWNLDJGIAUEEXAMPLE \
+#   SKIP_DOCKER_GRAM_DEPS_PUSH=YES \
 #   ./deploy.sh
 
 # Upload the spec
@@ -37,6 +38,8 @@ docker run \
 
 # Upload the Docker images
 docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
-docker push gramlang/gram:deps
+if ! (echo "$SKIP_DOCKER_GRAM_DEPS_PUSH" | grep -qi '^YES$'); then
+  docker push gramlang/gram:deps
+fi
 docker push gramlang/gram:build
 docker push gramlang/gram:latest

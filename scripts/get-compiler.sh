@@ -8,7 +8,7 @@ set -eu -o pipefail
 #   ./get-compiler.sh CC
 #   ./get-compiler.sh CXX
 
-if ! echo "$1" | grep -qi '^\(CC\|CXX\)$'; then
+if ! (echo "$1" | grep -qi '^\(CC\|CXX\)$'); then
   echo 'The argument must be CC or CXX.' >&2
   exit 1
 fi
