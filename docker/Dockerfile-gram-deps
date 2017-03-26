@@ -14,17 +14,41 @@ RUN cd /root && \
 
   # Install various packages.
   DEBIAN_FRONTEND=noninteractive apt-get -y install \
-    build-essential \ # For `make`
-    clang-4.0 \ # For building LLVM and Gram
-    cmake>=3.7.1-1 \ # For building LLVM
-    groff \ # Used by the AWS CLI (installed below)
-    ninja-build \ # For building LLVM (optional, but speeds up the build)
-    python-pip \ # For installing the AWS CLI (installed below)
-    ruby2.3 \ # For installing the `github-pages` gem (installed below)
-    ruby2.3-dev \  # For installing the `github-pages` gem (installed below)
-    shellcheck \ # Used by `make lint`
-    texlive-full \ # Used by `make spec`
-    zlib1g-dev && \ # For installing the `github-pages` gem (installed below)
+    # For `make`
+    build-essential \
+
+    # For building LLVM and Gram
+    clang-4.0 \
+
+    # For building LLVM
+    cmake>=3.7.1-1 \
+
+    # Used by the AWS CLI (installed below)
+    groff \
+
+    # For building LLVM (optional, but speeds up the build)
+    ninja-build \
+
+    # For installing the AWS CLI (installed below)
+    python-pip \
+
+    # For installing the `github-pages` gem (installed below)
+    ruby2.3 \
+
+    # For installing the `github-pages` gem (installed below)
+    ruby2.3-dev \
+
+    # Used by `make lint`
+    shellcheck \
+
+    # Used by `make spec`
+    texlive-full \
+
+    # For installing the `github-pages` gem (installed below)
+    zlib1g-dev && \
+
+  # Now that the packages are installed, free up some space by removing the
+  # package lists.
   rm -rf /var/lib/apt/lists/* && \
 
   # Create symlinks `clang`, `clang++`, and `scan-build`.
