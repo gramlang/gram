@@ -1,6 +1,6 @@
 # Contributing to Gram
 
-Thank you for your interest in contributing! You can contribute by filing [issues](https://github.com/gramlang/gram/issues) and submitting [pull requests](https://github.com/gramlang/gram/pulls).
+Thank you for your interest in contributing! You can contribute by filing [issues](https://github.com/gramlang/gram/issues) and submitting [pull requests](https://github.com/gramlang/gram/pulls). You can also contribute by discussing the language on the [gram-dev@googlegroups.com](https://groups.google.com/forum/#!forum/gram-dev) mailing list.
 
 All code must strictly adhere to the appropriate style guide. If a style guide is changed, then any applicable code must be changed accordingly. For any matters not prescribed by a style guide, be consistent with existing code.
 
@@ -12,6 +12,24 @@ All code must pass the linters in order to be accepted:
 If you have these tools installed, you can run them with `make lint`.
 
 ## C++ style guide
+
+### Casing
+
+Variables and functions should be written in `snake_case`. Types (classes, structs, etc.) should be written in `UpperCamelCase`. Constants should be written in `ALL_CAPS`.
+
+**Motivation:** This is consistent with many C++ codebases.
+
+### Comments
+
+Comments need not be complete sentences. Comments which are complete sentences should be punctuated as such. Either way, comments should be written in sentence case. For example:
+
+```c++
+// These bounds define the source region spanned by the token.
+size_t start_pos; // Inclusive
+size_t end_pos; // Exclusive
+```
+
+**Motivation:** This is somewhat arbitrary, but we want to choose a convention and be consistent everywhere.
 
 ### Formatting
 
@@ -25,7 +43,7 @@ The unit for indentation is two spaces.
 
 Opening curly braces `{`, square brackets `[`, and parentheses `(` should be placed on the same line as the opening construct, preceded by a single space. The closing and opening braces surrounding an `else` should be on the same line. For example:
 
-```C++
+```c++
 if (condition) {
   doSomething();
 } else {
@@ -66,6 +84,24 @@ Put all platform-specific code in the [`src/platform.cpp`](https://github.com/gr
 **Motivation:** If we want to port the code to a new platform, then we only have to port one file.
 
 ## Bash style guide
+
+### Casing
+
+Functions should be written in `snake_case`. Variables should be written in `ALL_CAPS`.
+
+**Motivation:** This is consistent with many Bash codebases.
+
+### Comments
+
+Comments need not be complete sentences. Comments which are complete sentences should be punctuated as such. Either way, comments should be written in sentence case. For example:
+
+```bash
+# These bounds define the source region spanned by the token.
+export START_POS # Inclusive
+export END_POS # Exclusive
+```
+
+**Motivation:** This is somewhat arbitrary, but we want to choose a convention and be consistent everywhere.
 
 ### Formatting
 
