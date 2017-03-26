@@ -2,7 +2,10 @@ FROM debian:jessie
 COPY . /root/gram
 RUN cd /root && \
 
-  # Sid (unstable) is needed for the `clang-4.0` package.
+  # Sid (unstable) is needed for the following packages:
+  # - `clang-4.0`
+  # - `ruby2.3`
+  # - `ruby2.3-dev`
   echo 'deb http://deb.debian.org/debian sid main' >> \
     /etc/apt/sources.list && \
 
@@ -10,25 +13,21 @@ RUN cd /root && \
   DEBIAN_FRONTEND=noninteractive apt-get -y update && \
 
   # Install various packages.
-  # `ruby2.3`, `ruby2.3-dev`, and `zlib1g-dev` are needed for the
-  # `github-pages` gem (installed below). `texlive-full` is needed
-  # for building the formal specification. `python-pip` is needed
-  # to install the AWS CLI (installed below). `groff` is also
-  # needed for the AWS CLI.
   DEBIAN_FRONTEND=noninteractive apt-get -y install \
-  build-essential \
-  clang-4.0 \
-  cmake>=3.7.1-1 \
-  git \
-  groff \
-  ninja-build \
-  python-pip \
-  ruby2.3 \
-  ruby2.3-dev \
-  shellcheck \
-  texlive-full \
-  zlib1g-dev && \
+    build-essential \ # For `make`
+    clang-4.0 \ # For building LLVM and Gram
+    cmake>=3.7.1-1 \ # For building LLVM
+    groff \ # Used by the AWS CLI (installed below)
+    ninja-build \ # For building LLVM (optional, but speeds up the build)
+    python-pip \ # For installing the AWS CLI (installed below)
+    ruby2.3 \ # For installing the `github-pages` gem (installed below)
+    ruby2.3-dev \  # For installing the `github-pages` gem (installed below)
+    shellcheck \ # Used by `make lint`
+    texlive-full \ # Used by `make spec`
+    zlib1g-dev && \ # For installing the `github-pages` gem (installed below)
   rm -rf /var/lib/apt/lists/* && \
+
+  # Create symlinks `clang`, `clang++`, and `scan-build`.
   update-alternatives --install /usr/bin/clang clang \
     /usr/bin/clang-4.0 100 && \
   update-alternatives --install /usr/bin/clang++ clang++ \
@@ -37,7 +36,7 @@ RUN cd /root && \
     /usr/bin/scan-build-4.0 100 && \
 
   # Install the `github-pages` gem (for `make docs`).
-  gem install github-pages -v 111 && \
+  gem install github-pages && \
 
   # Install the AWS CLI (for `make spec`).
   pip install awscli && \
