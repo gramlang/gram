@@ -2,7 +2,7 @@
 
 The Gram Project is distributed under a 3-clause BSD License.
 
-> Copyright (c) 2016, Stephan Boyer
+> Copyright (c) 2017, Stephan Boyer
 >
 > All rights reserved.
 >
