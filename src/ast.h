@@ -25,11 +25,10 @@ namespace gram {
 
   class Term : public Node {
   public:
-    std::shared_ptr<gram::Term> ascription; // User-provided type
-    std::shared_ptr<gram::Term> type; // Computed type
+    std::shared_ptr<gram::Term> type;
 
     virtual ~Term();
-    std::string show_type_and_ascription();
+    std::string show_type();
   };
 
   class Variable : public Term {
@@ -92,10 +91,12 @@ namespace gram {
   class Definition : public Node {
   public:
     std::shared_ptr<gram::Variable> variable;
+    std::shared_ptr<gram::Term> ascription;
     std::shared_ptr<gram::Term> value;
 
     Definition(
       std::shared_ptr<gram::Variable> variable,
+      std::shared_ptr<gram::Term> ascription,
       std::shared_ptr<gram::Term> value
     );
     std::unique_ptr<Node> clone();

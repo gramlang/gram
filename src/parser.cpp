@@ -23,27 +23,37 @@
     ArrowType = Term THICK_ARROW Term
     Application = Term Term
     Group = LEFT_PAREN *(Node SEPARATOR) Term RIGHT_PAREN
-    Definition = Variable EQUALS Term
+    Definition = Variable COLON Term EQUALS Term
 
   We note the following ambiguities, and the chosen resolutions:
 
-    (a -> b) c
-    a -> (b c) # Winner: Application has higher precedence than Abstraction
+    # Resolution: Abstraction has higher precedence than ArrowType.
+    (x -> t) => t
+    x -> (t => t)
 
-    (a => b) c
-    a => (b c) # Winner: Application has higher precedence than ArrowType
+    # Resolution: ArrowType is right-associative.
+    t => (t => t)
+    (t => t) => t
 
-    (a b) => c # Winner: Application has higher precedence than ArrowType
-    a (b => c)
+    # Resolution: Application has higher precedence than ArrowType.
+    t => (t t)
+    (t => t) t
 
-    (a -> b) => c # Winner: Abstraction has higher precedence than ArrowType
-    a -> (b => c)
+    # Resolution: Application has higher precedence than Abstraction.
+    x -> (t t)
+    (x -> t) t
 
-    (a => b) => c
-    a => (b => c) # Winner: ArrowType is right-associative
+    # Resolution: Application has higher precedence than ArrowType.
+    (t x) => t
+    t (x => t)
 
-    (a b) c # Winner: Application is left-associative
-    a (b c)
+    # Resolution: Application is left-associative.
+    (t x) t
+    t (x t)
+
+    # Resolution: The right side of an Application cannot be an Abstraction.
+    t (x -> (x t))
+    (t (x -> x)) t
 
   We can resolve the ambiguities in the grammar by expanding definitions and
   eliminating alternatives:
@@ -51,29 +61,22 @@
     Node = Term / Definition
     Term = Variable / Group / Abstraction / ArrowType / Application
     Variable = IDENTIFIER
-    Abstraction =
-      Variable
-      THIN_ARROW
-      (Variable / Group / Abstraction / Application)
+    Abstraction = Variable THIN_ARROW (
+      Variable / Group / Abstraction / Application
+    )
     ArrowType = (Variable / Group / Abstraction / Application) THICK_ARROW Term
-    Application =
-      (Variable / Group / Application)
-      (Variable / Group / Abstraction)
+    Application = (Variable / Group / Application) (Variable / Group)
     Group = LEFT_PAREN *(Node SEPARATOR) Term RIGHT_PAREN
-    Definition = Variable EQUALS Term
+    Definition = Variable COLON Term EQUALS Term
 
   There is still a problem with this grammar: the Application rule is left-
   recursive, and packrat parsers can't handle left-recursion:
 
-    Application =
-      (Variable / Group / Application)
-      (Variable / Group / Abstraction)
+    Application = (Variable / Group / Application) (Variable / Group)
 
   To fix this, we rewrite the rule to use right-recursion instead:
 
-    Application =
-      (Variable / Group)
-      (Variable / Group / Abstraction / Application)
+    Application = (Variable / Group) (Variable / Group / Application)
 
   This makes Application have right-associativity, which is not what we want.
   In the parsing rule for Application, we use a special trick to flip the
@@ -513,12 +516,6 @@ std::shared_ptr<gram::Application> parse_application(
     right_term,
     parse_group(memo, tokens, next, false)
   );
-  TRY_RULE(
-    right_term_begin,
-    next,
-    right_term,
-    parse_abstraction(memo, tokens, next)
-  );
   std::shared_ptr<gram::Application> right_application;
   if (application_prior) {
     auto prior_of_left = std::make_shared<gram::Application>(
@@ -714,9 +711,45 @@ std::shared_ptr<gram::Definition> parse_definition(
     MEMOIZE_AND_FAIL(memo_key, Definition, begin, next);
   }
 
-  // Parse the EQUALS.
-  if (next == tokens.end() || next->type != gram::TokenType::EQUALS) {
+  // Parse the COLON.
+  if (next == tokens.end() || next->type != gram::TokenType::COLON) {
     MEMOIZE_AND_FAIL(memo_key, Definition, begin, next);
+  }
+  ++next;
+
+  // Parse the ascription.
+  if (next == tokens.end()) {
+    throw gram::Error(
+      "This binding needs an ascription.",
+      *(begin->source), *(begin->source_name),
+      begin->start_pos, (next - 1)->end_pos
+    );
+  }
+  auto ascription = parse_term(memo, tokens, next);
+  if (!ascription) {
+    throw gram::Error(
+      "Unexpected symbol. An ascription for '" +
+        variable->name + "' was expected.",
+      *(next->source), *(next->source_name),
+      next->start_pos, next->end_pos
+    );
+  }
+
+  // Parse the EQUALS.
+  if (next == tokens.end()) {
+    throw gram::Error(
+      "A definition for '" + variable->name + "' was expected.",
+      *(begin->source), *(begin->source_name),
+      begin->start_pos, (next - 1)->end_pos
+    );
+  }
+  if (next->type != gram::TokenType::EQUALS) {
+    throw gram::Error(
+      "Unexpected symbol. A definition for '" +
+        variable->name + "' was expected.",
+      *(next->source), *(next->source_name),
+      next->start_pos, next->end_pos
+    );
   }
   ++next;
 
@@ -739,7 +772,11 @@ std::shared_ptr<gram::Definition> parse_definition(
   }
 
   // Construct the Definition.
-  auto definition = std::make_shared<gram::Definition>(variable, body);
+  auto definition = std::make_shared<gram::Definition>(
+    variable,
+    ascription,
+    body
+  );
   span_tokens(*definition, begin, next);
 
   // Memoize whatever we parsed and return it.
