@@ -6,10 +6,8 @@ gram::Node::~Node() {
 gram::Term::~Term() {
 }
 
-std::string gram::Term::show_type_and_ascription() {
-  return
-    (type ? (" :: (" + type->show() + ")") : "") +
-    (ascription ? (" : (" + ascription->show() + ")") : "");
+std::string gram::Term::show_type() {
+  return type ? (" :: (" + type->show() + ")") : "";
 }
 
 gram::Variable::Variable(std::string name) :
@@ -17,7 +15,7 @@ gram::Variable::Variable(std::string name) :
 }
 
 std::string gram::Variable::show() {
-  return name + show_type_and_ascription();
+  return name + show_type();
 }
 
 std::unique_ptr<gram::Node> gram::Variable::clone() {
@@ -36,7 +34,7 @@ std::string gram::Abstraction::show() {
     (variable ? variable->show() : "?") +
     " -> " +
     (body ? body->show() : "?") +
-  ")" + show_type_and_ascription();
+  ")" + show_type();
 }
 
 std::unique_ptr<gram::Node> gram::Abstraction::clone() {
@@ -65,7 +63,7 @@ std::string gram::ArrowType::show() {
     (domain ? domain->show() : "?") +
     " => " +
     (codomain ? codomain->show() : "?") +
-  ")" + show_type_and_ascription();
+  ")" + show_type();
 }
 
 std::unique_ptr<gram::Node> gram::ArrowType::clone() {
@@ -93,7 +91,7 @@ std::string gram::Application::show() {
   return "(" +
     std::string(abstraction ? abstraction->show() : "?") + " " +
     std::string(operand ? operand->show() : "?") +
-  ")" + show_type_and_ascription();
+  ")" + show_type();
 }
 
 std::unique_ptr<gram::Node> gram::Application::clone() {
@@ -126,7 +124,7 @@ std::string gram::Group::show() {
     }
     result += term ? term->show() : "<null>";
   }
-  result += ")" + show_type_and_ascription();
+  result += ")" + show_type();
   return result;
 }
 
@@ -143,13 +141,17 @@ std::unique_ptr<gram::Node> gram::Group::clone() {
 }
 
 gram::Definition::Definition(
-  std::shared_ptr<gram::Variable> variable, std::shared_ptr<gram::Term> value
-) : variable(variable), value(value) {
+  std::shared_ptr<gram::Variable> variable,
+  std::shared_ptr<gram::Term> ascription,
+  std::shared_ptr<gram::Term> value
+) : variable(variable), ascription(ascription), value(value) {
 }
 
 std::string gram::Definition::show() {
   return "(" +
     (variable ? variable->show() : "?") +
+    " : " +
+    (ascription ? ascription->show() : "?") +
     " = " +
     (value ? value->show() : "?") +
   ")";
@@ -160,6 +162,11 @@ std::unique_ptr<gram::Node> gram::Definition::clone() {
     std::shared_ptr<Variable>(
       variable ?
         static_cast<Variable*>(variable->clone().release()) :
+        nullptr
+    ),
+    std::shared_ptr<Term>(
+      ascription ?
+        static_cast<Term*>(ascription->clone().release()) :
         nullptr
     ),
     std::shared_ptr<Term>(
