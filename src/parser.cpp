@@ -131,6 +131,7 @@ using MemoMap = std::unordered_map<
     (group_top_level), \
     (application_prior) \
   )
+
 #define MEMO_KEY_SIMPLE(memo_type, begin) \
   MEMO_KEY_GENERAL(memo_type, (begin), false, std::shared_ptr<gram::Term>())
 
@@ -390,7 +391,7 @@ std::shared_ptr<gram::Abstraction> parse_abstraction(
   );
   if (!body) {
     throw gram::Error(
-      "Unexpected symbol. A function body was expected.",
+      "A function body was expected here.",
       *(next->source), *(next->source_name),
       next->start_pos, next->end_pos
     );
@@ -452,7 +453,7 @@ std::shared_ptr<gram::ArrowType> parse_arrow_type(
   auto codomain = parse_term(memo, tokens, next);
   if (!codomain) {
     throw gram::Error(
-      "Unexpected symbol. A codomain was expected.",
+      "A codomain was expected here.",
       *(next->source), *(next->source_name),
       next->start_pos, next->end_pos
     );
@@ -728,8 +729,7 @@ std::shared_ptr<gram::Definition> parse_definition(
   auto ascription = parse_term(memo, tokens, next);
   if (!ascription) {
     throw gram::Error(
-      "Unexpected symbol. An ascription for '" +
-        variable->name + "' was expected.",
+      "An ascription for '" + variable->name + "' was expected here.",
       *(next->source), *(next->source_name),
       next->start_pos, next->end_pos
     );
@@ -738,15 +738,14 @@ std::shared_ptr<gram::Definition> parse_definition(
   // Parse the EQUALS.
   if (next == tokens.end()) {
     throw gram::Error(
-      "A definition for '" + variable->name + "' was expected.",
+      "A definition for '" + variable->name + "' was expected here.",
       *(begin->source), *(begin->source_name),
       begin->start_pos, (next - 1)->end_pos
     );
   }
   if (next->type != gram::TokenType::EQUALS) {
     throw gram::Error(
-      "Unexpected symbol. A definition for '" +
-        variable->name + "' was expected.",
+      "A definition for '" + variable->name + "' was expected here.",
       *(next->source), *(next->source_name),
       next->start_pos, next->end_pos
     );
@@ -764,8 +763,7 @@ std::shared_ptr<gram::Definition> parse_definition(
   auto body = parse_term(memo, tokens, next);
   if (!body) {
     throw gram::Error(
-      "Unexpected symbol. A definition for '" +
-        variable->name + "' was expected.",
+      "A definition for '" + variable->name + "' was expected here.",
       *(next->source), *(next->source_name),
       next->start_pos, next->end_pos
     );
@@ -828,7 +826,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
   // Make sure we parsed the whole file.
   if (next != tokens.end()) {
     throw gram::Error(
-      "Unexpected symbol. The end of the file was expected.",
+      "The end of the file was expected here.",
       *(next->source), *(next->source_name),
       next->start_pos, next->end_pos
     );
