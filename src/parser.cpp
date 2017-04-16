@@ -103,14 +103,14 @@ enum class MemoType {
 
 using MemoKey = std::tuple<
   MemoType,
-  std::vector<gram::Token>::iterator, // begin
-  bool, // group_top_level
-  std::shared_ptr<gram::Term> // application_prior
+  std::vector<gram::Token>::iterator, // The start token
+  bool, // Whether this term is the top-level group
+  std::shared_ptr<gram::Term> // The `application_prior` term
 >;
 
 using MemoValue = std::tuple<
-  std::shared_ptr<gram::Node>, // the returned term
-  std::vector<gram::Token>::iterator // next
+  std::shared_ptr<gram::Node>, // The returned term
+  std::vector<gram::Token>::iterator // The token after the returned term
 >;
 
 using MemoMap = std::unordered_map<
@@ -122,13 +122,13 @@ using MemoMap = std::unordered_map<
 #define MEMO_KEY_GENERAL( \
   memo_type, \
   begin, \
-  group_top_level, \
+  top_level, \
   application_prior \
 ) \
   make_tuple( \
     MemoType::memo_type, \
     (begin), \
-    (group_top_level), \
+    (top_level), \
     (application_prior) \
   )
 
@@ -792,7 +792,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
     // Unpack the tuple.
     auto memo_type = std::get<0>(key);
     auto begin = std::get<1>(key);
-    auto group_top_level = std::get<2>(key);
+    auto top_level = std::get<2>(key);
     auto application_prior = std::get<3>(key);
 
     // Get the hash of each component.
@@ -802,7 +802,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
     if (begin != tokens.end()) {
       begin_hash = reinterpret_cast<size_t>(&(*begin));
     }
-    size_t group_top_level_hash = group_top_level ? 1 : 0;
+    size_t top_level_hash = top_level ? 1 : 0;
     size_t application_prior_hash = 0;
     if (application_prior) {
       application_prior_hash = reinterpret_cast<size_t>(&(*application_prior));
@@ -813,7 +813,7 @@ std::shared_ptr<gram::Node> gram::parse(std::vector<gram::Token> &tokens) {
     combined_hash ^= 0x9e3779b9 +
       (combined_hash << 6) + (combined_hash >> 2) + begin_hash;
     combined_hash ^= 0x9e3779b9 +
-      (combined_hash << 6) + (combined_hash >> 2) + group_top_level_hash;
+      (combined_hash << 6) + (combined_hash >> 2) + top_level_hash;
     combined_hash ^= 0x9e3779b9 +
       (combined_hash << 6) + (combined_hash >> 2) + application_prior_hash;
     return combined_hash;
