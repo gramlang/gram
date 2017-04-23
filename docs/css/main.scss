@@ -16,13 +16,6 @@ $line-height: 24px;
   filter: progid:DXImageTransform.Microsoft.gradient(startStr='#{$start}', endStr='#{$end}');
 }
 
-@mixin transition($property, $duration) {
-  -o-transition: $property $duration;
-  -moz-transition: $property $duration;
-  -webkit-transition: $property $duration;
-  transition: $property $duration;
-}
-
 body {
   color: #333;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
@@ -49,8 +42,6 @@ a {
   }
 
   a {
-    @include transition(opacity, 0.2s);
-
     &:hover {
       opacity: 0.5;
       text-decoration: none;
