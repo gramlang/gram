@@ -1,13 +1,6 @@
-FROM debian:jessie
+FROM debian:stretch
 COPY . /root/gram
 RUN cd /root && \
-
-  # Sid (unstable) is needed for the following packages:
-  # - `clang-4.0`
-  # - `ruby2.3`
-  # - `ruby2.3-dev`
-  echo 'deb http://deb.debian.org/debian sid main' >> \
-    /etc/apt/sources.list && \
 
   # Update package lists.
   DEBIAN_FRONTEND=noninteractive apt-get -y update && \
@@ -18,16 +11,13 @@ RUN cd /root && \
     build-essential \
 
     # For building LLVM and Gram
-    clang-4.0 \
+    clang \
 
     # For building LLVM
-    cmake>=3.7.1-1 \
+    cmake \
 
     # For embedding the commit hash in the metadata reported by `gram -v`
     git \
-
-    # Used by the AWS CLI (installed below)
-    groff \
 
     # For building LLVM (optional, but speeds up the build)
     ninja-build \
@@ -36,10 +26,10 @@ RUN cd /root && \
     python-pip \
 
     # For installing the `github-pages` gem (installed below)
-    ruby2.3 \
+    ruby \
 
     # For installing the `github-pages` gem (installed below)
-    ruby2.3-dev \
+    ruby-dev \
 
     # Used by `make lint`
     shellcheck \
@@ -53,14 +43,6 @@ RUN cd /root && \
   # Now that the packages are installed, free up some space by removing the
   # package lists.
   rm -rf /var/lib/apt/lists/* && \
-
-  # Create symlinks `clang`, `clang++`, and `scan-build`.
-  update-alternatives --install /usr/bin/clang clang \
-    /usr/bin/clang-4.0 100 && \
-  update-alternatives --install /usr/bin/clang++ clang++ \
-    /usr/bin/clang++-4.0 100 && \
-  update-alternatives --install /usr/bin/scan-build scan-build \
-    /usr/bin/scan-build-4.0 100 && \
 
   # Install the `github-pages` gem (for `make docs`).
   gem install github-pages && \
