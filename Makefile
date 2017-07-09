@@ -121,24 +121,6 @@ serve-docs:
 # You must have pdflatex installed.
 spec: $(BUILD_PREFIX_COMMON)/spec/gram.pdf
 
-# This target uses Jekyll to compile the website.
-# You probably want to run `make docs` instead of using this directly.
-$(BUILD_PREFIX_COMMON)/docs: $(shell find docs -type f)
-	jekyll build --source docs --destination "$(BUILD_PREFIX_COMMON)/docs"
-
-# This target builds the specification.
-# You probably want to run `make spec` instead of using this directly.
-$(BUILD_PREFIX_COMMON)/spec/gram.pdf: spec/gram.tex
-	mkdir -p "$(BUILD_PREFIX_COMMON)/spec"
-	pdflatex -output-directory "$(BUILD_PREFIX_COMMON)/spec" spec/gram.tex
-	while ( \
-		grep -qi \
-			'^LaTeX Warning: Label(s) may have changed' \
-			"$(BUILD_PREFIX_COMMON)/spec/gram.log" \
-	) do \
-		pdflatex -output-directory "$(BUILD_PREFIX_COMMON)/spec" spec/gram.tex; \
-	done
-
 # This target runs the linters and static analyzers.
 # The following must be installed:
 # - Clang Static Analyzer
@@ -180,6 +162,24 @@ install: all
 # This target removes all installed artifacts from the $(PREFIX) directory.
 uninstall:
 	rm $(addprefix $(PREFIX)/,$(TARGETS))
+
+# This target uses Jekyll to compile the website.
+# You probably want to run `make docs` instead of using this directly.
+$(BUILD_PREFIX_COMMON)/docs: $(shell find docs -type f)
+	jekyll build --source docs --destination "$(BUILD_PREFIX_COMMON)/docs"
+
+# This target builds the specification.
+# You probably want to run `make spec` instead of using this directly.
+$(BUILD_PREFIX_COMMON)/spec/gram.pdf: spec/gram.tex
+	mkdir -p "$(BUILD_PREFIX_COMMON)/spec"
+	pdflatex -output-directory "$(BUILD_PREFIX_COMMON)/spec" spec/gram.tex
+	while ( \
+		grep -qi \
+			'^LaTeX Warning: Label(s) may have changed' \
+			"$(BUILD_PREFIX_COMMON)/spec/gram.log" \
+	) do \
+		pdflatex -output-directory "$(BUILD_PREFIX_COMMON)/spec" spec/gram.tex; \
+	done
 
 # This target builds the main Gram binary.
 $(BUILD_PREFIX)/dist/bin/gram: \
