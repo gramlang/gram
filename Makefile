@@ -112,11 +112,6 @@ docker-gram-deps:
 # You must have github-pages installed.
 docs: $(BUILD_PREFIX_COMMON)/docs
 
-# This target uses Jekyll to compile the website.
-# You probably want to run `make docs` instead of using this directly.
-$(BUILD_PREFIX_COMMON)/docs: $(shell find docs -type f)
-	jekyll build --source docs --destination "$(BUILD_PREFIX_COMMON)/docs"
-
 # This target starts a local server for the website.
 # You must have github-pages installed.
 serve-docs:
@@ -126,6 +121,13 @@ serve-docs:
 # You must have pdflatex installed.
 spec: $(BUILD_PREFIX_COMMON)/spec/gram.pdf
 
+# This target uses Jekyll to compile the website.
+# You probably want to run `make docs` instead of using this directly.
+$(BUILD_PREFIX_COMMON)/docs: $(shell find docs -type f)
+	jekyll build --source docs --destination "$(BUILD_PREFIX_COMMON)/docs"
+
+# This target builds the specification.
+# You probably want to run `make spec` instead of using this directly.
 $(BUILD_PREFIX_COMMON)/spec/gram.pdf: spec/gram.tex
 	mkdir -p "$(BUILD_PREFIX_COMMON)/spec"
 	pdflatex -output-directory "$(BUILD_PREFIX_COMMON)/spec" spec/gram.tex
