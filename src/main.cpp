@@ -48,29 +48,33 @@ int main(int argc, char *argv[]) {
   // Invoke the compiler.
   if (argc == 3 || argc == 4) {
     try {
+      auto output_type = gram::OutputType::AST;
+      auto input_path = argv[1];
+      auto output_path = argv[2];
       if (argc == 4) {
         if (std::string(argv[1]) == "--emit-tokens") {
-          gram::compile(argv[2], argv[3], gram::OutputType::TOKENS);
+          output_type = gram::OutputType::TOKENS;
         } else if (std::string(argv[1]) == "--emit-ast") {
-          gram::compile(argv[2], argv[3], gram::OutputType::AST);
+          output_type = gram::OutputType::AST;
         } else if (std::string(argv[1]) == "--emit-types") {
-          gram::compile(argv[2], argv[3], gram::OutputType::TYPES);
+          output_type = gram::OutputType::TYPES;
         } else if (std::string(argv[1]) == "--emit-llvm-asm") {
-          gram::compile(argv[2], argv[3], gram::OutputType::LLVM_ASM);
+          output_type = gram::OutputType::LLVM_ASM;
         } else if (std::string(argv[1]) == "--emit-llvm-bitcode") {
-          gram::compile(argv[2], argv[3], gram::OutputType::LLVM_BITCODE);
+          output_type = gram::OutputType::LLVM_BITCODE;
         } else if (std::string(argv[1]) == "--emit-asm") {
-          gram::compile(argv[2], argv[3], gram::OutputType::ASM);
+          output_type = gram::OutputType::ASM;
         } else if (std::string(argv[1]) == "--emit-binary") {
-          gram::compile(argv[2], argv[3], gram::OutputType::BINARY);
+          output_type = gram::OutputType::BINARY;
         } else {
           // We didn't recognize the syntax.
           std::cout << parse_error;
           return 1;
         }
-      } else {
-        gram::compile(argv[1], argv[2], gram::OutputType::BINARY);
+        input_path = argv[2];
+        output_path = argv[3];
       }
+      gram::compile(input_path, output_path, output_type);
     } catch(gram::Error &e) {
       std::cout << "Error: " << e.what() << "\n";
       return 1;
