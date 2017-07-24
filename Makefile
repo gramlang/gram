@@ -170,7 +170,7 @@ install: all uninstall
 	mkdir -p "$(PREFIX)/lib"
 	cp $(BUILD_PREFIX)/dist/bin/gram "$(PREFIX)/bin/gram"
 	cp $(BUILD_PREFIX)/dist/lib/gram.a "$(PREFIX)/lib/gram.a"
-	cp $(BUILD_PREFIX)/dist/include/gram/*.h "$(PREFIX)/include/gram"
+	cp $(HEADERS_DIST) "$(PREFIX)/include/gram"
 
 # This target removes all installed artifacts from the $(PREFIX) directory.
 uninstall:
@@ -203,7 +203,7 @@ $(BUILD_PREFIX_COMMON)/spec/gram.pdf: spec/gram.tex
 # directory for distribution.
 $(HEADERS_DIST): $(HEADERS)
 	mkdir -p $$(dirname $@)
-	cp include/*.h $(BUILD_PREFIX)/dist/include/gram
+	cp $(HEADERS) $(BUILD_PREFIX)/dist/include/gram
 
 # This target generates version.cpp using the scripts/version.sh script.
 $(BUILD_PREFIX)/gram/src/version.cpp: scripts/version.sh force
