@@ -2,7 +2,7 @@
 
 [Gram](https://www.gram.org) is a high-level programming language with a small, extensible core and a strong, static type system.
 
-Unlike most programming language, Gram has a [formal specification](https://static.gram.org/gram.pdf).
+Unlike most programming languages, Gram has a [formal specification](https://static.gram.org/gram.pdf).
 
 [![Build Status](https://travis-ci.org/gramlang/gram.svg?branch=master)](https://travis-ci.org/gramlang/gram)
 
