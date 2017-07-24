@@ -1,5 +1,5 @@
-#include "platform.h"
 #include <errno.h>
+#include <gram/platform.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/Triple.h>
 #include <llvm/Analysis/TargetLibraryInfo.h>
@@ -9,9 +9,9 @@
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/FileSystem.h>
 #include <llvm/Support/ManagedStatic.h>
-#include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/TargetRegistry.h>
 #include <llvm/Support/TargetSelect.h>
+#include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/Transforms/IPO.h>

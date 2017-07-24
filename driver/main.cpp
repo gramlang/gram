@@ -1,6 +1,6 @@
-#include "compiler.h"
-#include "error.h"
-#include "version.h"
+#include <gram/compiler.h>
+#include <gram/error.h>
+#include <gram/version.h>
 #include <iostream>
 
 int main(int argc, char *argv[]) {
@@ -18,10 +18,8 @@ int main(int argc, char *argv[]) {
       "Gram (https://www.gram.org/)\n"
       "----------------------------\n"
       "Usage:\n"
-      "  gram -h\n"
-      "  gram --help\n"
-      "  gram -v\n"
-      "  gram --version\n"
+      "  gram -h, --help\n"
+      "  gram -v, --version\n"
       "  gram source dest\n"
       "  gram --emit-tokens source dest\n"
       "  gram --emit-ast source dest\n"

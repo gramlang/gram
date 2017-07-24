@@ -1,7 +1,5 @@
 /*
   This header declares information about the version.
-  The corresponding source for this header is built from
-  `../scripts/version.sh`.
 */
 
 #ifndef GRAM_VERSION_H

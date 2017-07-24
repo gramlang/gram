@@ -1,10 +1,10 @@
-#include "compiler.h"
-#include "error.h"
-#include "parser.h"
-#include "platform.h"
-#include "tokenizer.h"
-#include "typechecker.h"
 #include <fstream>
+#include <gram/compiler.h>
+#include <gram/error.h>
+#include <gram/parser.h>
+#include <gram/platform.h>
+#include <gram/tokenizer.h>
+#include <gram/typechecker.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/LLVMContext.h>
 #include <memory>

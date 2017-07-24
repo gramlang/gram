@@ -1,4 +1,4 @@
-#include "ast.h"
+#include <gram/ast.h>
 
 gram::Node::~Node() {
 }

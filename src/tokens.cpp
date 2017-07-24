@@ -1,4 +1,4 @@
-#include "tokens.h"
+#include <gram/tokens.h>
 
 gram::Token::Token(
   gram::TokenType type, const std::string &literal,

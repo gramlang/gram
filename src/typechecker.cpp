@@ -1,5 +1,5 @@
-#include "error.h"
-#include "typechecker.h"
+#include <gram/error.h>
+#include <gram/typechecker.h>
 
 void gram::typecheck(gram::Node &node) {
   // Perform type inference and checking.

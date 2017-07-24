@@ -1,4 +1,4 @@
-#include "error.h"
+#include <gram/error.h>
 
 gram::Error::Error(std::string message) : message(message) {
 }

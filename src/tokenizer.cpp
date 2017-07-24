@@ -1,5 +1,5 @@
-#include "error.h"
-#include "tokenizer.h"
+#include <gram/error.h>
+#include <gram/tokenizer.h>
 
 enum class LineContinuationStatus {
   LCS_DEFAULT,
