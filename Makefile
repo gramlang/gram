@@ -137,10 +137,11 @@ spec: $(BUILD_PREFIX_COMMON)/spec/gram.pdf
 lint: $(BUILD_PREFIX)/llvm
 	# Make sure all lines conform to the line length limit.
 	scripts/check-line-lengths.sh \
-	  .github/* \
 	  .travis.yml \
-	  docker/* \
 	  Makefile \
+	  docker/* \
+	  driver/* \
+	  include/* \
 	  scripts/* \
 	  src/*
 

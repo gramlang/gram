@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 
-# This script is intended to be run on master builds in the continuous
-# integration system. It does the following:
-# - Upload the spec (gram.pdf) to the `static.gram.org` S3 bucket
+# This script is intended to be run in the continuous integration system.
+# It does the following:
+# - Upload the spec to the `static.gram.org` S3 bucket
 # - Push the following Docker images:
 #   - gramlang/gram:deps (optional, see SKIP_DOCKER_GRAM_DEPS_PUSH below)
 #   - gramlang/gram:build
@@ -19,6 +19,7 @@ set -eu -o pipefail
 #   GitHub Pages.
 
 # Usage:
+#   TRAVIS_BRANCH=master \
 #   AWS_DEFAULT_REGION=us-east-1 \
 #   AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE \
 #   AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY \
@@ -28,18 +29,28 @@ set -eu -o pipefail
 #   ./deploy.sh
 
 # Upload the spec
+if [ "$TRAVIS_BRANCH" = 'master' ]; then
+  S3_SPEC_DESTINATION='s3://static.gram.org/gram.pdf'
+else
+  S3_SPEC_DESTINATION="s3://static.gram.org/branch-$TRAVIS_BRANCH.pdf"
+fi
+
 docker run \
   -e "AWS_DEFAULT_REGION=$AWS_DEFAULT_REGION" \
   -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" \
   -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" \
-  -it gramlang/gram:build aws s3 cp --acl public-read \
-  /root/gram/build/common/spec/gram.pdf \
-  s3://static.gram.org/gram.pdf
+  gramlang/gram:build \
+  sh -c \
+    "aws s3 cp --acl public-read \
+      /root/gram/build/common/spec/gram.pdf \
+      $S3_SPEC_DESTINATION"
 
-# Upload the Docker images
-docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
-if ! (echo "$SKIP_DOCKER_GRAM_DEPS_PUSH" | grep -qi '^YES$'); then
-  docker push gramlang/gram:deps
+# Upload the Docker images (master branch only)
+if [ "$TRAVIS_BRANCH" = 'master' ]; then
+  docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+  if ! (echo "$SKIP_DOCKER_GRAM_DEPS_PUSH" | grep -qi '^YES$'); then
+    docker push gramlang/gram:deps
+  fi
+  docker push gramlang/gram:build
+  docker push gramlang/gram:latest
 fi
-docker push gramlang/gram:build
-docker push gramlang/gram:latest

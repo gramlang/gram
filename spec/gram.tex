@@ -47,6 +47,7 @@
 \newcommand\ccontext{\Gamma}
 \newcommand\cempty{\varnothing}
 \newcommand\cextend[3]{#1, \ \hastype{#2}{#3}}
+\newcommand\clookup[2]{#1\parens{#2}}
 
 % Operational semantics
 \newcommand\sstep[2]{#1 \longrightarrow #2}
@@ -108,7 +109,7 @@
       \end{prooftree}
 
       \begin{prooftree}
-          \AxiomC{$\hastype{\evar}{\ttype} \in \ccontext$}
+          \AxiomC{$\clookup{\ccontext}{\evar} = \ttype$}
         \RightLabel{(\textsc{T-Variable})}
         \UnaryInfC{$\tjudgment{\ccontext}{\evar}{\ttype}$}
       \end{prooftree}
