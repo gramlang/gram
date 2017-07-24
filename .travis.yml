@@ -6,6 +6,5 @@ script:
     make docker-gram &&
     docker run gramlang/gram -v && (
       test "$TRAVIS_PULL_REQUEST" != "false" ||
-      test "$TRAVIS_BRANCH" != "master" ||
       SKIP_DOCKER_GRAM_DEPS_PUSH=YES ./scripts/deploy.sh
     )
