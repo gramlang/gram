@@ -1,6 +1,6 @@
-#include "error.h"
-#include "parser.h"
 #include <functional>
+#include <gram/error.h>
+#include <gram/parser.h>
 #include <tuple>
 #include <unordered_map>
 

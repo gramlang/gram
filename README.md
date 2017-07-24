@@ -4,13 +4,11 @@
 
 [![Build Status](https://travis-ci.org/gramlang/gram.svg?branch=master)](https://travis-ci.org/gramlang/gram)
 
-## Getting started
+## Installation
 
-Gram is supported on popular Unix-like operating systems, such as Ubuntu and macOS. To install Gram, follow these steps from the root of this repository:
+Gram is supported on popular Unix-like operating systems, such as Ubuntu and macOS. To install Gram, make sure you have the dependencies listed below. Then run this command in a terminal:
 
-1. Make sure you have the dependencies listed below.
-2. Run `make` to build.
-3. Run `sudo make install` to install.
+    curl -sSf https://www.gram.org/install.sh | sh
 
 If all goes well, you should be able to run `gram` from the command line.
 

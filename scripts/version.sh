@@ -29,15 +29,11 @@ fi
 
 # Print the version information as a C++ source file.
 cat <<-ENDOFMESSAGE
-#include "../../../../src/version.h"
+#include <gram/version.h>
 
-namespace gram {
-
-  const char * const VERSION = "$VERSION";
-  const char * const COMMIT_HASH = $(
-    [ -z "$COMMIT_HASH" ] && echo 'nullptr' || echo "\"$COMMIT_HASH\""
-  );
-  const char * const BUILD_TYPE = "$BUILD_TYPE";
-
-}
+const char * const gram::VERSION = "$VERSION";
+const char * const gram::COMMIT_HASH = $(
+  [ -z "$COMMIT_HASH" ] && echo 'nullptr' || echo "\"$COMMIT_HASH\""
+);
+const char * const gram::BUILD_TYPE = "$BUILD_TYPE";
 ENDOFMESSAGE
