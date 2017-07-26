@@ -9,9 +9,10 @@ int main(int argc, char *argv[]) {
 
   // Display the help message.
   if (
-    argc == 1 ||
-    (argc == 2 && (
-      std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help")
+    argc == 1 || (
+      argc == 2 && (
+        std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help"
+      )
     )
   ) {
     std::cout <<
