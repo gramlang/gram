@@ -46,9 +46,9 @@ int main(int argc, char *argv[]) {
   // Invoke the compiler.
   if (argc == 3 || argc == 4) {
     try {
-      auto output_type = gram::OutputType::AST;
       auto input_path = argv[1];
       auto output_path = argv[2];
+      auto output_type = gram::OutputType::AST;
       if (argc == 4) {
         if (std::string(argv[1]) == "--emit-tokens") {
           output_type = gram::OutputType::TOKENS;

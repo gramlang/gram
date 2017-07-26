@@ -33,12 +33,28 @@ override OBJ := \
 
 # These targets do not name actual files.
 # They are just recipes which may be executed by explicit request.
-.PHONY: all lib driver \
-	clean clean-docs clean-spec clean-deps clean-all \
-	docker-gram docker-gram-build docker-gram-deps \
-	docs serve-docs spec \
-	lint install uninstall \
-	force
+.PHONY: \
+  all lib driver \
+  clean clean-docs clean-spec clean-deps clean-all \
+  docker-gram docker-gram-build docker-gram-deps \
+  docs serve-docs spec \
+  lint install uninstall \
+  force
+
+# This flag controls whether $(BUILD_PREFIX)/gram/src/version.cpp needs to be
+# rebuilt. Specifically, if scripts/version.sh produces a different output
+# than the existing version.cpp file (or the file does not exist), then we
+# force a rebuild. We have this flag because scripts/version.sh is not
+# idempotent (it depends on the git SHA).
+override VERSION_CPP_DEPS := $(shell \
+  if test "$$( \
+    cksum '$(BUILD_PREFIX)/gram/src/version.cpp' 2> /dev/null \
+      | cut -d ' ' -f 1 \
+  )" != "$$( \
+    ./scripts/version.sh $(BUILD_TYPE) | cksum 2> /dev/null \
+      | cut -d ' ' -f 1 \
+  )"; then echo 'force'; fi \
+)
 
 # This is the default target.
 # It builds all artifacts for distribution.
@@ -207,7 +223,7 @@ $(HEADERS_DIST): $(HEADERS)
 	cp $(HEADERS) $(BUILD_PREFIX)/dist/include/gram
 
 # This target generates version.cpp using the scripts/version.sh script.
-$(BUILD_PREFIX)/gram/src/version.cpp: scripts/version.sh force
+$(BUILD_PREFIX)/gram/src/version.cpp: $(VERSION_CPP_DEPS)
 	mkdir -p $$(dirname $@)
 	./scripts/version.sh $(BUILD_TYPE) > \
 	  $(BUILD_PREFIX)/gram/src/version.cpp
