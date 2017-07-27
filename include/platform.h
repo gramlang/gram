@@ -6,7 +6,7 @@
 #ifndef GRAM_PLATFORM_H
 #define GRAM_PLATFORM_H
 
-#include "compiler.h"
+#include <gram/compiler.h>
 #include <llvm/IR/Module.h>
 #include <string>
 #include <vector>

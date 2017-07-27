@@ -5,7 +5,7 @@
 #ifndef GRAM_TYPECHECKER_H
 #define GRAM_TYPECHECKER_H
 
-#include "parser.h"
+#include <gram/ast.h>
 
 namespace gram {
 

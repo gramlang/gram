@@ -1,4 +1,3 @@
-#include <gram/error.h>
 #include <gram/typechecker.h>
 
 void gram::typecheck(gram::Node &node) {
