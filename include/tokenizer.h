@@ -5,7 +5,7 @@
 #ifndef GRAM_TOKENIZER_H
 #define GRAM_TOKENIZER_H
 
-#include "tokens.h"
+#include <gram/tokens.h>
 #include <memory>
 #include <string>
 #include <vector>

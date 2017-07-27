@@ -5,9 +5,10 @@
 #ifndef GRAM_PARSER_H
 #define GRAM_PARSER_H
 
-#include "ast.h"
-#include "tokenizer.h"
+#include <gram/ast.h>
+#include <gram/tokens.h>
 #include <memory>
+#include <vector>
 
 namespace gram {
 
