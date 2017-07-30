@@ -246,6 +246,7 @@ $(BUILD_PREFIX)/gram/obj/%.o: %.cpp $(HEADERS_DIST) $(BUILD_PREFIX)/llvm
 # This target builds the static library.
 $(BUILD_PREFIX)/dist/lib/gram.a: $(OBJ)
 	mkdir -p $$(dirname $@)
+	rm -f $@
 	ar rcs $@ $(OBJ)
 
 # This target builds the driver.
