@@ -34,7 +34,7 @@ override OBJ := \
 # These targets do not name actual files.
 # They are just recipes which may be executed by explicit request.
 .PHONY: \
-  all lib driver \
+  all lib cli \
   clean clean-docs clean-spec clean-deps clean-all \
   docker-gram docker-gram-build docker-gram-deps \
   docs serve-docs spec \
@@ -58,13 +58,13 @@ override VERSION_CPP_DEPS := $(shell \
 
 # This is the default target.
 # It builds all artifacts for distribution.
-all: lib driver
+all: lib cli
 
 # This target builds the static library.
 lib: $(BUILD_PREFIX)/dist/lib/gram.a $(HEADERS_DIST)
 
-# This target builds the driver.
-driver: $(BUILD_PREFIX)/dist/bin/gram lib
+# This target builds the command line interface.
+cli: $(BUILD_PREFIX)/dist/bin/gram lib
 
 # This target removes Gram build artifacts, excluding dependencies,
 # for the specified build type.
@@ -156,7 +156,7 @@ lint: $(BUILD_PREFIX)/llvm
 	  .travis.yml \
 	  Makefile \
 	  docker/* \
-	  driver/* \
+	  cli/* \
 	  include/* \
 	  scripts/* \
 	  src/*
@@ -249,14 +249,14 @@ $(BUILD_PREFIX)/dist/lib/gram.a: $(OBJ)
 	rm -f $@
 	ar rcs $@ $(OBJ)
 
-# This target builds the driver.
+# This target builds the command line interface.
 $(BUILD_PREFIX)/dist/bin/gram: \
   $(BUILD_PREFIX)/dist/lib/gram.a \
-  $(BUILD_PREFIX)/gram/obj/driver/main.o \
+  $(BUILD_PREFIX)/gram/obj/cli/main.o \
   $(HEADERS_DIST)
 	mkdir -p $$(dirname $@)
 	$(CXX) \
-	    $(BUILD_PREFIX)/gram/obj/driver/main.o \
+	    $(BUILD_PREFIX)/gram/obj/cli/main.o \
 	    $(BUILD_PREFIX)/dist/lib/gram.a \
 	  -I $(BUILD_PREFIX)/dist/include/gram \
 	  $$( \
