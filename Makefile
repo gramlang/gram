@@ -161,6 +161,16 @@ lint: $(BUILD_PREFIX)/llvm
 	  scripts/* \
 	  src/*
 
+	# Check for various style issues related to whitespace.
+	SKIP_TABS_CHECK=FALSE scripts/check-whitespace.sh \
+	  .github/* \
+	  .travis.yml \
+	  cli/* \
+	  include/* \
+	  scripts/* \
+	  src/*
+	SKIP_TABS_CHECK=TRUE scripts/check-whitespace.sh Makefile
+
 	# Run ShellCheck on any shell scripts.
 	shellcheck scripts/*.sh
 
