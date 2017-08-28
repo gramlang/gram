@@ -10,7 +10,7 @@
 echo "Installing Gram..."
 
 rm -rf /tmp/gram
-git clone https://github.com/stepchowfun/gram.git /tmp/gram
+git clone https://github.com/gramlang/gram.git /tmp/gram
 cd /tmp/gram && make && (make install || sudo make install)
 rm -rf /tmp/gram
 
