@@ -251,6 +251,7 @@ $(BUILD_PREFIX)/gram/obj/%.o: %.cpp $(HEADERS_DIST) $(BUILD_PREFIX)/llvm
 	  ) \
 	  -std=c++11 \
 	  -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter \
+	  -fvisibility-inlines-hidden \
 	  -o $@
 
 # This target builds the static library.
