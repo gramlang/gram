@@ -235,7 +235,7 @@ void gram::llc(
   llvm::initializeRewriteSymbolsLegacyPassPass(pass_registry);
   llvm::initializeWinEHPreparePass(pass_registry);
   llvm::initializeDwarfEHPreparePass(pass_registry);
-  llvm::initializeSafeStackPass(pass_registry);
+  llvm::initializeSafeStackLegacyPassPass(pass_registry);
   llvm::initializeSjLjEHPreparePass(pass_registry);
   llvm::initializePreISelIntrinsicLoweringLegacyPassPass(pass_registry);
   llvm::initializeGlobalMergePass(pass_registry);
@@ -302,18 +302,12 @@ void gram::llc(
   pass_manager_builder.OptLevel = 3;
   pass_manager_builder.SizeLevel = 1;
   pass_manager_builder.LibraryInfo = library_info;
-  pass_manager_builder.Inliner = llvm::createFunctionInliningPass(
-    pass_manager_builder.OptLevel,
-    pass_manager_builder.SizeLevel
-  );
   pass_manager_builder.DisableTailCalls = false;
   pass_manager_builder.DisableUnitAtATime = false;
   pass_manager_builder.DisableUnrollLoops = false;
-  pass_manager_builder.BBVectorize = true;
   pass_manager_builder.SLPVectorize = true;
   pass_manager_builder.LoopVectorize = true;
   pass_manager_builder.RerollLoops = false;
-  pass_manager_builder.LoadCombine = true;
   pass_manager_builder.NewGVN = false;
   pass_manager_builder.DisableGVNLoadPRE = false;
   pass_manager_builder.VerifyInput = false;
@@ -323,15 +317,6 @@ void gram::llc(
   pass_manager_builder.PrepareForThinLTO = false;
   pass_manager_builder.PerformThinLTO = false;
   pass_manager_builder.EnablePGOInstrGen = false;
-  pass_manager_builder.addExtension(
-    llvm::PassManagerBuilder::EP_EarlyAsPossible,
-    [&](
-      const llvm::PassManagerBuilder &,
-      llvm::legacy::PassManagerBase &pass_manager
-    ) {
-      target_machine->addEarlyAsPossiblePasses(pass_manager);
-    }
-  );
   pass_manager_builder.populateFunctionPassManager(function_pass_manager);
   pass_manager_builder.populateModulePassManager(pass_manager);
   pass_manager_builder.populateLTOPassManager(pass_manager);
