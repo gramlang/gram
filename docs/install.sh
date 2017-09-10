@@ -7,12 +7,12 @@
 # Usage:
 #   ./install.sh
 
-echo "Installing Gram..."
-
+echo "Installing Gram..." && \
+  rm -rf /tmp/gram && \
+  git clone https://github.com/gramlang/gram.git /tmp/gram && \
+  cd /tmp/gram && \
+  make && \
+  (make install || sudo make install) && \
+  echo "Installation successful." && \
+  gram --version
 rm -rf /tmp/gram
-git clone https://github.com/gramlang/gram.git /tmp/gram
-cd /tmp/gram && make && (make install || sudo make install)
-rm -rf /tmp/gram
-
-echo "Installation successful."
-gram --version
