@@ -273,7 +273,7 @@ $(BUILD_PREFIX)/dist/bin/gram: \
 	  $$( \
 	    echo $(BUILD_TYPE) | grep -qi 'debug' && \
 	    echo '-g -O0' || \
-	    echo '-flto -O3' \
+	    echo '-O3' \
 	  ) \
 	  -std=c++11 \
 	  -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter \
