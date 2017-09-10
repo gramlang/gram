@@ -19,7 +19,7 @@ If all goes well, you should be able to run `gram` from the command line.
 To build Gram, you need the following:
 
 - [GNU Make](https://www.gnu.org/software/make/) >= 3.79.1
-- [Clang](http://clang.llvm.org/) >= 3.1 or [GCC](https://gcc.gnu.org/) >= 4.7.0
+- [Clang](http://clang.llvm.org/) >= 3.1 or [GCC](https://gcc.gnu.org/) >= 5.0
 - [CMake](https://cmake.org/) >= 3.4.3
 
 You also need the usual set of Unix tools, such as `echo`, `grep`, etc.

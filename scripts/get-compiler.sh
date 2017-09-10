@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -eu -o pipefail
 
-# This script tries to find a version of Clang >= 3.1 or GCC >= 4.7.
+# This script tries to find a version of Clang >= 3.1 or GCC >= 5.0.
 # It returns the absolute path to the compiler.
 
 # Usage:
@@ -27,9 +27,9 @@ if (clang --version 2> /dev/null | grep -qi 'apple llvm version [5-9]\.') &&
   if echo "$1" | grep -qi 'CXX'; then which clang++; exit; fi
 fi
 
-# GCC >= 4.7
-if (gcc --version 2> /dev/null | grep -qi ' \(4\.7\.\|[5-9]\.\)') &&
-  (g++ --version 2> /dev/null | grep -qi ' \(4\.7\.\|[5-9]\.\)'); then
+# GCC >= 5.0
+if (gcc --version 2> /dev/null | grep -qi ' \([5-9]\.\)') &&
+  (g++ --version 2> /dev/null | grep -qi ' \([5-9]\.\)'); then
   if echo "$1" | grep -qi 'CC'; then which gcc; exit; fi
   if echo "$1" | grep -qi 'CXX'; then which g++; exit; fi
 fi
