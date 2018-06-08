@@ -1,0 +1,8 @@
+[package]
+name = "gram"
+version = "0.0.0"
+authors = ["Stephan Boyer <stephan@stephanboyer.com>"]
+description = "A programming language."
+license = "MIT"
+
+[dependencies]
