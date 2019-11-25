@@ -13,7 +13,7 @@ tasks:
     command: |
       set -euo pipefail
       curl https://raw.githubusercontent.com/stepchowfun/tagref/master/install.sh -LSfs |
-        VERSION=1.2.0 sh
+        VERSION=1.2.1 sh
 
   create_user:
     command: |
@@ -101,10 +101,12 @@ tasks:
     dependencies:
       - build
     user: user
+    input_paths:
+      - examples
     command: |
       set -euo pipefail
       . $HOME/.cargo/env
-      cargo run
+      cargo run -- run examples/tokens.g
 
   check:
     dependencies:
