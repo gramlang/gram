@@ -1,60 +1,17 @@
+mod cli;
 mod error;
 mod format;
 mod token;
 mod tokenizer;
 
 use crate::{
+    cli::cli,
     error::{throw_reason, Error},
     format::CodeStr,
     tokenizer::tokenize,
 };
 use atty::Stream;
-use clap::{
-    App,
-    AppSettings::{
-        ColoredHelp, SubcommandRequiredElseHelp, UnifiedHelpMessage, VersionlessSubcommands,
-    },
-    Arg, ArgMatches, SubCommand,
-};
 use std::{fs::read_to_string, path::PathBuf, process::exit};
-
-// The program version
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
-// Command-line option and subcommand names
-const RUN_SUBCOMMAND: &str = "run";
-const PATH_OPTION: &str = "path";
-
-// Parse command-line arguments.
-fn opts<'a>() -> ArgMatches<'a> {
-    App::new("Gram")
-        .version(VERSION)
-        .version_short("v")
-        .about("")
-        .about(
-            " \
-             Gram is high-level programming language. Visit https://www.gram.org for more \
-             information. \
-             "
-            .trim(),
-        )
-        .setting(ColoredHelp)
-        .setting(SubcommandRequiredElseHelp) // [tag:subcommand-required]
-        .setting(UnifiedHelpMessage)
-        .setting(VersionlessSubcommands)
-        .subcommand(
-            SubCommand::with_name(RUN_SUBCOMMAND)
-                .about("Runs a program")
-                .arg(
-                    Arg::with_name(PATH_OPTION)
-                        .value_name("PATH")
-                        .help("Sets the path of the program entrypoint")
-                        .takes_value(true)
-                        .number_of_values(1),
-                ),
-        )
-        .get_matches()
-}
 
 // Program entrypoint
 fn entry() -> Result<(), Error> {
@@ -63,18 +20,18 @@ fn entry() -> Result<(), Error> {
     colored::control::set_override(atty::is(Stream::Stdout));
 
     // Parse command-line arguments.
-    let matches = opts();
+    let matches = cli().get_matches();
 
     // Decide what to do based on the subcommand.
     match matches.subcommand_name() {
         // [tag:run-subcommand]
-        Some(RUN_SUBCOMMAND) => {
+        Some(cli::RUN_SUBCOMMAND) => {
             // Read in the source file.
             let source_path = PathBuf::from(
                 matches
-                    .subcommand_matches(RUN_SUBCOMMAND)
+                    .subcommand_matches(cli::RUN_SUBCOMMAND)
                     .unwrap() // [ref:run-subcommand]
-                    .value_of(PATH_OPTION)
+                    .value_of(cli::PATH_OPTION)
                     .unwrap_or("main.g"),
             );
 
