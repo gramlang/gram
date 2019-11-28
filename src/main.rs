@@ -78,10 +78,9 @@ pub fn cli<'a, 'b>() -> App<'a, 'b> {
         )
 }
 
-// Install shell completions.
+// Print a shell completion script to STDOUT.
 fn shell_completion<S: Borrow<str>>(shell: S) -> Result<(), Error> {
-    let mut app = cli();
-
+    // Determine which shell the user wants the shell completion for.
     let shell_variant = match shell.borrow().trim().to_lowercase().as_ref() {
         "bash" => Shell::Bash,
         "fish" => Shell::Fish,
@@ -96,7 +95,8 @@ fn shell_completion<S: Borrow<str>>(shell: S) -> Result<(), Error> {
         }
     };
 
-    app.gen_completions_to(BIN_NAME, shell_variant, &mut stdout());
+    // Write the script to STDOUT.
+    cli().gen_completions_to(BIN_NAME, shell_variant, &mut stdout());
 
     // If we made it this far, nothing went wrong.
     Ok(())
