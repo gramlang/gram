@@ -1,11 +1,14 @@
+mod ast;
 mod error;
 mod format;
+mod parser;
 mod token;
 mod tokenizer;
 
 use crate::{
     error::{lift, throw, Error},
     format::CodeStr,
+    parser::parse,
     tokenizer::tokenize,
 };
 use atty::Stream;
@@ -93,9 +96,13 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     )))?;
 
     // Tokenize the source file.
-    for token in tokenize(Some(source_path.borrow()), &source)? {
-        println!("{}", token);
-    }
+    let tokens = tokenize(Some(source_path.borrow()), &source)?;
+
+    // Parse the source file.
+    let node = parse(&Some(source_path.borrow()), source.as_str(), tokens)?;
+
+    // For now, just print the AST.
+    println!("{:?}", node);
 
     // If we made it this far, nothing went wrong.
     Ok(())
@@ -111,10 +118,13 @@ fn shell_completion<T: Borrow<str>>(shell: T) -> Result<(), Error> {
         "powershell" => Shell::PowerShell,
         "elvish" => Shell::Elvish,
         _ => {
-            return throw(format!(
-                "Unknown shell {}. Must be one of Bash, Fish, Zsh, PowerShell, or Elvish.",
-                shell.borrow().code_str()
-            ))
+            return throw::<_, &Path, _>(
+                format!(
+                    "Unknown shell {}. Must be one of Bash, Fish, Zsh, PowerShell, or Elvish.",
+                    shell.borrow().code_str()
+                ),
+                None,
+            )
         }
     };
 

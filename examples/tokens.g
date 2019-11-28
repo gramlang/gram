@@ -1,1 +1,1 @@
-(a b : type) => (f : a -> b) => (x : a) => f x
+(a : type) => (b : type) => (f : (_ : a) -> b) => (x : a) => f x
