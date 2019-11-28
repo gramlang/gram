@@ -20,7 +20,3 @@ pad = "0.1"
 [dependencies.clap]
 version = "2"
 features = ["wrap_help"]
-
-[build-dependencies.clap]
-version = "2"
-features = ["wrap_help"]
