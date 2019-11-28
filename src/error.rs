@@ -32,7 +32,7 @@ impl error::Error for Error {
 }
 
 // This function constructs an `Error` from a message.
-pub fn throw<S: Into<String>>(message: S) -> Result<(), Error> {
+pub fn throw<T: Into<String>, U>(message: T) -> Result<U, Error> {
     Err(Error {
         message: message.into(),
         reason: None,
@@ -40,12 +40,12 @@ pub fn throw<S: Into<String>>(message: S) -> Result<(), Error> {
 }
 
 // This function constructs an `Error` that occurs at a specific location in a source file.
-pub fn throw_context<S: Borrow<str>, T: Borrow<Path>, U: Borrow<str>>(
-    message: S,
-    source_name: Option<T>,
-    source_contents: U,
+pub fn throw_context<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>, W>(
+    message: T,
+    source_name: Option<U>,
+    source_contents: V,
     source_range: (usize, usize), // [start, end)
-) -> Result<(), Error> {
+) -> Result<W, Error> {
     Err(
         // Check if the source range is empty.
         if source_range.0 == source_range.1 {
@@ -148,9 +148,9 @@ pub fn throw_context<S: Borrow<str>, T: Borrow<Path>, U: Borrow<str>>(
 // This function constructs an `Error` from a message and a reason. It's written in a curried style
 // so it can be used in a higher-order fashion, e.g.,
 // `foo.map_err(lift("Error doing foo."))`.
-pub fn lift<S: Into<String>, E: error::Error + 'static>(message: S) -> impl FnOnce(E) -> Error {
+pub fn lift<T: Into<String>, U: error::Error + 'static>(message: T) -> impl FnOnce(U) -> Error {
     let message = message.into();
-    move |error: E| Error {
+    move |error: U| Error {
         message,
         reason: Some(Box::new(error)),
     }
@@ -165,7 +165,7 @@ mod tests {
     fn throw_simple() {
         colored::control::set_override(false);
 
-        let error = throw("An error occurred.").unwrap_err();
+        let error = throw::<_, ()>("An error occurred.").unwrap_err();
 
         assert_eq!(error.message, "An error occurred.".to_owned());
 
@@ -176,8 +176,8 @@ mod tests {
     fn throw_context_no_path_empty_range() {
         colored::control::set_override(false);
 
-        let error =
-            throw_context::<&str, &Path, &str>("An error occurred.", None, "", (0, 0)).unwrap_err();
+        let error = throw_context::<&str, &Path, &str, ()>("An error occurred.", None, "", (0, 0))
+            .unwrap_err();
 
         assert_eq!(error.message, "Error: An error occurred.".to_owned());
     }
@@ -186,7 +186,7 @@ mod tests {
     fn throw_context_with_path_empty_range() {
         colored::control::set_override(false);
 
-        let error = throw_context(
+        let error = throw_context::<_, _, _, ()>(
             "An error occurred.",
             Some(PathBuf::from("foo.g")),
             "",
@@ -204,8 +204,9 @@ mod tests {
     fn throw_context_no_path_single_line_full_range() {
         colored::control::set_override(false);
 
-        let error = throw_context::<&str, &Path, &str>("An error occurred.", None, "foo", (0, 3))
-            .unwrap_err();
+        let error =
+            throw_context::<&str, &Path, &str, ()>("An error occurred.", None, "foo", (0, 3))
+                .unwrap_err();
 
         assert_eq!(
             error.message,
@@ -217,7 +218,7 @@ mod tests {
     fn throw_context_with_path_single_line_full_range() {
         colored::control::set_override(false);
 
-        let error = throw_context(
+        let error = throw_context::<_, _, _, ()>(
             "An error occurred.",
             Some(PathBuf::from("foo.g")),
             "foo",
@@ -235,7 +236,7 @@ mod tests {
     fn throw_context_no_path_multiple_lines_full_range() {
         colored::control::set_override(false);
 
-        let error = throw_context::<&str, &Path, &str>(
+        let error = throw_context::<&str, &Path, &str, ()>(
             "An error occurred.",
             None,
             "foo\nbar\nbaz",
@@ -253,7 +254,7 @@ mod tests {
     fn throw_context_no_path_multiple_lines_partial_range() {
         colored::control::set_override(false);
 
-        let error = throw_context::<&str, &Path, &str>(
+        let error = throw_context::<&str, &Path, &str, ()>(
             "An error occurred.",
             None,
             "foo\nbar\nbaz\nqux",
@@ -271,7 +272,7 @@ mod tests {
     fn throw_context_no_path_many_lines_partial_range() {
         colored::control::set_override(false);
 
-        let error = throw_context::<&str, &Path, &str>(
+        let error = throw_context::<&str, &Path, &str, ()>(
             "An error occurred.",
             None,
             "foo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux",

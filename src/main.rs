@@ -16,7 +16,13 @@ use clap::{
     },
     Arg, Shell, SubCommand,
 };
-use std::{borrow::Borrow, fs::read_to_string, io::stdout, path::PathBuf, process::exit};
+use std::{
+    borrow::Borrow,
+    fs::read_to_string,
+    io::stdout,
+    path::{Path, PathBuf},
+    process::exit,
+};
 
 // The program version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -78,8 +84,25 @@ pub fn cli<'a, 'b>() -> App<'a, 'b> {
         )
 }
 
+// Run a program.
+fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
+    // Read the source file.
+    let source = read_to_string(source_path.borrow()).map_err(lift(format!(
+        "Error when reading file {}.",
+        source_path.borrow().to_string_lossy().code_str(),
+    )))?;
+
+    // Tokenize the source file.
+    for token in tokenize(Some(source_path.borrow()), &source)? {
+        println!("{}", token);
+    }
+
+    // If we made it this far, nothing went wrong.
+    Ok(())
+}
+
 // Print a shell completion script to STDOUT.
-fn shell_completion<S: Borrow<str>>(shell: S) -> Result<(), Error> {
+fn shell_completion<T: Borrow<str>>(shell: T) -> Result<(), Error> {
     // Determine which shell the user wants the shell completion for.
     let shell_variant = match shell.borrow().trim().to_lowercase().as_ref() {
         "bash" => Shell::Bash,
@@ -115,7 +138,7 @@ fn entry() -> Result<(), Error> {
     match matches.subcommand_name() {
         // [tag:run-subcommand]
         Some(subcommand) if subcommand == RUN_SUBCOMMAND => {
-            // Read in the source file.
+            // Determine the path to the source file.
             let source_path = PathBuf::from(
                 matches
                     .subcommand_matches(RUN_SUBCOMMAND)
@@ -124,15 +147,8 @@ fn entry() -> Result<(), Error> {
                     .unwrap_or("main.g"),
             );
 
-            let source = read_to_string(&source_path).map_err(lift(format!(
-                "Error when reading file {}.",
-                source_path.to_string_lossy().code_str(),
-            )))?;
-
-            // Tokenize the source file.
-            for token in tokenize(Some(&source_path), &source)? {
-                println!("{}", token);
-            }
+            // Run the program.
+            run(source_path)?;
         }
 
         // [tag:shell-completion-subcommand]
