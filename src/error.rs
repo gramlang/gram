@@ -31,6 +31,14 @@ impl error::Error for Error {
     }
 }
 
+// This function constructs an `Error` from a message.
+pub fn throw<S: Into<String>>(message: S) -> Error {
+    Error {
+        message: message.into(),
+        reason: None,
+    }
+}
+
 // This function constructs an `Error` from a message and a reason. It's written in a curried style
 // so it can be used in a higher-order fashion, e.g.,
 // `foo.map_err(throw_reason("Error doing foo."))`.
@@ -150,8 +158,19 @@ pub fn throw_context<S: Borrow<str>, T: Borrow<Path>, U: Borrow<str>>(
 
 #[cfg(test)]
 mod tests {
-    use crate::error::{throw_context, throw_reason, Error};
+    use crate::error::{throw, throw_context, throw_reason, Error};
     use std::path::{Path, PathBuf};
+
+    #[test]
+    fn throw_simple() {
+        colored::control::set_override(false);
+
+        let error = throw("An error occurred.");
+
+        assert_eq!(error.message, "An error occurred.".to_owned());
+
+        assert!(error.reason.is_none());
+    }
 
     #[test]
     fn throw_reason_simple() {
