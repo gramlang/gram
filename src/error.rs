@@ -6,13 +6,14 @@ use std::{
     cmp::{max, min},
     error, fmt,
     path::Path,
+    rc::Rc,
 };
 
 // This is the primary error type we'll be using everywhere.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Error {
     message: String,
-    reason: Option<Box<dyn error::Error>>,
+    reason: Option<Rc<dyn error::Error>>,
 }
 
 impl fmt::Display for Error {
@@ -31,10 +32,21 @@ impl error::Error for Error {
     }
 }
 
-// This function constructs an `Error` from a message.
-pub fn throw<T: Into<String>, U>(message: T) -> Result<U, Error> {
+// This function constructs an `Error` from a message and an optional source path.
+pub fn throw<T: Into<String>, U: Borrow<Path>, V>(
+    message: T,
+    source_name: Option<U>,
+) -> Result<V, Error> {
     Err(Error {
-        message: message.into(),
+        message: if let Some(path) = source_name {
+            format!(
+                "Error in {}: {}",
+                path.borrow().to_string_lossy().code_str(),
+                message.into()
+            )
+        } else {
+            message.into()
+        },
         reason: None,
     })
 }
@@ -119,8 +131,13 @@ pub fn throw_context<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>, W>(
                 .iter()
                 .map(|(line_number, line)| {
                     format!(
-                        "{} | {}",
-                        line_number.pad(gutter_width, ' ', Alignment::Right, false),
+                        "{} {}",
+                        format!(
+                            "{} |",
+                            line_number.pad(gutter_width, ' ', Alignment::Right, false)
+                        )
+                        .blue()
+                        .bold(),
                         line
                     )
                 })
@@ -152,7 +169,7 @@ pub fn lift<T: Into<String>, U: error::Error + 'static>(message: T) -> impl FnOn
     let message = message.into();
     move |error: U| Error {
         message,
-        reason: Some(Box::new(error)),
+        reason: Some(Rc::new(error)),
     }
 }
 
@@ -162,12 +179,27 @@ mod tests {
     use std::path::{Path, PathBuf};
 
     #[test]
-    fn throw_simple() {
+    fn throw_no_source() {
         colored::control::set_override(false);
 
-        let error = throw::<_, ()>("An error occurred.").unwrap_err();
+        let error = throw::<_, &Path, ()>("An error occurred.", None).unwrap_err();
 
         assert_eq!(error.message, "An error occurred.".to_owned());
+
+        assert!(error.reason.is_none());
+    }
+
+    #[test]
+    fn throw_source() {
+        colored::control::set_override(false);
+
+        let error =
+            throw::<_, _, ()>("An error occurred.", Some(PathBuf::from("foo.g"))).unwrap_err();
+
+        assert_eq!(
+            error.message,
+            "Error in `foo.g`: An error occurred.".to_owned()
+        );
 
         assert!(error.reason.is_none());
     }

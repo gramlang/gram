@@ -1,12 +1,12 @@
 use std::fmt::{Display, Formatter, Result};
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Token<'a> {
     pub source_range: (usize, usize), // [start, end)
     pub variant: Variant<'a>,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
     Colon,
     LeftParen,
