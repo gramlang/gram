@@ -4,7 +4,7 @@ mod token;
 mod tokenizer;
 
 use crate::{
-    error::{throw, throw_reason, Error},
+    error::{lift, throw, Error},
     format::CodeStr,
     tokenizer::tokenize,
 };
@@ -89,10 +89,10 @@ fn shell_completion<S: Borrow<str>>(shell: S) -> Result<(), Error> {
         "powershell" => Shell::PowerShell,
         "elvish" => Shell::Elvish,
         _ => {
-            return Err(throw(format!(
+            return throw(format!(
                 "Unknown shell {}. Must be one of Bash, Fish, Zsh, PowerShell, or Elvish.",
                 shell.borrow().code_str()
-            )))
+            ))
         }
     };
 
@@ -124,7 +124,7 @@ fn entry() -> Result<(), Error> {
                     .unwrap_or("main.g"),
             );
 
-            let source = read_to_string(&source_path).map_err(throw_reason(format!(
+            let source = read_to_string(&source_path).map_err(lift(format!(
                 "Error when reading file {}.",
                 source_path.to_string_lossy().code_str(),
             )))?;

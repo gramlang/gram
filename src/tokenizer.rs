@@ -51,7 +51,7 @@ pub fn tokenize<'a>(
                         variant: Variant::ThickArrow,
                     });
                 } else {
-                    return Err(throw_context(
+                    throw_context(
                         format!(
                             "Unexpected symbol {}.",
                             &source_contents[i..i + c.len_utf8()].code_str()
@@ -59,7 +59,7 @@ pub fn tokenize<'a>(
                         source_name,
                         source_contents,
                         (i, i + c.len_utf8()),
-                    ));
+                    )?;
                 }
             }
             '-' => {
@@ -70,7 +70,7 @@ pub fn tokenize<'a>(
                         variant: Variant::ThinArrow,
                     });
                 } else {
-                    return Err(throw_context(
+                    throw_context(
                         format!(
                             "Unexpected symbol {}.",
                             &source_contents[i..i + c.len_utf8()].code_str()
@@ -78,7 +78,7 @@ pub fn tokenize<'a>(
                         source_name,
                         source_contents,
                         (i, i + c.len_utf8()),
-                    ));
+                    )?;
                 }
             }
 
@@ -107,7 +107,7 @@ pub fn tokenize<'a>(
 
             // If we made it this far, the input contains something unexpected.
             _ => {
-                return Err(throw_context(
+                throw_context(
                     format!(
                         "Unexpected symbol {}.",
                         &source_contents[i..i + c.len_utf8()].code_str()
@@ -115,7 +115,7 @@ pub fn tokenize<'a>(
                     source_name,
                     source_contents,
                     (i, i + c.len_utf8()),
-                ))
+                )?;
             }
         }
     }
