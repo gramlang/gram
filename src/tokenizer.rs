@@ -7,7 +7,7 @@ use std::path::Path;
 
 // Tokenize the contents of a source file.
 pub fn tokenize<'a>(
-    source_name: Option<&'a Path>,
+    source_path: Option<&'a Path>,
     source_contents: &'a str,
 ) -> Result<Vec<Token<'a>>, Error> {
     // We'll be building up this vector of tokens.
@@ -56,7 +56,7 @@ pub fn tokenize<'a>(
                             "Unexpected symbol {}.",
                             &source_contents[i..i + c.len_utf8()].code_str()
                         ),
-                        source_name,
+                        source_path,
                         source_contents,
                         (i, i + c.len_utf8()),
                     )?;
@@ -75,7 +75,7 @@ pub fn tokenize<'a>(
                             "Unexpected symbol {}.",
                             &source_contents[i..i + c.len_utf8()].code_str()
                         ),
-                        source_name,
+                        source_path,
                         source_contents,
                         (i, i + c.len_utf8()),
                     )?;
@@ -112,7 +112,7 @@ pub fn tokenize<'a>(
                         "Unexpected symbol {}.",
                         &source_contents[i..i + c.len_utf8()].code_str()
                     ),
-                    source_name,
+                    source_path,
                     source_contents,
                     (i, i + c.len_utf8()),
                 )?;

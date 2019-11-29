@@ -35,10 +35,10 @@ impl error::Error for Error {
 // This function constructs an `Error` from a message and an optional source path.
 pub fn throw<T: Into<String>, U: Borrow<Path>, V>(
     message: T,
-    source_name: Option<U>,
+    source_path: Option<U>,
 ) -> Result<V, Error> {
     Err(Error {
-        message: if let Some(path) = source_name {
+        message: if let Some(path) = source_path {
             format!(
                 "Error in {}: {}",
                 path.borrow().to_string_lossy().code_str(),
@@ -54,7 +54,7 @@ pub fn throw<T: Into<String>, U: Borrow<Path>, V>(
 // This function constructs an `Error` that occurs at a specific location in a source file.
 pub fn throw_context<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>, W>(
     message: T,
-    source_name: Option<U>,
+    source_path: Option<U>,
     source_contents: V,
     source_range: (usize, usize), // [start, end)
 ) -> Result<W, Error> {
@@ -63,7 +63,7 @@ pub fn throw_context<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>, W>(
         if source_range.0 == source_range.1 {
             // There's no source to render.
             Error {
-                message: if let Some(path) = source_name {
+                message: if let Some(path) = source_path {
                     format!(
                         "Error in {}: {}",
                         path.borrow().to_string_lossy().code_str(),
@@ -146,7 +146,7 @@ pub fn throw_context<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>, W>(
 
             // Now we have everything we need to construct the error.
             Error {
-                message: if let Some(path) = source_name {
+                message: if let Some(path) = source_path {
                     format!(
                         "Error in {}: {}\n\n{}",
                         path.borrow().to_string_lossy().code_str(),
