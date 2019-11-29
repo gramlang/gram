@@ -1,11 +1,14 @@
 use std::fmt::{Display, Formatter, Result};
 
+// The first step of compilation is to split the source into a stream of tokens. This struct
+// represents a single token.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Token<'a> {
     pub source_range: (usize, usize), // [start, end)
     pub variant: Variant<'a>,
 }
 
+// We assign each token a "variant" describing what kind of token it is.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
     Colon,
