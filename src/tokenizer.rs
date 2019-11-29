@@ -105,6 +105,15 @@ pub fn tokenize<'a>(
             // Skip whitespace.
             _ if c.is_whitespace() => continue,
 
+            // Skip comments.
+            '#' => {
+                for (_, d) in &mut iter {
+                    if d == '\n' {
+                        break;
+                    }
+                }
+            }
+
             // If we made it this far, the input contains something unexpected.
             _ => {
                 throw_context(

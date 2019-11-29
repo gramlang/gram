@@ -106,7 +106,7 @@ tasks:
     command: |
       set -euo pipefail
       . $HOME/.cargo/env
-      cargo run -- run examples/tokens.g
+      cargo run -- examples/identity.g
 
   check:
     dependencies:

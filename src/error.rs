@@ -176,7 +176,7 @@ pub fn lift<T: Into<String>, U: error::Error + 'static>(message: T) -> impl FnOn
 #[cfg(test)]
 mod tests {
     use crate::error::{lift, throw, throw_context, Error};
-    use std::path::{Path, PathBuf};
+    use std::path::Path;
 
     #[test]
     fn throw_no_source() {
@@ -193,8 +193,7 @@ mod tests {
     fn throw_source() {
         colored::control::set_override(false);
 
-        let error =
-            throw::<_, _, ()>("An error occurred.", Some(PathBuf::from("foo.g"))).unwrap_err();
+        let error = throw::<_, _, ()>("An error occurred.", Some(Path::new("foo.g"))).unwrap_err();
 
         assert_eq!(
             error.message,
@@ -220,7 +219,7 @@ mod tests {
 
         let error = throw_context::<_, _, _, ()>(
             "An error occurred.",
-            Some(PathBuf::from("foo.g")),
+            Some(Path::new("foo.g")),
             "",
             (0, 0),
         )
@@ -252,7 +251,7 @@ mod tests {
 
         let error = throw_context::<_, _, _, ()>(
             "An error occurred.",
-            Some(PathBuf::from("foo.g")),
+            Some(Path::new("foo.g")),
             "foo",
             (0, 3),
         )
