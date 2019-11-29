@@ -14,18 +14,10 @@ use crate::{
 use atty::Stream;
 use clap::{
     App,
-    AppSettings::{
-        ColoredHelp, SubcommandRequiredElseHelp, UnifiedHelpMessage, VersionlessSubcommands,
-    },
+    AppSettings::{ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
     Arg, Shell, SubCommand,
 };
-use std::{
-    borrow::Borrow,
-    fs::read_to_string,
-    io::stdout,
-    path::{Path, PathBuf},
-    process::exit,
-};
+use std::{borrow::Borrow, fs::read_to_string, io::stdout, path::Path, process::exit};
 
 // The program version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -34,13 +26,17 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const BIN_NAME: &str = "gram";
 
 // Command-line option and subcommand names
-pub const SHELL_COMPLETION_SUBCOMMAND: &str = "shell-completion";
-pub const SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION: &str = "shell";
-pub const RUN_SUBCOMMAND: &str = "run";
-pub const RUN_SUBCOMMAND_PATH_OPTION: &str = "path";
+const PATH_OPTION: &str = "path";
+const SHELL_COMPLETION_SUBCOMMAND: &str = "shell-completion";
+const SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION: &str = "shell-completion-shell";
+const RUN_SUBCOMMAND: &str = "run";
+const RUN_SUBCOMMAND_PATH_OPTION: &str = "run-path";
+
+// The default path to the entrypoint.
+const DEFAULT_ENTRYPOINT_PATH: &str = "main.g";
 
 // Set up the command-line interface.
-pub fn cli<'a, 'b>() -> App<'a, 'b> {
+fn cli<'a, 'b>() -> App<'a, 'b> {
     App::new("Gram")
         .version(VERSION)
         .version_short("v")
@@ -53,9 +49,15 @@ pub fn cli<'a, 'b>() -> App<'a, 'b> {
             .trim(),
         )
         .setting(ColoredHelp)
-        .setting(SubcommandRequiredElseHelp) // [tag:subcommand-required]
         .setting(UnifiedHelpMessage)
         .setting(VersionlessSubcommands)
+        .arg(
+            Arg::with_name(PATH_OPTION)
+                .value_name("PATH")
+                .help("Sets the path of the program entrypoint")
+                .takes_value(true)
+                .number_of_values(1),
+        )
         .subcommand(
             SubCommand::with_name(RUN_SUBCOMMAND)
                 .about("Runs a program")
@@ -148,36 +150,46 @@ fn entry() -> Result<(), Error> {
     // Parse command-line arguments.
     let matches = cli().get_matches();
 
-    // Decide what to do based on the subcommand.
-    match matches.subcommand_name() {
-        // [tag:run-subcommand]
-        Some(subcommand) if subcommand == RUN_SUBCOMMAND => {
-            // Determine the path to the source file.
-            let source_path = PathBuf::from(
-                matches
-                    .subcommand_matches(RUN_SUBCOMMAND)
-                    .unwrap() // [ref:run-subcommand]
-                    .value_of(RUN_SUBCOMMAND_PATH_OPTION)
-                    .unwrap_or("main.g"),
-            );
+    // Check if the user provided a path as the first argument.
+    if let Some(source_path) = matches.value_of(PATH_OPTION) {
+        // We got a path. Run the program at that path.
+        run(Path::new(source_path))?;
+    } else {
+        // Decide what to do based on the subcommand.
+        match matches.subcommand_name() {
+            // [tag:run-subcommand]
+            Some(subcommand) if subcommand == RUN_SUBCOMMAND => {
+                // Determine the path to the source file.
+                let source_path = Path::new(
+                    matches
+                        .subcommand_matches(RUN_SUBCOMMAND)
+                        .unwrap() // [ref:run-subcommand]
+                        .value_of(RUN_SUBCOMMAND_PATH_OPTION)
+                        .unwrap_or(DEFAULT_ENTRYPOINT_PATH),
+                );
 
-            // Run the program.
-            run(source_path)?;
+                // Run the program.
+                run(source_path)?;
+            }
+
+            // [tag:shell-completion-subcommand]
+            Some(subcommand) if subcommand == SHELL_COMPLETION_SUBCOMMAND => {
+                shell_completion(
+                    matches
+                        .subcommand_matches(SHELL_COMPLETION_SUBCOMMAND)
+                        .unwrap() // [ref:shell-completion-subcommand]
+                        .value_of(SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION)
+                        .unwrap(), // [ref:shell-completion-subcommand-shell-required]
+                )?;
+            }
+
+            // We should never end up in this branch, provided we handled all the subcommands
+            // above.
+            Some(_) => panic!(),
+
+            // If no path or subcommand was provided, look for a program at the default path.
+            None => run(Path::new(DEFAULT_ENTRYPOINT_PATH))?,
         }
-
-        // [tag:shell-completion-subcommand]
-        Some(subcommand) if subcommand == SHELL_COMPLETION_SUBCOMMAND => {
-            shell_completion(
-                matches
-                    .subcommand_matches(SHELL_COMPLETION_SUBCOMMAND)
-                    .unwrap() // [ref:shell-completion-subcommand]
-                    .value_of(SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION)
-                    .unwrap(), // [ref:shell-completion-subcommand-shell-required]
-            )?;
-        }
-
-        // This branch should not be reachable due to [ref:subcommand-required].
-        Some(_) | None => panic!(),
     }
 
     // If we made it this far, nothing went wrong.
