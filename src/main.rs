@@ -90,16 +90,20 @@ pub fn cli<'a, 'b>() -> App<'a, 'b> {
 // Run a program.
 fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     // Read the source file.
-    let source = read_to_string(source_path.borrow()).map_err(lift(format!(
+    let source_contents = read_to_string(source_path.borrow()).map_err(lift(format!(
         "Error when reading file {}.",
         source_path.borrow().to_string_lossy().code_str(),
     )))?;
 
     // Tokenize the source file.
-    let tokens = tokenize(Some(source_path.borrow()), &source)?;
+    let tokens = tokenize(Some(source_path.borrow()), &source_contents)?;
 
     // Parse the source file.
-    let node = parse(&Some(source_path.borrow()), source.as_str(), tokens)?;
+    let node = parse(
+        &Some(source_path.borrow()),
+        source_contents.as_str(),
+        tokens,
+    )?;
 
     // For now, just print the AST.
     println!("{:?}", node);
