@@ -92,6 +92,40 @@ macro_rules! cache_return {
     }};
 }
 
+// This is the top-level parsing function.
+pub fn parse<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
+    source_path: &Option<T>,
+    source_contents: U,
+    tokens: V,
+) -> Result<Node<'a>, Error> {
+    // Get references to the borrowed data.
+    let source_path = source_path.as_ref().map(|path| path.borrow());
+    let source_contents = source_contents.borrow();
+    let tokens = tokens.borrow();
+
+    // Construct a hash table to memoize parsing results.
+    let mut cache = Cache::<'a>::new();
+
+    // Parse the node.
+    let (node, next) = parse_node(&mut cache, &source_path, source_contents, tokens, 0)?;
+
+    // Make sure we parsed all the tokens.
+    if next < tokens.len() {
+        throw_context(
+            format!("Unexpected {}.", next.to_string().code_str()),
+            source_path,
+            source_contents,
+            tokens[next].source_range,
+        )?;
+    }
+
+    // Flip the associativity of applications from right to left [ref:reassociate-applications].
+    let reassociated = (*reassociate_applications(None, Rc::new(node))).clone();
+
+    // If we made it this far, nothing went wrong.
+    Ok(reassociated)
+}
+
 // Flip the associativity of applications from right to left.
 fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -> Rc<Node<'a>> {
     // In every case except the application case, if we have a value for the accumulator, we want to
@@ -140,40 +174,6 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
     } else {
         reduced
     }
-}
-
-// This is the top-level parsing function.
-pub fn parse<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
-    source_path: &Option<T>,
-    source_contents: U,
-    tokens: V,
-) -> Result<Node<'a>, Error> {
-    // Get references to the borrowed data.
-    let source_path = source_path.as_ref().map(|path| path.borrow());
-    let source_contents = source_contents.borrow();
-    let tokens = tokens.borrow();
-
-    // Construct a hash table to memoize parsing results.
-    let mut cache = Cache::<'a>::new();
-
-    // Parse the node.
-    let (node, next) = parse_node(&mut cache, &source_path, source_contents, tokens, 0)?;
-
-    // Make sure we parsed all the tokens.
-    if next < tokens.len() {
-        throw_context(
-            format!("Unexpected {}.", next.to_string().code_str()),
-            source_path,
-            source_contents,
-            tokens[next].source_range,
-        )?;
-    }
-
-    // Flip the associativity of applications from right to left [ref:reassociate-applications].
-    let reassociated = (*reassociate_applications(None, Rc::new(node))).clone();
-
-    // If we made it this far, nothing went wrong.
-    Ok(reassociated)
 }
 
 // Parse a node.
@@ -918,4 +918,221 @@ fn parse_group<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
 
     // If we made it this far, we successfully parsed the group. Return the inner node.
     cache_return!(cache, Group, start, Ok((node, next + 1)))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        ast::{
+            Node,
+            Variant::{Application, Lambda, Pi, Variable},
+        },
+        parser::parse,
+        tokenizer::tokenize,
+    };
+    use std::{path::Path, rc::Rc};
+
+    #[test]
+    fn parse_empty() {
+        let source = "";
+        let tokens = tokenize(None, source).unwrap();
+        assert!(parse::<&Path, _, _>(&None, source, tokens).is_err(),);
+    }
+
+    #[test]
+    fn parse_lambda() {
+        let source = "(x : a) => x";
+        let tokens = tokenize(None, source).unwrap();
+        assert_eq!(
+            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            Node {
+                source_range: (0, 12),
+                variant: Lambda(
+                    "x",
+                    Rc::new(Node {
+                        source_range: (5, 6),
+                        variant: Variable("a")
+                    }),
+                    Rc::new(Node {
+                        source_range: (11, 12),
+                        variant: Variable("x")
+                    })
+                )
+            }
+        );
+    }
+
+    #[test]
+    fn parse_pi() {
+        let source = "(x : a) -> x";
+        let tokens = tokenize(None, source).unwrap();
+        assert_eq!(
+            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            Node {
+                source_range: (0, 12),
+                variant: Pi(
+                    "x",
+                    Rc::new(Node {
+                        source_range: (5, 6),
+                        variant: Variable("a")
+                    }),
+                    Rc::new(Node {
+                        source_range: (11, 12),
+                        variant: Variable("x")
+                    })
+                )
+            }
+        );
+    }
+
+    #[test]
+    fn parse_variable() {
+        let source = "x";
+        let tokens = tokenize(None, source).unwrap();
+        assert_eq!(
+            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            Node {
+                source_range: (0, 1),
+                variant: Variable("x")
+            }
+        );
+    }
+
+    #[test]
+    fn parse_application() {
+        let source = "f x";
+        let tokens = tokenize(None, source).unwrap();
+        assert_eq!(
+            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            Node {
+                source_range: (0, 3),
+                variant: Application(
+                    Rc::new(Node {
+                        source_range: (0, 1),
+                        variant: Variable("f")
+                    }),
+                    Rc::new(Node {
+                        source_range: (2, 3),
+                        variant: Variable("x")
+                    })
+                )
+            }
+        );
+    }
+
+    #[test]
+    fn parse_application_associativity() {
+        let source = "f x y";
+        let tokens = tokenize(None, source).unwrap();
+        assert_eq!(
+            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            Node {
+                source_range: (0, 5),
+                variant: Application(
+                    Rc::new(Node {
+                        source_range: (0, 3),
+                        variant: Application(
+                            Rc::new(Node {
+                                source_range: (0, 1),
+                                variant: Variable("f")
+                            }),
+                            Rc::new(Node {
+                                source_range: (2, 3),
+                                variant: Variable("x")
+                            })
+                        )
+                    }),
+                    Rc::new(Node {
+                        source_range: (4, 5),
+                        variant: Variable("y")
+                    })
+                )
+            }
+        );
+    }
+
+    #[test]
+    fn parse_group() {
+        let source = "(x)";
+        let tokens = tokenize(None, source).unwrap();
+        assert_eq!(
+            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            Node {
+                source_range: (1, 2),
+                variant: Variable("x")
+            }
+        );
+    }
+
+    #[test]
+    fn parse_identity_function() {
+        let source = "(a : type) => (b : type) => (f : (_ : a) -> b) => (x : a) => f x";
+        let tokens = tokenize(None, source).unwrap();
+        assert_eq!(
+            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            Node {
+                source_range: (0, 64),
+                variant: Lambda(
+                    "a",
+                    Rc::new(Node {
+                        source_range: (5, 9),
+                        variant: Variable("type")
+                    }),
+                    Rc::new(Node {
+                        source_range: (14, 64),
+                        variant: Lambda(
+                            "b",
+                            Rc::new(Node {
+                                source_range: (19, 23),
+                                variant: Variable("type")
+                            }),
+                            Rc::new(Node {
+                                source_range: (28, 64),
+                                variant: Lambda(
+                                    "f",
+                                    Rc::new(Node {
+                                        source_range: (33, 45),
+                                        variant: Pi(
+                                            "_",
+                                            Rc::new(Node {
+                                                source_range: (38, 39),
+                                                variant: Variable("a")
+                                            }),
+                                            Rc::new(Node {
+                                                source_range: (44, 45),
+                                                variant: Variable("b")
+                                            })
+                                        )
+                                    }),
+                                    Rc::new(Node {
+                                        source_range: (50, 64),
+                                        variant: Lambda(
+                                            "x",
+                                            Rc::new(Node {
+                                                source_range: (55, 56),
+                                                variant: Variable("a")
+                                            }),
+                                            Rc::new(Node {
+                                                source_range: (61, 64),
+                                                variant: Application(
+                                                    Rc::new(Node {
+                                                        source_range: (61, 62),
+                                                        variant: Variable("f")
+                                                    }),
+                                                    Rc::new(Node {
+                                                        source_range: (63, 64),
+                                                        variant: Variable("x")
+                                                    })
+                                                )
+                                            })
+                                        )
+                                    })
+                                )
+                            })
+                        )
+                    })
+                )
+            }
+        );
+    }
 }
