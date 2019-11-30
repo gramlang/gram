@@ -112,7 +112,7 @@ pub fn parse<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     // Make sure we parsed all the tokens.
     if next < tokens.len() {
         throw_context(
-            format!("Unexpected {}.", next.to_string().code_str()),
+            format!("Unexpected {}.", tokens[next].to_string().code_str()),
             source_path,
             source_contents,
             tokens[next].source_range,
