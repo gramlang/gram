@@ -1,5 +1,5 @@
 use crate::{
-    error::{throw_context, Error},
+    error::{throw, Error},
     format::CodeStr,
     token::{Token, Variant},
 };
@@ -51,7 +51,7 @@ pub fn tokenize<'a>(
                         variant: Variant::ThickArrow,
                     });
                 } else {
-                    throw_context(
+                    throw(
                         format!(
                             "Unexpected symbol {}.",
                             &source_contents[i..i + c.len_utf8()].code_str()
@@ -70,7 +70,7 @@ pub fn tokenize<'a>(
                         variant: Variant::ThinArrow,
                     });
                 } else {
-                    throw_context(
+                    throw(
                         format!(
                             "Unexpected symbol {}.",
                             &source_contents[i..i + c.len_utf8()].code_str()
@@ -116,7 +116,7 @@ pub fn tokenize<'a>(
 
             // If we made it this far, the input contains something unexpected.
             _ => {
-                throw_context(
+                throw(
                     format!(
                         "Unexpected symbol {}.",
                         &source_contents[i..i + c.len_utf8()].code_str()

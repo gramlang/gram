@@ -6,7 +6,7 @@ mod token;
 mod tokenizer;
 
 use crate::{
-    error::{lift, throw, Error},
+    error::{lift, Error},
     format::CodeStr,
     parser::parse,
     tokenizer::tokenize,
@@ -124,13 +124,13 @@ fn shell_completion<T: Borrow<str>>(shell: T) -> Result<(), Error> {
         "powershell" => Shell::PowerShell,
         "elvish" => Shell::Elvish,
         _ => {
-            return throw::<_, &Path, _>(
-                format!(
+            return Err(Error {
+                message: format!(
                     "Unknown shell {}. Must be one of Bash, Fish, Zsh, PowerShell, or Elvish.",
                     shell.borrow().code_str()
                 ),
-                None,
-            )
+                reason: None,
+            });
         }
     };
 

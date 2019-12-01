@@ -1,6 +1,6 @@
 use crate::{
     ast::{self, Node},
-    error::{throw_context, Error},
+    error::{throw, Error},
     format::CodeStr,
     token::{self, Token},
 };
@@ -174,14 +174,14 @@ pub fn parse<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         source_contents,
         tokens,
         0,
-        &throw_context("Nothing to parse.", source_path, source_contents, (0, 0))
+        &throw("Nothing to parse.", source_path, source_contents, (0, 0))
             .map_err(|error| (error, 0)),
     )
     .map_err(|error| error.0)?;
 
     // Make sure we parsed all the tokens.
     if next != tokens.len() {
-        throw_context(
+        throw(
             format!("Unexpected {}.", tokens[next].to_string().code_str()),
             source_path,
             source_contents,
@@ -325,7 +325,7 @@ fn parse_variable<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         tokens,
         start,
-        throw_context(
+        throw(
             format!(
                 "Encountered {} where a variable was expected.",
                 tokens[start].to_string().code_str()
@@ -378,7 +378,7 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         LeftParen,
         start,
-        throw_context(
+        throw(
             format!(
                 "Encountered {} where a {} was expected.",
                 tokens[start].to_string().code_str(),
@@ -398,7 +398,7 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         tokens,
         next,
-        throw_context(
+        throw(
             format!(
                 "Expected a variable after {}.",
                 tokens[next - 1].to_string().code_str()
@@ -418,7 +418,7 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         Colon,
         next,
-        throw_context(
+        throw(
             format!(
                 "Expected {} after {}.",
                 ":".code_str(),
@@ -442,7 +442,7 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
             source_contents,
             tokens,
             next,
-            &throw_context(
+            &throw(
                 format!(
                     "Missing type for variable {}.",
                     tokens[next - 2].to_string().code_str()
@@ -463,7 +463,7 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         RightParen,
         next,
-        throw_context(
+        throw(
             format!(
                 "Expected {} after {}.",
                 ")".code_str(),
@@ -484,7 +484,7 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         ThinArrow,
         next,
-        throw_context(
+        throw(
             format!(
                 "Expected {} after {}.",
                 "->".code_str(),
@@ -508,7 +508,7 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
             source_contents,
             tokens,
             next,
-            &throw_context(
+            &throw(
                 "This pi type has no codomain.",
                 source_path,
                 source_contents,
@@ -562,7 +562,7 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         LeftParen,
         start,
-        throw_context(
+        throw(
             format!(
                 "Encountered {} where a {} was expected.",
                 tokens[start].to_string().code_str(),
@@ -582,7 +582,7 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         tokens,
         next,
-        throw_context(
+        throw(
             format!(
                 "Expected a variable after {}.",
                 tokens[next - 1].to_string().code_str()
@@ -602,7 +602,7 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         Colon,
         next,
-        throw_context(
+        throw(
             format!(
                 "Expected {} after {}.",
                 ":".code_str(),
@@ -626,7 +626,7 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
             source_contents,
             tokens,
             next,
-            &throw_context(
+            &throw(
                 format!(
                     "Expected type for variable {}.",
                     tokens[next - 2].to_string().code_str()
@@ -647,7 +647,7 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         RightParen,
         next,
-        throw_context(
+        throw(
             format!(
                 "Expected {} after {}.",
                 ")".code_str(),
@@ -668,7 +668,7 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         ThickArrow,
         next,
-        throw_context(
+        throw(
             format!(
                 "Expected {} after {}.",
                 "=>".code_str(),
@@ -692,7 +692,7 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
             source_contents,
             tokens,
             next,
-            &throw_context(
+            &throw(
                 "This lambda has no body.",
                 source_path,
                 source_contents,
@@ -756,7 +756,7 @@ fn parse_application<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>
             source_contents,
             tokens,
             next,
-            &throw_context(
+            &throw(
                 "Missing argument for this applicand.",
                 source_path,
                 source_contents,
@@ -843,7 +843,7 @@ fn parse_group<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         LeftParen,
         start,
-        throw_context(
+        throw(
             format!(
                 "Encountered {} where a {} was expected.",
                 tokens[start].to_string().code_str(),
@@ -867,7 +867,7 @@ fn parse_group<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
             source_contents,
             tokens,
             next,
-            &throw_context(
+            &throw(
                 "Missing expression in the group that starts here.",
                 source_path,
                 source_contents,
@@ -885,7 +885,7 @@ fn parse_group<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         RightParen,
         next,
-        throw_context(
+        throw(
             format!(
                 "Expected {} after {}.",
                 ")".code_str(),
