@@ -1,6 +1,6 @@
 use crate::{
     ast::{self, Node},
-    error::{throw, throw_context, Error},
+    error::{throw_context, Error},
     format::CodeStr,
     token::{self, Token},
 };
@@ -37,23 +37,18 @@ enum CacheType {
 // This is an alias for the hash table type we'll be using for memoization. The keys are pairs of
 // cache type and start position in the token stream. The values are the results returned from the
 // functions.
-type Cache<'a> = HashMap<(CacheType, usize), Result<(Node<'a>, usize), Error>>;
+type Cache<'a> = HashMap<(CacheType, usize), Result<(Node<'a>, usize), (Error, usize)>>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
-// return early on cache hit. It also fails fast if there are no remaining tokens to parse.
+// return early on cache hit. It also returns early if there are no remaining tokens to parse.
 macro_rules! cache_check {
-    ($cache_name:expr, $cache_type:ident, $start:expr, $tokens:expr, $source_path:expr) => {{
-        if let Some(result) = $cache_name.get(&(CacheType::$cache_type, $start)) {
+    ($cache:expr, $type:ident, $start:expr, $tokens:expr, $default:expr) => {{
+        if let Some(result) = $cache.get(&(CacheType::$type, $start)) {
             return (*result).clone();
         }
 
         if $start == $tokens.len() {
-            cache_return!(
-                $cache_name,
-                $cache_type,
-                $start,
-                throw("Nothing to parse.", $source_path)
-            )
+            cache_return!($cache, $type, $start, $default.clone())
         }
     }};
 }
@@ -62,33 +57,99 @@ macro_rules! cache_check {
 // `$expr`. It caches the error before returning it. If `$expr` succeeds, this macro evaluates to
 // its value.
 macro_rules! fail_fast {
-    ($cache_name:expr, $cache_type:ident, $start:expr, $expr:expr) => {{
+    ($cache:expr, $type:ident, $start:expr, $expr:expr) => {{
         let result = $expr;
         match result {
             Ok(value) => value,
-            Err(error) => cache_return!($cache_name, $cache_type, $start, Err(error)),
-        }
-    }};
-}
-
-// This macro returns early upon the success of `$expr`. It caches the value before returning it.
-// If `$expr` fails, this macro evaluates to the error.
-macro_rules! succeed_fast {
-    ($cache_name:expr, $cache_type:ident, $start:expr, $expr:expr) => {{
-        let result = $expr;
-        match result {
-            Ok(value) => cache_return!($cache_name, $cache_type, $start, Ok(value)),
-            Err(error) => error,
+            Err(error) => cache_return!($cache, $type, $start, Err(error)),
         }
     }};
 }
 
 // This macro should be used to cache a value and return it.
 macro_rules! cache_return {
-    ($cache_name:expr, $cache_type:ident, $start:expr, $value:expr) => {{
+    ($cache:expr, $type:ident, $start:expr, $value:expr) => {{
         let result = $value;
-        $cache_name.insert((CacheType::$cache_type, $start), result.clone());
+        $cache.insert((CacheType::$type, $start), result.clone());
         return result;
+    }};
+}
+
+// This macro is meant to be used as follows:
+//
+//   let mut candidate = default.clone();
+//   try_parse!(candidate, ...);
+//   try_parse!(candidate, ...);
+//   ...
+//
+// Then `candidate` will contain the longest matching node, or the longest matching error if no
+// node was successfully parsed.
+macro_rules! try_parse {
+    ($candidate:ident, $expr:expr) => {{
+        match $expr {
+            Ok((node, next)) => {
+                if let Ok((_, candidate_next)) = $candidate {
+                    if next >= candidate_next {
+                        $candidate = Ok((node, next));
+                    }
+                } else {
+                    $candidate = Ok((node, next));
+                }
+            }
+            Err((error, next)) => {
+                if let Err((_, candidate_next)) = $candidate {
+                    if next >= candidate_next {
+                        $candidate = Err((error, next));
+                    }
+                }
+            }
+        }
+    }};
+}
+
+// This macro consumes a single token and evaluates to the position of the next token.
+macro_rules! consume_token {
+    (
+      $cache:expr,
+      $type:ident,
+      $start:expr,
+      $tokens:expr,
+      $variant:ident,
+      $next:expr,
+      $default:expr
+    ) => {{
+        if $next == $tokens.len() {
+            cache_return!($cache, $type, $start, $default.clone())
+        }
+
+        if let token::Variant::$variant = $tokens[$next].variant {
+            $next + 1
+        } else {
+            cache_return!($cache, $type, $start, $default.clone())
+        }
+    }};
+}
+
+// This macro consumes an identifier and evaluates to the identifier paired with the position of
+// the next token.
+macro_rules! consume_identifier {
+    (
+      $cache:expr,
+      $type:ident,
+      $start:expr,
+      $tokens:expr,
+      $next:expr,
+      $default:expr
+    ) => {{
+        if $next == $tokens.len() {
+            cache_return!($cache, $type, $start, $default.clone())
+        }
+
+        if let token::Variant::Identifier(identifier) = $tokens[$next].variant {
+            (identifier, $next + 1)
+        } else {
+            cache_return!($cache, $type, $start, $default.clone())
+        }
     }};
 }
 
@@ -107,10 +168,19 @@ pub fn parse<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     let mut cache = Cache::<'a>::new();
 
     // Parse the node.
-    let (node, next) = parse_node(&mut cache, &source_path, source_contents, tokens, 0)?;
+    let (node, next) = parse_node(
+        &mut cache,
+        &source_path,
+        source_contents,
+        tokens,
+        0,
+        &throw_context("Nothing to parse.", source_path, source_contents, (0, 0))
+            .map_err(|error| (error, 0)),
+    )
+    .map_err(|error| error.0)?;
 
     // Make sure we parsed all the tokens.
-    if next < tokens.len() {
+    if next != tokens.len() {
         throw_context(
             format!("Unexpected {}.", tokens[next].to_string().code_str()),
             source_path,
@@ -183,70 +253,52 @@ fn parse_node<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     source_contents: U,
     tokens: V,
     start: usize,
-) -> Result<(Node<'a>, usize), Error> {
+    default: &Result<(Node<'a>, usize), (Error, usize)>,
+) -> Result<(Node<'a>, usize), (Error, usize)> {
     // Get references to the borrowed data.
     let source_path = source_path.as_ref().map(|path| path.borrow());
     let source_contents = source_contents.borrow();
     let tokens = tokens.borrow();
 
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Node, start, tokens, source_path);
+    cache_check!(cache, Node, start, tokens, default);
+
+    // This variable will contain the longest-matching node, or the longest-matching error if no
+    // node was successfully parsed.
+    let mut candidate = default.clone();
 
     // Try to parse an application.
-    let application_error = succeed_fast!(
-        cache,
-        Node,
-        start,
-        parse_application(cache, &source_path, source_contents, tokens, start)
+    try_parse!(
+        candidate,
+        parse_application(cache, &source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a variable.
-    let _variable_error = succeed_fast!(
-        cache,
-        Node,
-        start,
-        parse_variable(cache, &source_path, source_contents, tokens, start)
+    try_parse!(
+        candidate,
+        parse_variable(cache, &source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a pi type.
-    let pi_error = succeed_fast!(
-        cache,
-        Node,
-        start,
-        parse_pi(cache, &source_path, source_contents, tokens, start)
+    try_parse!(
+        candidate,
+        parse_pi(cache, &source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a lambda.
-    let _lambda_error = succeed_fast!(
-        cache,
-        Node,
-        start,
-        parse_lambda(cache, &source_path, source_contents, tokens, start)
+    try_parse!(
+        candidate,
+        parse_lambda(cache, &source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a group.
-    let group_error = succeed_fast!(
-        cache,
-        Node,
-        start,
-        parse_group(cache, &source_path, source_contents, tokens, start)
+    try_parse!(
+        candidate,
+        parse_group(cache, &source_path, source_contents, tokens, start, default)
     );
 
-    // If we made it this far, we encountered something unexpected.
-    cache_return!(
-        cache,
-        Node,
-        start,
-        Err(if tokens[start].variant == token::Variant::LeftParen {
-            if start + 2 < tokens.len() && tokens[start + 2].variant == token::Variant::Colon {
-                pi_error
-            } else {
-                group_error
-            }
-        } else {
-            application_error
-        })
-    )
+    // Return the candidate, which may be a success or an error.
+    cache_return!(cache, Node, start, candidate)
 }
 
 // Parse a variable.
@@ -256,41 +308,47 @@ fn parse_variable<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     source_contents: U,
     tokens: V,
     start: usize,
-) -> Result<(Node<'a>, usize), Error> {
+    default: &Result<(Node<'a>, usize), (Error, usize)>,
+) -> Result<(Node<'a>, usize), (Error, usize)> {
     // Get references to the borrowed data.
     let source_path = source_path.as_ref().map(|path| path.borrow());
     let source_contents = source_contents.borrow();
     let tokens = tokens.borrow();
 
-    // Check the cache and make sure we have some tokens to parse
-    // [tag:variable_start_token_exists].
-    cache_check!(cache, Variable, start, tokens, source_path);
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, Variable, start, tokens, default);
 
-    // Check that the start token is an identifier [ref:variable_start_token_exists].
-    let start_token = &tokens[start];
+    // Consume the variable.
+    let (variable, next) = consume_identifier!(
+        cache,
+        Variable,
+        start,
+        tokens,
+        start,
+        throw_context(
+            format!(
+                "Encountered {} where a variable was expected.",
+                tokens[start].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[start].source_range,
+        )
+        .map_err(|error| (error, start))
+    );
+
+    // Construct and return the variable.
     cache_return!(
         cache,
         Variable,
         start,
-        if let token::Variant::Identifier(s) = start_token.variant {
-            Ok((
-                Node {
-                    source_range: start_token.source_range,
-                    variant: ast::Variant::Variable(s),
-                },
-                start + 1,
-            ))
-        } else {
-            throw_context(
-                format!(
-                    "Unexpected {} where a variable is expected.",
-                    start_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                start_token.source_range,
-            )
-        }
+        Ok((
+            Node {
+                source_range: tokens[start].source_range,
+                variant: ast::Variant::Variable(variable),
+            },
+            next,
+        ))
     )
 }
 
@@ -302,210 +360,165 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     source_contents: U,
     tokens: V,
     start: usize,
-) -> Result<(Node<'a>, usize), Error> {
+    default: &Result<(Node<'a>, usize), (Error, usize)>,
+) -> Result<(Node<'a>, usize), (Error, usize)> {
     // Get references to the borrowed data.
     let source_path = source_path.as_ref().map(|path| path.borrow());
     let source_contents = source_contents.borrow();
     let tokens = tokens.borrow();
 
-    // Check the cache and make sure we have some tokens to parse
-    // [tag:pi_start_token_exists].
-    cache_check!(cache, Pi, start, tokens, source_path);
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, Pi, start, tokens, default);
 
-    // Check that the start token is a left parenthesis [ref:pi_start_token_exists].
-    let start_token = &tokens[start];
-    if start_token.variant != token::Variant::LeftParen {
-        cache_return!(
-            cache,
-            Pi,
-            start,
-            throw_context(
-                format!(
-                    "Unexpected {} at beginning of pi type.",
-                    start_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                start_token.source_range,
-            )
+    // Consume the left parenthesis.
+    let next = consume_token!(
+        cache,
+        Pi,
+        start,
+        tokens,
+        LeftParen,
+        start,
+        throw_context(
+            format!(
+                "Encountered {} where a {} was expected.",
+                tokens[start].to_string().code_str(),
+                "(".code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[start].source_range,
         )
-    }
-    let next = start + 1;
+        .map_err(|error| (error, start))
+    );
 
-    // Check that we're not at the end of the stream [tag:pi_variable_token_exists].
-    if next == tokens.len() {
-        cache_return!(
-            cache,
-            Pi,
-            start,
-            throw(
-                // The `unwrap` is safe because we wouldn't have made it this far if `tokens` were
-                // empty.
-                format!(
-                    "Missing variable after {} in pi type.",
-                    tokens.last().unwrap().to_string().code_str()
-                ),
-                source_path
-            )
+    // Consume the variable.
+    let (variable, next) = consume_identifier!(
+        cache,
+        Pi,
+        start,
+        tokens,
+        next,
+        throw_context(
+            format!(
+                "Expected a variable after {}.",
+                tokens[next - 1].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[next - 1].source_range,
         )
-    }
+        .map_err(|error| (error, next))
+    );
 
-    // Parse the variable [ref:pi_variable_token_exists].
-    let next_token = &tokens[next];
-    let variable = if let token::Variant::Identifier(variable) = next_token.variant {
-        variable
-    } else {
-        cache_return!(
-            cache,
-            Pi,
-            start,
-            throw_context(
-                format!(
-                    "Unexpected {} in pi type where a variable is expected.",
-                    next_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                start_token.source_range,
-            )
+    // Consume the colon.
+    let next = consume_token!(
+        cache,
+        Pi,
+        start,
+        tokens,
+        Colon,
+        next,
+        throw_context(
+            format!(
+                "Expected {} after {}.",
+                ":".code_str(),
+                tokens[next - 1].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[next - 1].source_range,
         )
-    };
-    let next = next + 1;
-
-    // Check that we're not at the end of the stream [tag:pi_colon_token_exists].
-    if next == tokens.len() {
-        cache_return!(
-            cache,
-            Pi,
-            start,
-            throw(
-                // The `unwrap` is safe because we wouldn't have made it this far if `tokens` were
-                // empty.
-                format!(
-                    "Missing {} after {} in pi type.",
-                    ":".code_str(),
-                    tokens.last().unwrap().to_string().code_str()
-                ),
-                source_path
-            )
-        )
-    }
-
-    // Check that the next token is a colon [ref:pi_colon_token_exists].
-    let colon_token = &tokens[next];
-    if colon_token.variant != token::Variant::Colon {
-        cache_return!(
-            cache,
-            Pi,
-            start,
-            throw_context(
-                format!(
-                    "Missing {} before {} in pi type.",
-                    ":".code_str(),
-                    colon_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                colon_token.source_range,
-            )
-        )
-    }
-    let next = next + 1;
+        .map_err(|error| (error, next))
+    );
 
     // Parse the domain type.
     let (domain, next) = fail_fast!(
         cache,
         Pi,
         start,
-        parse_node(cache, &source_path, source_contents, tokens, next)
+        parse_node(
+            cache,
+            &source_path,
+            source_contents,
+            tokens,
+            next,
+            &throw_context(
+                format!(
+                    "Missing type for variable {}.",
+                    tokens[next - 2].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 2].source_range,
+            )
+            .map_err(|error| (error, next))
+        )
     );
 
-    // Check that we're not at the end of the stream [tag:pi_close_token_exists].
-    if next == tokens.len() {
-        cache_return!(
-            cache,
-            Pi,
-            start,
-            throw(
-                // The `unwrap` is safe because we wouldn't have made it this far if `tokens` were
-                // empty.
-                format!(
-                    "Missing {} after {}.",
-                    ")".code_str(),
-                    tokens.last().unwrap().to_string().code_str()
-                ),
-                source_path
-            )
+    // Consume the right parenthesis.
+    let next = consume_token!(
+        cache,
+        Pi,
+        start,
+        tokens,
+        RightParen,
+        next,
+        throw_context(
+            format!(
+                "Expected {} after {}.",
+                ")".code_str(),
+                tokens[next - 1].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[next - 1].source_range,
         )
-    }
+        .map_err(|error| (error, next))
+    );
 
-    // Check that the next token is a right parenthesis [ref:pi_close_token_exists].
-    let right_paren_token = &tokens[next];
-    if right_paren_token.variant != token::Variant::RightParen {
-        cache_return!(
-            cache,
-            Pi,
-            start,
-            throw_context(
-                format!(
-                    "Missing {} before {}.",
-                    ")".code_str(),
-                    right_paren_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                right_paren_token.source_range,
-            )
+    // Consume the arrow.
+    let next = consume_token!(
+        cache,
+        Pi,
+        start,
+        tokens,
+        ThinArrow,
+        next,
+        throw_context(
+            format!(
+                "Expected {} after {}.",
+                "->".code_str(),
+                tokens[next - 1].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[next - 1].source_range,
         )
-    }
-    let next = next + 1;
-
-    // Check that we're not at the end of the stream [tag:pi_arrow_token_exists].
-    if next == tokens.len() {
-        cache_return!(
-            cache,
-            Pi,
-            start,
-            throw(
-                // The `unwrap` is safe because we wouldn't have made it this far if `tokens` were
-                // empty.
-                format!(
-                    "Missing {} after {}.",
-                    "->".code_str(),
-                    tokens.last().unwrap().to_string().code_str()
-                ),
-                source_path
-            )
-        )
-    }
-
-    // Check that the next token is a thin arrow [ref:pi_arrow_token_exists].
-    let arrow_token = &tokens[next];
-    if arrow_token.variant != token::Variant::ThinArrow {
-        cache_return!(
-            cache,
-            Pi,
-            start,
-            throw_context(
-                format!(
-                    "Missing {} before {}.",
-                    "->".code_str(),
-                    arrow_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                arrow_token.source_range,
-            )
-        )
-    }
-    let next = next + 1;
+        .map_err(|error| (error, next))
+    );
 
     // Parse the codomain type.
     let (codomain, next) = fail_fast!(
         cache,
         Pi,
         start,
-        parse_node(cache, &source_path, source_contents, tokens, next)
+        parse_node(
+            cache,
+            &source_path,
+            source_contents,
+            tokens,
+            next,
+            &throw_context(
+                "This pi type has no codomain.",
+                source_path,
+                source_contents,
+                (
+                    tokens[start].source_range.0,
+                    tokens[next - 1].source_range.1
+                ),
+            )
+            .map_err(|error| (error, next))
+        )
     );
 
     // Construct and return the pi type.
@@ -515,7 +528,7 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         Ok((
             Node {
-                source_range: (start_token.source_range.0, codomain.source_range.1),
+                source_range: (tokens[start].source_range.0, codomain.source_range.1),
                 variant: ast::Variant::Pi(variable, Rc::new(domain), Rc::new(codomain)),
             },
             next,
@@ -531,221 +544,176 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     source_contents: U,
     tokens: V,
     start: usize,
-) -> Result<(Node<'a>, usize), Error> {
+    default: &Result<(Node<'a>, usize), (Error, usize)>,
+) -> Result<(Node<'a>, usize), (Error, usize)> {
     // Get references to the borrowed data.
     let source_path = source_path.as_ref().map(|path| path.borrow());
     let source_contents = source_contents.borrow();
     let tokens = tokens.borrow();
 
-    // Check the cache and make sure we have some tokens to parse
-    // [tag:lambda_start_token_exists].
-    cache_check!(cache, Lambda, start, tokens, source_path);
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, Lambda, start, tokens, default);
 
-    // Check that the start token is a left parenthesis [ref:lambda_start_token_exists].
-    let start_token = &tokens[start];
-    if start_token.variant != token::Variant::LeftParen {
-        cache_return!(
-            cache,
-            Lambda,
-            start,
-            throw_context(
-                format!(
-                    "Unexpected {} at beginning of lambda.",
-                    start_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                start_token.source_range,
-            )
+    // Consume the left parenthesis.
+    let next = consume_token!(
+        cache,
+        Lambda,
+        start,
+        tokens,
+        LeftParen,
+        start,
+        throw_context(
+            format!(
+                "Encountered {} where a {} was expected.",
+                tokens[start].to_string().code_str(),
+                "(".code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[start].source_range,
         )
-    }
-    let next = start + 1;
+        .map_err(|error| (error, start))
+    );
 
-    // Check that we're not at the end of the stream [tag:lambda_variable_token_exists].
-    if next == tokens.len() {
-        cache_return!(
-            cache,
-            Lambda,
-            start,
-            throw(
-                // The `unwrap` is safe because we wouldn't have made it this far if `tokens` were
-                // empty.
-                format!(
-                    "Missing variable after {} in lambda.",
-                    tokens.last().unwrap().to_string().code_str()
-                ),
-                source_path
-            )
+    // Consume the variable.
+    let (variable, next) = consume_identifier!(
+        cache,
+        Lambda,
+        start,
+        tokens,
+        next,
+        throw_context(
+            format!(
+                "Expected a variable after {}.",
+                tokens[next - 1].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[next - 1].source_range,
         )
-    }
+        .map_err(|error| (error, next))
+    );
 
-    // Parse the variable [ref:lambda_variable_token_exists].
-    let next_token = &tokens[next];
-    let variable = if let token::Variant::Identifier(variable) = next_token.variant {
-        variable
-    } else {
-        cache_return!(
-            cache,
-            Lambda,
-            start,
-            throw_context(
-                format!(
-                    "Unexpected {} in lambda where a variable is expected.",
-                    next_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                start_token.source_range,
-            )
+    // Consume the colon.
+    let next = consume_token!(
+        cache,
+        Lambda,
+        start,
+        tokens,
+        Colon,
+        next,
+        throw_context(
+            format!(
+                "Expected {} after {}.",
+                ":".code_str(),
+                tokens[next - 1].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[next - 1].source_range,
         )
-    };
-    let next = next + 1;
-
-    // Check that we're not at the end of the stream [tag:lambda_colon_token_exists].
-    if next == tokens.len() {
-        cache_return!(
-            cache,
-            Lambda,
-            start,
-            throw(
-                // The `unwrap` is safe because we wouldn't have made it this far if `tokens` were
-                // empty.
-                format!(
-                    "Missing {} after {} in lambda.",
-                    ":".code_str(),
-                    tokens.last().unwrap().to_string().code_str()
-                ),
-                source_path
-            )
-        )
-    }
-
-    // Check that the next token is a colon [ref:lambda_colon_token_exists].
-    let colon_token = &tokens[next];
-    if colon_token.variant != token::Variant::Colon {
-        cache_return!(
-            cache,
-            Lambda,
-            start,
-            throw_context(
-                format!(
-                    "Missing {} before {} in lambda.",
-                    ":".code_str(),
-                    colon_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                colon_token.source_range,
-            )
-        )
-    }
-    let next = next + 1;
+        .map_err(|error| (error, next))
+    );
 
     // Parse the domain type.
     let (domain, next) = fail_fast!(
         cache,
         Lambda,
         start,
-        parse_node(cache, &source_path, source_contents, tokens, next)
+        parse_node(
+            cache,
+            &source_path,
+            source_contents,
+            tokens,
+            next,
+            &throw_context(
+                format!(
+                    "Expected type for variable {}.",
+                    tokens[next - 2].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 2].source_range,
+            )
+            .map_err(|error| (error, next))
+        )
     );
 
-    // Check that we're not at the end of the stream [tag:lambda_close_token_exists].
-    if next == tokens.len() {
-        cache_return!(
-            cache,
-            Lambda,
-            start,
-            throw(
-                // The `unwrap` is safe because we wouldn't have made it this far if `tokens` were
-                // empty.
-                format!(
-                    "Missing {} after {}.",
-                    ")".code_str(),
-                    tokens.last().unwrap().to_string().code_str()
-                ),
-                source_path
-            )
-        )
-    }
-
-    // Check that the next token is a right parenthesis [ref:lambda_close_token_exists].
-    let right_paren_token = &tokens[next];
-    if right_paren_token.variant != token::Variant::RightParen {
-        cache_return!(
-            cache,
-            Lambda,
-            start,
-            throw_context(
-                format!(
-                    "Missing {} before {}.",
-                    ")".code_str(),
-                    right_paren_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                right_paren_token.source_range,
-            )
-        )
-    }
-    let next = next + 1;
-
-    // Check that we're not at the end of the stream [tag:lambda_arrow_token_exists].
-    if next == tokens.len() {
-        cache_return!(
-            cache,
-            Lambda,
-            start,
-            throw(
-                // The `unwrap` is safe because we wouldn't have made it this far if `tokens` were
-                // empty.
-                format!(
-                    "Missing {} after {}.",
-                    "=>".code_str(),
-                    tokens.last().unwrap().to_string().code_str()
-                ),
-                source_path
-            )
-        )
-    }
-
-    // Check that the next token is a thin arrow [ref:lambda_arrow_token_exists].
-    let arrow_token = &tokens[next];
-    if arrow_token.variant != token::Variant::ThickArrow {
-        cache_return!(
-            cache,
-            Lambda,
-            start,
-            throw_context(
-                format!(
-                    "Missing {} before {}.",
-                    "=>".code_str(),
-                    arrow_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                arrow_token.source_range,
-            )
-        )
-    }
-    let next = next + 1;
-
-    // Parse the codomain type.
-    let (codomain, next) = fail_fast!(
+    // Consume the right parenthesis.
+    let next = consume_token!(
         cache,
         Lambda,
         start,
-        parse_node(cache, &source_path, source_contents, tokens, next)
+        tokens,
+        RightParen,
+        next,
+        throw_context(
+            format!(
+                "Expected {} after {}.",
+                ")".code_str(),
+                tokens[next - 1].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[next - 1].source_range,
+        )
+        .map_err(|error| (error, next))
+    );
+
+    // Consume the arrow.
+    let next = consume_token!(
+        cache,
+        Lambda,
+        start,
+        tokens,
+        ThickArrow,
+        next,
+        throw_context(
+            format!(
+                "Expected {} after {}.",
+                "=>".code_str(),
+                tokens[next - 1].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[next - 1].source_range,
+        )
+        .map_err(|error| (error, next))
+    );
+
+    // Parse the body.
+    let (body, next) = fail_fast!(
+        cache,
+        Lambda,
+        start,
+        parse_node(
+            cache,
+            &source_path,
+            source_contents,
+            tokens,
+            next,
+            &throw_context(
+                "This lambda has no body.",
+                source_path,
+                source_contents,
+                (
+                    tokens[start].source_range.0,
+                    tokens[next - 1].source_range.1
+                ),
+            )
+            .map_err(|error| (error, next))
+        )
     );
 
     // Construct and return the lambda.
     cache_return!(
         cache,
-        Pi,
+        Lambda,
         start,
         Ok((
             Node {
-                source_range: (start_token.source_range.0, codomain.source_range.1),
-                variant: ast::Variant::Lambda(variable, Rc::new(domain), Rc::new(codomain)),
+                source_range: (tokens[start].source_range.0, body.source_range.1),
+                variant: ast::Variant::Lambda(variable, Rc::new(domain), Rc::new(body)),
             },
             next,
         ))
@@ -759,21 +727,22 @@ fn parse_application<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>
     source_contents: U,
     tokens: V,
     start: usize,
-) -> Result<(Node<'a>, usize), Error> {
+    default: &Result<(Node<'a>, usize), (Error, usize)>,
+) -> Result<(Node<'a>, usize), (Error, usize)> {
     // Get references to the borrowed data.
     let source_path = source_path.as_ref().map(|path| path.borrow());
     let source_contents = source_contents.borrow();
     let tokens = tokens.borrow();
 
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Application, start, tokens, source_path);
+    cache_check!(cache, Application, start, tokens, default);
 
     // Parse the applicand.
     let (applicand, next) = fail_fast!(
         cache,
         Application,
         start,
-        parse_applicand(cache, &source_path, source_contents, tokens, start)
+        parse_applicand(cache, &source_path, source_contents, tokens, start, default)
     );
 
     // Parse the argument.
@@ -781,7 +750,20 @@ fn parse_application<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>
         cache,
         Application,
         start,
-        parse_node(cache, &source_path, source_contents, tokens, next)
+        parse_node(
+            cache,
+            &source_path,
+            source_contents,
+            tokens,
+            next,
+            &throw_context(
+                "Missing argument for this applicand.",
+                source_path,
+                source_contents,
+                applicand.source_range,
+            )
+            .map_err(|error| (error, next))
+        )
     );
 
     // Construct and return the application.
@@ -806,33 +788,34 @@ fn parse_applicand<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     source_contents: U,
     tokens: V,
     start: usize,
-) -> Result<(Node<'a>, usize), Error> {
+    default: &Result<(Node<'a>, usize), (Error, usize)>,
+) -> Result<(Node<'a>, usize), (Error, usize)> {
     // Get references to the borrowed data.
     let source_path = source_path.as_ref().map(|path| path.borrow());
     let source_contents = source_contents.borrow();
     let tokens = tokens.borrow();
 
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Applicand, start, tokens, source_path);
+    cache_check!(cache, Applicand, start, tokens, default);
+
+    // This variable will contain the longest-matching node, or the longest-matching error if no
+    // node was successfully parsed.
+    let mut candidate = default.clone();
 
     // Try to parse a variable.
-    let _variable_error = succeed_fast!(
-        cache,
-        Applicand,
-        start,
-        parse_variable(cache, &source_path, source_contents, tokens, start)
+    try_parse!(
+        candidate,
+        parse_variable(cache, &source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a group.
-    let group_error = succeed_fast!(
-        cache,
-        Applicand,
-        start,
-        parse_group(cache, &source_path, source_contents, tokens, start)
+    try_parse!(
+        candidate,
+        parse_group(cache, &source_path, source_contents, tokens, start, default)
     );
 
-    // If we made it this far, we encountered something unexpected.
-    cache_return!(cache, Applicand, start, Err(group_error))
+    // Return the candidate, which may be a success or an error.
+    cache_return!(cache, Applicand, start, candidate)
 }
 
 // Parse a group.
@@ -842,82 +825,81 @@ fn parse_group<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     source_contents: U,
     tokens: V,
     start: usize,
-) -> Result<(Node<'a>, usize), Error> {
+    default: &Result<(Node<'a>, usize), (Error, usize)>,
+) -> Result<(Node<'a>, usize), (Error, usize)> {
     // Get references to the borrowed data.
     let source_path = source_path.as_ref().map(|path| path.borrow());
     let source_contents = source_contents.borrow();
     let tokens = tokens.borrow();
 
-    // Check the cache and make sure we have some tokens to parse [tag:group_start_token_exists].
-    cache_check!(cache, Group, start, tokens, source_path);
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, Group, start, tokens, default);
 
-    // Check that the start token is a left parenthesis [ref:group_start_token_exists].
-    let start_token = &tokens[start];
-    if start_token.variant != token::Variant::LeftParen {
-        cache_return!(
-            cache,
-            Group,
-            start,
-            throw_context(
-                format!(
-                    "Unexpected {} at beginning of group.",
-                    start_token.to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                start_token.source_range,
-            )
+    // Consume the left parenthesis.
+    let next = consume_token!(
+        cache,
+        Group,
+        start,
+        tokens,
+        LeftParen,
+        start,
+        throw_context(
+            format!(
+                "Encountered {} where a {} was expected.",
+                tokens[start].to_string().code_str(),
+                "(".code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[start].source_range,
         )
-    }
+        .map_err(|error| (error, start))
+    );
 
     // Parse the inner node.
     let (node, next) = fail_fast!(
         cache,
         Group,
         start,
-        parse_node(cache, &source_path, source_contents, tokens, start + 1)
-    );
-
-    // Check that we're not at the end of the stream.
-    if next == tokens.len() {
-        cache_return!(
+        parse_node(
             cache,
-            Group,
-            start,
-            throw(
-                // The `unwrap` is safe because we wouldn't have made it this far if `tokens` were
-                // empty.
-                format!(
-                    "Missing {} after {}.",
-                    ")".code_str(),
-                    tokens.last().unwrap().to_string().code_str()
-                ),
-                source_path
-            )
-        )
-    }
-
-    // Check that the next token is a right parenthesis.
-    if tokens[next].variant != token::Variant::RightParen {
-        cache_return!(
-            cache,
-            Group,
-            start,
-            throw_context(
-                format!(
-                    "Missing {} before {}.",
-                    ")".code_str(),
-                    tokens[next].to_string().code_str()
-                ),
+            &source_path,
+            source_contents,
+            tokens,
+            next,
+            &throw_context(
+                "Missing expression in the group that starts here.",
                 source_path,
                 source_contents,
-                tokens[next].source_range,
+                tokens[next - 1].source_range,
             )
+            .map_err(|error| (error, next))
         )
-    }
+    );
+
+    // Consume the right parenthesis.
+    let next = consume_token!(
+        cache,
+        Group,
+        start,
+        tokens,
+        RightParen,
+        next,
+        throw_context(
+            format!(
+                "Expected {} after {}.",
+                ")".code_str(),
+                tokens[next - 1].to_string().code_str()
+            ),
+            source_path,
+            source_contents,
+            tokens[next - 1].source_range,
+        )
+        .map_err(|error| (error, next))
+    );
 
     // If we made it this far, we successfully parsed the group. Return the inner node.
-    cache_return!(cache, Group, start, Ok((node, next + 1)))
+    cache_return!(cache, Group, start, Ok((node, next)))
 }
 
 #[cfg(test)]
