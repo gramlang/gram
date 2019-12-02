@@ -17,7 +17,9 @@ use clap::{
     AppSettings::{ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
     Arg, Shell, SubCommand,
 };
-use std::{borrow::Borrow, fs::read_to_string, io::stdout, path::Path, process::exit};
+use std::{
+    borrow::Borrow, collections::HashMap, fs::read_to_string, io::stdout, path::Path, process::exit,
+};
 
 // The program version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -100,8 +102,17 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     // Tokenize the source file.
     let tokens = tokenize(Some(source_path.borrow()), &source_contents)?;
 
+    // Construct a hash table to represent the variables in scope.
+    let mut context = HashMap::<&str, usize>::new();
+    context.insert("type", 0);
+
     // Parse the source file.
-    let node = parse(Some(source_path.borrow()), &source_contents, &tokens)?;
+    let node = parse(
+        Some(source_path.borrow()),
+        &source_contents,
+        &tokens,
+        &mut context,
+    )?;
 
     // For now, just print the AST.
     println!("{:?}", node);
