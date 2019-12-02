@@ -136,16 +136,49 @@ macro_rules! consume_token {
       $tokens:expr,
       $variant:ident,
       $next:expr,
-      $default:expr
     ) => {{
         if $next == $tokens.len() {
-            cache_return!($cache, $type, $start, $default.clone())
+            cache_return!(
+                $cache,
+                $type,
+                $start,
+                Err((
+                    Rc::new(move |source_path, source_contents| throw(
+                        format!(
+                            "Expected {} after {}.",
+                            token::Variant::$variant.to_string().code_str(),
+                            $tokens[$next - 1].to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        $tokens[$next - 1].source_range,
+                    )) as ErrorFactory<'a>,
+                    $next
+                ))
+            )
         }
 
         if let token::Variant::$variant = $tokens[$next].variant {
             $next + 1
         } else {
-            cache_return!($cache, $type, $start, $default.clone())
+            cache_return!(
+                $cache,
+                $type,
+                $start,
+                Err((
+                    Rc::new(move |source_path, source_contents| throw(
+                        format!(
+                            "Expected {} but encountered {}.",
+                            token::Variant::$variant.to_string().code_str(),
+                            $tokens[$next].to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        $tokens[$next].source_range,
+                    )) as ErrorFactory<'a>,
+                    $next
+                ))
+            )
         }
     }};
 }
@@ -159,16 +192,47 @@ macro_rules! consume_identifier {
       $start:expr,
       $tokens:expr,
       $next:expr,
-      $default:expr
     ) => {{
         if $next == $tokens.len() {
-            cache_return!($cache, $type, $start, $default.clone())
+            cache_return!(
+                $cache,
+                $type,
+                $start,
+                Err((
+                    Rc::new(move |source_path, source_contents| throw(
+                        format!(
+                            "Expected an identifier after {}.",
+                            $tokens[$next - 1].to_string().code_str()
+                        ),
+                        source_path,
+                        source_contents,
+                        $tokens[$next - 1].source_range,
+                    )) as ErrorFactory<'a>,
+                    $next
+                ))
+            )
         }
 
         if let token::Variant::Identifier(identifier) = $tokens[$next].variant {
             (identifier, $next + 1)
         } else {
-            cache_return!($cache, $type, $start, $default.clone())
+            cache_return!(
+                $cache,
+                $type,
+                $start,
+                Err((
+                    Rc::new(move |source_path, source_contents| throw(
+                        format!(
+                            "Expected an identifier but encountered {}.",
+                            $tokens[$next].to_string().code_str()
+                        ),
+                        source_path,
+                        source_contents,
+                        $tokens[$next].source_range,
+                    )) as ErrorFactory<'a>,
+                    $next
+                ))
+            )
         }
     }};
 }
@@ -307,25 +371,7 @@ fn parse_variable<'a>(
     cache_check!(cache, Variable, start, tokens, default);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(
-        cache,
-        Variable,
-        start,
-        tokens,
-        start,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Encountered {} where a variable was expected.",
-                    tokens[start].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[start].source_range,
-            )) as ErrorFactory<'a>,
-            start
-        ))
-    );
+    let (variable, next) = consume_identifier!(cache, Variable, start, tokens, start,);
 
     // Construct and return the variable.
     cache_return!(
@@ -354,71 +400,13 @@ fn parse_pi<'a>(
     cache_check!(cache, Pi, start, tokens, default);
 
     // Consume the left parenthesis.
-    let next = consume_token!(
-        cache,
-        Pi,
-        start,
-        tokens,
-        LeftParen,
-        start,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Encountered {} where a {} was expected.",
-                    tokens[start].to_string().code_str(),
-                    "(".code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[start].source_range,
-            )) as ErrorFactory<'a>,
-            start
-        ))
-    );
+    let next = consume_token!(cache, Pi, start, tokens, LeftParen, start,);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(
-        cache,
-        Pi,
-        start,
-        tokens,
-        next,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Expected a variable after {}.",
-                    tokens[next - 1].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )) as ErrorFactory<'a>,
-            next
-        ))
-    );
+    let (variable, next) = consume_identifier!(cache, Pi, start, tokens, next,);
 
     // Consume the colon.
-    let next = consume_token!(
-        cache,
-        Pi,
-        start,
-        tokens,
-        Colon,
-        next,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Expected {} after {}.",
-                    ":".code_str(),
-                    tokens[next - 1].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )) as ErrorFactory<'a>,
-            next
-        ))
-    );
+    let next = consume_token!(cache, Pi, start, tokens, Colon, next,);
 
     // Parse the domain type.
     let (domain, next) = fail_fast!(
@@ -445,50 +433,10 @@ fn parse_pi<'a>(
     );
 
     // Consume the right parenthesis.
-    let next = consume_token!(
-        cache,
-        Pi,
-        start,
-        tokens,
-        RightParen,
-        next,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Expected {} after {}.",
-                    ")".code_str(),
-                    tokens[next - 1].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )) as ErrorFactory<'a>,
-            next
-        ))
-    );
+    let next = consume_token!(cache, Pi, start, tokens, RightParen, next,);
 
     // Consume the arrow.
-    let next = consume_token!(
-        cache,
-        Pi,
-        start,
-        tokens,
-        ThinArrow,
-        next,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Expected {} after {}.",
-                    "->".code_str(),
-                    tokens[next - 1].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )) as ErrorFactory<'a>,
-            next
-        ))
-    );
+    let next = consume_token!(cache, Pi, start, tokens, ThinArrow, next,);
 
     // Parse the codomain type.
     let (codomain, next) = fail_fast!(
@@ -541,71 +489,13 @@ fn parse_lambda<'a>(
     cache_check!(cache, Lambda, start, tokens, default);
 
     // Consume the left parenthesis.
-    let next = consume_token!(
-        cache,
-        Lambda,
-        start,
-        tokens,
-        LeftParen,
-        start,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Encountered {} where a {} was expected.",
-                    tokens[start].to_string().code_str(),
-                    "(".code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[start].source_range,
-            )) as ErrorFactory<'a>,
-            start
-        ))
-    );
+    let next = consume_token!(cache, Lambda, start, tokens, LeftParen, start,);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(
-        cache,
-        Lambda,
-        start,
-        tokens,
-        next,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Expected a variable after {}.",
-                    tokens[next - 1].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )) as ErrorFactory<'a>,
-            next
-        ))
-    );
+    let (variable, next) = consume_identifier!(cache, Lambda, start, tokens, next,);
 
     // Consume the colon.
-    let next = consume_token!(
-        cache,
-        Lambda,
-        start,
-        tokens,
-        Colon,
-        next,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Expected {} after {}.",
-                    ":".code_str(),
-                    tokens[next - 1].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )) as ErrorFactory<'a>,
-            next
-        ))
-    );
+    let next = consume_token!(cache, Lambda, start, tokens, Colon, next,);
 
     // Parse the domain type.
     let (domain, next) = fail_fast!(
@@ -632,50 +522,10 @@ fn parse_lambda<'a>(
     );
 
     // Consume the right parenthesis.
-    let next = consume_token!(
-        cache,
-        Lambda,
-        start,
-        tokens,
-        RightParen,
-        next,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Expected {} after {}.",
-                    ")".code_str(),
-                    tokens[next - 1].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )) as ErrorFactory<'a>,
-            next
-        ))
-    );
+    let next = consume_token!(cache, Lambda, start, tokens, RightParen, next,);
 
     // Consume the arrow.
-    let next = consume_token!(
-        cache,
-        Lambda,
-        start,
-        tokens,
-        ThickArrow,
-        next,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Expected {} after {}.",
-                    "=>".code_str(),
-                    tokens[next - 1].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )) as ErrorFactory<'a>,
-            next
-        ))
-    );
+    let next = consume_token!(cache, Lambda, start, tokens, ThickArrow, next,);
 
     // Parse the body.
     let (body, next) = fail_fast!(
@@ -809,27 +659,7 @@ fn parse_group<'a>(
     cache_check!(cache, Group, start, tokens, default);
 
     // Consume the left parenthesis.
-    let next = consume_token!(
-        cache,
-        Group,
-        start,
-        tokens,
-        LeftParen,
-        start,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Encountered {} where a {} was expected.",
-                    tokens[start].to_string().code_str(),
-                    "(".code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[start].source_range,
-            )) as ErrorFactory<'a>,
-            start
-        ))
-    );
+    let next = consume_token!(cache, Group, start, tokens, LeftParen, start,);
 
     // Parse the inner node.
     let (node, next) = fail_fast!(
@@ -853,27 +683,7 @@ fn parse_group<'a>(
     );
 
     // Consume the right parenthesis.
-    let next = consume_token!(
-        cache,
-        Group,
-        start,
-        tokens,
-        RightParen,
-        next,
-        Err((
-            Rc::new(move |source_path, source_contents| throw(
-                format!(
-                    "Expected {} after {}.",
-                    ")".code_str(),
-                    tokens[next - 1].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )) as ErrorFactory<'a>,
-            next
-        ))
-    );
+    let next = consume_token!(cache, Group, start, tokens, RightParen, next,);
 
     // If we made it this far, we successfully parsed the group. Return the inner node.
     cache_return!(cache, Group, start, Ok((node, next)))
