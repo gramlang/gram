@@ -110,7 +110,7 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     let node = parse(
         Some(source_path.borrow()),
         &source_contents,
-        &tokens,
+        &tokens[..],
         &mut context,
     )?;
 
