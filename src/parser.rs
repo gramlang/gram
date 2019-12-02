@@ -5,7 +5,13 @@ use crate::{
     token::{self, Token},
 };
 use scopeguard::defer;
-use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
+use std::{
+    borrow::{Borrow, BorrowMut},
+    cell::RefCell,
+    collections::HashMap,
+    path::Path,
+    rc::Rc,
+};
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
 // linear-time parsing. We want to parse into the following abstract syntax:
@@ -46,19 +52,19 @@ type CacheResultSuccess<'a> = (Node<'a>, usize);
 // An `ErrorFactory` is a function which takes a source path and contents and produces an `Error`.
 // It's cheaper to generate and pass around a pointer to a closure than the actual `Error`, which
 // may contain a long string message.
-type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
+type ErrorFactory<'a, 'b> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
 
 // When a parsing function fails, it returns a pair of two things:
 // 1. An `ErrorFactory` (see above).
 // 2. The position of the first token that caused the parsing to fail. This can be used to
 //    determine which error is the most relevant when failing to parse multiple types of nodes.
-type CacheResultError<'a> = (ErrorFactory<'a>, usize);
+type CacheResultError<'a, 'b> = (ErrorFactory<'a, 'b>, usize);
 
 // The result of a cache lookup is a `Result` specialized to the success and error types above.
-type CacheResult<'a> = Result<CacheResultSuccess<'a>, CacheResultError<'a>>;
+type CacheResult<'a, 'b> = Result<CacheResultSuccess<'a>, CacheResultError<'a, 'b>>;
 
 // A cache is a hash map from cache key to result.
-type Cache<'a> = HashMap<CacheKey, CacheResult<'a>>;
+type Cache<'a, 'b> = HashMap<CacheKey, CacheResult<'a, 'b>>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
 // return early on cache hit. It also returns early if there are no remaining tokens to parse.
@@ -146,7 +152,7 @@ macro_rules! consume_token {
                         source_path,
                         source_contents,
                         $tokens[$next - 1].source_range,
-                    )) as ErrorFactory<'a>,
+                    )) as ErrorFactory<'a, 'b>,
                     $next,
                 )),
             )
@@ -169,7 +175,7 @@ macro_rules! consume_token {
                         source_path,
                         source_contents,
                         $tokens[$next].source_range,
-                    )) as ErrorFactory<'a>,
+                    )) as ErrorFactory<'a, 'b>,
                     $next,
                 )),
             )
@@ -195,7 +201,7 @@ macro_rules! consume_identifier {
                         source_path,
                         source_contents,
                         $tokens[$next - 1].source_range,
-                    )) as ErrorFactory<'a>,
+                    )) as ErrorFactory<'a, 'b>,
                     $next,
                 )),
             )
@@ -217,7 +223,7 @@ macro_rules! consume_identifier {
                         source_path,
                         source_contents,
                         $tokens[$next].source_range,
-                    )) as ErrorFactory<'a>,
+                    )) as ErrorFactory<'a, 'b>,
                     $next,
                 )),
             )
@@ -226,14 +232,18 @@ macro_rules! consume_identifier {
 }
 
 // This is the top-level parsing function.
-pub fn parse<'a>(
+pub fn parse<'a, T: Borrow<[Token<'a>]>, U: BorrowMut<HashMap<&'a str, usize>>>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
-    tokens: &'a [Token<'a>],
-    context: &mut HashMap<&'a str, usize>,
+    tokens: T,
+    mut context: U,
 ) -> Result<Node<'a>, Error> {
+    // Get references to the borrowed data.
+    let tokens = tokens.borrow();
+    let context = context.borrow_mut();
+
     // Construct a hash table to memoize parsing results.
-    let mut cache = Cache::<'a>::new();
+    let mut cache = Cache::new();
 
     // Parse the node.
     let (node, next) = parse_node(
@@ -245,7 +255,7 @@ pub fn parse<'a>(
         &Err((
             Rc::new(move |source_path, source_contents| {
                 throw("Nothing to parse.", source_path, source_contents, (0, 0))
-            }) as ErrorFactory<'a>,
+            }) as ErrorFactory<'a, 'a>,
             0,
         )),
     )
@@ -319,14 +329,14 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
 }
 
 // Parse a node.
-fn parse_node<'a>(
-    cache: &mut Cache<'a>,
-    tokens: &'a [Token<'a>],
+fn parse_node<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
     start: usize,
     depth: usize,
     context: &mut HashMap<&'a str, usize>,
-    default: &CacheResult<'a>,
-) -> CacheResult<'a> {
+    default: &CacheResult<'a, 'b>,
+) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Node, start, tokens, default);
 
@@ -369,14 +379,14 @@ fn parse_node<'a>(
 }
 
 // Parse a variable.
-fn parse_variable<'a>(
-    cache: &mut Cache<'a>,
-    tokens: &'a [Token<'a>],
+fn parse_variable<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
     start: usize,
     depth: usize,
     context: &mut HashMap<&'a str, usize>,
-    default: &CacheResult<'a>,
-) -> CacheResult<'a> {
+    default: &CacheResult<'a, 'b>,
+) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Variable, start, tokens, default);
 
@@ -397,7 +407,7 @@ fn parse_variable<'a>(
                     source_path,
                     source_contents,
                     tokens[next - 1].source_range,
-                )) as ErrorFactory<'a>,
+                )) as ErrorFactory<'a, 'b>,
                 next,
             )),
         )
@@ -419,14 +429,14 @@ fn parse_variable<'a>(
 }
 
 // Parse a pi type.
-fn parse_pi<'a>(
-    cache: &mut Cache<'a>,
-    tokens: &'a [Token<'a>],
+fn parse_pi<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
     start: usize,
     depth: usize,
     context: &mut HashMap<&'a str, usize>,
-    default: &CacheResult<'a>,
-) -> CacheResult<'a> {
+    default: &CacheResult<'a, 'b>,
+) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Pi, start, tokens, default);
 
@@ -459,7 +469,7 @@ fn parse_pi<'a>(
                     source_path,
                     source_contents,
                     tokens[next - 2].source_range,
-                )) as ErrorFactory<'a>,
+                )) as ErrorFactory<'a, 'b>,
                 next,
             )),
         ),
@@ -499,7 +509,7 @@ fn parse_pi<'a>(
                             tokens[start].source_range.0,
                             tokens[next - 1].source_range.1,
                         ),
-                    )) as ErrorFactory<'a>,
+                    )) as ErrorFactory<'a, 'b>,
                     next,
                 )),
             ),
@@ -522,14 +532,14 @@ fn parse_pi<'a>(
 }
 
 // Parse a lambda.
-fn parse_lambda<'a>(
-    cache: &mut Cache<'a>,
-    tokens: &'a [Token<'a>],
+fn parse_lambda<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
     start: usize,
     depth: usize,
     context: &mut HashMap<&'a str, usize>,
-    default: &CacheResult<'a>,
-) -> CacheResult<'a> {
+    default: &CacheResult<'a, 'b>,
+) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Lambda, start, tokens, default);
 
@@ -562,7 +572,7 @@ fn parse_lambda<'a>(
                     source_path,
                     source_contents,
                     tokens[next - 2].source_range,
-                )) as ErrorFactory<'a>,
+                )) as ErrorFactory<'a, 'b>,
                 next,
             )),
         ),
@@ -602,7 +612,7 @@ fn parse_lambda<'a>(
                             tokens[start].source_range.0,
                             tokens[next - 1].source_range.1,
                         ),
-                    )) as ErrorFactory<'a>,
+                    )) as ErrorFactory<'a, 'b>,
                     next,
                 )),
             ),
@@ -625,14 +635,14 @@ fn parse_lambda<'a>(
 }
 
 // Parse an application.
-fn parse_application<'a>(
-    cache: &mut Cache<'a>,
-    tokens: &'a [Token<'a>],
+fn parse_application<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
     start: usize,
     depth: usize,
     context: &mut HashMap<&'a str, usize>,
-    default: &CacheResult<'a>,
-) -> CacheResult<'a> {
+    default: &CacheResult<'a, 'b>,
+) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Application, start, tokens, default);
 
@@ -665,7 +675,7 @@ fn parse_application<'a>(
                     source_path,
                     source_contents,
                     applicand_source_range,
-                )) as ErrorFactory<'a>,
+                )) as ErrorFactory<'a, 'b>,
                 next,
             )),
         ),
@@ -687,14 +697,14 @@ fn parse_application<'a>(
 }
 
 // Parse an applicand (the left part of an application).
-fn parse_applicand<'a>(
-    cache: &mut Cache<'a>,
-    tokens: &'a [Token<'a>],
+fn parse_applicand<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
     start: usize,
     depth: usize,
     context: &mut HashMap<&'a str, usize>,
-    default: &CacheResult<'a>,
-) -> CacheResult<'a> {
+    default: &CacheResult<'a, 'b>,
+) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Applicand, start, tokens, default);
 
@@ -719,14 +729,14 @@ fn parse_applicand<'a>(
 }
 
 // Parse a group.
-fn parse_group<'a>(
-    cache: &mut Cache<'a>,
-    tokens: &'a [Token<'a>],
+fn parse_group<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
     start: usize,
     depth: usize,
     context: &mut HashMap<&'a str, usize>,
-    default: &CacheResult<'a>,
-) -> CacheResult<'a> {
+    default: &CacheResult<'a, 'b>,
+) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Group, start, tokens, default);
 
@@ -750,7 +760,7 @@ fn parse_group<'a>(
                     source_path,
                     source_contents,
                     tokens[next - 1].source_range,
-                )) as ErrorFactory<'a>,
+                )) as ErrorFactory<'a, 'b>,
                 next,
             )),
         ),
@@ -781,7 +791,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let mut context = HashMap::<&str, usize>::new();
 
-        assert!(parse(None, source, &tokens, &mut context).is_err());
+        assert!(parse(None, source, &tokens[..], &mut context).is_err());
     }
 
     #[test]
@@ -792,7 +802,7 @@ mod tests {
         context.insert("a", 0);
 
         assert_eq!(
-            parse(None, source, &tokens, &mut context).unwrap(),
+            parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: (0, 12),
                 variant: Lambda(
@@ -818,7 +828,7 @@ mod tests {
         context.insert("a", 0);
 
         assert_eq!(
-            parse(None, source, &tokens, &mut context).unwrap(),
+            parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: (0, 12),
                 variant: Pi(
@@ -844,7 +854,7 @@ mod tests {
         context.insert("x", 0);
 
         assert_eq!(
-            parse(None, source, &tokens, &mut context).unwrap(),
+            parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: (0, 1),
                 variant: Variable("x", 0),
@@ -861,7 +871,7 @@ mod tests {
         context.insert("x", 1);
 
         assert_eq!(
-            parse(None, source, &tokens, &mut context).unwrap(),
+            parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: (0, 3),
                 variant: Application(
@@ -888,7 +898,7 @@ mod tests {
         context.insert("y", 2);
 
         assert_eq!(
-            parse(None, source, &tokens, &mut context).unwrap(),
+            parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: (0, 5),
                 variant: Application(
@@ -922,7 +932,7 @@ mod tests {
         context.insert("x", 0);
 
         assert_eq!(
-            parse(None, source, &tokens, &mut context).unwrap(),
+            parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: (1, 2),
                 variant: Variable("x", 0),
@@ -938,7 +948,7 @@ mod tests {
         context.insert("type", 0);
 
         assert_eq!(
-            parse(None, source, &tokens, &mut context).unwrap(),
+            parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: (0, 64),
                 variant: Lambda(
