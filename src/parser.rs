@@ -28,6 +28,10 @@ use std::{
 //
 //   e = x | ( x : e ) -> e | ( x : e ) => e | e-pi-lambda-app e | ( e )
 //   e-pi-lambda-app = x | ( e )
+//
+// To give better error messages, the parser explicitly leverages the fact that every `e` must be
+// followed by a right parenthesis or the end of the token stream
+// [ref:node-then-right-parenthesis].
 
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
 #[derive(Debug, Eq, Hash, PartialEq)]
@@ -329,6 +333,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
 }
 
 // Parse a node.
+#[allow(clippy::cognitive_complexity)]
 fn parse_node<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
@@ -349,6 +354,9 @@ fn parse_node<'a, 'b>(
         candidate,
         parse_application(cache, tokens, start, depth, context, default)
     );
+
+    // See the comment below for an explanation of why we want to remember this value.
+    let application_result = candidate.clone();
 
     // Try to parse a variable.
     try_parse!(
@@ -373,6 +381,23 @@ fn parse_node<'a, 'b>(
         candidate,
         parse_group(cache, tokens, start, depth, context, default)
     );
+
+    // [tag:node-then-right-parenthesis] If for some reason the next token is not a right
+    // parenthesis and we are not at the end of the stream, the overall parse is certainly doomed,
+    // even if it looks like a success here. This situation will happen if we are trying to parse
+    // an application, but only the applicand parsed successfully. To give a more useful error
+    // message, we anticipate this kind of failure and report the error here. If we didn't do this,
+    // the user would likely see a vague error about the next token being unexpected, which isn't
+    // very helpful if that token is the beginning of a complex expression that could fail to parse
+    // for any number of reasons.
+    if let Ok((_, next)) = candidate {
+        if application_result.is_err()
+            && next != tokens.len()
+            && tokens[next].variant != token::Variant::RightParen
+        {
+            cache_return!(cache, Node, start, application_result)
+        }
+    }
 
     // Return the candidate, which may be a success or an error.
     cache_return!(cache, Node, start, candidate)
