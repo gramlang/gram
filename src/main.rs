@@ -101,11 +101,7 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     let tokens = tokenize(Some(source_path.borrow()), &source_contents)?;
 
     // Parse the source file.
-    let node = parse(
-        &Some(source_path.borrow()),
-        source_contents.as_str(),
-        tokens,
-    )?;
+    let node = parse(Some(source_path.borrow()), &source_contents, &tokens)?;
 
     // For now, just print the AST.
     println!("{:?}", node);

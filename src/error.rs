@@ -33,13 +33,13 @@ impl error::Error for Error {
 }
 
 // This function constructs an `Error` that occurs at a specific location in a source file.
-pub fn throw<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>, W>(
+pub fn throw<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>>(
     message: T,
     source_path: Option<U>,
     source_contents: V,
     source_range: (usize, usize), // [start, end)
-) -> Result<W, Error> {
-    Err({
+) -> Error {
+    {
         // Remember the relevant lines and the position of the start of the next line.
         let mut lines = vec![];
         let mut pos = 0_usize;
@@ -133,7 +133,7 @@ pub fn throw<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>, W>(
             },
             reason: None,
         }
-    })
+    }
 }
 
 // This function constructs an `Error` from a message and a reason. It's written in a curried style
@@ -156,8 +156,7 @@ mod tests {
     fn throw_no_path_empty_range() {
         colored::control::set_override(false);
 
-        let error =
-            throw::<&str, &Path, &str, ()>("An error occurred.", None, "", (0, 0)).unwrap_err();
+        let error = throw::<&str, &Path, &str>("An error occurred.", None, "", (0, 0));
 
         assert_eq!(error.message, "Error: An error occurred.".to_owned());
     }
@@ -166,9 +165,7 @@ mod tests {
     fn throw_with_path_empty_range() {
         colored::control::set_override(false);
 
-        let error =
-            throw::<_, _, _, ()>("An error occurred.", Some(Path::new("foo.g")), "", (0, 0))
-                .unwrap_err();
+        let error = throw::<_, _, _>("An error occurred.", Some(Path::new("foo.g")), "", (0, 0));
 
         assert_eq!(
             error.message,
@@ -180,8 +177,7 @@ mod tests {
     fn throw_no_path_single_line_full_range() {
         colored::control::set_override(false);
 
-        let error =
-            throw::<&str, &Path, &str, ()>("An error occurred.", None, "foo", (0, 3)).unwrap_err();
+        let error = throw::<&str, &Path, &str>("An error occurred.", None, "foo", (0, 3));
 
         assert_eq!(
             error.message,
@@ -193,13 +189,12 @@ mod tests {
     fn throw_with_path_single_line_full_range() {
         colored::control::set_override(false);
 
-        let error = throw::<_, _, _, ()>(
+        let error = throw::<_, _, _>(
             "An error occurred.",
             Some(Path::new("foo.g")),
             "foo",
             (0, 3),
-        )
-        .unwrap_err();
+        );
 
         assert_eq!(
             error.message,
@@ -212,8 +207,7 @@ mod tests {
         colored::control::set_override(false);
 
         let error =
-            throw::<&str, &Path, &str, ()>("An error occurred.", None, "foo\nbar\nbaz", (0, 11))
-                .unwrap_err();
+            throw::<&str, &Path, &str>("An error occurred.", None, "foo\nbar\nbaz", (0, 11));
 
         assert_eq!(
             error.message,
@@ -225,13 +219,8 @@ mod tests {
     fn throw_no_path_multiple_lines_partial_range() {
         colored::control::set_override(false);
 
-        let error = throw::<&str, &Path, &str, ()>(
-            "An error occurred.",
-            None,
-            "foo\nbar\nbaz\nqux",
-            (5, 11),
-        )
-        .unwrap_err();
+        let error =
+            throw::<&str, &Path, &str>("An error occurred.", None, "foo\nbar\nbaz\nqux", (5, 11));
 
         assert_eq!(
             error.message,
@@ -243,13 +232,12 @@ mod tests {
     fn throw_no_path_many_lines_partial_range() {
         colored::control::set_override(false);
 
-        let error = throw::<&str, &Path, &str, ()>(
+        let error = throw::<&str, &Path, &str>(
             "An error occurred.",
             None,
             "foo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux",
             (33, 42),
-        )
-        .unwrap_err();
+        );
 
         assert_eq!(
             error.message,
