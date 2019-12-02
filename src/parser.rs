@@ -74,6 +74,15 @@ macro_rules! cache_check {
     }};
 }
 
+// This macro should be used to cache a value and return it.
+macro_rules! cache_return {
+    ($cache:expr, $type:ident, $start:expr, $value:expr $(,)?) => {{
+        let result = $value;
+        $cache.insert((CacheType::$type, $start), result.clone());
+        return result;
+    }};
+}
+
 // This macro should be used instead of the `x?` syntax to return early upon the failure of
 // `$expr`. It caches the error before returning it. If `$expr` succeeds, this macro evaluates to
 // its value.
@@ -84,15 +93,6 @@ macro_rules! fail_fast {
             Ok(value) => value,
             Err(error) => cache_return!($cache, $type, $start, Err(error)),
         }
-    }};
-}
-
-// This macro should be used to cache a value and return it.
-macro_rules! cache_return {
-    ($cache:expr, $type:ident, $start:expr, $value:expr $(,)?) => {{
-        let result = $value;
-        $cache.insert((CacheType::$type, $start), result.clone());
-        return result;
     }};
 }
 
