@@ -77,7 +77,7 @@ pub fn throw<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>>(
                 "{}{}{}",
                 &trimmed_line[..section_start],
                 &trimmed_line[section_start..section_end].red(),
-                &trimmed_line[section_end..]
+                &trimmed_line[section_end..],
             );
 
             // Record the line number and the line contents. We trim the end of the line to
@@ -103,7 +103,7 @@ pub fn throw<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>>(
                     )
                     .blue()
                     .bold(),
-                    line
+                    line,
                 )
             })
             .collect::<Vec<_>>()
@@ -116,14 +116,14 @@ pub fn throw<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>>(
                     format!(
                         "Error in {}: {}",
                         path.borrow().to_string_lossy().code_str(),
-                        message.borrow()
+                        message.borrow(),
                     )
                 } else {
                     format!(
                         "Error in {}: {}\n\n{}",
                         path.borrow().to_string_lossy().code_str(),
                         message.borrow(),
-                        listing
+                        listing,
                     )
                 }
             } else if listing.is_empty() {

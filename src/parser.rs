@@ -62,7 +62,7 @@ type Cache<'a> = HashMap<CacheKey, CacheResult<'a>>;
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
 // return early on cache hit. It also returns early if there are no remaining tokens to parse.
 macro_rules! cache_check {
-    ($cache:expr, $type:ident, $start:expr, $tokens:expr, $default:expr) => {{
+    ($cache:expr, $type:ident, $start:expr, $tokens:expr, $default:expr $(,)?) => {{
         if let Some(result) = $cache.get(&(CacheType::$type, $start)) {
             return (*result).clone();
         }
@@ -77,7 +77,7 @@ macro_rules! cache_check {
 // `$expr`. It caches the error before returning it. If `$expr` succeeds, this macro evaluates to
 // its value.
 macro_rules! fail_fast {
-    ($cache:expr, $type:ident, $start:expr, $expr:expr) => {{
+    ($cache:expr, $type:ident, $start:expr, $expr:expr $(,)?) => {{
         let result = $expr;
         match result {
             Ok(value) => value,
@@ -88,7 +88,7 @@ macro_rules! fail_fast {
 
 // This macro should be used to cache a value and return it.
 macro_rules! cache_return {
-    ($cache:expr, $type:ident, $start:expr, $value:expr) => {{
+    ($cache:expr, $type:ident, $start:expr, $value:expr $(,)?) => {{
         let result = $value;
         $cache.insert((CacheType::$type, $start), result.clone());
         return result;
@@ -105,7 +105,7 @@ macro_rules! cache_return {
 // Then `candidate` will contain the longest matching node, or the error corresponding to the parse
 // attempt that matched the most tokens if none of the attempts were successful.
 macro_rules! try_parse {
-    ($candidate:ident, $expr:expr) => {{
+    ($candidate:ident, $expr:expr $(,)?) => {{
         match $expr {
             Ok((node, next)) => {
                 if let Ok((_, candidate_next)) = $candidate {
@@ -129,14 +129,7 @@ macro_rules! try_parse {
 
 // This macro consumes a single token and evaluates to the position of the next token.
 macro_rules! consume_token {
-    (
-      $cache:expr,
-      $type:ident,
-      $start:expr,
-      $tokens:expr,
-      $variant:ident,
-      $next:expr,
-    ) => {{
+    ($cache:expr, $type:ident, $start:expr, $tokens:expr, $variant:ident, $next:expr $(,)?) => {{
         if $next == $tokens.len() {
             cache_return!(
                 $cache,
@@ -153,8 +146,8 @@ macro_rules! consume_token {
                         source_contents,
                         $tokens[$next - 1].source_range,
                     )) as ErrorFactory<'a>,
-                    $next
-                ))
+                    $next,
+                )),
             )
         }
 
@@ -176,8 +169,8 @@ macro_rules! consume_token {
                         source_contents,
                         $tokens[$next].source_range,
                     )) as ErrorFactory<'a>,
-                    $next
-                ))
+                    $next,
+                )),
             )
         }
     }};
@@ -186,13 +179,7 @@ macro_rules! consume_token {
 // This macro consumes an identifier and evaluates to the identifier paired with the position of
 // the next token.
 macro_rules! consume_identifier {
-    (
-      $cache:expr,
-      $type:ident,
-      $start:expr,
-      $tokens:expr,
-      $next:expr,
-    ) => {{
+    ($cache:expr, $type:ident, $start:expr, $tokens:expr, $next:expr $(,)?) => {{
         if $next == $tokens.len() {
             cache_return!(
                 $cache,
@@ -202,14 +189,14 @@ macro_rules! consume_identifier {
                     Rc::new(move |source_path, source_contents| throw(
                         format!(
                             "Expected an identifier after {}.",
-                            $tokens[$next - 1].to_string().code_str()
+                            $tokens[$next - 1].to_string().code_str(),
                         ),
                         source_path,
                         source_contents,
                         $tokens[$next - 1].source_range,
                     )) as ErrorFactory<'a>,
-                    $next
-                ))
+                    $next,
+                )),
             )
         }
 
@@ -224,14 +211,14 @@ macro_rules! consume_identifier {
                     Rc::new(move |source_path, source_contents| throw(
                         format!(
                             "Expected an identifier but encountered {}.",
-                            $tokens[$next].to_string().code_str()
+                            $tokens[$next].to_string().code_str(),
                         ),
                         source_path,
                         source_contents,
                         $tokens[$next].source_range,
                     )) as ErrorFactory<'a>,
-                    $next
-                ))
+                    $next,
+                )),
             )
         }
     }};
@@ -371,7 +358,7 @@ fn parse_variable<'a>(
     cache_check!(cache, Variable, start, tokens, default);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Variable, start, tokens, start,);
+    let (variable, next) = consume_identifier!(cache, Variable, start, tokens, start);
 
     // Construct and return the variable.
     cache_return!(
@@ -384,12 +371,11 @@ fn parse_variable<'a>(
                 variant: ast::Variant::Variable(variable),
             },
             next,
-        ))
+        )),
     )
 }
 
 // Parse a pi type.
-#[allow(clippy::too_many_lines)]
 fn parse_pi<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
@@ -400,13 +386,13 @@ fn parse_pi<'a>(
     cache_check!(cache, Pi, start, tokens, default);
 
     // Consume the left parenthesis.
-    let next = consume_token!(cache, Pi, start, tokens, LeftParen, start,);
+    let next = consume_token!(cache, Pi, start, tokens, LeftParen, start);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Pi, start, tokens, next,);
+    let (variable, next) = consume_identifier!(cache, Pi, start, tokens, next);
 
     // Consume the colon.
-    let next = consume_token!(cache, Pi, start, tokens, Colon, next,);
+    let next = consume_token!(cache, Pi, start, tokens, Colon, next);
 
     // Parse the domain type.
     let (domain, next) = fail_fast!(
@@ -421,22 +407,22 @@ fn parse_pi<'a>(
                 Rc::new(move |source_path, source_contents| throw(
                     format!(
                         "Missing type for variable {}.",
-                        tokens[next - 2].to_string().code_str()
+                        tokens[next - 2].to_string().code_str(),
                     ),
                     source_path,
                     source_contents,
                     tokens[next - 2].source_range,
                 )) as ErrorFactory<'a>,
-                next
-            ))
-        )
+                next,
+            )),
+        ),
     );
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, Pi, start, tokens, RightParen, next,);
+    let next = consume_token!(cache, Pi, start, tokens, RightParen, next);
 
     // Consume the arrow.
-    let next = consume_token!(cache, Pi, start, tokens, ThinArrow, next,);
+    let next = consume_token!(cache, Pi, start, tokens, ThinArrow, next);
 
     // Parse the codomain type.
     let (codomain, next) = fail_fast!(
@@ -454,12 +440,12 @@ fn parse_pi<'a>(
                     source_contents,
                     (
                         tokens[start].source_range.0,
-                        tokens[next - 1].source_range.1
+                        tokens[next - 1].source_range.1,
                     ),
                 )) as ErrorFactory<'a>,
-                next
-            ))
-        )
+                next,
+            )),
+        ),
     );
 
     // Construct and return the pi type.
@@ -473,12 +459,11 @@ fn parse_pi<'a>(
                 variant: ast::Variant::Pi(variable, Rc::new(domain), Rc::new(codomain)),
             },
             next,
-        ))
+        )),
     )
 }
 
 // Parse a lambda.
-#[allow(clippy::too_many_lines)]
 fn parse_lambda<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
@@ -489,13 +474,13 @@ fn parse_lambda<'a>(
     cache_check!(cache, Lambda, start, tokens, default);
 
     // Consume the left parenthesis.
-    let next = consume_token!(cache, Lambda, start, tokens, LeftParen, start,);
+    let next = consume_token!(cache, Lambda, start, tokens, LeftParen, start);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Lambda, start, tokens, next,);
+    let (variable, next) = consume_identifier!(cache, Lambda, start, tokens, next);
 
     // Consume the colon.
-    let next = consume_token!(cache, Lambda, start, tokens, Colon, next,);
+    let next = consume_token!(cache, Lambda, start, tokens, Colon, next);
 
     // Parse the domain type.
     let (domain, next) = fail_fast!(
@@ -510,22 +495,22 @@ fn parse_lambda<'a>(
                 Rc::new(move |source_path, source_contents| throw(
                     format!(
                         "Expected type for variable {}.",
-                        tokens[next - 2].to_string().code_str()
+                        tokens[next - 2].to_string().code_str(),
                     ),
                     source_path,
                     source_contents,
                     tokens[next - 2].source_range,
                 )) as ErrorFactory<'a>,
-                next
-            ))
-        )
+                next,
+            )),
+        ),
     );
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, Lambda, start, tokens, RightParen, next,);
+    let next = consume_token!(cache, Lambda, start, tokens, RightParen, next);
 
     // Consume the arrow.
-    let next = consume_token!(cache, Lambda, start, tokens, ThickArrow, next,);
+    let next = consume_token!(cache, Lambda, start, tokens, ThickArrow, next);
 
     // Parse the body.
     let (body, next) = fail_fast!(
@@ -543,12 +528,12 @@ fn parse_lambda<'a>(
                     source_contents,
                     (
                         tokens[start].source_range.0,
-                        tokens[next - 1].source_range.1
+                        tokens[next - 1].source_range.1,
                     ),
                 )) as ErrorFactory<'a>,
-                next
-            ))
-        )
+                next,
+            )),
+        ),
     );
 
     // Construct and return the lambda.
@@ -562,7 +547,7 @@ fn parse_lambda<'a>(
                 variant: ast::Variant::Lambda(variable, Rc::new(domain), Rc::new(body)),
             },
             next,
-        ))
+        )),
     )
 }
 
@@ -581,7 +566,7 @@ fn parse_application<'a>(
         cache,
         Application,
         start,
-        parse_applicand(cache, tokens, start, default)
+        parse_applicand(cache, tokens, start, default),
     );
 
     // This value will be moved into a closure below. We prefer to move just this value rather than
@@ -604,9 +589,9 @@ fn parse_application<'a>(
                     source_contents,
                     applicand_source_range,
                 )) as ErrorFactory<'a>,
-                next
-            ))
-        )
+                next,
+            )),
+        ),
     );
 
     // Construct and return the application.
@@ -620,7 +605,7 @@ fn parse_application<'a>(
                 variant: ast::Variant::Application(Rc::new(applicand), Rc::new(argument)),
             },
             next,
-        ))
+        )),
     )
 }
 
@@ -659,7 +644,7 @@ fn parse_group<'a>(
     cache_check!(cache, Group, start, tokens, default);
 
     // Consume the left parenthesis.
-    let next = consume_token!(cache, Group, start, tokens, LeftParen, start,);
+    let next = consume_token!(cache, Group, start, tokens, LeftParen, start);
 
     // Parse the inner node.
     let (node, next) = fail_fast!(
@@ -677,13 +662,13 @@ fn parse_group<'a>(
                     source_contents,
                     tokens[next - 1].source_range,
                 )) as ErrorFactory<'a>,
-                next
-            ))
-        )
+                next,
+            )),
+        ),
     );
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, Group, start, tokens, RightParen, next,);
+    let next = consume_token!(cache, Group, start, tokens, RightParen, next);
 
     // If we made it this far, we successfully parsed the group. Return the inner node.
     cache_return!(cache, Group, start, Ok((node, next)))
@@ -705,7 +690,7 @@ mod tests {
     fn parse_empty() {
         let source = "";
         let tokens = tokenize(None, source).unwrap();
-        assert!(parse(None, source, &tokens).is_err(),);
+        assert!(parse(None, source, &tokens).is_err());
     }
 
     #[test]
@@ -720,14 +705,14 @@ mod tests {
                     "x",
                     Rc::new(Node {
                         source_range: (5, 6),
-                        variant: Variable("a")
+                        variant: Variable("a"),
                     }),
                     Rc::new(Node {
                         source_range: (11, 12),
-                        variant: Variable("x")
-                    })
-                )
-            }
+                        variant: Variable("x"),
+                    }),
+                ),
+            },
         );
     }
 
@@ -743,14 +728,14 @@ mod tests {
                     "x",
                     Rc::new(Node {
                         source_range: (5, 6),
-                        variant: Variable("a")
+                        variant: Variable("a"),
                     }),
                     Rc::new(Node {
                         source_range: (11, 12),
-                        variant: Variable("x")
-                    })
-                )
-            }
+                        variant: Variable("x"),
+                    }),
+                ),
+            },
         );
     }
 
@@ -762,8 +747,8 @@ mod tests {
             parse(None, source, &tokens).unwrap(),
             Node {
                 source_range: (0, 1),
-                variant: Variable("x")
-            }
+                variant: Variable("x"),
+            },
         );
     }
 
@@ -778,14 +763,14 @@ mod tests {
                 variant: Application(
                     Rc::new(Node {
                         source_range: (0, 1),
-                        variant: Variable("f")
+                        variant: Variable("f"),
                     }),
                     Rc::new(Node {
                         source_range: (2, 3),
-                        variant: Variable("x")
-                    })
-                )
-            }
+                        variant: Variable("x"),
+                    }),
+                ),
+            },
         );
     }
 
@@ -803,20 +788,20 @@ mod tests {
                         variant: Application(
                             Rc::new(Node {
                                 source_range: (0, 1),
-                                variant: Variable("f")
+                                variant: Variable("f"),
                             }),
                             Rc::new(Node {
                                 source_range: (2, 3),
-                                variant: Variable("x")
-                            })
-                        )
+                                variant: Variable("x"),
+                            }),
+                        ),
                     }),
                     Rc::new(Node {
                         source_range: (4, 5),
-                        variant: Variable("y")
-                    })
-                )
-            }
+                        variant: Variable("y"),
+                    }),
+                ),
+            },
         );
     }
 
@@ -828,8 +813,8 @@ mod tests {
             parse(None, source, &tokens).unwrap(),
             Node {
                 source_range: (1, 2),
-                variant: Variable("x")
-            }
+                variant: Variable("x"),
+            },
         );
     }
 
@@ -845,7 +830,7 @@ mod tests {
                     "a",
                     Rc::new(Node {
                         source_range: (5, 9),
-                        variant: Variable("type")
+                        variant: Variable("type"),
                     }),
                     Rc::new(Node {
                         source_range: (14, 64),
@@ -853,7 +838,7 @@ mod tests {
                             "b",
                             Rc::new(Node {
                                 source_range: (19, 23),
-                                variant: Variable("type")
+                                variant: Variable("type"),
                             }),
                             Rc::new(Node {
                                 source_range: (28, 64),
@@ -865,13 +850,13 @@ mod tests {
                                             "_",
                                             Rc::new(Node {
                                                 source_range: (38, 39),
-                                                variant: Variable("a")
+                                                variant: Variable("a"),
                                             }),
                                             Rc::new(Node {
                                                 source_range: (44, 45),
-                                                variant: Variable("b")
-                                            })
-                                        )
+                                                variant: Variable("b"),
+                                            }),
+                                        ),
                                     }),
                                     Rc::new(Node {
                                         source_range: (50, 64),
@@ -879,29 +864,29 @@ mod tests {
                                             "x",
                                             Rc::new(Node {
                                                 source_range: (55, 56),
-                                                variant: Variable("a")
+                                                variant: Variable("a"),
                                             }),
                                             Rc::new(Node {
                                                 source_range: (61, 64),
                                                 variant: Application(
                                                     Rc::new(Node {
                                                         source_range: (61, 62),
-                                                        variant: Variable("f")
+                                                        variant: Variable("f"),
                                                     }),
                                                     Rc::new(Node {
                                                         source_range: (63, 64),
-                                                        variant: Variable("x")
-                                                    })
-                                                )
-                                            })
-                                        )
-                                    })
-                                )
-                            })
-                        )
-                    })
-                )
-            }
+                                                        variant: Variable("x"),
+                                                    }),
+                                                ),
+                                            }),
+                                        ),
+                                    }),
+                                ),
+                            }),
+                        ),
+                    }),
+                ),
+            },
         );
     }
 }

@@ -123,7 +123,7 @@ fn shell_completion<T: Borrow<str>>(shell: T) -> Result<(), Error> {
             return Err(Error {
                 message: format!(
                     "Unknown shell {}. Must be one of Bash, Fish, Zsh, PowerShell, or Elvish.",
-                    shell.borrow().code_str()
+                    shell.borrow().code_str(),
                 ),
                 reason: None,
             });

@@ -54,7 +54,7 @@ pub fn tokenize<'a>(
                     return Err(throw(
                         format!(
                             "Unexpected symbol {}.",
-                            &source_contents[i..i + c.len_utf8()].code_str()
+                            &source_contents[i..i + c.len_utf8()].code_str(),
                         ),
                         source_path,
                         source_contents,
@@ -73,7 +73,7 @@ pub fn tokenize<'a>(
                     return Err(throw(
                         format!(
                             "Unexpected symbol {}.",
-                            &source_contents[i..i + c.len_utf8()].code_str()
+                            &source_contents[i..i + c.len_utf8()].code_str(),
                         ),
                         source_path,
                         source_contents,
@@ -119,7 +119,7 @@ pub fn tokenize<'a>(
                 return Err(throw(
                     format!(
                         "Unexpected symbol {}.",
-                        &source_contents[i..i + c.len_utf8()].code_str()
+                        &source_contents[i..i + c.len_utf8()].code_str(),
                     ),
                     source_path,
                     source_contents,
