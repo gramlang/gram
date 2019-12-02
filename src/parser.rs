@@ -42,10 +42,16 @@ type CacheKey = (CacheType, usize);
 // unconsumed token.
 type CacheResultSuccess<'a> = (Node<'a>, usize);
 
-// When a parsing function fails, it returns a thunk that produces an `Error` as well as the
-// position of the first token that caused the parsing to fail. It's cheaper to generate and pass
-// around a thunk than the actual `Error`, which may have a long string message.
-type CacheResultError<'a> = (Rc<dyn Fn() -> Error + 'a>, usize);
+// An `ErrorFactory` is a function which takes a source path and contents and produces an `Error`.
+// It's cheaper to generate and pass around a pointer to a closure than the actual `Error`, which
+// may contain a long string message.
+type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
+
+// When a parsing function fails, it returns a pair of two things:
+// 1. An `ErrorFactory` (see above).
+// 2. The position of the first token that caused the parsing to fail. This can be used to
+//    determine which error is the most relevant when failing to parse multiple types of nodes.
+type CacheResultError<'a> = (ErrorFactory<'a>, usize);
 
 // The result of a cache lookup is a `Result` specialized to the success and error types above.
 type CacheResult<'a> = Result<CacheResultSuccess<'a>, CacheResultError<'a>>;
@@ -179,17 +185,16 @@ pub fn parse<'a>(
     // Parse the node.
     let (node, next) = parse_node(
         &mut cache,
-        source_path,
-        source_contents,
         tokens,
         0,
         &Err((
-            Rc::new(move || throw("Nothing to parse.", source_path, source_contents, (0, 0)))
-                as Rc<dyn Fn() -> Error + 'a>,
+            Rc::new(move |source_path, source_contents| {
+                throw("Nothing to parse.", source_path, source_contents, (0, 0))
+            }) as ErrorFactory<'a>,
             0,
         )),
     )
-    .map_err(|error| error.0())?;
+    .map_err(|error| error.0(source_path, source_contents))?;
 
     // Make sure we parsed all the tokens.
     if next != tokens.len() {
@@ -261,8 +266,6 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
 // Parse a node.
 fn parse_node<'a>(
     cache: &mut Cache<'a>,
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
     tokens: &'a [Token<'a>],
     start: usize,
     default: &CacheResult<'a>,
@@ -275,34 +278,19 @@ fn parse_node<'a>(
     let mut candidate = default.clone();
 
     // Try to parse an application.
-    try_parse!(
-        candidate,
-        parse_application(cache, source_path, source_contents, tokens, start, default)
-    );
+    try_parse!(candidate, parse_application(cache, tokens, start, default));
 
     // Try to parse a variable.
-    try_parse!(
-        candidate,
-        parse_variable(cache, source_path, source_contents, tokens, start, default)
-    );
+    try_parse!(candidate, parse_variable(cache, tokens, start, default));
 
     // Try to parse a pi type.
-    try_parse!(
-        candidate,
-        parse_pi(cache, source_path, source_contents, tokens, start, default)
-    );
+    try_parse!(candidate, parse_pi(cache, tokens, start, default));
 
     // Try to parse a lambda.
-    try_parse!(
-        candidate,
-        parse_lambda(cache, source_path, source_contents, tokens, start, default)
-    );
+    try_parse!(candidate, parse_lambda(cache, tokens, start, default));
 
     // Try to parse a group.
-    try_parse!(
-        candidate,
-        parse_group(cache, source_path, source_contents, tokens, start, default)
-    );
+    try_parse!(candidate, parse_group(cache, tokens, start, default));
 
     // Return the candidate, which may be a success or an error.
     cache_return!(cache, Node, start, candidate)
@@ -311,8 +299,6 @@ fn parse_node<'a>(
 // Parse a variable.
 fn parse_variable<'a>(
     cache: &mut Cache<'a>,
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
     tokens: &'a [Token<'a>],
     start: usize,
     default: &CacheResult<'a>,
@@ -328,7 +314,7 @@ fn parse_variable<'a>(
         tokens,
         start,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Encountered {} where a variable was expected.",
                     tokens[start].to_string().code_str()
@@ -336,7 +322,7 @@ fn parse_variable<'a>(
                 source_path,
                 source_contents,
                 tokens[start].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             start
         ))
     );
@@ -360,8 +346,6 @@ fn parse_variable<'a>(
 #[allow(clippy::too_many_lines)]
 fn parse_pi<'a>(
     cache: &mut Cache<'a>,
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
     tokens: &'a [Token<'a>],
     start: usize,
     default: &CacheResult<'a>,
@@ -378,7 +362,7 @@ fn parse_pi<'a>(
         LeftParen,
         start,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Encountered {} where a {} was expected.",
                     tokens[start].to_string().code_str(),
@@ -387,7 +371,7 @@ fn parse_pi<'a>(
                 source_path,
                 source_contents,
                 tokens[start].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             start
         ))
     );
@@ -400,7 +384,7 @@ fn parse_pi<'a>(
         tokens,
         next,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Expected a variable after {}.",
                     tokens[next - 1].to_string().code_str()
@@ -408,7 +392,7 @@ fn parse_pi<'a>(
                 source_path,
                 source_contents,
                 tokens[next - 1].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             next
         ))
     );
@@ -422,7 +406,7 @@ fn parse_pi<'a>(
         Colon,
         next,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Expected {} after {}.",
                     ":".code_str(),
@@ -431,7 +415,7 @@ fn parse_pi<'a>(
                 source_path,
                 source_contents,
                 tokens[next - 1].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             next
         ))
     );
@@ -443,12 +427,10 @@ fn parse_pi<'a>(
         start,
         parse_node(
             cache,
-            source_path,
-            source_contents,
             tokens,
             next,
             &Err((
-                Rc::new(move || throw(
+                Rc::new(move |source_path, source_contents| throw(
                     format!(
                         "Missing type for variable {}.",
                         tokens[next - 2].to_string().code_str()
@@ -456,7 +438,7 @@ fn parse_pi<'a>(
                     source_path,
                     source_contents,
                     tokens[next - 2].source_range,
-                )) as Rc<dyn Fn() -> Error + 'a>,
+                )) as ErrorFactory<'a>,
                 next
             ))
         )
@@ -471,7 +453,7 @@ fn parse_pi<'a>(
         RightParen,
         next,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Expected {} after {}.",
                     ")".code_str(),
@@ -480,7 +462,7 @@ fn parse_pi<'a>(
                 source_path,
                 source_contents,
                 tokens[next - 1].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             next
         ))
     );
@@ -494,7 +476,7 @@ fn parse_pi<'a>(
         ThinArrow,
         next,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Expected {} after {}.",
                     "->".code_str(),
@@ -503,7 +485,7 @@ fn parse_pi<'a>(
                 source_path,
                 source_contents,
                 tokens[next - 1].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             next
         ))
     );
@@ -515,12 +497,10 @@ fn parse_pi<'a>(
         start,
         parse_node(
             cache,
-            source_path,
-            source_contents,
             tokens,
             next,
             &Err((
-                Rc::new(move || throw(
+                Rc::new(move |source_path, source_contents| throw(
                     "This pi type has no codomain.",
                     source_path,
                     source_contents,
@@ -528,7 +508,7 @@ fn parse_pi<'a>(
                         tokens[start].source_range.0,
                         tokens[next - 1].source_range.1
                     ),
-                )) as Rc<dyn Fn() -> Error + 'a>,
+                )) as ErrorFactory<'a>,
                 next
             ))
         )
@@ -553,8 +533,6 @@ fn parse_pi<'a>(
 #[allow(clippy::too_many_lines)]
 fn parse_lambda<'a>(
     cache: &mut Cache<'a>,
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
     tokens: &'a [Token<'a>],
     start: usize,
     default: &CacheResult<'a>,
@@ -571,7 +549,7 @@ fn parse_lambda<'a>(
         LeftParen,
         start,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Encountered {} where a {} was expected.",
                     tokens[start].to_string().code_str(),
@@ -580,7 +558,7 @@ fn parse_lambda<'a>(
                 source_path,
                 source_contents,
                 tokens[start].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             start
         ))
     );
@@ -593,7 +571,7 @@ fn parse_lambda<'a>(
         tokens,
         next,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Expected a variable after {}.",
                     tokens[next - 1].to_string().code_str()
@@ -601,7 +579,7 @@ fn parse_lambda<'a>(
                 source_path,
                 source_contents,
                 tokens[next - 1].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             next
         ))
     );
@@ -615,7 +593,7 @@ fn parse_lambda<'a>(
         Colon,
         next,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Expected {} after {}.",
                     ":".code_str(),
@@ -624,7 +602,7 @@ fn parse_lambda<'a>(
                 source_path,
                 source_contents,
                 tokens[next - 1].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             next
         ))
     );
@@ -636,12 +614,10 @@ fn parse_lambda<'a>(
         start,
         parse_node(
             cache,
-            source_path,
-            source_contents,
             tokens,
             next,
             &Err((
-                Rc::new(move || throw(
+                Rc::new(move |source_path, source_contents| throw(
                     format!(
                         "Expected type for variable {}.",
                         tokens[next - 2].to_string().code_str()
@@ -649,7 +625,7 @@ fn parse_lambda<'a>(
                     source_path,
                     source_contents,
                     tokens[next - 2].source_range,
-                )) as Rc<dyn Fn() -> Error + 'a>,
+                )) as ErrorFactory<'a>,
                 next
             ))
         )
@@ -664,7 +640,7 @@ fn parse_lambda<'a>(
         RightParen,
         next,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Expected {} after {}.",
                     ")".code_str(),
@@ -673,7 +649,7 @@ fn parse_lambda<'a>(
                 source_path,
                 source_contents,
                 tokens[next - 1].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             next
         ))
     );
@@ -687,7 +663,7 @@ fn parse_lambda<'a>(
         ThickArrow,
         next,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Expected {} after {}.",
                     "=>".code_str(),
@@ -696,7 +672,7 @@ fn parse_lambda<'a>(
                 source_path,
                 source_contents,
                 tokens[next - 1].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             next
         ))
     );
@@ -708,12 +684,10 @@ fn parse_lambda<'a>(
         start,
         parse_node(
             cache,
-            source_path,
-            source_contents,
             tokens,
             next,
             &Err((
-                Rc::new(move || throw(
+                Rc::new(move |source_path, source_contents| throw(
                     "This lambda has no body.",
                     source_path,
                     source_contents,
@@ -721,7 +695,7 @@ fn parse_lambda<'a>(
                         tokens[start].source_range.0,
                         tokens[next - 1].source_range.1
                     ),
-                )) as Rc<dyn Fn() -> Error + 'a>,
+                )) as ErrorFactory<'a>,
                 next
             ))
         )
@@ -745,8 +719,6 @@ fn parse_lambda<'a>(
 // Parse an application.
 fn parse_application<'a>(
     cache: &mut Cache<'a>,
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
     tokens: &'a [Token<'a>],
     start: usize,
     default: &CacheResult<'a>,
@@ -759,7 +731,7 @@ fn parse_application<'a>(
         cache,
         Application,
         start,
-        parse_applicand(cache, source_path, source_contents, tokens, start, default)
+        parse_applicand(cache, tokens, start, default)
     );
 
     // This value will be moved into a closure below. We prefer to move just this value rather than
@@ -773,17 +745,15 @@ fn parse_application<'a>(
         start,
         parse_node(
             cache,
-            source_path,
-            source_contents,
             tokens,
             next,
             &Err((
-                Rc::new(move || throw(
+                Rc::new(move |source_path, source_contents| throw(
                     "Missing argument for this applicand.",
                     source_path,
                     source_contents,
                     applicand_source_range,
-                )) as Rc<dyn Fn() -> Error + 'a>,
+                )) as ErrorFactory<'a>,
                 next
             ))
         )
@@ -807,8 +777,6 @@ fn parse_application<'a>(
 // Parse an applicand (the left part of an application).
 fn parse_applicand<'a>(
     cache: &mut Cache<'a>,
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
     tokens: &'a [Token<'a>],
     start: usize,
     default: &CacheResult<'a>,
@@ -821,16 +789,10 @@ fn parse_applicand<'a>(
     let mut candidate = default.clone();
 
     // Try to parse a variable.
-    try_parse!(
-        candidate,
-        parse_variable(cache, source_path, source_contents, tokens, start, default)
-    );
+    try_parse!(candidate, parse_variable(cache, tokens, start, default));
 
     // Try to parse a group.
-    try_parse!(
-        candidate,
-        parse_group(cache, source_path, source_contents, tokens, start, default)
-    );
+    try_parse!(candidate, parse_group(cache, tokens, start, default));
 
     // Return the candidate, which may be a success or an error.
     cache_return!(cache, Applicand, start, candidate)
@@ -839,8 +801,6 @@ fn parse_applicand<'a>(
 // Parse a group.
 fn parse_group<'a>(
     cache: &mut Cache<'a>,
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
     tokens: &'a [Token<'a>],
     start: usize,
     default: &CacheResult<'a>,
@@ -857,7 +817,7 @@ fn parse_group<'a>(
         LeftParen,
         start,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Encountered {} where a {} was expected.",
                     tokens[start].to_string().code_str(),
@@ -866,7 +826,7 @@ fn parse_group<'a>(
                 source_path,
                 source_contents,
                 tokens[start].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             start
         ))
     );
@@ -878,17 +838,15 @@ fn parse_group<'a>(
         start,
         parse_node(
             cache,
-            source_path,
-            source_contents,
             tokens,
             next,
             &Err((
-                Rc::new(move || throw(
+                Rc::new(move |source_path, source_contents| throw(
                     "Missing expression in the group that starts here.",
                     source_path,
                     source_contents,
                     tokens[next - 1].source_range,
-                )) as Rc<dyn Fn() -> Error + 'a>,
+                )) as ErrorFactory<'a>,
                 next
             ))
         )
@@ -903,7 +861,7 @@ fn parse_group<'a>(
         RightParen,
         next,
         Err((
-            Rc::new(move || throw(
+            Rc::new(move |source_path, source_contents| throw(
                 format!(
                     "Expected {} after {}.",
                     ")".code_str(),
@@ -912,7 +870,7 @@ fn parse_group<'a>(
                 source_path,
                 source_contents,
                 tokens[next - 1].source_range,
-            )) as Rc<dyn Fn() -> Error + 'a>,
+            )) as ErrorFactory<'a>,
             next
         ))
     );
