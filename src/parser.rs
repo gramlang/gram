@@ -4,7 +4,8 @@ use crate::{
     format::CodeStr,
     token::{self, Token},
 };
-use std::{collections::HashMap, path::Path, rc::Rc};
+use scopeguard::defer;
+use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
 // linear-time parsing. We want to parse into the following abstract syntax:
@@ -229,6 +230,7 @@ pub fn parse<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     tokens: &'a [Token<'a>],
+    context: &mut HashMap<&'a str, usize>,
 ) -> Result<Node<'a>, Error> {
     // Construct a hash table to memoize parsing results.
     let mut cache = Cache::<'a>::new();
@@ -238,6 +240,8 @@ pub fn parse<'a>(
         &mut cache,
         tokens,
         0,
+        context.len(),
+        context,
         &Err((
             Rc::new(move |source_path, source_contents| {
                 throw("Nothing to parse.", source_path, source_contents, (0, 0))
@@ -286,7 +290,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
                 reassociate_applications(None, codomain.clone()),
             ),
         }),
-        ast::Variant::Variable(_) => node,
+        ast::Variant::Variable(_, _) => node,
         ast::Variant::Application(applicand, argument) => {
             return reassociate_applications(
                 Some(if let Some(acc) = acc {
@@ -319,6 +323,8 @@ fn parse_node<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
     default: &CacheResult<'a>,
 ) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
@@ -329,19 +335,34 @@ fn parse_node<'a>(
     let mut candidate = default.clone();
 
     // Try to parse an application.
-    try_parse!(candidate, parse_application(cache, tokens, start, default));
+    try_parse!(
+        candidate,
+        parse_application(cache, tokens, start, depth, context, default)
+    );
 
     // Try to parse a variable.
-    try_parse!(candidate, parse_variable(cache, tokens, start, default));
+    try_parse!(
+        candidate,
+        parse_variable(cache, tokens, start, depth, context, default)
+    );
 
     // Try to parse a pi type.
-    try_parse!(candidate, parse_pi(cache, tokens, start, default));
+    try_parse!(
+        candidate,
+        parse_pi(cache, tokens, start, depth, context, default)
+    );
 
     // Try to parse a lambda.
-    try_parse!(candidate, parse_lambda(cache, tokens, start, default));
+    try_parse!(
+        candidate,
+        parse_lambda(cache, tokens, start, depth, context, default)
+    );
 
     // Try to parse a group.
-    try_parse!(candidate, parse_group(cache, tokens, start, default));
+    try_parse!(
+        candidate,
+        parse_group(cache, tokens, start, depth, context, default)
+    );
 
     // Return the candidate, which may be a success or an error.
     cache_return!(cache, Node, start, candidate)
@@ -352,6 +373,8 @@ fn parse_variable<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
     default: &CacheResult<'a>,
 ) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
@@ -359,6 +382,26 @@ fn parse_variable<'a>(
 
     // Consume the variable.
     let (variable, next) = consume_identifier!(cache, Variable, start, tokens, start);
+
+    // Look up the variable in the context.
+    let de_bruijn_index = if let Some(variable_depth) = context.get(variable) {
+        depth - variable_depth - 1
+    } else {
+        cache_return!(
+            cache,
+            Variable,
+            start,
+            Err((
+                Rc::new(move |source_path, source_contents| throw(
+                    format!("Undefined variable {}.", variable.code_str()),
+                    source_path,
+                    source_contents,
+                    tokens[next - 1].source_range,
+                )) as ErrorFactory<'a>,
+                next,
+            )),
+        )
+    };
 
     // Construct and return the variable.
     cache_return!(
@@ -368,7 +411,7 @@ fn parse_variable<'a>(
         Ok((
             Node {
                 source_range: tokens[start].source_range,
-                variant: ast::Variant::Variable(variable),
+                variant: ast::Variant::Variable(variable, de_bruijn_index),
             },
             next,
         )),
@@ -380,6 +423,8 @@ fn parse_pi<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
     default: &CacheResult<'a>,
 ) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
@@ -403,6 +448,8 @@ fn parse_pi<'a>(
             cache,
             tokens,
             next,
+            depth,
+            context,
             &Err((
                 Rc::new(move |source_path, source_contents| throw(
                     format!(
@@ -424,29 +471,40 @@ fn parse_pi<'a>(
     // Consume the arrow.
     let next = consume_token!(cache, Pi, start, tokens, ThinArrow, next);
 
+    // Add the variable to the context.
+    context.insert(variable, depth);
+    let context_cell = RefCell::new(context);
+    defer! {{ context_cell.borrow_mut().remove(variable); }};
+
     // Parse the codomain type.
-    let (codomain, next) = fail_fast!(
-        cache,
-        Pi,
-        start,
-        parse_node(
+    let (codomain, next) = {
+        let mut guard = context_cell.borrow_mut();
+
+        fail_fast!(
             cache,
-            tokens,
-            next,
-            &Err((
-                Rc::new(move |source_path, source_contents| throw(
-                    "This pi type has no codomain.",
-                    source_path,
-                    source_contents,
-                    (
-                        tokens[start].source_range.0,
-                        tokens[next - 1].source_range.1,
-                    ),
-                )) as ErrorFactory<'a>,
+            Pi,
+            start,
+            parse_node(
+                cache,
+                tokens,
                 next,
-            )),
-        ),
-    );
+                depth + 1,
+                &mut *guard,
+                &Err((
+                    Rc::new(move |source_path, source_contents| throw(
+                        "This pi type has no codomain.",
+                        source_path,
+                        source_contents,
+                        (
+                            tokens[start].source_range.0,
+                            tokens[next - 1].source_range.1,
+                        ),
+                    )) as ErrorFactory<'a>,
+                    next,
+                )),
+            ),
+        )
+    };
 
     // Construct and return the pi type.
     cache_return!(
@@ -468,6 +526,8 @@ fn parse_lambda<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
     default: &CacheResult<'a>,
 ) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
@@ -491,6 +551,8 @@ fn parse_lambda<'a>(
             cache,
             tokens,
             next,
+            depth,
+            context,
             &Err((
                 Rc::new(move |source_path, source_contents| throw(
                     format!(
@@ -512,29 +574,40 @@ fn parse_lambda<'a>(
     // Consume the arrow.
     let next = consume_token!(cache, Lambda, start, tokens, ThickArrow, next);
 
+    // Add the variable to the context.
+    context.insert(variable, depth);
+    let context_cell = RefCell::new(context);
+    defer! {{ context_cell.borrow_mut().remove(variable); }};
+
     // Parse the body.
-    let (body, next) = fail_fast!(
-        cache,
-        Lambda,
-        start,
-        parse_node(
+    let (body, next) = {
+        let mut guard = context_cell.borrow_mut();
+
+        fail_fast!(
             cache,
-            tokens,
-            next,
-            &Err((
-                Rc::new(move |source_path, source_contents| throw(
-                    "This lambda has no body.",
-                    source_path,
-                    source_contents,
-                    (
-                        tokens[start].source_range.0,
-                        tokens[next - 1].source_range.1,
-                    ),
-                )) as ErrorFactory<'a>,
+            Lambda,
+            start,
+            parse_node(
+                cache,
+                tokens,
                 next,
-            )),
-        ),
-    );
+                depth + 1,
+                &mut *guard,
+                &Err((
+                    Rc::new(move |source_path, source_contents| throw(
+                        "This lambda has no body.",
+                        source_path,
+                        source_contents,
+                        (
+                            tokens[start].source_range.0,
+                            tokens[next - 1].source_range.1,
+                        ),
+                    )) as ErrorFactory<'a>,
+                    next,
+                )),
+            ),
+        )
+    };
 
     // Construct and return the lambda.
     cache_return!(
@@ -556,6 +629,8 @@ fn parse_application<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
     default: &CacheResult<'a>,
 ) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
@@ -566,7 +641,7 @@ fn parse_application<'a>(
         cache,
         Application,
         start,
-        parse_applicand(cache, tokens, start, default),
+        parse_applicand(cache, tokens, start, depth, context, default),
     );
 
     // This value will be moved into a closure below. We prefer to move just this value rather than
@@ -582,6 +657,8 @@ fn parse_application<'a>(
             cache,
             tokens,
             next,
+            depth,
+            context,
             &Err((
                 Rc::new(move |source_path, source_contents| throw(
                     "Missing argument for this applicand.",
@@ -614,6 +691,8 @@ fn parse_applicand<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
     default: &CacheResult<'a>,
 ) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
@@ -624,10 +703,16 @@ fn parse_applicand<'a>(
     let mut candidate = default.clone();
 
     // Try to parse a variable.
-    try_parse!(candidate, parse_variable(cache, tokens, start, default));
+    try_parse!(
+        candidate,
+        parse_variable(cache, tokens, start, depth, context, default)
+    );
 
     // Try to parse a group.
-    try_parse!(candidate, parse_group(cache, tokens, start, default));
+    try_parse!(
+        candidate,
+        parse_group(cache, tokens, start, depth, context, default)
+    );
 
     // Return the candidate, which may be a success or an error.
     cache_return!(cache, Applicand, start, candidate)
@@ -638,6 +723,8 @@ fn parse_group<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
     default: &CacheResult<'a>,
 ) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
@@ -655,6 +742,8 @@ fn parse_group<'a>(
             cache,
             tokens,
             next,
+            depth,
+            context,
             &Err((
                 Rc::new(move |source_path, source_contents| throw(
                     "Missing expression in the group that starts here.",
@@ -684,32 +773,37 @@ mod tests {
         parser::parse,
         tokenizer::tokenize,
     };
-    use std::rc::Rc;
+    use std::{collections::HashMap, rc::Rc};
 
     #[test]
     fn parse_empty() {
         let source = "";
         let tokens = tokenize(None, source).unwrap();
-        assert!(parse(None, source, &tokens).is_err());
+        let mut context = HashMap::<&str, usize>::new();
+
+        assert!(parse(None, source, &tokens, &mut context).is_err());
     }
 
     #[test]
     fn parse_lambda() {
         let source = "(x : a) => x";
         let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("a", 0);
+
         assert_eq!(
-            parse(None, source, &tokens).unwrap(),
+            parse(None, source, &tokens, &mut context).unwrap(),
             Node {
                 source_range: (0, 12),
                 variant: Lambda(
                     "x",
                     Rc::new(Node {
                         source_range: (5, 6),
-                        variant: Variable("a"),
+                        variant: Variable("a", 0),
                     }),
                     Rc::new(Node {
                         source_range: (11, 12),
-                        variant: Variable("x"),
+                        variant: Variable("x", 0),
                     }),
                 ),
             },
@@ -720,19 +814,22 @@ mod tests {
     fn parse_pi() {
         let source = "(x : a) -> x";
         let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("a", 0);
+
         assert_eq!(
-            parse(None, source, &tokens).unwrap(),
+            parse(None, source, &tokens, &mut context).unwrap(),
             Node {
                 source_range: (0, 12),
                 variant: Pi(
                     "x",
                     Rc::new(Node {
                         source_range: (5, 6),
-                        variant: Variable("a"),
+                        variant: Variable("a", 0),
                     }),
                     Rc::new(Node {
                         source_range: (11, 12),
-                        variant: Variable("x"),
+                        variant: Variable("x", 0),
                     }),
                 ),
             },
@@ -743,11 +840,14 @@ mod tests {
     fn parse_variable() {
         let source = "x";
         let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("x", 0);
+
         assert_eq!(
-            parse(None, source, &tokens).unwrap(),
+            parse(None, source, &tokens, &mut context).unwrap(),
             Node {
                 source_range: (0, 1),
-                variant: Variable("x"),
+                variant: Variable("x", 0),
             },
         );
     }
@@ -756,18 +856,22 @@ mod tests {
     fn parse_application() {
         let source = "f x";
         let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("f", 0);
+        context.insert("x", 1);
+
         assert_eq!(
-            parse(None, source, &tokens).unwrap(),
+            parse(None, source, &tokens, &mut context).unwrap(),
             Node {
                 source_range: (0, 3),
                 variant: Application(
                     Rc::new(Node {
                         source_range: (0, 1),
-                        variant: Variable("f"),
+                        variant: Variable("f", 1),
                     }),
                     Rc::new(Node {
                         source_range: (2, 3),
-                        variant: Variable("x"),
+                        variant: Variable("x", 0),
                     }),
                 ),
             },
@@ -778,8 +882,13 @@ mod tests {
     fn parse_application_associativity() {
         let source = "f x y";
         let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("f", 0);
+        context.insert("x", 1);
+        context.insert("y", 2);
+
         assert_eq!(
-            parse(None, source, &tokens).unwrap(),
+            parse(None, source, &tokens, &mut context).unwrap(),
             Node {
                 source_range: (0, 5),
                 variant: Application(
@@ -788,17 +897,17 @@ mod tests {
                         variant: Application(
                             Rc::new(Node {
                                 source_range: (0, 1),
-                                variant: Variable("f"),
+                                variant: Variable("f", 2),
                             }),
                             Rc::new(Node {
                                 source_range: (2, 3),
-                                variant: Variable("x"),
+                                variant: Variable("x", 1),
                             }),
                         ),
                     }),
                     Rc::new(Node {
                         source_range: (4, 5),
-                        variant: Variable("y"),
+                        variant: Variable("y", 0),
                     }),
                 ),
             },
@@ -809,11 +918,14 @@ mod tests {
     fn parse_group() {
         let source = "(x)";
         let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("x", 0);
+
         assert_eq!(
-            parse(None, source, &tokens).unwrap(),
+            parse(None, source, &tokens, &mut context).unwrap(),
             Node {
                 source_range: (1, 2),
-                variant: Variable("x"),
+                variant: Variable("x", 0),
             },
         );
     }
@@ -822,15 +934,18 @@ mod tests {
     fn parse_identity_function() {
         let source = "(a : type) => (b : type) => (f : (_ : a) -> b) => (x : a) => f x";
         let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("type", 0);
+
         assert_eq!(
-            parse(None, source, &tokens).unwrap(),
+            parse(None, source, &tokens, &mut context).unwrap(),
             Node {
                 source_range: (0, 64),
                 variant: Lambda(
                     "a",
                     Rc::new(Node {
                         source_range: (5, 9),
-                        variant: Variable("type"),
+                        variant: Variable("type", 0),
                     }),
                     Rc::new(Node {
                         source_range: (14, 64),
@@ -838,7 +953,7 @@ mod tests {
                             "b",
                             Rc::new(Node {
                                 source_range: (19, 23),
-                                variant: Variable("type"),
+                                variant: Variable("type", 1),
                             }),
                             Rc::new(Node {
                                 source_range: (28, 64),
@@ -850,11 +965,11 @@ mod tests {
                                             "_",
                                             Rc::new(Node {
                                                 source_range: (38, 39),
-                                                variant: Variable("a"),
+                                                variant: Variable("a", 1),
                                             }),
                                             Rc::new(Node {
                                                 source_range: (44, 45),
-                                                variant: Variable("b"),
+                                                variant: Variable("b", 1),
                                             }),
                                         ),
                                     }),
@@ -864,18 +979,18 @@ mod tests {
                                             "x",
                                             Rc::new(Node {
                                                 source_range: (55, 56),
-                                                variant: Variable("a"),
+                                                variant: Variable("a", 2),
                                             }),
                                             Rc::new(Node {
                                                 source_range: (61, 64),
                                                 variant: Application(
                                                     Rc::new(Node {
                                                         source_range: (61, 62),
-                                                        variant: Variable("f"),
+                                                        variant: Variable("f", 1),
                                                     }),
                                                     Rc::new(Node {
                                                         source_range: (63, 64),
-                                                        variant: Variable("x"),
+                                                        variant: Variable("x", 0),
                                                     }),
                                                 ),
                                             }),

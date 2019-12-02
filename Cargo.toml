@@ -16,6 +16,7 @@ readme = "README.md"
 atty = "0.2"
 colored = "1"
 pad = "0.1"
+scopeguard = "1.0"
 
 [dependencies.clap]
 version = "2"

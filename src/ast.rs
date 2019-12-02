@@ -17,8 +17,9 @@ pub enum Variant<'a> {
     // Pi types, or dependent function types, are the types ascribed to lambdas.
     Pi(&'a str, Rc<Node<'a>>, Rc<Node<'a>>),
 
-    // A variable is a placeholder bound by a lambda or a pi type.
-    Variable(&'a str),
+    // A variable is a placeholder bound by a lambda or a pi type. The integer is the De Bruijn
+    // index for the variable.
+    Variable(&'a str, usize),
 
     // An application is the act of applying a lambda to an argument.
     Application(Rc<Node<'a>>, Rc<Node<'a>>),
