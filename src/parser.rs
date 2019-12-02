@@ -4,7 +4,7 @@ use crate::{
     format::CodeStr,
     token::{self, Token},
 };
-use std::{borrow::Borrow, collections::HashMap, path::Path, rc::Rc};
+use std::{collections::HashMap, path::Path, rc::Rc};
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
 // linear-time parsing. We want to parse into the following abstract syntax:
@@ -34,10 +34,24 @@ enum CacheType {
     Group,
 }
 
-// This is an alias for the hash table type we'll be using for memoization. The keys are pairs of
-// cache type and start position in the token stream. The values are the results returned from the
-// functions.
-type Cache<'a> = HashMap<(CacheType, usize), Result<(Node<'a>, usize), (Error, usize)>>;
+// The cache key will consist of a `CacheType` indicating which function is being memoized together
+// with a position in the input stream.
+type CacheKey = (CacheType, usize);
+
+// When a parsing function succeeds, it returns a node together with the position of the first
+// unconsumed token.
+type CacheResultSuccess<'a> = (Node<'a>, usize);
+
+// When a parsing function fails, it returns a thunk that produces an `Error` as well as the
+// position of the first token that caused the parsing to fail. It's cheaper to generate and pass
+// around a thunk than the actual `Error`, which may have a long string message.
+type CacheResultError<'a> = (Rc<dyn Fn() -> Error + 'a>, usize);
+
+// The result of a cache lookup is a `Result` specialized to the success and error types above.
+type CacheResult<'a> = Result<CacheResultSuccess<'a>, CacheResultError<'a>>;
+
+// A cache is a hash map from cache key to result.
+type Cache<'a> = HashMap<CacheKey, CacheResult<'a>>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
 // return early on cache hit. It also returns early if there are no remaining tokens to parse.
@@ -82,8 +96,8 @@ macro_rules! cache_return {
 //   try_parse!(candidate, ...);
 //   ...
 //
-// Then `candidate` will contain the longest matching node, or the longest matching error if no
-// node was successfully parsed.
+// Then `candidate` will contain the longest matching node, or the error corresponding to the parse
+// attempt that matched the most tokens if none of the attempts were successful.
 macro_rules! try_parse {
     ($candidate:ident, $expr:expr) => {{
         match $expr {
@@ -154,39 +168,37 @@ macro_rules! consume_identifier {
 }
 
 // This is the top-level parsing function.
-pub fn parse<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
-    source_path: &Option<T>,
-    source_contents: U,
-    tokens: V,
+pub fn parse<'a>(
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    tokens: &'a [Token<'a>],
 ) -> Result<Node<'a>, Error> {
-    // Get references to the borrowed data.
-    let source_path = source_path.as_ref().map(|path| path.borrow());
-    let source_contents = source_contents.borrow();
-    let tokens = tokens.borrow();
-
     // Construct a hash table to memoize parsing results.
     let mut cache = Cache::<'a>::new();
 
     // Parse the node.
     let (node, next) = parse_node(
         &mut cache,
-        &source_path,
+        source_path,
         source_contents,
         tokens,
         0,
-        &throw("Nothing to parse.", source_path, source_contents, (0, 0))
-            .map_err(|error| (error, 0)),
+        &Err((
+            Rc::new(move || throw("Nothing to parse.", source_path, source_contents, (0, 0)))
+                as Rc<dyn Fn() -> Error + 'a>,
+            0,
+        )),
     )
-    .map_err(|error| error.0)?;
+    .map_err(|error| error.0())?;
 
     // Make sure we parsed all the tokens.
     if next != tokens.len() {
-        throw(
+        return Err(throw(
             format!("Unexpected {}.", tokens[next].to_string().code_str()),
             source_path,
             source_contents,
             tokens[next].source_range,
-        )?;
+        ));
     }
 
     // Flip the associativity of applications from right to left [ref:reassociate-applications].
@@ -247,19 +259,14 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
 }
 
 // Parse a node.
-fn parse_node<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
+fn parse_node<'a>(
     cache: &mut Cache<'a>,
-    source_path: &Option<T>,
-    source_contents: U,
-    tokens: V,
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    tokens: &'a [Token<'a>],
     start: usize,
-    default: &Result<(Node<'a>, usize), (Error, usize)>,
-) -> Result<(Node<'a>, usize), (Error, usize)> {
-    // Get references to the borrowed data.
-    let source_path = source_path.as_ref().map(|path| path.borrow());
-    let source_contents = source_contents.borrow();
-    let tokens = tokens.borrow();
-
+    default: &CacheResult<'a>,
+) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Node, start, tokens, default);
 
@@ -270,31 +277,31 @@ fn parse_node<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     // Try to parse an application.
     try_parse!(
         candidate,
-        parse_application(cache, &source_path, source_contents, tokens, start, default)
+        parse_application(cache, source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a variable.
     try_parse!(
         candidate,
-        parse_variable(cache, &source_path, source_contents, tokens, start, default)
+        parse_variable(cache, source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a pi type.
     try_parse!(
         candidate,
-        parse_pi(cache, &source_path, source_contents, tokens, start, default)
+        parse_pi(cache, source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a lambda.
     try_parse!(
         candidate,
-        parse_lambda(cache, &source_path, source_contents, tokens, start, default)
+        parse_lambda(cache, source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a group.
     try_parse!(
         candidate,
-        parse_group(cache, &source_path, source_contents, tokens, start, default)
+        parse_group(cache, source_path, source_contents, tokens, start, default)
     );
 
     // Return the candidate, which may be a success or an error.
@@ -302,19 +309,14 @@ fn parse_node<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
 }
 
 // Parse a variable.
-fn parse_variable<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
+fn parse_variable<'a>(
     cache: &mut Cache<'a>,
-    source_path: &Option<T>,
-    source_contents: U,
-    tokens: V,
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    tokens: &'a [Token<'a>],
     start: usize,
-    default: &Result<(Node<'a>, usize), (Error, usize)>,
-) -> Result<(Node<'a>, usize), (Error, usize)> {
-    // Get references to the borrowed data.
-    let source_path = source_path.as_ref().map(|path| path.borrow());
-    let source_contents = source_contents.borrow();
-    let tokens = tokens.borrow();
-
+    default: &CacheResult<'a>,
+) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Variable, start, tokens, default);
 
@@ -325,16 +327,18 @@ fn parse_variable<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         tokens,
         start,
-        throw(
-            format!(
-                "Encountered {} where a variable was expected.",
-                tokens[start].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[start].source_range,
-        )
-        .map_err(|error| (error, start))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Encountered {} where a variable was expected.",
+                    tokens[start].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[start].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            start
+        ))
     );
 
     // Construct and return the variable.
@@ -354,19 +358,14 @@ fn parse_variable<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
 
 // Parse a pi type.
 #[allow(clippy::too_many_lines)]
-fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
+fn parse_pi<'a>(
     cache: &mut Cache<'a>,
-    source_path: &Option<T>,
-    source_contents: U,
-    tokens: V,
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    tokens: &'a [Token<'a>],
     start: usize,
-    default: &Result<(Node<'a>, usize), (Error, usize)>,
-) -> Result<(Node<'a>, usize), (Error, usize)> {
-    // Get references to the borrowed data.
-    let source_path = source_path.as_ref().map(|path| path.borrow());
-    let source_contents = source_contents.borrow();
-    let tokens = tokens.borrow();
-
+    default: &CacheResult<'a>,
+) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Pi, start, tokens, default);
 
@@ -378,17 +377,19 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         LeftParen,
         start,
-        throw(
-            format!(
-                "Encountered {} where a {} was expected.",
-                tokens[start].to_string().code_str(),
-                "(".code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[start].source_range,
-        )
-        .map_err(|error| (error, start))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Encountered {} where a {} was expected.",
+                    tokens[start].to_string().code_str(),
+                    "(".code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[start].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            start
+        ))
     );
 
     // Consume the variable.
@@ -398,16 +399,18 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         tokens,
         next,
-        throw(
-            format!(
-                "Expected a variable after {}.",
-                tokens[next - 1].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[next - 1].source_range,
-        )
-        .map_err(|error| (error, next))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Expected a variable after {}.",
+                    tokens[next - 1].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 1].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            next
+        ))
     );
 
     // Consume the colon.
@@ -418,17 +421,19 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         Colon,
         next,
-        throw(
-            format!(
-                "Expected {} after {}.",
-                ":".code_str(),
-                tokens[next - 1].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[next - 1].source_range,
-        )
-        .map_err(|error| (error, next))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Expected {} after {}.",
+                    ":".code_str(),
+                    tokens[next - 1].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 1].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            next
+        ))
     );
 
     // Parse the domain type.
@@ -438,20 +443,22 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         parse_node(
             cache,
-            &source_path,
+            source_path,
             source_contents,
             tokens,
             next,
-            &throw(
-                format!(
-                    "Missing type for variable {}.",
-                    tokens[next - 2].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 2].source_range,
-            )
-            .map_err(|error| (error, next))
+            &Err((
+                Rc::new(move || throw(
+                    format!(
+                        "Missing type for variable {}.",
+                        tokens[next - 2].to_string().code_str()
+                    ),
+                    source_path,
+                    source_contents,
+                    tokens[next - 2].source_range,
+                )) as Rc<dyn Fn() -> Error + 'a>,
+                next
+            ))
         )
     );
 
@@ -463,17 +470,19 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         RightParen,
         next,
-        throw(
-            format!(
-                "Expected {} after {}.",
-                ")".code_str(),
-                tokens[next - 1].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[next - 1].source_range,
-        )
-        .map_err(|error| (error, next))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Expected {} after {}.",
+                    ")".code_str(),
+                    tokens[next - 1].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 1].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            next
+        ))
     );
 
     // Consume the arrow.
@@ -484,17 +493,19 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         ThinArrow,
         next,
-        throw(
-            format!(
-                "Expected {} after {}.",
-                "->".code_str(),
-                tokens[next - 1].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[next - 1].source_range,
-        )
-        .map_err(|error| (error, next))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Expected {} after {}.",
+                    "->".code_str(),
+                    tokens[next - 1].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 1].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            next
+        ))
     );
 
     // Parse the codomain type.
@@ -504,20 +515,22 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         parse_node(
             cache,
-            &source_path,
+            source_path,
             source_contents,
             tokens,
             next,
-            &throw(
-                "This pi type has no codomain.",
-                source_path,
-                source_contents,
-                (
-                    tokens[start].source_range.0,
-                    tokens[next - 1].source_range.1
-                ),
-            )
-            .map_err(|error| (error, next))
+            &Err((
+                Rc::new(move || throw(
+                    "This pi type has no codomain.",
+                    source_path,
+                    source_contents,
+                    (
+                        tokens[start].source_range.0,
+                        tokens[next - 1].source_range.1
+                    ),
+                )) as Rc<dyn Fn() -> Error + 'a>,
+                next
+            ))
         )
     );
 
@@ -538,19 +551,14 @@ fn parse_pi<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
 
 // Parse a lambda.
 #[allow(clippy::too_many_lines)]
-fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
+fn parse_lambda<'a>(
     cache: &mut Cache<'a>,
-    source_path: &Option<T>,
-    source_contents: U,
-    tokens: V,
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    tokens: &'a [Token<'a>],
     start: usize,
-    default: &Result<(Node<'a>, usize), (Error, usize)>,
-) -> Result<(Node<'a>, usize), (Error, usize)> {
-    // Get references to the borrowed data.
-    let source_path = source_path.as_ref().map(|path| path.borrow());
-    let source_contents = source_contents.borrow();
-    let tokens = tokens.borrow();
-
+    default: &CacheResult<'a>,
+) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Lambda, start, tokens, default);
 
@@ -562,17 +570,19 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         LeftParen,
         start,
-        throw(
-            format!(
-                "Encountered {} where a {} was expected.",
-                tokens[start].to_string().code_str(),
-                "(".code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[start].source_range,
-        )
-        .map_err(|error| (error, start))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Encountered {} where a {} was expected.",
+                    tokens[start].to_string().code_str(),
+                    "(".code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[start].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            start
+        ))
     );
 
     // Consume the variable.
@@ -582,16 +592,18 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         tokens,
         next,
-        throw(
-            format!(
-                "Expected a variable after {}.",
-                tokens[next - 1].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[next - 1].source_range,
-        )
-        .map_err(|error| (error, next))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Expected a variable after {}.",
+                    tokens[next - 1].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 1].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            next
+        ))
     );
 
     // Consume the colon.
@@ -602,17 +614,19 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         Colon,
         next,
-        throw(
-            format!(
-                "Expected {} after {}.",
-                ":".code_str(),
-                tokens[next - 1].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[next - 1].source_range,
-        )
-        .map_err(|error| (error, next))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Expected {} after {}.",
+                    ":".code_str(),
+                    tokens[next - 1].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 1].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            next
+        ))
     );
 
     // Parse the domain type.
@@ -622,20 +636,22 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         parse_node(
             cache,
-            &source_path,
+            source_path,
             source_contents,
             tokens,
             next,
-            &throw(
-                format!(
-                    "Expected type for variable {}.",
-                    tokens[next - 2].to_string().code_str()
-                ),
-                source_path,
-                source_contents,
-                tokens[next - 2].source_range,
-            )
-            .map_err(|error| (error, next))
+            &Err((
+                Rc::new(move || throw(
+                    format!(
+                        "Expected type for variable {}.",
+                        tokens[next - 2].to_string().code_str()
+                    ),
+                    source_path,
+                    source_contents,
+                    tokens[next - 2].source_range,
+                )) as Rc<dyn Fn() -> Error + 'a>,
+                next
+            ))
         )
     );
 
@@ -647,17 +663,19 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         RightParen,
         next,
-        throw(
-            format!(
-                "Expected {} after {}.",
-                ")".code_str(),
-                tokens[next - 1].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[next - 1].source_range,
-        )
-        .map_err(|error| (error, next))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Expected {} after {}.",
+                    ")".code_str(),
+                    tokens[next - 1].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 1].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            next
+        ))
     );
 
     // Consume the arrow.
@@ -668,17 +686,19 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         ThickArrow,
         next,
-        throw(
-            format!(
-                "Expected {} after {}.",
-                "=>".code_str(),
-                tokens[next - 1].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[next - 1].source_range,
-        )
-        .map_err(|error| (error, next))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Expected {} after {}.",
+                    "=>".code_str(),
+                    tokens[next - 1].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 1].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            next
+        ))
     );
 
     // Parse the body.
@@ -688,20 +708,22 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         parse_node(
             cache,
-            &source_path,
+            source_path,
             source_contents,
             tokens,
             next,
-            &throw(
-                "This lambda has no body.",
-                source_path,
-                source_contents,
-                (
-                    tokens[start].source_range.0,
-                    tokens[next - 1].source_range.1
-                ),
-            )
-            .map_err(|error| (error, next))
+            &Err((
+                Rc::new(move || throw(
+                    "This lambda has no body.",
+                    source_path,
+                    source_contents,
+                    (
+                        tokens[start].source_range.0,
+                        tokens[next - 1].source_range.1
+                    ),
+                )) as Rc<dyn Fn() -> Error + 'a>,
+                next
+            ))
         )
     );
 
@@ -721,19 +743,14 @@ fn parse_lambda<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
 }
 
 // Parse an application.
-fn parse_application<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
+fn parse_application<'a>(
     cache: &mut Cache<'a>,
-    source_path: &Option<T>,
-    source_contents: U,
-    tokens: V,
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    tokens: &'a [Token<'a>],
     start: usize,
-    default: &Result<(Node<'a>, usize), (Error, usize)>,
-) -> Result<(Node<'a>, usize), (Error, usize)> {
-    // Get references to the borrowed data.
-    let source_path = source_path.as_ref().map(|path| path.borrow());
-    let source_contents = source_contents.borrow();
-    let tokens = tokens.borrow();
-
+    default: &CacheResult<'a>,
+) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Application, start, tokens, default);
 
@@ -742,8 +759,12 @@ fn parse_application<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>
         cache,
         Application,
         start,
-        parse_applicand(cache, &source_path, source_contents, tokens, start, default)
+        parse_applicand(cache, source_path, source_contents, tokens, start, default)
     );
+
+    // This value will be moved into a closure below. We prefer to move just this value rather than
+    // the whole applicand.
+    let applicand_source_range = applicand.source_range;
 
     // Parse the argument.
     let (argument, next) = fail_fast!(
@@ -752,17 +773,19 @@ fn parse_application<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>
         start,
         parse_node(
             cache,
-            &source_path,
+            source_path,
             source_contents,
             tokens,
             next,
-            &throw(
-                "Missing argument for this applicand.",
-                source_path,
-                source_contents,
-                applicand.source_range,
-            )
-            .map_err(|error| (error, next))
+            &Err((
+                Rc::new(move || throw(
+                    "Missing argument for this applicand.",
+                    source_path,
+                    source_contents,
+                    applicand_source_range,
+                )) as Rc<dyn Fn() -> Error + 'a>,
+                next
+            ))
         )
     );
 
@@ -782,19 +805,14 @@ fn parse_application<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>
 }
 
 // Parse an applicand (the left part of an application).
-fn parse_applicand<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
+fn parse_applicand<'a>(
     cache: &mut Cache<'a>,
-    source_path: &Option<T>,
-    source_contents: U,
-    tokens: V,
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    tokens: &'a [Token<'a>],
     start: usize,
-    default: &Result<(Node<'a>, usize), (Error, usize)>,
-) -> Result<(Node<'a>, usize), (Error, usize)> {
-    // Get references to the borrowed data.
-    let source_path = source_path.as_ref().map(|path| path.borrow());
-    let source_contents = source_contents.borrow();
-    let tokens = tokens.borrow();
-
+    default: &CacheResult<'a>,
+) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Applicand, start, tokens, default);
 
@@ -805,13 +823,13 @@ fn parse_applicand<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
     // Try to parse a variable.
     try_parse!(
         candidate,
-        parse_variable(cache, &source_path, source_contents, tokens, start, default)
+        parse_variable(cache, source_path, source_contents, tokens, start, default)
     );
 
     // Try to parse a group.
     try_parse!(
         candidate,
-        parse_group(cache, &source_path, source_contents, tokens, start, default)
+        parse_group(cache, source_path, source_contents, tokens, start, default)
     );
 
     // Return the candidate, which may be a success or an error.
@@ -819,19 +837,14 @@ fn parse_applicand<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
 }
 
 // Parse a group.
-fn parse_group<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
+fn parse_group<'a>(
     cache: &mut Cache<'a>,
-    source_path: &Option<T>,
-    source_contents: U,
-    tokens: V,
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    tokens: &'a [Token<'a>],
     start: usize,
-    default: &Result<(Node<'a>, usize), (Error, usize)>,
-) -> Result<(Node<'a>, usize), (Error, usize)> {
-    // Get references to the borrowed data.
-    let source_path = source_path.as_ref().map(|path| path.borrow());
-    let source_contents = source_contents.borrow();
-    let tokens = tokens.borrow();
-
+    default: &CacheResult<'a>,
+) -> CacheResult<'a> {
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Group, start, tokens, default);
 
@@ -843,17 +856,19 @@ fn parse_group<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         LeftParen,
         start,
-        throw(
-            format!(
-                "Encountered {} where a {} was expected.",
-                tokens[start].to_string().code_str(),
-                "(".code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[start].source_range,
-        )
-        .map_err(|error| (error, start))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Encountered {} where a {} was expected.",
+                    tokens[start].to_string().code_str(),
+                    "(".code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[start].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            start
+        ))
     );
 
     // Parse the inner node.
@@ -863,17 +878,19 @@ fn parse_group<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         start,
         parse_node(
             cache,
-            &source_path,
+            source_path,
             source_contents,
             tokens,
             next,
-            &throw(
-                "Missing expression in the group that starts here.",
-                source_path,
-                source_contents,
-                tokens[next - 1].source_range,
-            )
-            .map_err(|error| (error, next))
+            &Err((
+                Rc::new(move || throw(
+                    "Missing expression in the group that starts here.",
+                    source_path,
+                    source_contents,
+                    tokens[next - 1].source_range,
+                )) as Rc<dyn Fn() -> Error + 'a>,
+                next
+            ))
         )
     );
 
@@ -885,17 +902,19 @@ fn parse_group<'a, T: Borrow<Path>, U: Borrow<str>, V: Borrow<[Token<'a>]>>(
         tokens,
         RightParen,
         next,
-        throw(
-            format!(
-                "Expected {} after {}.",
-                ")".code_str(),
-                tokens[next - 1].to_string().code_str()
-            ),
-            source_path,
-            source_contents,
-            tokens[next - 1].source_range,
-        )
-        .map_err(|error| (error, next))
+        Err((
+            Rc::new(move || throw(
+                format!(
+                    "Expected {} after {}.",
+                    ")".code_str(),
+                    tokens[next - 1].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[next - 1].source_range,
+            )) as Rc<dyn Fn() -> Error + 'a>,
+            next
+        ))
     );
 
     // If we made it this far, we successfully parsed the group. Return the inner node.
@@ -912,13 +931,13 @@ mod tests {
         parser::parse,
         tokenizer::tokenize,
     };
-    use std::{path::Path, rc::Rc};
+    use std::rc::Rc;
 
     #[test]
     fn parse_empty() {
         let source = "";
         let tokens = tokenize(None, source).unwrap();
-        assert!(parse::<&Path, _, _>(&None, source, tokens).is_err(),);
+        assert!(parse(None, source, &tokens).is_err(),);
     }
 
     #[test]
@@ -926,7 +945,7 @@ mod tests {
         let source = "(x : a) => x";
         let tokens = tokenize(None, source).unwrap();
         assert_eq!(
-            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            parse(None, source, &tokens).unwrap(),
             Node {
                 source_range: (0, 12),
                 variant: Lambda(
@@ -949,7 +968,7 @@ mod tests {
         let source = "(x : a) -> x";
         let tokens = tokenize(None, source).unwrap();
         assert_eq!(
-            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            parse(None, source, &tokens).unwrap(),
             Node {
                 source_range: (0, 12),
                 variant: Pi(
@@ -972,7 +991,7 @@ mod tests {
         let source = "x";
         let tokens = tokenize(None, source).unwrap();
         assert_eq!(
-            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            parse(None, source, &tokens).unwrap(),
             Node {
                 source_range: (0, 1),
                 variant: Variable("x")
@@ -985,7 +1004,7 @@ mod tests {
         let source = "f x";
         let tokens = tokenize(None, source).unwrap();
         assert_eq!(
-            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            parse(None, source, &tokens).unwrap(),
             Node {
                 source_range: (0, 3),
                 variant: Application(
@@ -1007,7 +1026,7 @@ mod tests {
         let source = "f x y";
         let tokens = tokenize(None, source).unwrap();
         assert_eq!(
-            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            parse(None, source, &tokens).unwrap(),
             Node {
                 source_range: (0, 5),
                 variant: Application(
@@ -1038,7 +1057,7 @@ mod tests {
         let source = "(x)";
         let tokens = tokenize(None, source).unwrap();
         assert_eq!(
-            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            parse(None, source, &tokens).unwrap(),
             Node {
                 source_range: (1, 2),
                 variant: Variable("x")
@@ -1051,7 +1070,7 @@ mod tests {
         let source = "(a : type) => (b : type) => (f : (_ : a) -> b) => (x : a) => f x";
         let tokens = tokenize(None, source).unwrap();
         assert_eq!(
-            parse::<&Path, _, _>(&None, source, tokens).unwrap(),
+            parse(None, source, &tokens).unwrap(),
             Node {
                 source_range: (0, 64),
                 variant: Lambda(
