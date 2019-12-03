@@ -18,7 +18,7 @@ use std::{
 //
 //   e = x | ( x : e ) -> e | ( x : e ) => e | e e | ( e )
 //
-// Interpreted as a grammer, this is ambiguous because `e1 e2 e2` could be parsed as either
+// Interpreted as a grammar, this is ambiguous because `e1 e2 e2` could be parsed as either
 // `e1 (e2 e3)` or `(e1 e2) e3`. So we need to change the grammar to make application left- or
 // right-associative. We'd prefer left-associativity, but that would lead to a left-recursive
 // grammar, which is not supported by the packrat parsing technique. So we employ a trick: we parse
@@ -936,6 +936,7 @@ fn parse_group<'a, 'b>(
 #[cfg(test)]
 mod tests {
     use crate::{
+        assert_fails,
         ast::{
             Node,
             Variant::{Application, Lambda, Pi, Variable},
@@ -952,7 +953,10 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let mut context = HashMap::<&str, usize>::new();
 
-        assert!(parse(None, source, &tokens[..], &mut context).is_err());
+        assert_fails!(
+            parse(None, source, &tokens[..], &mut context),
+            "Nothing to parse.",
+        );
     }
 
     #[test]
@@ -968,6 +972,18 @@ mod tests {
                 source_range: Some((0, 1)),
                 variant: Variable("x", 0),
             },
+        );
+    }
+
+    #[test]
+    fn parse_variable_missing() {
+        let source = "x";
+        let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+
+        assert_fails!(
+            parse(None, source, &tokens[..], &mut context),
+            "Undefined variable",
         );
     }
 
@@ -998,6 +1014,20 @@ mod tests {
     }
 
     #[test]
+    fn parse_lambda_shadowing() {
+        let source = "(x : a) => x";
+        let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("a", 0);
+        context.insert("x", 1);
+
+        assert_fails!(
+            parse(None, source, &tokens[..], &mut context),
+            "already exists",
+        );
+    }
+
+    #[test]
     fn parse_pi() {
         let source = "(x : a) -> x";
         let tokens = tokenize(None, source).unwrap();
@@ -1020,6 +1050,20 @@ mod tests {
                     }),
                 ),
             },
+        );
+    }
+
+    #[test]
+    fn parse_pi_shadowing() {
+        let source = "(x : a) -> x";
+        let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("a", 0);
+        context.insert("x", 1);
+
+        assert_fails!(
+            parse(None, source, &tokens[..], &mut context),
+            "already exists",
         );
     }
 

@@ -147,6 +147,24 @@ pub fn lift<T: Into<String>, U: error::Error + 'static>(message: T) -> impl FnOn
     }
 }
 
+// This macro is useful for writing tests that deal with errors.
+#[macro_export]
+macro_rules! assert_fails {
+    ($expr:expr, $substr:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let expr = $expr;
+        let substr = $substr;
+
+        // Check that `$expr` fails and that the failure contains `$substr`.
+        if let Err(error) = expr {
+            assert!(error.to_string().contains(substr));
+        } else {
+            assert!(false);
+        }
+    }};
+}
+
 #[cfg(test)]
 mod tests {
     use crate::error::{lift, throw, Error};

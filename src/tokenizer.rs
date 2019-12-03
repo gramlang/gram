@@ -136,6 +136,7 @@ pub fn tokenize<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
+        assert_fails,
         token::{Token, Variant},
         tokenizer::tokenize,
     };
@@ -276,16 +277,16 @@ mod tests {
 
     #[test]
     fn tokenize_unexpected_code_point() {
-        assert!(tokenize(None, "$").is_err());
+        assert_fails!(tokenize(None, "$"), "Unexpected symbol");
     }
 
     #[test]
     fn tokenize_partial_thick_arrow() {
-        assert!(tokenize(None, "=").is_err());
+        assert_fails!(tokenize(None, "="), "Unexpected symbol");
     }
 
     #[test]
     fn tokenize_partial_thin_arrow() {
-        assert!(tokenize(None, "-").is_err());
+        assert_fails!(tokenize(None, "-"), "Unexpected symbol");
     }
 }
