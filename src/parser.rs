@@ -346,7 +346,9 @@ macro_rules! consume_identifier {
     }};
 }
 
-// This is the top-level parsing function.
+// This is the top-level parsing function. All the parsed nodes are guaranteed to have a non-`None`
+// `source_range`. The parser also guarantees that all variables are bound, except of course the
+// ones in the initial context. Variable shadowing is not allowed.
 pub fn parse<'a, T: Borrow<[Token<'a>]>, U: BorrowMut<HashMap<&'a str, usize>>>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
@@ -438,7 +440,13 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
             return reassociate_applications(
                 Some(if let Some(acc) = acc {
                     Rc::new(Node {
-                        source_range: (acc.source_range.0, applicand.source_range.1),
+                        source_range: if let (Some((start, _)), Some((_, end))) =
+                            (acc.source_range, applicand.source_range)
+                        {
+                            Some((start, end))
+                        } else {
+                            None
+                        },
                         variant: ast::Variant::Application(acc, applicand.clone()),
                     })
                 } else {
@@ -453,7 +461,13 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
     // an application as described above. Otherwise, just return the reduced node.
     if let Some(acc) = acc {
         Rc::new(Node {
-            source_range: (acc.source_range.0, reduced.source_range.1),
+            source_range: if let (Some((start, _)), Some((_, end))) =
+                (acc.source_range, reduced.source_range)
+            {
+                Some((start, end))
+            } else {
+                None
+            },
             variant: ast::Variant::Application(acc, reduced),
         })
     } else {
@@ -526,8 +540,8 @@ fn parse_variable<'a, 'b>(
     let (variable, next) =
         consume_identifier!(cache, Variable, start, tokens, start, &farthest_error);
 
-    // Look up the variable in the context.
-    let de_bruijn_index = if let Some(variable_depth) = context.get(variable) {
+    // Look up the variable in the context and compute its De Bruijn index.
+    let index = if let Some(variable_depth) = context.get(variable) {
         depth - variable_depth - 1
     } else {
         cache_return!(
@@ -558,82 +572,12 @@ fn parse_variable<'a, 'b>(
         (
             Some((
                 Node {
-                    source_range: tokens[start].source_range,
-                    variant: ast::Variant::Variable(variable, de_bruijn_index),
+                    source_range: Some(tokens[start].source_range),
+                    variant: ast::Variant::Variable(variable, index),
                 },
                 next,
             )),
             farthest_error.clone(),
-        ),
-    )
-}
-
-// Parse a pi type.
-fn parse_pi<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    depth: usize,
-    context: &mut HashMap<&'a str, usize>,
-    farthest_error: &ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
-    let farthest_error = cache_check!(cache, Pi, start, tokens, farthest_error);
-
-    // Consume the left parenthesis.
-    let next = consume_token!(cache, Pi, start, tokens, LeftParen, start, &farthest_error);
-
-    // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Pi, start, tokens, next, &farthest_error);
-
-    // Consume the colon.
-    let next = consume_token!(cache, Pi, start, tokens, Colon, next, &farthest_error);
-
-    // Parse the domain type.
-    let ((domain, next), farthest_error) = fail_fast!(
-        cache,
-        Pi,
-        start,
-        parse_node(cache, tokens, next, depth, context, &farthest_error),
-    );
-
-    // Consume the right parenthesis.
-    let next = consume_token!(cache, Pi, start, tokens, RightParen, next, &farthest_error);
-
-    // Consume the arrow.
-    let next = consume_token!(cache, Pi, start, tokens, ThinArrow, next, &farthest_error);
-
-    // Add the variable to the context.
-    context.insert(variable, depth);
-    let context_cell = RefCell::new(context);
-    defer! {{ context_cell.borrow_mut().remove(variable); }};
-
-    // Parse the codomain type.
-    let ((codomain, next), farthest_error) = {
-        let mut guard = context_cell.borrow_mut();
-
-        fail_fast!(
-            cache,
-            Pi,
-            start,
-            parse_node(cache, tokens, next, depth + 1, &mut *guard, &farthest_error),
-        )
-    };
-
-    // Construct and return the pi type.
-    cache_return!(
-        cache,
-        Pi,
-        start,
-        (
-            Some((
-                Node {
-                    source_range: (tokens[start].source_range.0, codomain.source_range.1),
-                    variant: ast::Variant::Pi(variable, Rc::new(domain), Rc::new(codomain)),
-                },
-                next
-            )),
-            farthest_error,
         ),
     )
 }
@@ -651,7 +595,7 @@ fn parse_lambda<'a, 'b>(
     let farthest_error = cache_check!(cache, Lambda, start, tokens, farthest_error);
 
     // Consume the left parenthesis.
-    let next = consume_token!(
+    let variable_pos = consume_token!(
         cache,
         Lambda,
         start,
@@ -662,7 +606,8 @@ fn parse_lambda<'a, 'b>(
     );
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Lambda, start, tokens, next, &farthest_error);
+    let (variable, next) =
+        consume_identifier!(cache, Lambda, start, tokens, variable_pos, &farthest_error);
 
     // Consume the colon.
     let next = consume_token!(cache, Lambda, start, tokens, Colon, next, &farthest_error);
@@ -697,6 +642,28 @@ fn parse_lambda<'a, 'b>(
         &farthest_error
     );
 
+    // Fail if the variable is already in the context.
+    if context.contains_key(variable) {
+        cache_return!(
+            cache,
+            Lambda,
+            start,
+            (
+                None,
+                farthest_error!(
+                    farthest_error,
+                    move |source_path, source_contents| throw(
+                        format!("Variable {} already exists.", variable.code_str()),
+                        source_path,
+                        source_contents,
+                        tokens[variable_pos].source_range,
+                    ),
+                    next,
+                ),
+            ),
+        );
+    }
+
     // Add the variable to the context.
     context.insert(variable, depth);
     let context_cell = RefCell::new(context);
@@ -722,8 +689,113 @@ fn parse_lambda<'a, 'b>(
         (
             Some((
                 Node {
-                    source_range: (tokens[start].source_range.0, body.source_range.1),
+                    source_range: if let ((start, _), Some((_, end))) =
+                        (tokens[start].source_range, body.source_range)
+                    {
+                        Some((start, end))
+                    } else {
+                        None
+                    },
                     variant: ast::Variant::Lambda(variable, Rc::new(domain), Rc::new(body)),
+                },
+                next
+            )),
+            farthest_error,
+        ),
+    )
+}
+
+// Parse a pi type.
+fn parse_pi<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
+    farthest_error: &ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache and make sure we have some tokens to parse.
+    let farthest_error = cache_check!(cache, Pi, start, tokens, farthest_error);
+
+    // Consume the left parenthesis.
+    let variable_pos = consume_token!(cache, Pi, start, tokens, LeftParen, start, &farthest_error);
+
+    // Consume the variable.
+    let (variable, next) =
+        consume_identifier!(cache, Pi, start, tokens, variable_pos, &farthest_error);
+
+    // Consume the colon.
+    let next = consume_token!(cache, Pi, start, tokens, Colon, next, &farthest_error);
+
+    // Parse the domain type.
+    let ((domain, next), farthest_error) = fail_fast!(
+        cache,
+        Pi,
+        start,
+        parse_node(cache, tokens, next, depth, context, &farthest_error),
+    );
+
+    // Consume the right parenthesis.
+    let next = consume_token!(cache, Pi, start, tokens, RightParen, next, &farthest_error);
+
+    // Consume the arrow.
+    let next = consume_token!(cache, Pi, start, tokens, ThinArrow, next, &farthest_error);
+
+    // Fail if the variable is already in the context.
+    if context.contains_key(variable) {
+        cache_return!(
+            cache,
+            Pi,
+            start,
+            (
+                None,
+                farthest_error!(
+                    farthest_error,
+                    move |source_path, source_contents| throw(
+                        format!("Variable {} already exists.", variable.code_str()),
+                        source_path,
+                        source_contents,
+                        tokens[variable_pos].source_range,
+                    ),
+                    next,
+                ),
+            ),
+        );
+    }
+
+    // Add the variable to the context.
+    context.insert(variable, depth);
+    let context_cell = RefCell::new(context);
+    defer! {{ context_cell.borrow_mut().remove(variable); }};
+
+    // Parse the codomain type.
+    let ((codomain, next), farthest_error) = {
+        let mut guard = context_cell.borrow_mut();
+
+        fail_fast!(
+            cache,
+            Pi,
+            start,
+            parse_node(cache, tokens, next, depth + 1, &mut *guard, &farthest_error),
+        )
+    };
+
+    // Construct and return the pi type.
+    cache_return!(
+        cache,
+        Pi,
+        start,
+        (
+            Some((
+                Node {
+                    source_range: if let ((start, _), Some((_, end))) =
+                        (tokens[start].source_range, codomain.source_range)
+                    {
+                        Some((start, end))
+                    } else {
+                        None
+                    },
+                    variant: ast::Variant::Pi(variable, Rc::new(domain), Rc::new(codomain)),
                 },
                 next
             )),
@@ -768,7 +840,13 @@ fn parse_application<'a, 'b>(
         (
             Some((
                 Node {
-                    source_range: (applicand.source_range.0, argument.source_range.1),
+                    source_range: if let (Some((start, _)), Some((_, end))) =
+                        (applicand.source_range, argument.source_range)
+                    {
+                        Some((start, end))
+                    } else {
+                        None
+                    },
                     variant: ast::Variant::Application(Rc::new(applicand), Rc::new(argument)),
                 },
                 next,
@@ -864,6 +942,7 @@ mod tests {
         },
         parser::parse,
         tokenizer::tokenize,
+        type_checker::TYPE,
     };
     use std::{collections::HashMap, rc::Rc};
 
@@ -877,6 +956,22 @@ mod tests {
     }
 
     #[test]
+    fn parse_variable() {
+        let source = "x";
+        let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("x", 0);
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &mut context).unwrap(),
+            Node {
+                source_range: Some((0, 1)),
+                variant: Variable("x", 0),
+            },
+        );
+    }
+
+    #[test]
     fn parse_lambda() {
         let source = "(x : a) => x";
         let tokens = tokenize(None, source).unwrap();
@@ -886,15 +981,15 @@ mod tests {
         assert_eq!(
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
-                source_range: (0, 12),
+                source_range: Some((0, 12)),
                 variant: Lambda(
                     "x",
                     Rc::new(Node {
-                        source_range: (5, 6),
+                        source_range: Some((5, 6)),
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Node {
-                        source_range: (11, 12),
+                        source_range: Some((11, 12)),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -912,34 +1007,18 @@ mod tests {
         assert_eq!(
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
-                source_range: (0, 12),
+                source_range: Some((0, 12)),
                 variant: Pi(
                     "x",
                     Rc::new(Node {
-                        source_range: (5, 6),
+                        source_range: Some((5, 6)),
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Node {
-                        source_range: (11, 12),
+                        source_range: Some((11, 12)),
                         variant: Variable("x", 0),
                     }),
                 ),
-            },
-        );
-    }
-
-    #[test]
-    fn parse_variable() {
-        let source = "x";
-        let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("x", 0);
-
-        assert_eq!(
-            parse(None, source, &tokens[..], &mut context).unwrap(),
-            Node {
-                source_range: (0, 1),
-                variant: Variable("x", 0),
             },
         );
     }
@@ -955,14 +1034,14 @@ mod tests {
         assert_eq!(
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
-                source_range: (0, 3),
+                source_range: Some((0, 3)),
                 variant: Application(
                     Rc::new(Node {
-                        source_range: (0, 1),
+                        source_range: Some((0, 1)),
                         variant: Variable("f", 1),
                     }),
                     Rc::new(Node {
-                        source_range: (2, 3),
+                        source_range: Some((2, 3)),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -982,23 +1061,23 @@ mod tests {
         assert_eq!(
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
-                source_range: (0, 5),
+                source_range: Some((0, 5)),
                 variant: Application(
                     Rc::new(Node {
-                        source_range: (0, 3),
+                        source_range: Some((0, 3)),
                         variant: Application(
                             Rc::new(Node {
-                                source_range: (0, 1),
+                                source_range: Some((0, 1)),
                                 variant: Variable("f", 2),
                             }),
                             Rc::new(Node {
-                                source_range: (2, 3),
+                                source_range: Some((2, 3)),
                                 variant: Variable("x", 1),
                             }),
                         ),
                     }),
                     Rc::new(Node {
-                        source_range: (4, 5),
+                        source_range: Some((4, 5)),
                         variant: Variable("y", 0),
                     }),
                 ),
@@ -1016,7 +1095,7 @@ mod tests {
         assert_eq!(
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
-                source_range: (1, 2),
+                source_range: Some((1, 2)),
                 variant: Variable("x", 0),
             },
         );
@@ -1027,61 +1106,61 @@ mod tests {
         let source = "(a : type) => (b : type) => (f : (_ : a) -> b) => (x : a) => f x";
         let tokens = tokenize(None, source).unwrap();
         let mut context = HashMap::<&str, usize>::new();
-        context.insert("type", 0);
+        context.insert(TYPE, 0);
 
         assert_eq!(
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
-                source_range: (0, 64),
+                source_range: Some((0, 64)),
                 variant: Lambda(
                     "a",
                     Rc::new(Node {
-                        source_range: (5, 9),
-                        variant: Variable("type", 0),
+                        source_range: Some((5, 9)),
+                        variant: Variable(TYPE, 0),
                     }),
                     Rc::new(Node {
-                        source_range: (14, 64),
+                        source_range: Some((14, 64)),
                         variant: Lambda(
                             "b",
                             Rc::new(Node {
-                                source_range: (19, 23),
-                                variant: Variable("type", 1),
+                                source_range: Some((19, 23)),
+                                variant: Variable(TYPE, 1),
                             }),
                             Rc::new(Node {
-                                source_range: (28, 64),
+                                source_range: Some((28, 64)),
                                 variant: Lambda(
                                     "f",
                                     Rc::new(Node {
-                                        source_range: (33, 45),
+                                        source_range: Some((33, 45)),
                                         variant: Pi(
                                             "_",
                                             Rc::new(Node {
-                                                source_range: (38, 39),
+                                                source_range: Some((38, 39)),
                                                 variant: Variable("a", 1),
                                             }),
                                             Rc::new(Node {
-                                                source_range: (44, 45),
+                                                source_range: Some((44, 45)),
                                                 variant: Variable("b", 1),
                                             }),
                                         ),
                                     }),
                                     Rc::new(Node {
-                                        source_range: (50, 64),
+                                        source_range: Some((50, 64)),
                                         variant: Lambda(
                                             "x",
                                             Rc::new(Node {
-                                                source_range: (55, 56),
+                                                source_range: Some((55, 56)),
                                                 variant: Variable("a", 2),
                                             }),
                                             Rc::new(Node {
-                                                source_range: (61, 64),
+                                                source_range: Some((61, 64)),
                                                 variant: Application(
                                                     Rc::new(Node {
-                                                        source_range: (61, 62),
+                                                        source_range: Some((61, 62)),
                                                         variant: Variable("f", 1),
                                                     }),
                                                     Rc::new(Node {
-                                                        source_range: (63, 64),
+                                                        source_range: Some((63, 64)),
                                                         variant: Variable("x", 0),
                                                     }),
                                                 ),

@@ -4,12 +4,15 @@ mod format;
 mod parser;
 mod token;
 mod tokenizer;
+mod type_checker;
 
 use crate::{
+    ast::Node,
     error::{lift, Error},
     format::CodeStr,
     parser::parse,
     tokenizer::tokenize,
+    type_checker::{type_check, TYPE},
 };
 use atty::Stream;
 use clap::{
@@ -18,7 +21,8 @@ use clap::{
     Arg, Shell, SubCommand,
 };
 use std::{
-    borrow::Borrow, collections::HashMap, fs::read_to_string, io::stdout, path::Path, process::exit,
+    borrow::Borrow, collections::HashMap, fs::read_to_string, io::stdout, path::Path,
+    process::exit, rc::Rc,
 };
 
 // The program version
@@ -102,20 +106,34 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     // Tokenize the source file.
     let tokens = tokenize(Some(source_path.borrow()), &source_contents)?;
 
-    // Construct a hash table to represent the variables in scope.
-    let mut context = HashMap::<&str, usize>::new();
-    context.insert("type", 0);
+    // Construct a hash table to represent the variables in scope during parsing.
+    let mut parsing_context = HashMap::<&str, usize>::new();
+    parsing_context.insert(TYPE, 0);
 
     // Parse the source file.
     let node = parse(
         Some(source_path.borrow()),
         &source_contents,
         &tokens[..],
-        &mut context,
+        &mut parsing_context,
     )?;
 
-    // For now, just print the AST.
-    println!("{:?}", node);
+    // Construct a vector to represent the variables in scope during type checking.
+    let mut type_checking_context = vec![Rc::new(Node {
+        source_range: None,
+        variant: ast::Variant::Variable(TYPE, 0),
+    })];
+
+    // Type check the AST.
+    let node_type = type_check(
+        Some(source_path.borrow()),
+        &source_contents,
+        &node,
+        &mut type_checking_context,
+    )?;
+
+    // For now, just print the type.
+    println!("{:?}", node_type);
 
     // If we made it this far, nothing went wrong.
     Ok(())
