@@ -607,7 +607,6 @@ fn parse_pi<'a, 'b>(
 }
 
 // Parse a lambda.
-#[allow(clippy::too_many_lines)]
 fn parse_lambda<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
