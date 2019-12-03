@@ -46,43 +46,77 @@ enum CacheType {
 type CacheKey = (CacheType, usize);
 
 // An `ErrorFactory` is a function which takes a source path and contents and produces an `Error`.
-// It's cheaper to generate and pass around a pointer to a closure than the actual `Error`, which
-// may contain a long string message.
+// It's cheaper to generate a closure that produces the `Error` than to generate the actual
+// `Error`, which may contain a long string message.
 type ErrorFactory<'a, 'b> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
 
 // An `ParseError` is a pair containing:
 // 1. An `ErrorFactory`.
-// 2. The position of the token that caused the error (or the position of the following token, if
-//    we are confident we're in the right production rule).
+// 2. The position of the token that caused the error (or perhaps a higher position, if we're
+//    confident we're in the right production rule). This position will be used to rank errors and
+//    choose the "best" one.
 type ParseError<'a, 'b> = (ErrorFactory<'a, 'b>, usize);
 
 // The result of a cache lookup is a pair of 2 things:
 // 1. The node that was parsed and the position of the next unconsumed token, if the parse was
 //    successful.
-// 2. The farthest `ParseError` encountered during the parse, even if the parse was successful.
+// 2. The farthest `ParseError` encountered during the parse. Even if the parse was locally
+//    successful, we still keep track of this error because we may return it in the case of a
+//    failure later on.
 type CacheResult<'a, 'b> = (Option<(Node<'a>, usize)>, ParseError<'a, 'b>);
 
 // A cache is a hash map from cache key to result.
 type Cache<'a, 'b> = HashMap<CacheKey, CacheResult<'a, 'b>>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
-// return early on cache hit.
+// return early on cache hit. This macro also transforms the `$farthest_error` (by evaluating to a
+// new one) such that the farthest error occurs at `$start` or later.
 macro_rules! cache_check {
-    ($cache:ident, $type:ident, $start:expr $(,)?) => {{
+    ($cache:ident, $type:ident, $start:expr, $tokens:expr, $farthest_error:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let start = $start;
+        let tokens = $tokens;
+        let farthest_error = $farthest_error;
 
+        // Do the cache lookup.
         if let Some(result) = $cache.get(&(CacheType::$type, start)) {
             return (*result).clone();
         }
+
+        // Produce a new farthest error if necessary to record that we've at least seen the
+        // `$start` token.
+        farthest_error!(
+            farthest_error,
+            move |source_path, source_contents| if start < tokens.len() {
+                throw(
+                    format!("Unexpected {}.", tokens[start].to_string().code_str()),
+                    source_path,
+                    source_contents,
+                    tokens[start].source_range,
+                )
+            } else {
+                throw(
+                    "Unexpected end of file.",
+                    source_path,
+                    source_contents,
+                    (tokens.len(), tokens.len()),
+                )
+            },
+            start,
+        )
     }};
 }
 
 // This macro should be used to cache a value and return it.
 macro_rules! cache_return {
     ($cache:ident, $type:ident, $start:expr, $value:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let start = $start;
         let value = $value;
 
+        // Cache and return the value.
         $cache.insert((CacheType::$type, start), value.clone());
         return value;
     }};
@@ -93,9 +127,12 @@ macro_rules! cache_return {
 // its value.
 macro_rules! fail_fast {
     ($cache:ident, $type:ident, $start:expr, $expr:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let start = $start;
         let expr = $expr;
 
+        // Extract the result or fail fast.
         if let Some(result) = expr.0 {
             (result, expr.1)
         } else {
@@ -107,9 +144,13 @@ macro_rules! fail_fast {
 // This macro chooses the farthest of two parse errors.
 macro_rules! farthest_error {
     ($error1:expr, $error2_factory:expr, $error2_next:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation for all
+        // arguments except `error2_factory`, which we intentionally keep lazy.
         let error1 = $error1;
         let error2_next = $error2_next;
 
+        // If `error2` is farther than `error1`, return that. Otherwise, default to `error1`.
         if error2_next > error1.1 {
             (Rc::new($error2_factory) as ErrorFactory, error2_next)
         } else {
@@ -129,8 +170,11 @@ macro_rules! farthest_error {
 // attempt that matched the most tokens if none of the attempts were successful.
 macro_rules! try_parse {
     ($candidate:ident, $expr:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let expr = $expr;
 
+        // Update the first component of the candidate (the node), if applicable.
         if let Some((_, next)) = &expr.0 {
             if let Some((_, candidate_next)) = &$candidate.0 {
                 if next > candidate_next {
@@ -141,6 +185,7 @@ macro_rules! try_parse {
             }
         }
 
+        // Update the first component of the candidate (the error), if applicable.
         if (expr.1).1 > ($candidate.1).1 {
             $candidate.1 = expr.1;
         }
@@ -158,11 +203,14 @@ macro_rules! consume_token {
         $next:expr,
         $farthest_error:expr $(,)?
     ) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let start = $start;
         let tokens = $tokens;
         let next = $next;
         let farthest_error = $farthest_error;
 
+        // Fail if there are no more tokens to parse.
         if next == tokens.len() {
             cache_return!(
                 $cache,
@@ -190,6 +238,7 @@ macro_rules! consume_token {
             )
         }
 
+        // Check if the token was the expected one.
         if let token::Variant::$variant = tokens[next].variant {
             next + 1
         } else {
@@ -232,11 +281,14 @@ macro_rules! consume_identifier {
         $next:expr,
         $farthest_error:expr $(,)?
     ) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let start = $start;
         let tokens = $tokens;
         let next = $next;
         let farthest_error = $farthest_error;
 
+        // Fail if there are no more tokens to parse.
         if next == tokens.len() {
             cache_return!(
                 $cache,
@@ -263,6 +315,7 @@ macro_rules! consume_identifier {
             )
         }
 
+        // Check if the token is actually an identifier.
         if let token::Variant::Identifier(identifier) = tokens[next].variant {
             (identifier, next + 1)
         } else {
@@ -418,31 +471,10 @@ fn parse_node<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Node, start);
+    let farthest_error = cache_check!(cache, Node, start, tokens, farthest_error);
 
     // This is our candidate for the longest matching parse.
-    let mut candidate = (
-        None,
-        farthest_error!(
-            farthest_error,
-            move |source_path, source_contents| if start < tokens.len() {
-                throw(
-                    format!("Unexpected {}.", tokens[start].to_string().code_str()),
-                    source_path,
-                    source_contents,
-                    tokens[start].source_range,
-                )
-            } else {
-                throw(
-                    "Unexpected end of file.",
-                    source_path,
-                    source_contents,
-                    (tokens.len(), tokens.len()),
-                )
-            },
-            start,
-        ),
-    );
+    let mut candidate = (None, farthest_error.clone());
 
     // Try to parse an application.
     try_parse!(
@@ -488,11 +520,11 @@ fn parse_variable<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Variable, start);
+    let farthest_error = cache_check!(cache, Variable, start, tokens, farthest_error);
 
     // Consume the variable.
     let (variable, next) =
-        consume_identifier!(cache, Variable, start, tokens, start, farthest_error);
+        consume_identifier!(cache, Variable, start, tokens, start, &farthest_error);
 
     // Look up the variable in the context.
     let de_bruijn_index = if let Some(variable_depth) = context.get(variable) {
@@ -546,23 +578,23 @@ fn parse_pi<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Pi, start);
+    let farthest_error = cache_check!(cache, Pi, start, tokens, farthest_error);
 
     // Consume the left parenthesis.
-    let next = consume_token!(cache, Pi, start, tokens, LeftParen, start, farthest_error);
+    let next = consume_token!(cache, Pi, start, tokens, LeftParen, start, &farthest_error);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Pi, start, tokens, next, farthest_error);
+    let (variable, next) = consume_identifier!(cache, Pi, start, tokens, next, &farthest_error);
 
     // Consume the colon.
-    let next = consume_token!(cache, Pi, start, tokens, Colon, next, farthest_error);
+    let next = consume_token!(cache, Pi, start, tokens, Colon, next, &farthest_error);
 
     // Parse the domain type.
     let ((domain, next), farthest_error) = fail_fast!(
         cache,
         Pi,
         start,
-        parse_node(cache, tokens, next, depth, context, farthest_error,),
+        parse_node(cache, tokens, next, depth, context, &farthest_error),
     );
 
     // Consume the right parenthesis.
@@ -584,7 +616,7 @@ fn parse_pi<'a, 'b>(
             cache,
             Pi,
             start,
-            parse_node(cache, tokens, next, depth + 1, &mut *guard, &farthest_error,),
+            parse_node(cache, tokens, next, depth + 1, &mut *guard, &farthest_error),
         )
     };
 
@@ -616,7 +648,7 @@ fn parse_lambda<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Lambda, start);
+    let farthest_error = cache_check!(cache, Lambda, start, tokens, farthest_error);
 
     // Consume the left parenthesis.
     let next = consume_token!(
@@ -626,21 +658,21 @@ fn parse_lambda<'a, 'b>(
         tokens,
         LeftParen,
         start,
-        farthest_error
+        &farthest_error
     );
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Lambda, start, tokens, next, farthest_error);
+    let (variable, next) = consume_identifier!(cache, Lambda, start, tokens, next, &farthest_error);
 
     // Consume the colon.
-    let next = consume_token!(cache, Lambda, start, tokens, Colon, next, farthest_error);
+    let next = consume_token!(cache, Lambda, start, tokens, Colon, next, &farthest_error);
 
     // Parse the domain type.
     let ((domain, next), farthest_error) = fail_fast!(
         cache,
         Lambda,
         start,
-        parse_node(cache, tokens, next, depth, context, farthest_error,),
+        parse_node(cache, tokens, next, depth, context, &farthest_error),
     );
 
     // Consume the right parenthesis.
@@ -678,7 +710,7 @@ fn parse_lambda<'a, 'b>(
             cache,
             Lambda,
             start,
-            parse_node(cache, tokens, next, depth + 1, &mut *guard, &farthest_error,),
+            parse_node(cache, tokens, next, depth + 1, &mut *guard, &farthest_error),
         )
     };
 
@@ -710,14 +742,14 @@ fn parse_application<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Application, start);
+    let farthest_error = cache_check!(cache, Application, start, tokens, farthest_error);
 
     // Parse the applicand.
     let ((applicand, next), farthest_error) = fail_fast!(
         cache,
         Application,
         start,
-        parse_applicand(cache, tokens, start, depth, context, farthest_error),
+        parse_applicand(cache, tokens, start, depth, context, &farthest_error),
     );
 
     // Parse the argument.
@@ -725,7 +757,7 @@ fn parse_application<'a, 'b>(
         cache,
         Application,
         start,
-        parse_node(cache, tokens, next, depth, context, &farthest_error,),
+        parse_node(cache, tokens, next, depth, context, &farthest_error),
     );
 
     // Construct and return the application.
@@ -756,31 +788,10 @@ fn parse_applicand<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Applicand, start);
+    let farthest_error = cache_check!(cache, Applicand, start, tokens, farthest_error);
 
     // This is our candidate for the longest matching parse.
-    let mut candidate = (
-        None,
-        farthest_error!(
-            farthest_error,
-            move |source_path, source_contents| if start < tokens.len() {
-                throw(
-                    format!("Unexpected {}.", tokens[start].to_string().code_str()),
-                    source_path,
-                    source_contents,
-                    tokens[start].source_range,
-                )
-            } else {
-                throw(
-                    "Unexpected end of file.",
-                    source_path,
-                    source_contents,
-                    (tokens.len(), tokens.len()),
-                )
-            },
-            start,
-        ),
-    );
+    let mut candidate = (None, farthest_error.clone());
 
     // Try to parse a variable.
     try_parse!(
@@ -808,7 +819,7 @@ fn parse_group<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Group, start);
+    let farthest_error = cache_check!(cache, Group, start, tokens, farthest_error);
 
     // Consume the left parenthesis.
     let next = consume_token!(
@@ -818,7 +829,7 @@ fn parse_group<'a, 'b>(
         tokens,
         LeftParen,
         start,
-        farthest_error
+        &farthest_error
     );
 
     // Parse the inner node.
@@ -826,7 +837,7 @@ fn parse_group<'a, 'b>(
         cache,
         Group,
         start,
-        parse_node(cache, tokens, next, depth, context, farthest_error,),
+        parse_node(cache, tokens, next, depth, context, &farthest_error),
     );
 
     // Consume the right parenthesis.
