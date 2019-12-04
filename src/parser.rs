@@ -51,11 +51,11 @@ type CacheKey = (CacheType, usize);
 type ErrorFactory<'a, 'b> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
 
 // An `ParseError` is a pair containing:
-// 1. An `ErrorFactory`.
+// 1. An `ErrorFactory`, if there is a more useful error message than the default one.
 // 2. The position of the token that caused the error (or perhaps a higher position, if we're
 //    confident we're in the right production rule). This position will be used to rank errors and
 //    choose the "best" one.
-type ParseError<'a, 'b> = (ErrorFactory<'a, 'b>, usize);
+type ParseError<'a, 'b> = (Option<ErrorFactory<'a, 'b>>, usize);
 
 // The result of a cache lookup is a pair of 2 things:
 // 1. The node that was parsed and the position of the next unconsumed token, if the parse was
@@ -72,11 +72,10 @@ type Cache<'a, 'b> = HashMap<CacheKey, CacheResult<'a, 'b>>;
 // return early on cache hit. This macro also transforms the `$farthest_error` (by evaluating to a
 // new one) such that the farthest error occurs at `$start` or later.
 macro_rules! cache_check {
-    ($cache:ident, $type:ident, $start:expr, $tokens:expr, $farthest_error:expr $(,)?) => {{
+    ($cache:ident, $type:ident, $start:expr, $farthest_error:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let start = $start;
-        let tokens = $tokens;
         let farthest_error = $farthest_error;
 
         // Do the cache lookup.
@@ -86,25 +85,11 @@ macro_rules! cache_check {
 
         // Produce a new farthest error if necessary to record that we've at least seen the
         // `$start` token.
-        farthest_error!(
-            farthest_error,
-            move |source_path, source_contents| if start < tokens.len() {
-                throw(
-                    format!("Unexpected {}.", tokens[start].to_string().code_str()),
-                    source_path,
-                    source_contents,
-                    tokens[start].source_range,
-                )
-            } else {
-                throw(
-                    "Unexpected end of file.",
-                    source_path,
-                    source_contents,
-                    (tokens.len(), tokens.len()),
-                )
-            },
-            start,
-        )
+        if start > farthest_error.1 {
+            (None, start)
+        } else {
+            farthest_error.clone()
+        }
     }};
 }
 
@@ -137,24 +122,6 @@ macro_rules! fail_fast {
             (result, expr.1)
         } else {
             cache_return!($cache, $type, start, expr)
-        }
-    }};
-}
-
-// This macro chooses the farthest of two parse errors.
-macro_rules! farthest_error {
-    ($error1:expr, $error2_factory:expr, $error2_next:expr $(,)?) => {{
-        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
-        // accidentally evaluating arguments multiple times. Here we force eager evaluation for all
-        // arguments except `error2_factory`, which we intentionally keep lazy.
-        let error1 = $error1;
-        let error2_next = $error2_next;
-
-        // If `error2` is farther than `error1`, return that. Otherwise, default to `error1`.
-        if error2_next > error1.1 {
-            (Rc::new($error2_factory) as ErrorFactory, error2_next)
-        } else {
-            error1.clone()
         }
     }};
 }
@@ -218,22 +185,25 @@ macro_rules! consume_token {
                 start,
                 (
                     None,
-                    farthest_error!(
-                        farthest_error,
-                        move |source_path, source_contents| {
-                            throw(
-                                format!(
-                                    "Expected {} after {}.",
-                                    token::Variant::$variant.to_string().code_str(),
-                                    tokens[next - 1].to_string().code_str(),
-                                ),
-                                source_path,
-                                source_contents,
-                                tokens[next - 1].source_range,
-                            )
-                        },
-                        next,
-                    ),
+                    if next > farthest_error.1 {
+                        (
+                            Some(Rc::new(move |source_path, source_contents| {
+                                throw(
+                                    format!(
+                                        "Expected {} after {}.",
+                                        token::Variant::$variant.to_string().code_str(),
+                                        tokens[next - 1].to_string().code_str(),
+                                    ),
+                                    source_path,
+                                    source_contents,
+                                    tokens[next - 1].source_range,
+                                )
+                            }) as ErrorFactory),
+                            next,
+                        )
+                    } else {
+                        farthest_error.clone()
+                    },
                 ),
             )
         }
@@ -248,22 +218,25 @@ macro_rules! consume_token {
                 start,
                 (
                     None,
-                    farthest_error!(
-                        farthest_error,
-                        move |source_path, source_contents| {
-                            throw(
-                                format!(
-                                    "Expected {} but encountered {}.",
-                                    token::Variant::$variant.to_string().code_str(),
-                                    tokens[next].to_string().code_str(),
-                                ),
-                                source_path,
-                                source_contents,
-                                tokens[next].source_range,
-                            )
-                        },
-                        next,
-                    ),
+                    if next > farthest_error.1 {
+                        (
+                            Some(Rc::new(move |source_path, source_contents| {
+                                throw(
+                                    format!(
+                                        "Expected {} but encountered {}.",
+                                        token::Variant::$variant.to_string().code_str(),
+                                        tokens[next].to_string().code_str(),
+                                    ),
+                                    source_path,
+                                    source_contents,
+                                    tokens[next].source_range,
+                                )
+                            }) as ErrorFactory),
+                            next,
+                        )
+                    } else {
+                        farthest_error.clone()
+                    },
                 ),
             )
         }
@@ -296,21 +269,24 @@ macro_rules! consume_identifier {
                 start,
                 (
                     None,
-                    farthest_error!(
-                        farthest_error,
-                        move |source_path, source_contents| {
-                            throw(
-                                format!(
-                                    "Expected an identifier after {}.",
-                                    tokens[next - 1].to_string().code_str(),
-                                ),
-                                source_path,
-                                source_contents,
-                                tokens[next - 1].source_range,
-                            )
-                        },
-                        next,
-                    ),
+                    if next > farthest_error.1 {
+                        (
+                            Some(Rc::new(move |source_path, source_contents| {
+                                throw(
+                                    format!(
+                                        "Expected an identifier after {}.",
+                                        tokens[next - 1].to_string().code_str(),
+                                    ),
+                                    source_path,
+                                    source_contents,
+                                    tokens[next - 1].source_range,
+                                )
+                            }) as ErrorFactory),
+                            next,
+                        )
+                    } else {
+                        farthest_error.clone()
+                    },
                 ),
             )
         }
@@ -325,21 +301,24 @@ macro_rules! consume_identifier {
                 start,
                 (
                     None,
-                    farthest_error!(
-                        farthest_error,
-                        move |source_path, source_contents| {
-                            throw(
-                                format!(
-                                    "Expected an identifier but encountered {}.",
-                                    tokens[next].to_string().code_str(),
-                                ),
-                                source_path,
-                                source_contents,
-                                tokens[next].source_range,
-                            )
-                        },
-                        next,
-                    ),
+                    if next > farthest_error.1 {
+                        (
+                            Some(Rc::new(move |source_path, source_contents| {
+                                throw(
+                                    format!(
+                                        "Expected an identifier but encountered {}.",
+                                        tokens[next].to_string().code_str(),
+                                    ),
+                                    source_path,
+                                    source_contents,
+                                    tokens[next].source_range,
+                                )
+                            }) as ErrorFactory),
+                            next,
+                        )
+                    } else {
+                        farthest_error.clone()
+                    },
                 ),
             )
         }
@@ -363,54 +342,53 @@ pub fn parse<'a, T: Borrow<[Token<'a>]>, U: BorrowMut<HashMap<&'a str, usize>>>(
     let mut cache = Cache::new();
 
     // Parse the node.
-    let (result, error) = parse_node(
-        &mut cache,
-        tokens,
-        0,
-        context.len(),
-        context,
-        &if tokens.is_empty() {
-            (
-                Rc::new(move |source_path, source_contents| {
-                    throw("Nothing to parse.", source_path, source_contents, (0, 0))
-                }) as ErrorFactory<'a, 'a>,
-                0,
-            )
+    let (result, error) = parse_node(&mut cache, tokens, 0, context.len(), context, &(None, 0));
+
+    // Check if we managed to parse something.
+    let first_unparsed_token = if let Some((node, next)) = result {
+        // We parsed something, but did we parse everything?
+        if next == tokens.len() {
+            // We parsed everything. Flip the associativity of applications from right to left and
+            // return the result [ref:reassociate-applications].
+            return Ok((*reassociate_applications(None, Rc::new(node))).clone());
         } else {
-            let first_token_string = tokens[0].to_string();
-            let first_token_source_range = tokens[0].source_range;
-
-            (
-                Rc::new(move |source_path, source_contents| {
-                    throw(
-                        format!("Unexpected {}.", first_token_string.code_str()),
-                        source_path,
-                        source_contents,
-                        first_token_source_range,
-                    )
-                }) as ErrorFactory<'a, 'a>,
-                0,
-            )
-        },
-    );
-
-    // If the parse failed, construct the error using the error factory and return it.
-    let (node, next) = if let Some(success) = result {
-        success
+            // We didn't parse all the tokens. Remember which one we stopped at.
+            next
+        }
     } else {
-        return Err(error.0(source_path, source_contents));
+        // The parse failed. Remember which token caused the parse to fail.
+        error.1
     };
 
-    // Make sure we parsed all the tokens.
-    if next != tokens.len() {
-        return Err(error.0(source_path, source_contents));
+    // If we made it this far, something went wrong. See if we have an error factory.
+    if let (Some(factory), _) = error {
+        // We have one. Use it to generate the error.
+        Err(factory(source_path, source_contents))
+    } else {
+        // All we have is the position of the token that caused the parse to fail. That position
+        // might be the end of the stream, which means we were in the middle of parsing something
+        // and expected more tokens. Let's check if we're at the end of the stream.
+        Err(if first_unparsed_token < tokens.len() {
+            // There was some token that caused the parse to fail. Report it.
+            throw(
+                format!(
+                    "Unexpected {}.",
+                    tokens[first_unparsed_token].to_string().code_str()
+                ),
+                source_path,
+                source_contents,
+                tokens[first_unparsed_token].source_range,
+            )
+        } else {
+            // We ran out of tokens during parsing. Report that.
+            throw(
+                "Unexpected end of file.",
+                source_path,
+                source_contents,
+                (tokens.len(), tokens.len()),
+            )
+        })
     }
-
-    // Flip the associativity of applications from right to left [ref:reassociate-applications].
-    let reassociated = (*reassociate_applications(None, Rc::new(node))).clone();
-
-    // If we made it this far, nothing went wrong.
-    Ok(reassociated)
 }
 
 // Flip the associativity of applications from right to left.
@@ -485,7 +463,7 @@ fn parse_node<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    let farthest_error = cache_check!(cache, Node, start, tokens, farthest_error);
+    let farthest_error = cache_check!(cache, Node, start, farthest_error);
 
     // This is our candidate for the longest matching parse.
     let mut candidate = (None, farthest_error.clone());
@@ -534,7 +512,7 @@ fn parse_variable<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    let farthest_error = cache_check!(cache, Variable, start, tokens, farthest_error);
+    let farthest_error = cache_check!(cache, Variable, start, farthest_error);
 
     // Consume the variable.
     let (variable, next) =
@@ -550,16 +528,21 @@ fn parse_variable<'a, 'b>(
             start,
             (
                 None,
-                farthest_error!(
-                    farthest_error,
-                    move |source_path, source_contents| throw(
-                        format!("Undefined variable {}.", variable.code_str()),
-                        source_path,
-                        source_contents,
-                        tokens[next - 1].source_range,
-                    ),
-                    next,
-                ),
+                if next > farthest_error.1 {
+                    (
+                        Some(Rc::new(move |source_path, source_contents| {
+                            throw(
+                                format!("Undefined variable {}.", variable.code_str()),
+                                source_path,
+                                source_contents,
+                                tokens[next - 1].source_range,
+                            )
+                        }) as ErrorFactory),
+                        next,
+                    )
+                } else {
+                    farthest_error.clone()
+                },
             ),
         )
     };
@@ -592,7 +575,7 @@ fn parse_lambda<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    let farthest_error = cache_check!(cache, Lambda, start, tokens, farthest_error);
+    let farthest_error = cache_check!(cache, Lambda, start, farthest_error);
 
     // Consume the left parenthesis.
     let variable_pos = consume_token!(
@@ -602,7 +585,7 @@ fn parse_lambda<'a, 'b>(
         tokens,
         LeftParen,
         start,
-        &farthest_error
+        &farthest_error,
     );
 
     // Consume the variable.
@@ -628,7 +611,7 @@ fn parse_lambda<'a, 'b>(
         tokens,
         RightParen,
         next,
-        &farthest_error
+        &farthest_error,
     );
 
     // Consume the arrow.
@@ -639,7 +622,7 @@ fn parse_lambda<'a, 'b>(
         tokens,
         ThickArrow,
         next,
-        &farthest_error
+        &farthest_error,
     );
 
     // Fail if the variable is already in the context.
@@ -650,16 +633,21 @@ fn parse_lambda<'a, 'b>(
             start,
             (
                 None,
-                farthest_error!(
-                    farthest_error,
-                    move |source_path, source_contents| throw(
-                        format!("Variable {} already exists.", variable.code_str()),
-                        source_path,
-                        source_contents,
-                        tokens[variable_pos].source_range,
-                    ),
-                    next,
-                ),
+                if next > farthest_error.1 {
+                    (
+                        Some(Rc::new(move |source_path, source_contents| {
+                            throw(
+                                format!("Variable {} already exists.", variable.code_str()),
+                                source_path,
+                                source_contents,
+                                tokens[variable_pos].source_range,
+                            )
+                        }) as ErrorFactory),
+                        next,
+                    )
+                } else {
+                    farthest_error.clone()
+                },
             ),
         );
     }
@@ -715,7 +703,7 @@ fn parse_pi<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    let farthest_error = cache_check!(cache, Pi, start, tokens, farthest_error);
+    let farthest_error = cache_check!(cache, Pi, start, farthest_error);
 
     // Consume the left parenthesis.
     let variable_pos = consume_token!(cache, Pi, start, tokens, LeftParen, start, &farthest_error);
@@ -749,16 +737,21 @@ fn parse_pi<'a, 'b>(
             start,
             (
                 None,
-                farthest_error!(
-                    farthest_error,
-                    move |source_path, source_contents| throw(
-                        format!("Variable {} already exists.", variable.code_str()),
-                        source_path,
-                        source_contents,
-                        tokens[variable_pos].source_range,
-                    ),
-                    next,
-                ),
+                if next > farthest_error.1 {
+                    (
+                        Some(Rc::new(move |source_path, source_contents| {
+                            throw(
+                                format!("Variable {} already exists.", variable.code_str()),
+                                source_path,
+                                source_contents,
+                                tokens[variable_pos].source_range,
+                            )
+                        }) as ErrorFactory),
+                        next,
+                    )
+                } else {
+                    farthest_error.clone()
+                },
             ),
         );
     }
@@ -814,7 +807,7 @@ fn parse_application<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    let farthest_error = cache_check!(cache, Application, start, tokens, farthest_error);
+    let farthest_error = cache_check!(cache, Application, start, farthest_error);
 
     // Parse the applicand.
     let ((applicand, next), farthest_error) = fail_fast!(
@@ -866,7 +859,7 @@ fn parse_applicand<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    let farthest_error = cache_check!(cache, Applicand, start, tokens, farthest_error);
+    let farthest_error = cache_check!(cache, Applicand, start, farthest_error);
 
     // This is our candidate for the longest matching parse.
     let mut candidate = (None, farthest_error.clone());
@@ -897,7 +890,7 @@ fn parse_group<'a, 'b>(
     farthest_error: &ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    let farthest_error = cache_check!(cache, Group, start, tokens, farthest_error);
+    let farthest_error = cache_check!(cache, Group, start, farthest_error);
 
     // Consume the left parenthesis.
     let next = consume_token!(
@@ -907,7 +900,7 @@ fn parse_group<'a, 'b>(
         tokens,
         LeftParen,
         start,
-        &farthest_error
+        &farthest_error,
     );
 
     // Parse the inner node.
@@ -926,7 +919,7 @@ fn parse_group<'a, 'b>(
         tokens,
         RightParen,
         next,
-        &farthest_error
+        &farthest_error,
     );
 
     // If we made it this far, we successfully parsed the group. Return the inner node.
@@ -955,7 +948,7 @@ mod tests {
 
         assert_fails!(
             parse(None, source, &tokens[..], &mut context),
-            "Nothing to parse.",
+            "Unexpected end of file",
         );
     }
 
