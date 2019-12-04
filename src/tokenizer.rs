@@ -158,7 +158,7 @@ mod tests {
             vec![Token {
                 source_range: (0, 1),
                 variant: Variant::Colon,
-            }]
+            }],
         );
     }
 
@@ -169,7 +169,7 @@ mod tests {
             vec![Token {
                 source_range: (0, 1),
                 variant: Variant::LeftParen,
-            }]
+            }],
         );
     }
 
@@ -180,7 +180,7 @@ mod tests {
             vec![Token {
                 source_range: (0, 1),
                 variant: Variant::RightParen,
-            }]
+            }],
         );
     }
 
@@ -191,7 +191,7 @@ mod tests {
             vec![Token {
                 source_range: (0, 2),
                 variant: Variant::ThickArrow,
-            }]
+            }],
         );
     }
 
@@ -202,7 +202,7 @@ mod tests {
             vec![Token {
                 source_range: (0, 2),
                 variant: Variant::ThinArrow,
-            }]
+            }],
         );
     }
 
@@ -213,7 +213,7 @@ mod tests {
             vec![Token {
                 source_range: (0, 6),
                 variant: Variant::Identifier("\u{5e78}\u{798f}"),
-            }]
+            }],
         );
     }
 
@@ -242,7 +242,7 @@ mod tests {
                     source_range: (5, 7),
                     variant: Variant::ThinArrow,
                 },
-            ]
+            ],
         );
     }
 
@@ -271,7 +271,7 @@ mod tests {
                     source_range: (10, 12),
                     variant: Variant::ThinArrow,
                 },
-            ]
+            ],
         );
     }
 

@@ -18,16 +18,46 @@ use std::{
 //
 //   e = x | ( x : e ) -> e | ( x : e ) => e | e e | ( e )
 //
-// Interpreted as a grammar, this is ambiguous because `e1 e2 e2` could be parsed as either
-// `e1 (e2 e3)` or `(e1 e2) e3`. So we need to change the grammar to make application left- or
-// right-associative. We'd prefer left-associativity, but that would lead to a left-recursive
-// grammar, which is not supported by the packrat parsing technique. So we employ a trick: we parse
-// applications as right-associative, but then we re-associate them in a post-processing step to
-// achieve the desired left-associativity [tag:reassociate-applications]. So the grammar we'll be
-// parsing is:
+// If we interpret these rules as a grammar, we face two problems:
 //
-//   e = x | ( x : e ) -> e | ( x : e ) => e | e-pi-lambda-app e | ( e )
-//   e-pi-lambda-app = x | ( e )
+//   1. The grammar is left-recursive, and left recursion is not supported by the packrat parsing
+//      technique.
+//   2. The grammar is ambiguous. For example, the associativity of application has not been
+//      specified.
+//
+// To address the ambiguity issue (2), we could start by making application left-associative. This
+// is the natural choice to make currying ergonomic. However, this reinforces the left-recursion
+// problem (1). To resolve this, we employ a trick: we parse applications as right-associative, but
+// then we reassociate them in a post-processing step to achieve the desired left-associativity
+// [tag:reassociate-applications]. For example, we parse `f x y` as `f [x y]`, then transform it
+// into `[f x] y`. We have to be careful not to reassociate applications in which the
+// associativity has already been specified by explicit grouping. For example, we should not
+// reassociate `f (x y)`. Thus, when parsing, we record whether a term was parsed as group
+// [tag:group-flag].
+//
+// Now, let's resolve ambiguities. The first ambiguity is that `( x : e ) -> e e` can be parsed in
+// two ways:
+//
+//   1. [( x : e ) -> e] e
+//   1. ( x : e ) -> [e e]
+//
+// A similar ambiguity arises with lambdas. To resolve this, we can disallow pi types and lambdas
+// as applicands (unless they are surrounded by parentheses, of course). This leads to:
+//
+//   e = x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
+//   applicand = x | applicand e | ( e )
+//
+// Now we have to encode the associativity of application into the grammar. As it stands,
+// `applicand x e` can be parsed as either of:
+//
+//   1. [applicand x] e
+//   2. applicand [x e]
+//
+// As discussed above, we'll parse application as right-associative. We can do this by disallowing
+// applicands from being applications themselves. Thus, the final grammar is:
+//
+//   e = x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
+//   applicand = x | ( e )
 
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
 #[derive(Debug, Eq, Hash, PartialEq)]
@@ -302,8 +332,8 @@ pub fn parse<'a, T: Borrow<[Token<'a>]>, U: BorrowMut<HashMap<&'a str, usize>>>(
     let first_unparsed_token = if let Some((node, next)) = result {
         // We parsed something, but did we parse everything?
         if next == tokens.len() {
-            // We parsed everything. Flip the associativity of applications from right to left and
-            // return the result [ref:reassociate-applications].
+            // We parsed everything. Flip the associativity of applications with non-grouped
+            // arguments from right to left and return the result [ref:reassociate-applications].
             return Ok((*reassociate_applications(None, Rc::new(node))).clone());
         } else {
             // We didn't parse all the tokens. Remember which one we stopped at.
@@ -353,6 +383,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
     let reduced = match &node.variant {
         ast::Variant::Lambda(variable, domain, body) => Rc::new(Node {
             source_range: node.source_range,
+            group: node.group,
             variant: ast::Variant::Lambda(
                 variable,
                 reassociate_applications(None, domain.clone()),
@@ -361,6 +392,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
         }),
         ast::Variant::Pi(variable, domain, codomain) => Rc::new(Node {
             source_range: node.source_range,
+            group: node.group,
             variant: ast::Variant::Pi(
                 variable,
                 reassociate_applications(None, domain.clone()),
@@ -369,28 +401,41 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
         }),
         ast::Variant::Variable(_, _) => node,
         ast::Variant::Application(applicand, argument) => {
-            return reassociate_applications(
-                Some(if let Some(acc) = acc {
-                    Rc::new(Node {
-                        source_range: if let (Some((start, _)), Some((_, end))) =
-                            (acc.source_range, applicand.source_range)
-                        {
-                            Some((start, end))
-                        } else {
-                            None
-                        },
-                        variant: ast::Variant::Application(acc, applicand.clone()),
-                    })
-                } else {
-                    applicand.clone()
-                }),
-                argument.clone(),
-            )
+            if argument.group {
+                Rc::new(Node {
+                    source_range: node.source_range,
+                    group: node.group,
+                    variant: ast::Variant::Application(
+                        reassociate_applications(None, applicand.clone()),
+                        argument.clone(),
+                    ),
+                })
+            } else {
+                return reassociate_applications(
+                    Some(if let Some(acc) = acc {
+                        Rc::new(Node {
+                            source_range: if let (Some((start, _)), Some((_, end))) =
+                                (acc.source_range, applicand.source_range)
+                            {
+                                Some((start, end))
+                            } else {
+                                None
+                            },
+                            group: node.group,
+                            variant: ast::Variant::Application(acc, applicand.clone()),
+                        })
+                    } else {
+                        applicand.clone()
+                    }),
+                    argument.clone(),
+                );
+            }
         }
     };
 
-    // We end up here as long as `node` isn't an application. If we have an accumulator, construct
-    // an application as described above. Otherwise, just return the reduced node.
+    // We end up here as long as `node` isn't an application with a non-grouped argument. If we
+    // have an accumulator, construct an application as described above. Otherwise, just return the
+    // reduced node.
     if let Some(acc) = acc {
         Rc::new(Node {
             source_range: if let (Some((start, _)), Some((_, end))) =
@@ -400,6 +445,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
             } else {
                 None
             },
+            group: false,
             variant: ast::Variant::Application(acc, reduced),
         })
     } else {
@@ -500,6 +546,7 @@ fn parse_variable<'a, 'b>(
         Some((
             Node {
                 source_range: Some(tokens[start].source_range),
+                group: false,
                 variant: ast::Variant::Variable(variable, index),
             },
             next,
@@ -592,6 +639,7 @@ fn parse_lambda<'a, 'b>(
                 } else {
                     None
                 },
+                group: false,
                 variant: ast::Variant::Lambda(variable, Rc::new(domain), Rc::new(body)),
             },
             next
@@ -684,6 +732,7 @@ fn parse_pi<'a, 'b>(
                 } else {
                     None
                 },
+                group: false,
                 variant: ast::Variant::Pi(variable, Rc::new(domain), Rc::new(codomain)),
             },
             next
@@ -733,6 +782,7 @@ fn parse_application<'a, 'b>(
                 } else {
                     None
                 },
+                group: false,
                 variant: ast::Variant::Application(Rc::new(applicand), Rc::new(argument)),
             },
             next,
@@ -798,7 +848,19 @@ fn parse_group<'a, 'b>(
     let next = consume_token!(cache, Group, start, tokens, RightParen, next, error);
 
     // If we made it this far, we successfully parsed the group. Return the inner node.
-    cache_return!(cache, Group, start, Some((node, next)))
+    cache_return!(
+        cache,
+        Group,
+        start,
+        Some((
+            Node {
+                source_range: node.source_range,
+                group: true,
+                variant: node.variant,
+            },
+            next,
+        ))
+    )
 }
 
 #[cfg(test)]
@@ -838,6 +900,7 @@ mod tests {
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: Some((0, 1)),
+                group: false,
                 variant: Variable("x", 0),
             },
         );
@@ -866,14 +929,17 @@ mod tests {
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: Some((0, 12)),
+                group: false,
                 variant: Lambda(
                     "x",
                     Rc::new(Node {
                         source_range: Some((5, 6)),
+                        group: false,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Node {
                         source_range: Some((11, 12)),
+                        group: false,
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -906,14 +972,17 @@ mod tests {
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: Some((0, 12)),
+                group: false,
                 variant: Pi(
                     "x",
                     Rc::new(Node {
                         source_range: Some((5, 6)),
+                        group: false,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Node {
                         source_range: Some((11, 12)),
+                        group: false,
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -947,13 +1016,16 @@ mod tests {
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: Some((0, 3)),
+                group: false,
                 variant: Application(
                     Rc::new(Node {
                         source_range: Some((0, 1)),
+                        group: false,
                         variant: Variable("f", 1),
                     }),
                     Rc::new(Node {
                         source_range: Some((2, 3)),
+                        group: false,
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -974,23 +1046,69 @@ mod tests {
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: Some((0, 5)),
+                group: false,
                 variant: Application(
                     Rc::new(Node {
                         source_range: Some((0, 3)),
+                        group: false,
                         variant: Application(
                             Rc::new(Node {
                                 source_range: Some((0, 1)),
+                                group: false,
                                 variant: Variable("f", 2),
                             }),
                             Rc::new(Node {
                                 source_range: Some((2, 3)),
+                                group: false,
                                 variant: Variable("x", 1),
                             }),
                         ),
                     }),
                     Rc::new(Node {
                         source_range: Some((4, 5)),
+                        group: false,
                         variant: Variable("y", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_application_grouped_argument() {
+        let source = "f (x y)";
+        let tokens = tokenize(None, source).unwrap();
+        let mut context = HashMap::<&str, usize>::new();
+        context.insert("f", 0);
+        context.insert("x", 1);
+        context.insert("y", 2);
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &mut context).unwrap(),
+            Node {
+                source_range: Some((0, 6)),
+                group: false,
+                variant: Application(
+                    Rc::new(Node {
+                        source_range: Some((0, 1)),
+                        group: false,
+                        variant: Variable("f", 2),
+                    }),
+                    Rc::new(Node {
+                        source_range: Some((3, 6)),
+                        group: true,
+                        variant: Application(
+                            Rc::new(Node {
+                                source_range: Some((3, 4)),
+                                group: false,
+                                variant: Variable("x", 1),
+                            }),
+                            Rc::new(Node {
+                                source_range: Some((5, 6)),
+                                group: false,
+                                variant: Variable("y", 0),
+                            }),
+                        ),
                     }),
                 ),
             },
@@ -1008,6 +1126,7 @@ mod tests {
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: Some((1, 2)),
+                group: true,
                 variant: Variable("x", 0),
             },
         );
@@ -1024,55 +1143,68 @@ mod tests {
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: Some((0, 64)),
+                group: false,
                 variant: Lambda(
                     "a",
                     Rc::new(Node {
                         source_range: Some((5, 9)),
+                        group: false,
                         variant: Variable(TYPE, 0),
                     }),
                     Rc::new(Node {
                         source_range: Some((14, 64)),
+                        group: false,
                         variant: Lambda(
                             "b",
                             Rc::new(Node {
                                 source_range: Some((19, 23)),
+                                group: false,
                                 variant: Variable(TYPE, 1),
                             }),
                             Rc::new(Node {
                                 source_range: Some((28, 64)),
+                                group: false,
                                 variant: Lambda(
                                     "f",
                                     Rc::new(Node {
                                         source_range: Some((33, 45)),
+                                        group: false,
                                         variant: Pi(
                                             "_",
                                             Rc::new(Node {
                                                 source_range: Some((38, 39)),
+                                                group: false,
                                                 variant: Variable("a", 1),
                                             }),
                                             Rc::new(Node {
                                                 source_range: Some((44, 45)),
+                                                group: false,
                                                 variant: Variable("b", 1),
                                             }),
                                         ),
                                     }),
                                     Rc::new(Node {
                                         source_range: Some((50, 64)),
+                                        group: false,
                                         variant: Lambda(
                                             "x",
                                             Rc::new(Node {
                                                 source_range: Some((55, 56)),
+                                                group: false,
                                                 variant: Variable("a", 2),
                                             }),
                                             Rc::new(Node {
                                                 source_range: Some((61, 64)),
+                                                group: false,
                                                 variant: Application(
                                                     Rc::new(Node {
                                                         source_range: Some((61, 62)),
+                                                        group: false,
                                                         variant: Variable("f", 1),
                                                     }),
                                                     Rc::new(Node {
                                                         source_range: Some((63, 64)),
+                                                        group: false,
                                                         variant: Variable("x", 0),
                                                     }),
                                                 ),
