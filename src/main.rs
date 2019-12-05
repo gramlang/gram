@@ -1,6 +1,8 @@
 mod ast;
+mod de_bruijn;
 mod error;
 mod format;
+mod normalizer;
 mod parser;
 mod token;
 mod tokenizer;
@@ -10,6 +12,7 @@ use crate::{
     ast::Node,
     error::{lift, Error},
     format::CodeStr,
+    normalizer::normalize,
     parser::parse,
     tokenizer::tokenize,
     type_checker::{type_check, TYPE},
@@ -106,6 +109,15 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     // Tokenize the source file.
     let tokens = tokenize(Some(source_path.borrow()), &source_contents)?;
 
+    // Print the tokens.
+    println!("# Tokens:\n");
+
+    for token in &tokens {
+        println!("{}", token);
+    }
+
+    println!();
+
     // Construct a hash table to represent the variables in scope during parsing.
     let mut parsing_context = HashMap::<&str, usize>::new();
     parsing_context.insert(TYPE, 0);
@@ -118,11 +130,21 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
         &mut parsing_context,
     )?;
 
+    // Print the AST.
+    println!("# Term:\n\n{}\n", node);
+
     // Construct a vector to represent the variables in scope during type checking.
     let mut type_checking_context = vec![Rc::new(Node {
         source_range: None,
+        group: false,
         variant: ast::Variant::Variable(TYPE, 0),
     })];
+
+    // Normalize the term.
+    let normal_form = normalize(Some(source_path.borrow()), &source_contents, &node);
+
+    // Print the normal form.
+    println!("# Normal form:\n\n{}\n", normal_form);
 
     // Type check the AST.
     let node_type = type_check(
@@ -132,8 +154,8 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
         &mut type_checking_context,
     )?;
 
-    // For now, just print the type.
-    println!("{:?}", node_type);
+    // Print the type.
+    println!("# Type:\n\n{}", node_type);
 
     // If we made it this far, nothing went wrong.
     Ok(())

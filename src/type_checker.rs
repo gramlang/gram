@@ -1,5 +1,8 @@
 use crate::{
-    ast::{Node, Variant},
+    ast::{
+        Node,
+        Variant::{Application, Lambda, Pi, Variable},
+    },
     error::Error,
 };
 use std::{
@@ -24,9 +27,9 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
 
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
     match &node.variant {
-        Variant::Pi(_name, _domain, _codomain) => panic!("NOT IMPLEMENTED: PI"),
-        Variant::Lambda(_name, _domain, _body) => panic!("NOT IMPLEMENTED: LAMBDA"),
-        Variant::Variable(_name, index) => Ok(context[*index].clone()),
-        Variant::Application(_applicand, _argument) => panic!("NOT IMPLEMENTED: APPLICATION"),
+        Variable(_variable, index) => Ok(context[*index].clone()),
+        Lambda(_variable, _domain, _body) => panic!("NOT IMPLEMENTED: LAMBDA"),
+        Pi(_variable, _domain, _codomain) => panic!("NOT IMPLEMENTED: PI"),
+        Application(_applicand, _argument) => panic!("NOT IMPLEMENTED: APPLICATION"),
     }
 }

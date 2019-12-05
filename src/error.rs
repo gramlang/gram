@@ -99,7 +99,7 @@ pub fn throw<T: Borrow<str>, U: Borrow<Path>, V: Borrow<str>>(
                     "{} {}",
                     format!(
                         "{} |",
-                        line_number.pad(gutter_width, ' ', Alignment::Right, false)
+                        line_number.pad(gutter_width, ' ', Alignment::Right, false),
                     )
                     .blue()
                     .bold(),
