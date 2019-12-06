@@ -23,7 +23,8 @@ use std::{
 //   1. The grammar is left-recursive, and left recursion is not supported by the packrat parsing
 //      technique.
 //   2. The grammar is ambiguous. For example, the associativity of application has not been
-//      specified.
+//      specified. Packrat parsers resolve ambiguities using the order of the alternatives in the
+//      grammar, but we'd prefer to have an unambiguous grammar in the first place.
 //
 // To address the ambiguity issue (2), we could start by making application left-associative. This
 // is the natural choice to make currying ergonomic. However, this reinforces the left-recursion
@@ -149,27 +150,17 @@ macro_rules! fail_fast {
 
 // This macro is meant to be used as follows:
 //
-//   let mut candidate = None;
-//   try_parse!(candidate, ...);
-//   try_parse!(candidate, ...);
+//   let mut first_match = None;
+//   try_parse!(first_match, ...);
+//   try_parse!(first_match, ...);
 //   ...
 //
-// Then `candidate` will contain the longest matching node, if any matched at all.
+// Then `first_match` will contain the first matching node, if any matched at all.
 macro_rules! try_parse {
-    ($candidate:ident, $value:expr $(,)?) => {{
-        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
-        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let value = $value;
-
-        // Update the candidate, if applicable.
-        if let Some((_, next)) = &value {
-            if let Some((_, candidate_next)) = &$candidate {
-                if next > candidate_next {
-                    $candidate = value;
-                }
-            } else {
-                $candidate = value;
-            }
+    ($first_match:ident, $value:expr $(,)?) => {{
+        // Record the match if one hasn't already been found.
+        if $first_match.is_none() {
+            $first_match = $value;
         }
     }};
 }
@@ -465,41 +456,41 @@ fn parse_node<'a, 'b>(
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Node, start, error);
 
-    // This is our candidate for the longest matching parse.
-    let mut candidate = None;
+    // This will be set to the result of the first successful parse.
+    let mut first_match = None;
 
     // Try to parse an application.
     try_parse!(
-        candidate,
+        first_match,
         parse_application(cache, tokens, start, depth, context, error)
     );
 
     // Try to parse a variable.
     try_parse!(
-        candidate,
+        first_match,
         parse_variable(cache, tokens, start, depth, context, error)
     );
 
     // Try to parse a pi type.
     try_parse!(
-        candidate,
+        first_match,
         parse_pi(cache, tokens, start, depth, context, error)
     );
 
     // Try to parse a lambda.
     try_parse!(
-        candidate,
+        first_match,
         parse_lambda(cache, tokens, start, depth, context, error)
     );
 
     // Try to parse a group.
     try_parse!(
-        candidate,
+        first_match,
         parse_group(cache, tokens, start, depth, context, error)
     );
 
-    // Return the candidate, which may be a success or an error.
-    cache_return!(cache, Node, start, candidate)
+    // Return the match, if one was found.
+    cache_return!(cache, Node, start, first_match)
 }
 
 // Parse a variable.
@@ -802,23 +793,23 @@ fn parse_applicand<'a, 'b>(
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Applicand, start, error);
 
-    // This is our candidate for the longest matching parse.
-    let mut candidate = None;
+    // This will be set to the result of the first successful parse.
+    let mut first_match = None;
 
     // Try to parse a variable.
     try_parse!(
-        candidate,
+        first_match,
         parse_variable(cache, tokens, start, depth, context, error)
     );
 
     // Try to parse a group.
     try_parse!(
-        candidate,
+        first_match,
         parse_group(cache, tokens, start, depth, context, error)
     );
 
-    // Return the candidate, which may be a success or an error.
-    cache_return!(cache, Applicand, start, candidate)
+    // Return the match, if one was found.
+    cache_return!(cache, Applicand, start, first_match)
 }
 
 // Parse a group.
