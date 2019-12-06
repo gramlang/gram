@@ -1,5 +1,6 @@
 mod ast;
 mod de_bruijn;
+mod equality;
 mod error;
 mod format;
 mod normalizer;
@@ -109,15 +110,6 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     // Tokenize the source file.
     let tokens = tokenize(Some(source_path.borrow()), &source_contents)?;
 
-    // Print the tokens.
-    println!("# Tokens:\n");
-
-    for token in &tokens {
-        println!("{}", token);
-    }
-
-    println!();
-
     // Construct a hash table to represent the variables in scope during parsing.
     let mut parsing_context = HashMap::<&str, usize>::new();
     parsing_context.insert(TYPE, 0);
@@ -131,17 +123,17 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     )?;
 
     // Print the AST.
-    println!("# Term:\n\n{}\n", node);
+    println!("# Original term:\n\n{}\n", node);
 
     // Construct a vector to represent the variables in scope during type checking.
     let mut type_checking_context = vec![Rc::new(Node {
         source_range: None,
         group: false,
-        variant: ast::Variant::Variable(TYPE, 0),
+        variant: ast::Variant::Variable(TYPE, 0), // [tag:context-starts-with-type]
     })];
 
     // Normalize the term.
-    let normal_form = normalize(Some(source_path.borrow()), &source_contents, &node);
+    let normal_form = normalize(&node);
 
     // Print the normal form.
     println!("# Normal form:\n\n{}\n", normal_form);

@@ -3,47 +3,27 @@ use crate::{
         Node,
         Variant::{Application, Lambda, Pi, Variable},
     },
-    de_bruijn::{occurs, open},
+    de_bruijn::open,
 };
-use std::{borrow::Borrow, path::Path, rc::Rc};
+use std::{borrow::Borrow, rc::Rc};
 
-// This function reduces a term to beta-eta normal form using applicative order reduction.
-pub fn normalize<'a, T: Borrow<Node<'a>>>(
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
-    node: T,
-) -> Rc<Node<'a>> {
+// This function reduces a term to beta normal form using applicative order reduction.
+pub fn normalize<'a, T: Borrow<Node<'a>>>(node: T) -> Rc<Node<'a>> {
     // Get references to the borrowed data.
     let node = node.borrow();
 
     // Recursively normalize sub-nodes.
     match &node.variant {
         Variable(_, _) => {
-            // Variables are already in beta-eta normal form.
+            // Variables are already in beta normal form.
             Rc::new(node.clone())
         }
         Lambda(variable, domain, body) => {
-            // Normalize the domain.
-            let normalized_domain = normalize(source_path, source_contents, &**domain);
-
-            // Normalize the body.
-            let normalized_body = normalize(source_path, source_contents, &**body);
-
-            // Perform eta reduction, if applicable.
-            if let Application(applicand, argument) = &normalized_body.variant {
-                if !occurs(&**applicand, 0) {
-                    if let Variable(_, 0) = &argument.variant {
-                        return applicand.clone();
-                    }
-                }
-            }
-
-            // If we reached this point, there is no applicable eta reduction to perform. Just
-            // return the lambda with its domain and body reduced.
+            // For lambdas, we simply reduce the domain and body.
             Rc::new(Node {
                 source_range: node.source_range,
                 group: node.group,
-                variant: Lambda(variable, normalized_domain, normalized_body),
+                variant: Lambda(variable, normalize(&**domain), normalize(&**body)),
             })
         }
         Pi(variable, domain, codomain) => {
@@ -51,28 +31,20 @@ pub fn normalize<'a, T: Borrow<Node<'a>>>(
             Rc::new(Node {
                 source_range: node.source_range,
                 group: node.group,
-                variant: Pi(
-                    variable,
-                    normalize(source_path, source_contents, &**domain),
-                    normalize(source_path, source_contents, &**codomain),
-                ),
+                variant: Pi(variable, normalize(&**domain), normalize(&**codomain)),
             })
         }
         Application(applicand, argument) => {
             // Reduce the applicand.
-            let normalized_applicand = normalize(source_path, source_contents, &**applicand);
+            let normalized_applicand = normalize(&**applicand);
 
             // Reduce the argument. This means we're doing applicative order reduction.
-            let normalized_argument = normalize(source_path, source_contents, &**argument);
+            let normalized_argument = normalize(&**argument);
 
             // Check if the applicand reduced to a lambda.
             if let Lambda(_, _, body) = &normalized_applicand.variant {
                 // We got a lambda. Perform beta reduction.
-                normalize(
-                    source_path,
-                    source_contents,
-                    open(&**body, 0, normalized_argument),
-                )
+                normalize(open(&**body, 0, normalized_argument))
             } else {
                 // We didn't get a lambda. Just reduce the argument.
                 Rc::new(Node {
@@ -110,7 +82,7 @@ mod tests {
         let node = parse(None, source, &tokens[..], &mut context).unwrap();
 
         assert_eq!(
-            *normalize(None, "", node),
+            *normalize(node),
             Node {
                 source_range: Some((0, 1)),
                 group: false,
@@ -132,7 +104,7 @@ mod tests {
         let node = parse(None, source, &tokens[..], &mut context).unwrap();
 
         assert_eq!(
-            *normalize(None, "", node),
+            *normalize(node),
             Node {
                 source_range: Some((0, 48)),
                 group: false,
@@ -154,71 +126,6 @@ mod tests {
     }
 
     #[test]
-    fn normalize_eta() {
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert(TYPE, 0);
-        context.insert("f", 1);
-
-        let source = "(x : type) => f x";
-
-        let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], &mut context).unwrap();
-
-        assert_eq!(
-            *normalize(None, "", node),
-            Node {
-                source_range: Some((14, 15)),
-                group: false,
-                variant: Variable("f", 1),
-            },
-        );
-    }
-
-    #[test]
-    fn normalize_non_eta() {
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert(TYPE, 0);
-        context.insert("f", 1);
-
-        let source = "(x : type) => x x";
-
-        let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], &mut context).unwrap();
-
-        assert_eq!(
-            *normalize(None, "", node),
-            Node {
-                source_range: Some((0, 17)),
-                group: false,
-                variant: Lambda(
-                    "x",
-                    Rc::new(Node {
-                        source_range: Some((5, 9)),
-                        group: false,
-                        variant: Variable("type", 1),
-                    }),
-                    Rc::new(Node {
-                        source_range: Some((14, 17)),
-                        group: false,
-                        variant: Application(
-                            Rc::new(Node {
-                                source_range: Some((14, 15)),
-                                group: false,
-                                variant: Variable("x", 0),
-                            }),
-                            Rc::new(Node {
-                                source_range: Some((16, 17)),
-                                group: false,
-                                variant: Variable("x", 0),
-                            }),
-                        ),
-                    }),
-                ),
-            },
-        );
-    }
-
-    #[test]
     fn normalize_redex_under_pi() {
         let mut context = HashMap::<&str, usize>::new();
         context.insert(TYPE, 0);
@@ -231,7 +138,7 @@ mod tests {
         let node = parse(None, source, &tokens[..], &mut context).unwrap();
 
         assert_eq!(
-            *normalize(None, "", node),
+            *normalize(node),
             Node {
                 source_range: Some((0, 48)),
                 group: false,
@@ -265,7 +172,7 @@ mod tests {
         let node = parse(None, source, &tokens[..], &mut context).unwrap();
 
         assert_eq!(
-            *normalize(None, "", node),
+            *normalize(node),
             Node {
                 source_range: Some((2, 42)),
                 group: false,
@@ -297,7 +204,7 @@ mod tests {
         let node = parse(None, source, &tokens[..], &mut context).unwrap();
 
         assert_eq!(
-            *normalize(None, "", node),
+            *normalize(node),
             Node {
                 source_range: Some((18, 19)),
                 group: false,

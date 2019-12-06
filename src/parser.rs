@@ -392,17 +392,34 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
         }),
         ast::Variant::Variable(_, _) => node,
         ast::Variant::Application(applicand, argument) => {
-            if argument.group {
-                Rc::new(Node {
-                    source_range: node.source_range,
-                    group: node.group,
-                    variant: ast::Variant::Application(
-                        reassociate_applications(None, applicand.clone()),
-                        argument.clone(),
-                    ),
-                })
+            return if argument.group {
+                if let Some(acc) = acc {
+                    Rc::new(Node {
+                        source_range: if let (Some((start, _)), Some((_, end))) =
+                            (acc.source_range, argument.source_range)
+                        {
+                            Some((start, end))
+                        } else {
+                            None
+                        },
+                        group: node.group,
+                        variant: ast::Variant::Application(
+                            reassociate_applications(Some(acc), applicand.clone()),
+                            reassociate_applications(None, argument.clone()),
+                        ),
+                    })
+                } else {
+                    Rc::new(Node {
+                        source_range: node.source_range,
+                        group: node.group,
+                        variant: ast::Variant::Application(
+                            reassociate_applications(None, applicand.clone()),
+                            reassociate_applications(None, argument.clone()),
+                        ),
+                    })
+                }
             } else {
-                return reassociate_applications(
+                reassociate_applications(
                     Some(if let Some(acc) = acc {
                         Rc::new(Node {
                             source_range: if let (Some((start, _)), Some((_, end))) =
@@ -419,8 +436,8 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
                         applicand.clone()
                     }),
                     argument.clone(),
-                );
-            }
+                )
+            };
         }
     };
 
@@ -1087,7 +1104,7 @@ mod tests {
                     }),
                     Rc::new(Node {
                         source_range: Some((3, 6)),
-                        group: true,
+                        group: false,
                         variant: Application(
                             Rc::new(Node {
                                 source_range: Some((3, 4)),

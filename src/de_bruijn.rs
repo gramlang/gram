@@ -4,26 +4,6 @@ use crate::ast::{
 };
 use std::{borrow::Borrow, rc::Rc};
 
-// Check if a term contains a particular free variable.
-pub fn occurs<'a, T: Borrow<Node<'a>>>(node: T, index_to_check: usize) -> bool {
-    // Get references to the borrowed data.
-    let node = node.borrow();
-
-    // Recursively check sub-nodes.
-    match &node.variant {
-        Variable(_, index) => index == &index_to_check,
-        Lambda(_, domain, body) => {
-            occurs(&**domain, index_to_check) || occurs(&**body, index_to_check + 1)
-        }
-        Pi(_, domain, codomain) => {
-            occurs(&**domain, index_to_check) || occurs(&**codomain, index_to_check + 1)
-        }
-        Application(applicand, argument) => {
-            occurs(&**applicand, index_to_check) || occurs(&**argument, index_to_check)
-        }
-    }
-}
-
 // Shifting refers to increasing the De Bruijn indices of all free variables.
 pub fn shift<'a, T: Borrow<Node<'a>>>(node: T, depth: usize, amount: usize) -> Rc<Node<'a>> {
     // Get references to the borrowed data.
@@ -133,134 +113,9 @@ mod tests {
             Node,
             Variant::{Application, Lambda, Pi, Variable},
         },
-        de_bruijn::{occurs, open, shift},
+        de_bruijn::{open, shift},
     };
     use std::rc::Rc;
-
-    #[test]
-    fn occurs_variable_match() {
-        assert_eq!(
-            occurs(
-                Node {
-                    source_range: Some((0, 1)),
-                    group: false,
-                    variant: Variable("x", 0),
-                },
-                0,
-            ),
-            true,
-        );
-    }
-
-    #[test]
-    fn occurs_variable_less_free() {
-        assert_eq!(
-            occurs(
-                Node {
-                    source_range: Some((0, 1)),
-                    group: false,
-                    variant: Variable("x", 0),
-                },
-                1,
-            ),
-            false,
-        );
-    }
-
-    #[test]
-    fn occurs_variable_more_free() {
-        assert_eq!(
-            occurs(
-                Node {
-                    source_range: Some((0, 1)),
-                    group: false,
-                    variant: Variable("x", 1),
-                },
-                0,
-            ),
-            false,
-        );
-    }
-
-    #[test]
-    fn occurs_lambda() {
-        assert_eq!(
-            occurs(
-                Node {
-                    source_range: Some((97, 112)),
-                    group: false,
-                    variant: Lambda(
-                        "a",
-                        Rc::new(Node {
-                            source_range: Some((102, 106)),
-                            group: false,
-                            variant: Variable("b", 0),
-                        }),
-                        Rc::new(Node {
-                            source_range: Some((111, 112)),
-                            group: false,
-                            variant: Variable("b", 1),
-                        }),
-                    ),
-                },
-                0,
-            ),
-            true,
-        );
-    }
-
-    #[test]
-    fn occurs_pi() {
-        assert_eq!(
-            occurs(
-                Node {
-                    source_range: Some((97, 112)),
-                    group: false,
-                    variant: Pi(
-                        "a",
-                        Rc::new(Node {
-                            source_range: Some((102, 106)),
-                            group: false,
-                            variant: Variable("b", 0),
-                        }),
-                        Rc::new(Node {
-                            source_range: Some((111, 112)),
-                            group: false,
-                            variant: Variable("b", 1),
-                        }),
-                    ),
-                },
-                0,
-            ),
-            true,
-        );
-    }
-
-    #[test]
-    fn occurs_application() {
-        assert_eq!(
-            occurs(
-                Node {
-                    source_range: Some((97, 112)),
-                    group: false,
-                    variant: Application(
-                        Rc::new(Node {
-                            source_range: Some((102, 106)),
-                            group: false,
-                            variant: Variable("a", 0),
-                        }),
-                        Rc::new(Node {
-                            source_range: Some((111, 112)),
-                            group: false,
-                            variant: Variable("b", 1),
-                        }),
-                    ),
-                },
-                1,
-            ),
-            true,
-        );
-    }
 
     #[test]
     fn shift_variable_free() {
