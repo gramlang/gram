@@ -53,288 +53,225 @@ mod tests {
         equality::{definitionally_equal, syntactically_equal},
         parser::parse,
         tokenizer::tokenize,
-        type_checker::TYPE,
     };
-    use std::collections::HashMap;
 
     #[test]
     fn syntactically_equal_alpha() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert("x", 0);
-
+        let context1 = ["x"];
         let source1 = "x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert("y", 0);
-
+        let context2 = ["y"];
         let source2 = "y";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), true);
     }
 
     #[test]
     fn syntactically_inequal_variable() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert("x", 0);
-
+        let context1 = ["x"];
         let source1 = "x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert("x", 0);
-        context2.insert("y", 1);
-
+        let context2 = ["x", "y"];
         let source2 = "x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), false);
     }
 
     #[test]
     fn syntactically_equal_lambda() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert(TYPE, 0);
-
+        let context1 = [];
         let source1 = "(x : type) => x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert(TYPE, 0);
-
+        let context2 = [];
         let source2 = "(x : type) => x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), true);
     }
 
     #[test]
     fn syntactically_inequal_lambda_domain() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert(TYPE, 0);
-
+        let context1 = [];
         let source1 = "(x : type) => x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert(TYPE, 0);
-
+        let context2 = [];
         let source2 = "(x : (type type)) => x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), false);
     }
 
     #[test]
     fn syntactically_inequal_lambda_body() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert(TYPE, 0);
-
+        let context1 = [];
         let source1 = "(x : type) => x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert(TYPE, 0);
-
+        let context2 = [];
         let source2 = "(x : type) => type";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), false);
     }
 
     #[test]
     fn syntactically_equal_pi() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert(TYPE, 0);
-
+        let context1 = [];
         let source1 = "(x : type) -> x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert(TYPE, 0);
-
+        let context2 = [];
         let source2 = "(x : type) -> x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), true);
     }
 
     #[test]
     fn syntactically_inequal_pi_domain() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert(TYPE, 0);
-
+        let context1 = [];
         let source1 = "(x : type) -> x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert(TYPE, 0);
-
+        let context2 = [];
         let source2 = "(x : (type type)) -> x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), false);
     }
 
     #[test]
     fn syntactically_inequal_pi() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert(TYPE, 0);
-
+        let context1 = [];
         let source1 = "(x : type) -> x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert(TYPE, 0);
-
+        let context2 = [];
         let source2 = "(x : type) -> type";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), false);
     }
 
     #[test]
     fn syntactically_equal_application() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert("f", 0);
-        context1.insert("x", 1);
-
+        let context1 = ["f", "x"];
         let source1 = "f x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert("f", 0);
-        context2.insert("x", 1);
-
+        let context2 = ["f", "x"];
         let source2 = "f x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), true);
     }
 
     #[test]
     fn syntactically_inequal_application_applicand() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert("f", 0);
-        context1.insert("x", 1);
-
+        let context1 = ["f", "x"];
         let source1 = "f x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert("f", 0);
-        context2.insert("x", 1);
-
+        let context2 = ["f", "x"];
         let source2 = "x x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), false);
     }
 
     #[test]
-    fn syntactically_equal_argument() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert("f", 0);
-        context1.insert("x", 1);
-
+    fn syntactically_inequal_application_argument() {
+        let context1 = ["f", "x"];
         let source1 = "f x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert("f", 0);
-        context2.insert("x", 1);
-
+        let context2 = ["f", "x"];
         let source2 = "f f";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(syntactically_equal(node1, node2), false);
     }
 
     #[test]
     fn definitionally_equal_beta() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert(TYPE, 0);
-        context1.insert("y", 1);
-
+        let context1 = ["y"];
         let source1 = "((x : type) => x x) y";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert("y", 0);
-
+        let context2 = ["y"];
         let source2 = "y y";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(definitionally_equal(node1, node2), true);
     }
 
     #[test]
     fn definitionally_inequal_beta() {
-        let mut context1 = HashMap::<&str, usize>::new();
-        context1.insert(TYPE, 0);
-        context1.insert("y", 1);
-
+        let context1 = ["y"];
         let source1 = "((x : type) => x x) y";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &mut context1).unwrap();
+        let node1 = parse(None, source1, &tokens1[..], context1).unwrap();
 
-        let mut context2 = HashMap::<&str, usize>::new();
-        context2.insert("y", 0);
-
+        let context2 = ["y"];
         let source2 = "y";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &mut context2).unwrap();
+        let node2 = parse(None, source2, &tokens2[..], context2).unwrap();
 
         assert_eq!(definitionally_equal(node1, node2), false);
     }

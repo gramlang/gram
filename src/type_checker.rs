@@ -10,7 +10,6 @@ use crate::{
 };
 use std::{
     borrow::{Borrow, BorrowMut},
-    cmp::max,
     path::Path,
     rc::Rc,
 };
@@ -24,7 +23,7 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     node: T,
-    mut context: U, // The first element is assumed to be `TYPE` [ref:context-starts-with-type].
+    mut context: U, // `TYPE` is implicitly at the front of the context.
 ) -> Result<Rc<Node<'a>>, Error> {
     // Get references to the borrowed data.
     let node = node.borrow();
@@ -34,23 +33,33 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
     let type_type = Node {
         source_range: None,
         group: false,
-        variant: Variable(TYPE, context.borrow_mut().len() - 1),
+        variant: Variable(TYPE, context.borrow_mut().len()),
     };
 
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
     match &node.variant {
         Variable(_, index) => {
-            // Look up the variable in the context to get its type.
+            // Fetch the length of the context, i.e., the implicit position of `TYPE`.
             let len = context.borrow().len();
-            let variable_type = context.borrow_mut()[max(len - 1, *index) - *index].clone();
 
-            // Shift the type to make it agree with this context.
-            Ok(shift(variable_type, 0, *index))
+            // Are we looking up `TYPE`?
+            if *index == len {
+                // `TYPE` is its own type, so just return it.
+                Ok(Rc::new(type_type))
+            } else {
+                // Look up the type in the context, and shift it such that it's valid in the
+                // current context.
+                Ok(shift(
+                    &*context.borrow_mut()[len - 1 - *index],
+                    0,
+                    *index + 1,
+                ))
+            }
         }
         Lambda(variable, domain, body) => {
             // Temporarily add the variable's type to the context for the purpose of inferring the
             // codomain.
-            context.borrow_mut().push(shift(&**domain, 0, 1));
+            context.borrow_mut().push(domain.clone());
 
             // Infer the codomain.
             let codomain = type_check(source_path, source_contents, &**body, context.borrow_mut())?;
@@ -108,7 +117,7 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
 
             // Temporarily add the variable's type to the context for the purpose of inferring the
             // type of the codomain.
-            context.borrow_mut().push(shift(&**domain, 0, 1));
+            context.borrow_mut().push(domain.clone());
 
             // Infer the type of the codomain.
             let codomain_type = type_check(
@@ -126,9 +135,8 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
                         format!(
-                            "This domain has type {} when {} was expected.",
-                            domain_type.to_string().code_str(),
-                            type_type.to_string().code_str(),
+                            "This domain has type {:?} when {:?} was expected.",
+                            domain_type, type_type,
                         ),
                         source_path,
                         source_contents,
