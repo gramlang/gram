@@ -74,12 +74,18 @@ pub fn open<'a, T: Borrow<Node<'a>>, U: Borrow<Node<'a>>>(
             } else if *index < index_to_replace {
                 Rc::new(node_to_open.clone())
             } else {
-                shift(node_to_insert, 0, index_to_replace)
+                let shifted_node = shift(node_to_insert, 0, index_to_replace);
+
+                Rc::new(Node {
+                    source_range: shifted_node.source_range,
+                    group: true, // To ensure the resulting node is still parse-able when printed
+                    variant: shifted_node.variant.clone(),
+                })
             }
         }
         Lambda(variable, domain, body) => Rc::new(Node {
             source_range: node_to_open.source_range,
-            group: node_to_open.group,
+            group: true, // To ensure the resulting node is still parse-able when printed
             variant: Lambda(
                 variable,
                 open(&**domain, index_to_replace, node_to_insert),
@@ -88,7 +94,7 @@ pub fn open<'a, T: Borrow<Node<'a>>, U: Borrow<Node<'a>>>(
         }),
         Pi(variable, domain, codomain) => Rc::new(Node {
             source_range: node_to_open.source_range,
-            group: node_to_open.group,
+            group: true, // To ensure the resulting node is still parse-able when printed
             variant: Pi(
                 variable,
                 open(&**domain, index_to_replace, node_to_insert),
@@ -97,7 +103,7 @@ pub fn open<'a, T: Borrow<Node<'a>>, U: Borrow<Node<'a>>>(
         }),
         Application(applicand, argument) => Rc::new(Node {
             source_range: node_to_open.source_range,
-            group: node_to_open.group,
+            group: true, // To ensure the resulting node is still parse-able when printed
             variant: Application(
                 open(&**applicand, index_to_replace, node_to_insert),
                 open(&**argument, index_to_replace, node_to_insert),
@@ -305,7 +311,7 @@ mod tests {
             ),
             Node {
                 source_range: Some((3, 4)),
-                group: false,
+                group: true,
                 variant: Variable("y", 0),
             },
         );
@@ -389,17 +395,17 @@ mod tests {
             ),
             Node {
                 source_range: Some((97, 112)),
-                group: false,
+                group: true,
                 variant: Lambda(
                     "a",
                     Rc::new(Node {
                         source_range: Some((3, 4)),
-                        group: false,
+                        group: true,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Node {
                         source_range: Some((3, 4)),
-                        group: false,
+                        group: true,
                         variant: Variable("x", 5),
                     }),
                 ),
@@ -437,17 +443,17 @@ mod tests {
             ),
             Node {
                 source_range: Some((97, 112)),
-                group: false,
+                group: true,
                 variant: Pi(
                     "a",
                     Rc::new(Node {
                         source_range: Some((3, 4)),
-                        group: false,
+                        group: true,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Node {
                         source_range: Some((3, 4)),
-                        group: false,
+                        group: true,
                         variant: Variable("x", 5),
                     }),
                 ),
@@ -484,11 +490,11 @@ mod tests {
             ),
             Node {
                 source_range: Some((97, 112)),
-                group: false,
+                group: true,
                 variant: Application(
                     Rc::new(Node {
                         source_range: Some((3, 4)),
-                        group: false,
+                        group: true,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Node {

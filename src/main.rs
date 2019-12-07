@@ -132,11 +132,8 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
         variant: ast::Variant::Variable(TYPE, 0), // [tag:context-starts-with-type]
     })];
 
-    // Normalize the term.
-    let normal_form = normalize(&node);
-
     // Print the normal form.
-    println!("# Normal form:\n\n{}\n", normal_form);
+    println!("# Normal form:\n\n{}\n", normalize(&node));
 
     // Type check the AST.
     let node_type = type_check(
@@ -146,8 +143,8 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
         &mut type_checking_context,
     )?;
 
-    // Print the type.
-    println!("# Type:\n\n{}", node_type);
+    // Normalize and print the type.
+    println!("# Type:\n\n{}", normalize(node_type));
 
     // If we made it this far, nothing went wrong.
     Ok(())

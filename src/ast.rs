@@ -31,7 +31,17 @@ pub enum Variant<'a> {
 
 impl<'a> Display for Node<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "{}", self.variant)
+        if self.group {
+            write!(f, "(")?;
+        }
+
+        write!(f, "{}", self.variant)?;
+
+        if self.group {
+            write!(f, ")")?;
+        }
+
+        Ok(())
     }
 }
 
@@ -40,12 +50,12 @@ impl<'a> Display for Variant<'a> {
         match self {
             Self::Variable(variable, _) => write!(f, "{}", variable),
             Self::Lambda(variable, domain, body) => {
-                write!(f, "({} : {}) => ({})", variable, domain, body)
+                write!(f, "({} : {}) => {}", variable, domain, body)
             }
             Self::Pi(variable, domain, codomain) => {
-                write!(f, "({} : {}) -> ({})", variable, domain, codomain)
+                write!(f, "({} : {}) -> {}", variable, domain, codomain)
             }
-            Self::Application(applicand, argument) => write!(f, "({}) ({})", applicand, argument),
+            Self::Application(applicand, argument) => write!(f, "{} {}", applicand, argument),
         }
     }
 }
