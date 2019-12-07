@@ -22,7 +22,7 @@ pub fn normalize<'a, T: Borrow<Node<'a>>>(node: T) -> Rc<Node<'a>> {
             // For lambdas, we simply reduce the domain and body.
             Rc::new(Node {
                 source_range: node.source_range,
-                group: node.group,
+                group: true, // To ensure the resulting node is still parse-able when printed
                 variant: Lambda(variable, normalize(&**domain), normalize(&**body)),
             })
         }
@@ -30,7 +30,7 @@ pub fn normalize<'a, T: Borrow<Node<'a>>>(node: T) -> Rc<Node<'a>> {
             // For pi types, we simply reduce the domain and codomain.
             Rc::new(Node {
                 source_range: node.source_range,
-                group: node.group,
+                group: true, // To ensure the resulting node is still parse-able when printed
                 variant: Pi(variable, normalize(&**domain), normalize(&**codomain)),
             })
         }
@@ -49,7 +49,7 @@ pub fn normalize<'a, T: Borrow<Node<'a>>>(node: T) -> Rc<Node<'a>> {
                 // We didn't get a lambda. Just reduce the argument.
                 Rc::new(Node {
                     source_range: node.source_range,
-                    group: node.group,
+                    group: true, // To ensure the resulting node is still parse-able when printed
                     variant: Application(normalized_applicand, normalized_argument),
                 })
             }
@@ -107,17 +107,17 @@ mod tests {
             *normalize(node),
             Node {
                 source_range: Some((0, 48)),
-                group: false,
+                group: true,
                 variant: Lambda(
                     "x",
                     Rc::new(Node {
                         source_range: Some((23, 24)),
-                        group: false,
+                        group: true,
                         variant: Variable("p", 1),
                     }),
                     Rc::new(Node {
                         source_range: Some((47, 48)),
-                        group: false,
+                        group: true,
                         variant: Variable("q", 1),
                     }),
                 ),
@@ -141,17 +141,17 @@ mod tests {
             *normalize(node),
             Node {
                 source_range: Some((0, 48)),
-                group: false,
+                group: true,
                 variant: Pi(
                     "x",
                     Rc::new(Node {
                         source_range: Some((23, 24)),
-                        group: false,
+                        group: true,
                         variant: Variable("p", 1),
                     }),
                     Rc::new(Node {
                         source_range: Some((47, 48)),
-                        group: false,
+                        group: true,
                         variant: Variable("q", 1),
                     }),
                 ),
@@ -175,16 +175,16 @@ mod tests {
             *normalize(node),
             Node {
                 source_range: Some((2, 42)),
-                group: false,
+                group: true,
                 variant: Application(
                     Rc::new(Node {
                         source_range: Some((19, 20)),
-                        group: false,
+                        group: true,
                         variant: Variable("y", 1),
                     }),
                     Rc::new(Node {
                         source_range: Some((41, 42)),
-                        group: false,
+                        group: true,
                         variant: Variable("w", 0),
                     }),
                 ),
@@ -207,7 +207,7 @@ mod tests {
             *normalize(node),
             Node {
                 source_range: Some((18, 19)),
-                group: false,
+                group: true,
                 variant: Variable("y", 0),
             },
         );

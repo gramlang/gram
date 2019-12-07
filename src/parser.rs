@@ -402,7 +402,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
                         } else {
                             None
                         },
-                        group: node.group,
+                        group: true, // To ensure the resulting node is still parse-able when printed
                         variant: ast::Variant::Application(
                             reassociate_applications(Some(acc), applicand.clone()),
                             reassociate_applications(None, argument.clone()),
@@ -429,7 +429,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
                             } else {
                                 None
                             },
-                            group: node.group,
+                            group: true, // To ensure the resulting node is still parse-able when printed
                             variant: ast::Variant::Application(acc, applicand.clone()),
                         })
                     } else {
@@ -441,9 +441,8 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
         }
     };
 
-    // We end up here as long as `node` isn't an application with a non-grouped argument. If we
-    // have an accumulator, construct an application as described above. Otherwise, just return the
-    // reduced node.
+    // We end up here as long as `node` isn't an application. If we have an accumulator, construct
+    // an application as described above. Otherwise, just return the reduced node.
     if let Some(acc) = acc {
         Rc::new(Node {
             source_range: if let (Some((start, _)), Some((_, end))) =
@@ -453,7 +452,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
             } else {
                 None
             },
-            group: false,
+            group: true, // To ensure the resulting node is still parse-able when printed
             variant: ast::Variant::Application(acc, reduced),
         })
     } else {
@@ -1024,7 +1023,7 @@ mod tests {
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: Some((0, 3)),
-                group: false,
+                group: true,
                 variant: Application(
                     Rc::new(Node {
                         source_range: Some((0, 1)),
@@ -1054,11 +1053,11 @@ mod tests {
             parse(None, source, &tokens[..], &mut context).unwrap(),
             Node {
                 source_range: Some((0, 5)),
-                group: false,
+                group: true,
                 variant: Application(
                     Rc::new(Node {
                         source_range: Some((0, 3)),
-                        group: false,
+                        group: true,
                         variant: Application(
                             Rc::new(Node {
                                 source_range: Some((0, 1)),
@@ -1104,7 +1103,7 @@ mod tests {
                     }),
                     Rc::new(Node {
                         source_range: Some((3, 6)),
-                        group: false,
+                        group: true,
                         variant: Application(
                             Rc::new(Node {
                                 source_range: Some((3, 4)),
@@ -1203,7 +1202,7 @@ mod tests {
                                             }),
                                             Rc::new(Node {
                                                 source_range: Some((61, 64)),
-                                                group: false,
+                                                group: true,
                                                 variant: Application(
                                                     Rc::new(Node {
                                                         source_range: Some((61, 62)),
