@@ -51,8 +51,8 @@ pub fn shift<'a, T: Borrow<Node<'a>>>(node: T, depth: usize, amount: usize) -> R
     }
 }
 
-// Opening is the act of replacing a variable by a term and decrementing the De Bruijn indices of
-// all free variables.
+// Opening is the act of replacing a free variable by a term and decrementing the De Bruijn indices
+// of the free variables that are to the left of the one being replaced in the context.
 pub fn open<'a, T: Borrow<Node<'a>>, U: Borrow<Node<'a>>>(
     node_to_open: T,
     index_to_replace: usize,
