@@ -10,13 +10,12 @@ mod tokenizer;
 mod type_checker;
 
 use crate::{
-    ast::Node,
     error::{lift, Error},
     format::CodeStr,
     normalizer::normalize,
     parser::parse,
     tokenizer::tokenize,
-    type_checker::{type_check, TYPE},
+    type_checker::type_check,
 };
 use atty::Stream;
 use clap::{
@@ -24,10 +23,7 @@ use clap::{
     AppSettings::{ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
     Arg, Shell, SubCommand,
 };
-use std::{
-    borrow::Borrow, collections::HashMap, fs::read_to_string, io::stdout, path::Path,
-    process::exit, rc::Rc,
-};
+use std::{borrow::Borrow, fs::read_to_string, io::stdout, path::Path, process::exit};
 
 // The program version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -110,38 +106,22 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     // Tokenize the source file.
     let tokens = tokenize(Some(source_path.borrow()), &source_contents)?;
 
-    // Construct a hash table to represent the variables in scope during parsing.
-    let mut parsing_context = HashMap::<&str, usize>::new();
-    parsing_context.insert(TYPE, 0);
-
     // Parse the source file.
     let node = parse(
         Some(source_path.borrow()),
         &source_contents,
         &tokens[..],
-        &mut parsing_context,
+        [],
     )?;
 
     // Print the AST.
     println!("# Original term:\n\n{}\n", node);
 
-    // Construct a vector to represent the variables in scope during type checking.
-    let mut type_checking_context = vec![Rc::new(Node {
-        source_range: None,
-        group: false,
-        variant: ast::Variant::Variable(TYPE, 0), // [tag:context-starts-with-type]
-    })];
-
     // Print the normal form.
     println!("# Normal form:\n\n{}\n", normalize(&node));
 
     // Type check the AST.
-    let node_type = type_check(
-        Some(source_path.borrow()),
-        &source_contents,
-        &node,
-        &mut type_checking_context,
-    )?;
+    let node_type = type_check(Some(source_path.borrow()), &source_contents, &node, vec![])?;
 
     // Normalize and print the type.
     println!("# Type:\n\n{}", normalize(node_type));

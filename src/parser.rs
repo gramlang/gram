@@ -3,15 +3,10 @@ use crate::{
     error::{throw, Error},
     format::CodeStr,
     token::{self, Token},
+    type_checker::TYPE,
 };
 use scopeguard::defer;
-use std::{
-    borrow::{Borrow, BorrowMut},
-    cell::RefCell,
-    collections::HashMap,
-    path::Path,
-    rc::Rc,
-};
+use std::{borrow::Borrow, cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
 // linear-time parsing. We want to parse into the following abstract syntax:
@@ -300,24 +295,39 @@ macro_rules! consume_identifier {
 // This is the top-level parsing function. All the parsed nodes are guaranteed to have a non-`None`
 // `source_range`. The parser also guarantees that all variables are bound, except of course the
 // ones in the initial context. Variable shadowing is not allowed.
-pub fn parse<'a, T: Borrow<[Token<'a>]>, U: BorrowMut<HashMap<&'a str, usize>>>(
+pub fn parse<'a, T: Borrow<[Token<'a>]>, U: Borrow<[&'a str]>>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     tokens: T,
-    mut context: U,
+    context: U, // `TYPE` is implicitly at the front of the context.
 ) -> Result<Node<'a>, Error> {
     // Get references to the borrowed data.
     let tokens = tokens.borrow();
-    let context = context.borrow_mut();
+    let context = context.borrow();
 
     // Construct a hash table to memoize parsing results.
     let mut cache = Cache::new();
+
+    // Construct a mutable context.
+    let mut context: HashMap<&'a str, usize> = [TYPE]
+        .iter()
+        .chain(context.iter())
+        .enumerate()
+        .map(|(i, variable)| (*variable, i))
+        .collect();
 
     // Construct a default error in case none of the tokens can be parsed.
     let mut error: ParseError = (None, 0);
 
     // Parse the node.
-    let result = parse_node(&mut cache, tokens, 0, context.len(), context, &mut error);
+    let result = parse_node(
+        &mut cache,
+        tokens,
+        0,
+        context.len(),
+        &mut context,
+        &mut error,
+    );
 
     // Check if we managed to parse something.
     let first_unparsed_token = if let Some((node, next)) = result {
@@ -882,16 +892,16 @@ mod tests {
         tokenizer::tokenize,
         type_checker::TYPE,
     };
-    use std::{collections::HashMap, rc::Rc};
+    use std::rc::Rc;
 
     #[test]
     fn parse_empty() {
         let source = "";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
+        let context = [];
 
         assert_fails!(
-            parse(None, source, &tokens[..], &mut context),
+            parse(None, source, &tokens[..], context),
             "Unexpected end of file",
         );
     }
@@ -900,11 +910,10 @@ mod tests {
     fn parse_variable() {
         let source = "x";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("x", 0);
+        let context = ["x"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], &mut context).unwrap(),
+            parse(None, source, &tokens[..], context).unwrap(),
             Node {
                 source_range: Some((0, 1)),
                 group: false,
@@ -917,10 +926,10 @@ mod tests {
     fn parse_variable_missing() {
         let source = "x";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
+        let context = [];
 
         assert_fails!(
-            parse(None, source, &tokens[..], &mut context),
+            parse(None, source, &tokens[..], context),
             "Undefined variable",
         );
     }
@@ -929,11 +938,10 @@ mod tests {
     fn parse_lambda() {
         let source = "(x : a) => x";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("a", 0);
+        let context = ["a"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], &mut context).unwrap(),
+            parse(None, source, &tokens[..], context).unwrap(),
             Node {
                 source_range: Some((0, 12)),
                 group: false,
@@ -958,25 +966,19 @@ mod tests {
     fn parse_lambda_shadowing() {
         let source = "(x : a) => x";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("a", 0);
-        context.insert("x", 1);
+        let context = ["a", "x"];
 
-        assert_fails!(
-            parse(None, source, &tokens[..], &mut context),
-            "already exists",
-        );
+        assert_fails!(parse(None, source, &tokens[..], context), "already exists",);
     }
 
     #[test]
     fn parse_pi() {
         let source = "(x : a) -> x";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("a", 0);
+        let context = ["a"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], &mut context).unwrap(),
+            parse(None, source, &tokens[..], context).unwrap(),
             Node {
                 source_range: Some((0, 12)),
                 group: false,
@@ -1001,26 +1003,19 @@ mod tests {
     fn parse_pi_shadowing() {
         let source = "(x : a) -> x";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("a", 0);
-        context.insert("x", 1);
+        let context = ["a", "x"];
 
-        assert_fails!(
-            parse(None, source, &tokens[..], &mut context),
-            "already exists",
-        );
+        assert_fails!(parse(None, source, &tokens[..], context), "already exists",);
     }
 
     #[test]
     fn parse_application() {
         let source = "f x";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("f", 0);
-        context.insert("x", 1);
+        let context = ["f", "x"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], &mut context).unwrap(),
+            parse(None, source, &tokens[..], context).unwrap(),
             Node {
                 source_range: Some((0, 3)),
                 group: true,
@@ -1044,13 +1039,10 @@ mod tests {
     fn parse_application_associativity() {
         let source = "f x y";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("f", 0);
-        context.insert("x", 1);
-        context.insert("y", 2);
+        let context = ["f", "x", "y"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], &mut context).unwrap(),
+            parse(None, source, &tokens[..], context).unwrap(),
             Node {
                 source_range: Some((0, 5)),
                 group: true,
@@ -1085,13 +1077,10 @@ mod tests {
     fn parse_application_grouped_argument() {
         let source = "f (x y)";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("f", 0);
-        context.insert("x", 1);
-        context.insert("y", 2);
+        let context = ["f", "x", "y"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], &mut context).unwrap(),
+            parse(None, source, &tokens[..], context).unwrap(),
             Node {
                 source_range: Some((0, 6)),
                 group: false,
@@ -1126,11 +1115,10 @@ mod tests {
     fn parse_group() {
         let source = "(x)";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("x", 0);
+        let context = ["x"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], &mut context).unwrap(),
+            parse(None, source, &tokens[..], context).unwrap(),
             Node {
                 source_range: Some((1, 2)),
                 group: true,
@@ -1143,11 +1131,10 @@ mod tests {
     fn parse_identity_function() {
         let source = "(a : type) => (b : type) => (f : (_ : a) -> b) => (x : a) => f x";
         let tokens = tokenize(None, source).unwrap();
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert(TYPE, 0);
+        let context = [];
 
         assert_eq!(
-            parse(None, source, &tokens[..], &mut context).unwrap(),
+            parse(None, source, &tokens[..], context).unwrap(),
             Node {
                 source_range: Some((0, 64)),
                 group: false,

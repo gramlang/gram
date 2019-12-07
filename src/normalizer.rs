@@ -67,19 +67,16 @@ mod tests {
         normalizer::normalize,
         parser::parse,
         tokenizer::tokenize,
-        type_checker::TYPE,
     };
-    use std::{collections::HashMap, rc::Rc};
+    use std::rc::Rc;
 
     #[test]
     fn normalize_variable() {
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert("x", 0);
-
+        let context = ["x"];
         let source = "x";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], &mut context).unwrap();
+        let node = parse(None, source, &tokens[..], context).unwrap();
 
         assert_eq!(
             *normalize(node),
@@ -93,15 +90,11 @@ mod tests {
 
     #[test]
     fn normalize_redex_under_lambda() {
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert(TYPE, 0);
-        context.insert("p", 1);
-        context.insert("q", 2);
-
+        let context = ["p", "q"];
         let source = "(x : ((y : type) => y) p) => ((z : type) => z) q";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], &mut context).unwrap();
+        let node = parse(None, source, &tokens[..], context).unwrap();
 
         assert_eq!(
             *normalize(node),
@@ -127,15 +120,11 @@ mod tests {
 
     #[test]
     fn normalize_redex_under_pi() {
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert(TYPE, 0);
-        context.insert("p", 1);
-        context.insert("q", 2);
-
+        let context = ["p", "q"];
         let source = "(x : ((y : type) => y) p) -> ((z : type) => z) q";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], &mut context).unwrap();
+        let node = parse(None, source, &tokens[..], context).unwrap();
 
         assert_eq!(
             *normalize(node),
@@ -161,15 +150,11 @@ mod tests {
 
     #[test]
     fn normalize_non_redex() {
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert(TYPE, 0);
-        context.insert("y", 1);
-        context.insert("w", 2);
-
+        let context = ["y", "w"];
         let source = "(((x : type) => x) y) (((z : type) => z) w)";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], &mut context).unwrap();
+        let node = parse(None, source, &tokens[..], context).unwrap();
 
         assert_eq!(
             *normalize(node),
@@ -194,14 +179,11 @@ mod tests {
 
     #[test]
     fn normalize_redex() {
-        let mut context = HashMap::<&str, usize>::new();
-        context.insert(TYPE, 0);
-        context.insert("y", 1);
-
+        let context = ["y"];
         let source = "((x : type) => x) y";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], &mut context).unwrap();
+        let node = parse(None, source, &tokens[..], context).unwrap();
 
         assert_eq!(
             *normalize(node),
