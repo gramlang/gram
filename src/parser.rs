@@ -55,6 +55,9 @@ use std::{borrow::Borrow, cell::RefCell, collections::HashMap, path::Path, rc::R
 //   e = x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
 //   applicand = x | ( e )
 
+// This represents a fresh variable name. It's never added to the context.
+pub const PLACEHOLDER_VARIABLE: &str = "_";
+
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
 #[derive(Debug, Eq, Hash, PartialEq)]
 enum CacheType {
@@ -497,16 +500,16 @@ fn parse_node<'a, 'b>(
         parse_variable(cache, tokens, start, depth, context, error)
     );
 
-    // Try to parse a pi type.
-    try_parse!(
-        first_match,
-        parse_pi(cache, tokens, start, depth, context, error)
-    );
-
     // Try to parse a lambda.
     try_parse!(
         first_match,
         parse_lambda(cache, tokens, start, depth, context, error)
+    );
+
+    // Try to parse a pi type.
+    try_parse!(
+        first_match,
+        parse_pi(cache, tokens, start, depth, context, error)
     );
 
     // Try to parse a group.
@@ -606,27 +609,33 @@ fn parse_lambda<'a, 'b>(
     // Consume the arrow.
     let next = consume_token!(cache, Lambda, start, tokens, ThickArrow, next, error);
 
-    // Fail if the variable is already in the context.
-    if context.contains_key(variable) {
-        if next > error.1 {
-            *error = (
-                Some(Rc::new(move |source_path, source_contents| {
-                    throw(
-                        format!("Variable {} already exists.", variable.code_str()),
-                        source_path,
-                        source_contents,
-                        tokens[variable_pos].source_range,
-                    )
-                }) as ErrorFactory),
-                next,
-            );
+    // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and don't add
+    // it to the context.
+    if variable != PLACEHOLDER_VARIABLE {
+        // Fail if the variable is already in the context.
+        if context.contains_key(variable) {
+            if next > error.1 {
+                *error = (
+                    Some(Rc::new(move |source_path, source_contents| {
+                        throw(
+                            format!("Variable {} already exists.", variable.code_str()),
+                            source_path,
+                            source_contents,
+                            tokens[variable_pos].source_range,
+                        )
+                    }) as ErrorFactory),
+                    next,
+                );
+            }
+
+            cache_return!(cache, Lambda, start, None);
         }
 
-        cache_return!(cache, Lambda, start, None);
+        // Add the variable to the context.
+        context.insert(variable, depth);
     }
 
-    // Add the variable to the context.
-    context.insert(variable, depth);
+    // Remove the variable from the context (if it was added) when the function returns.
     let context_cell = RefCell::new(context);
     defer! {{ context_cell.borrow_mut().remove(variable); }};
 
@@ -699,27 +708,33 @@ fn parse_pi<'a, 'b>(
     // Consume the arrow.
     let next = consume_token!(cache, Pi, start, tokens, ThinArrow, next, error);
 
-    // Fail if the variable is already in the context.
-    if context.contains_key(variable) {
-        if next > error.1 {
-            *error = (
-                Some(Rc::new(move |source_path, source_contents| {
-                    throw(
-                        format!("Variable {} already exists.", variable.code_str()),
-                        source_path,
-                        source_contents,
-                        tokens[variable_pos].source_range,
-                    )
-                }) as ErrorFactory),
-                next,
-            );
+    // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and don't add
+    // it to the context.
+    if variable != PLACEHOLDER_VARIABLE {
+        // Fail if the variable is already in the context.
+        if context.contains_key(variable) {
+            if next > error.1 {
+                *error = (
+                    Some(Rc::new(move |source_path, source_contents| {
+                        throw(
+                            format!("Variable {} already exists.", variable.code_str()),
+                            source_path,
+                            source_contents,
+                            tokens[variable_pos].source_range,
+                        )
+                    }) as ErrorFactory),
+                    next,
+                );
+            }
+
+            cache_return!(cache, Pi, start, None);
         }
 
-        cache_return!(cache, Pi, start, None);
+        // Add the variable to the context.
+        context.insert(variable, depth);
     }
 
-    // Add the variable to the context.
-    context.insert(variable, depth);
+    // Remove the variable from the context (if it was added) when the function returns.
     let context_cell = RefCell::new(context);
     defer! {{ context_cell.borrow_mut().remove(variable); }};
 
@@ -968,7 +983,47 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a", "x"];
 
-        assert_fails!(parse(None, source, &tokens[..], context), "already exists",);
+        assert_fails!(parse(None, source, &tokens[..], context), "already exists");
+    }
+
+    #[test]
+    fn parse_lambda_placeholder_variable() {
+        let source = "(_ : a) => (_ : a) => a";
+        let tokens = tokenize(None, source).unwrap();
+        let context = ["a"];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], context).unwrap(),
+            Node {
+                source_range: Some((0, 23)),
+                group: false,
+                variant: Lambda(
+                    "_",
+                    Rc::new(Node {
+                        source_range: Some((5, 6)),
+                        group: false,
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Node {
+                        source_range: Some((11, 23)),
+                        group: false,
+                        variant: Lambda(
+                            "_",
+                            Rc::new(Node {
+                                source_range: Some((16, 17)),
+                                group: false,
+                                variant: Variable("a", 1),
+                            }),
+                            Rc::new(Node {
+                                source_range: Some((22, 23)),
+                                group: false,
+                                variant: Variable("a", 2),
+                            }),
+                        ),
+                    }),
+                ),
+            },
+        );
     }
 
     #[test]
@@ -1006,6 +1061,46 @@ mod tests {
         let context = ["a", "x"];
 
         assert_fails!(parse(None, source, &tokens[..], context), "already exists",);
+    }
+
+    #[test]
+    fn parse_pi_placeholder_variable() {
+        let source = "(_ : a) -> (_ : a) -> a";
+        let tokens = tokenize(None, source).unwrap();
+        let context = ["a"];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], context).unwrap(),
+            Node {
+                source_range: Some((0, 23)),
+                group: false,
+                variant: Pi(
+                    "_",
+                    Rc::new(Node {
+                        source_range: Some((5, 6)),
+                        group: false,
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Node {
+                        source_range: Some((11, 23)),
+                        group: false,
+                        variant: Pi(
+                            "_",
+                            Rc::new(Node {
+                                source_range: Some((16, 17)),
+                                group: false,
+                                variant: Variable("a", 1),
+                            }),
+                            Rc::new(Node {
+                                source_range: Some((22, 23)),
+                                group: false,
+                                variant: Variable("a", 2),
+                            }),
+                        ),
+                    }),
+                ),
+            },
+        );
     }
 
     #[test]
