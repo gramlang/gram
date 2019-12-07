@@ -230,8 +230,9 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
                 return Err(if let Some(source_range) = argument.source_range {
                     throw(
                         format!(
-                            "This has type {} when a pi type was expected.",
+                            "This has type {} when {} was expected.",
                             argument_type.to_string().code_str(),
+                            domain.to_string().code_str(),
                         ),
                         source_path,
                         source_contents,
@@ -240,9 +241,10 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
                 } else {
                     Error {
                         message: format!(
-                            "Argument {} has type {} when a pi type was expected.",
+                            "Argument {} has type {} when {} was expected.",
                             argument.to_string().code_str(),
                             argument_type.to_string().code_str(),
+                            domain.to_string().code_str(),
                         ),
                         reason: None,
                     }
@@ -252,5 +254,204 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
             // Construct and return the codomain specialized to the argument.
             Ok(open(&**codomain, 0, &**argument))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        assert_fails,
+        ast::{Node, Variant::Variable},
+        equality::definitionally_equal,
+        parser::parse,
+        tokenizer::tokenize,
+        type_checker::{type_check, TYPE},
+    };
+    use std::rc::Rc;
+
+    #[test]
+    fn type_check_type() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let term_source = "type";
+        let type_source = "type";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_type_node =
+            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+
+        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+    }
+
+    #[test]
+    fn type_check_variable() {
+        let parsing_context = ["a", "x"];
+        let mut typing_context = vec![
+            Rc::new(Node {
+                source_range: None,
+                group: false,
+                variant: Variable(TYPE, 0),
+            }),
+            Rc::new(Node {
+                source_range: None,
+                group: false,
+                variant: Variable("a", 0),
+            }),
+        ];
+        let term_source = "x";
+        let type_source = "a";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_type_node =
+            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+
+        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+    }
+
+    #[test]
+    fn type_check_lambda() {
+        let parsing_context = ["a"];
+        let mut typing_context = vec![Rc::new(Node {
+            source_range: None,
+            group: false,
+            variant: Variable(TYPE, 0),
+        })];
+        let term_source = "(x : a) => x";
+        let type_source = "(x : a) -> a";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_type_node =
+            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+
+        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+    }
+
+    #[test]
+    fn type_check_pi() {
+        let parsing_context = ["a"];
+        let mut typing_context = vec![Rc::new(Node {
+            source_range: None,
+            group: false,
+            variant: Variable(TYPE, 0),
+        })];
+        let term_source = "(x : a) -> a";
+        let type_source = "type";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_type_node =
+            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+
+        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+    }
+
+    #[test]
+    fn type_check_application() {
+        let parsing_context = ["a", "y"];
+        let mut typing_context = vec![
+            Rc::new(Node {
+                source_range: None,
+                group: false,
+                variant: Variable(TYPE, 0),
+            }),
+            Rc::new(Node {
+                source_range: None,
+                group: false,
+                variant: Variable("a", 0),
+            }),
+        ];
+        let term_source = "((x : a) => x) y";
+        let type_source = "a";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_type_node =
+            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+
+        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+    }
+
+    #[test]
+    fn type_check_bad_application() {
+        let parsing_context = ["a", "b", "y"];
+        let mut typing_context = vec![
+            Rc::new(Node {
+                source_range: None,
+                group: false,
+                variant: Variable(TYPE, 0),
+            }),
+            Rc::new(Node {
+                source_range: None,
+                group: false,
+                variant: Variable(TYPE, 1),
+            }),
+            Rc::new(Node {
+                source_range: None,
+                group: false,
+                variant: Variable("b", 0),
+            }),
+        ];
+        let term_source = "((x : a) => x) y";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+
+        assert_fails!(
+            type_check(None, term_source, &term_node, &mut typing_context),
+            "has type `b` when `a` was expected",
+        );
+    }
+
+    #[test]
+    fn type_check_dependent_apply() {
+        let parsing_context = ["int", "y"];
+        let mut typing_context = vec![
+            Rc::new(Node {
+                source_range: None,
+                group: false,
+                variant: Variable(TYPE, 0),
+            }),
+            Rc::new(Node {
+                source_range: None,
+                group: false,
+                variant: Variable("int", 0),
+            }),
+        ];
+        let term_source = "
+          ((a : type) => (P: (x : a) -> type) => (f : (x : a) -> P x) => (x : a) => f x)
+            (((t : type) => t) int)
+              ((x : int) => int)
+                ((x : int) => x)
+                  y
+        ";
+        let type_source = "int";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_type_node =
+            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+
+        assert_eq!(definitionally_equal(term_type_node, type_node), true);
     }
 }
