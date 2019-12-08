@@ -8,39 +8,31 @@ use crate::{
     error::{throw, Error},
     format::CodeStr,
 };
-use std::{
-    borrow::{Borrow, BorrowMut},
-    path::Path,
-    rc::Rc,
-};
+use std::{path::Path, rc::Rc};
 
 // The type of all types
 pub const TYPE: &str = "type";
 
 // This is the top-level type checking function.
 #[allow(clippy::too_many_lines)]
-pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
+pub fn type_check<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
-    node: T,
-    mut context: U, // `TYPE` is implicitly at the front of the context.
+    node: &Node<'a>,
+    context: &mut Vec<Rc<Node<'a>>>, // `TYPE` is implicitly at the front of the context.
 ) -> Result<Rc<Node<'a>>, Error> {
-    // Get references to the borrowed data.
-    let node = node.borrow();
-    // let context = context.borrow_mut(); // Why doesn't this work?
-
     // Construct `TYPE`.
     let type_type = Node {
         source_range: None,
         group: false,
-        variant: Variable(TYPE, context.borrow_mut().len()),
+        variant: Variable(TYPE, context.len()),
     };
 
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
     match &node.variant {
         Variable(_, index) => {
             // Fetch the length of the context, i.e., the implicit position of `TYPE`.
-            let len = context.borrow().len();
+            let len = context.len();
 
             // Are we looking up `TYPE`?
             if *index == len {
@@ -49,23 +41,19 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
             } else {
                 // Look up the type in the context, and shift it such that it's valid in the
                 // current context.
-                Ok(shift(
-                    &*context.borrow_mut()[len - 1 - *index],
-                    0,
-                    *index + 1,
-                ))
+                Ok(shift(&*context[len - 1 - *index], 0, *index + 1))
             }
         }
         Lambda(variable, domain, body) => {
             // Temporarily add the variable's type to the context for the purpose of inferring the
             // codomain.
-            context.borrow_mut().push(domain.clone());
+            context.push(domain.clone());
 
             // Infer the codomain.
-            let codomain = type_check(source_path, source_contents, &**body, context.borrow_mut())?;
+            let codomain = type_check(source_path, source_contents, &**body, context)?;
 
             // Restore the context.
-            context.borrow_mut().pop();
+            context.pop();
 
             // Construct the pi type.
             let pi_type = Node {
@@ -75,14 +63,13 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
             };
 
             // Infer the type of the pi type.
-            let pi_type_type =
-                type_check(source_path, source_contents, &pi_type, context.borrow_mut())?;
+            let pi_type_type = type_check(source_path, source_contents, &pi_type, context)?;
 
             // Check that the type of the pi type is `TYPE`.
             if !definitionally_equal(&*pi_type_type, &type_type) {
                 return Err(if let Some(source_range) = pi_type.source_range {
                     throw(
-                        format!(
+                        &format!(
                             "The type of this is {} when {} was expected.",
                             pi_type_type.to_string().code_str(),
                             type_type.to_string().code_str(),
@@ -108,33 +95,23 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
         }
         Pi(_, domain, codomain) => {
             // Infer the type of the domain.
-            let domain_type = type_check(
-                source_path,
-                source_contents,
-                &**domain,
-                context.borrow_mut(),
-            )?;
+            let domain_type = type_check(source_path, source_contents, &**domain, context)?;
 
             // Temporarily add the variable's type to the context for the purpose of inferring the
             // type of the codomain.
-            context.borrow_mut().push(domain.clone());
+            context.push(domain.clone());
 
             // Infer the type of the codomain.
-            let codomain_type = type_check(
-                source_path,
-                source_contents,
-                &**codomain,
-                context.borrow_mut(),
-            )?;
+            let codomain_type = type_check(source_path, source_contents, &**codomain, context)?;
 
             // Restore the context.
-            context.borrow_mut().pop();
+            context.pop();
 
             // Check that the domain has type `TYPE`.
             if !definitionally_equal(&*domain_type, &type_type) {
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
-                        format!(
+                        &format!(
                             "This domain has type {:?} when {:?} was expected.",
                             domain_type, type_type,
                         ),
@@ -155,10 +132,10 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
             }
 
             // Check that the codomain has type `TYPE`.
-            if !definitionally_equal(&*codomain_type, shift(&type_type, 0, 1)) {
+            if !definitionally_equal(&*codomain_type, &shift(&type_type, 0, 1)) {
                 return Err(if let Some(source_range) = codomain.source_range {
                     throw(
-                        format!(
+                        &format!(
                             "codomain has type {} when {} was expected.",
                             codomain_type.to_string().code_str(),
                             type_type.to_string().code_str(),
@@ -184,12 +161,7 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
         }
         Application(applicand, argument) => {
             // Infer the type of the applicand.
-            let applicand_type = type_check(
-                source_path,
-                source_contents,
-                &**applicand,
-                context.borrow_mut(),
-            )?;
+            let applicand_type = type_check(source_path, source_contents, &**applicand, context)?;
 
             // Make sure the type of the applicand is a pi type.
             let (domain, codomain) = if let Pi(_, domain, codomain) = &applicand_type.variant {
@@ -197,7 +169,7 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
             } else {
                 return Err(if let Some(source_range) = applicand.source_range {
                     throw(
-                        format!(
+                        &format!(
                             "This has type {} when a pi type was expected.",
                             applicand_type.to_string().code_str(),
                         ),
@@ -218,18 +190,13 @@ pub fn type_check<'a, T: Borrow<Node<'a>>, U: BorrowMut<Vec<Rc<Node<'a>>>>>(
             };
 
             // Infer the type of the argument.
-            let argument_type = type_check(
-                source_path,
-                source_contents,
-                &**argument,
-                context.borrow_mut(),
-            )?;
+            let argument_type = type_check(source_path, source_contents, &**argument, context)?;
 
             // Check that the argument type equals the domain.
             if !definitionally_equal(&*argument_type, &**domain) {
                 return Err(if let Some(source_range) = argument.source_range {
                     throw(
-                        format!(
+                        &format!(
                             "This has type {} when {} was expected.",
                             argument_type.to_string().code_str(),
                             domain.to_string().code_str(),
@@ -277,14 +244,14 @@ mod tests {
         let type_source = "type";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
         let term_type_node =
             type_check(None, term_source, &term_node, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
     }
 
     #[test]
@@ -306,14 +273,14 @@ mod tests {
         let type_source = "a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
         let term_type_node =
             type_check(None, term_source, &term_node, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
     }
 
     #[test]
@@ -328,14 +295,14 @@ mod tests {
         let type_source = "(x : a) -> a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
         let term_type_node =
             type_check(None, term_source, &term_node, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
     }
 
     #[test]
@@ -350,14 +317,14 @@ mod tests {
         let type_source = "type";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
         let term_type_node =
             type_check(None, term_source, &term_node, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
     }
 
     #[test]
@@ -379,14 +346,14 @@ mod tests {
         let type_source = "a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
         let term_type_node =
             type_check(None, term_source, &term_node, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
     }
 
     #[test]
@@ -412,7 +379,7 @@ mod tests {
         let term_source = "((x : a) => x) y";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
 
         assert_fails!(
             type_check(None, term_source, &term_node, &mut typing_context),
@@ -445,13 +412,13 @@ mod tests {
         let type_source = "int";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], parsing_context).unwrap();
+        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
         let term_type_node =
             type_check(None, term_source, &term_node, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], parsing_context).unwrap();
+        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(term_type_node, type_node), true);
+        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
     }
 }

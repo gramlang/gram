@@ -2,13 +2,10 @@ use crate::ast::{
     Node,
     Variant::{Application, Lambda, Pi, Variable},
 };
-use std::{borrow::Borrow, rc::Rc};
+use std::rc::Rc;
 
 // Shifting refers to increasing the De Bruijn indices of all free variables.
-pub fn shift<'a, T: Borrow<Node<'a>>>(node: T, depth: usize, amount: usize) -> Rc<Node<'a>> {
-    // Get references to the borrowed data.
-    let node = node.borrow();
-
+pub fn shift<'a>(node: &Node<'a>, depth: usize, amount: usize) -> Rc<Node<'a>> {
     // Recursively shift sub-nodes.
     match &node.variant {
         Variable(variable, index) => {
@@ -53,15 +50,11 @@ pub fn shift<'a, T: Borrow<Node<'a>>>(node: T, depth: usize, amount: usize) -> R
 
 // Opening is the act of replacing a free variable by a term and decrementing the De Bruijn indices
 // of the free variables that are to the left of the one being replaced in the context.
-pub fn open<'a, T: Borrow<Node<'a>>, U: Borrow<Node<'a>>>(
-    node_to_open: T,
+pub fn open<'a>(
+    node_to_open: &Node<'a>,
     index_to_replace: usize,
-    node_to_insert: U,
+    node_to_insert: &Node<'a>,
 ) -> Rc<Node<'a>> {
-    // Get references to the borrowed data.
-    let node_to_open = node_to_open.borrow();
-    let node_to_insert = node_to_insert.borrow();
-
     // Recursively open sub-nodes.
     match &node_to_open.variant {
         Variable(variable, index) => {
@@ -127,7 +120,7 @@ mod tests {
     fn shift_variable_free() {
         assert_eq!(
             *shift(
-                Node {
+                &Node {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 0),
@@ -147,7 +140,7 @@ mod tests {
     fn shift_variable_bound() {
         assert_eq!(
             *shift(
-                Node {
+                &Node {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 0),
@@ -167,7 +160,7 @@ mod tests {
     fn shift_lambda() {
         assert_eq!(
             *shift(
-                Node {
+                &Node {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Lambda(
@@ -211,7 +204,7 @@ mod tests {
     fn shift_pi() {
         assert_eq!(
             *shift(
-                Node {
+                &Node {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Pi(
@@ -255,7 +248,7 @@ mod tests {
     fn shift_application() {
         assert_eq!(
             *shift(
-                Node {
+                &Node {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Application(
@@ -297,13 +290,13 @@ mod tests {
     fn open_variable_match() {
         assert_eq!(
             *open(
-                Node {
+                &Node {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 0),
                 },
                 0,
-                Node {
+                &Node {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("y", 0),
@@ -321,13 +314,13 @@ mod tests {
     fn open_variable_free() {
         assert_eq!(
             *open(
-                Node {
+                &Node {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 1),
                 },
                 0,
-                Node {
+                &Node {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("y", 0),
@@ -345,13 +338,13 @@ mod tests {
     fn open_variable_bound() {
         assert_eq!(
             *open(
-                Node {
+                &Node {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 0),
                 },
                 1,
-                Node {
+                &Node {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("y", 0),
@@ -369,7 +362,7 @@ mod tests {
     fn open_lambda() {
         assert_eq!(
             *open(
-                Node {
+                &Node {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Lambda(
@@ -387,7 +380,7 @@ mod tests {
                     ),
                 },
                 0,
-                Node {
+                &Node {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("x", 4),
@@ -417,7 +410,7 @@ mod tests {
     fn open_pi() {
         assert_eq!(
             *open(
-                Node {
+                &Node {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Pi(
@@ -435,7 +428,7 @@ mod tests {
                     ),
                 },
                 0,
-                Node {
+                &Node {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("x", 4),
@@ -465,7 +458,7 @@ mod tests {
     fn open_application() {
         assert_eq!(
             *open(
-                Node {
+                &Node {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Application(
@@ -482,7 +475,7 @@ mod tests {
                     ),
                 },
                 0,
-                Node {
+                &Node {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("x", 4),

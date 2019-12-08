@@ -52,7 +52,7 @@ pub fn tokenize<'a>(
                     });
                 } else {
                     return Err(throw(
-                        format!(
+                        &format!(
                             "Unexpected symbol {}.",
                             &source_contents[i..i + c.len_utf8()].code_str(),
                         ),
@@ -71,7 +71,7 @@ pub fn tokenize<'a>(
                     });
                 } else {
                     return Err(throw(
-                        format!(
+                        &format!(
                             "Unexpected symbol {}.",
                             &source_contents[i..i + c.len_utf8()].code_str(),
                         ),
@@ -117,7 +117,7 @@ pub fn tokenize<'a>(
             // If we made it this far, the input contains something unexpected.
             _ => {
                 return Err(throw(
-                    format!(
+                    &format!(
                         "Unexpected symbol {}.",
                         &source_contents[i..i + c.len_utf8()].code_str(),
                     ),

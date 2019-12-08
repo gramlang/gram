@@ -5,13 +5,10 @@ use crate::{
     },
     de_bruijn::open,
 };
-use std::{borrow::Borrow, rc::Rc};
+use std::rc::Rc;
 
 // This function reduces a term to beta normal form using applicative order reduction.
-pub fn normalize<'a, T: Borrow<Node<'a>>>(node: T) -> Rc<Node<'a>> {
-    // Get references to the borrowed data.
-    let node = node.borrow();
-
+pub fn normalize<'a>(node: &Node<'a>) -> Rc<Node<'a>> {
     // Recursively normalize sub-nodes.
     match &node.variant {
         Variable(_, _) => {
@@ -44,7 +41,7 @@ pub fn normalize<'a, T: Borrow<Node<'a>>>(node: T) -> Rc<Node<'a>> {
             // Check if the applicand reduced to a lambda.
             if let Lambda(_, _, body) = &normalized_applicand.variant {
                 // We got a lambda. Perform beta reduction.
-                normalize(open(&**body, 0, normalized_argument))
+                normalize(&open(&**body, 0, &normalized_argument))
             } else {
                 // We didn't get a lambda. Just reduce the argument.
                 Rc::new(Node {
@@ -76,10 +73,10 @@ mod tests {
         let source = "x";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], context).unwrap();
+        let node = parse(None, source, &tokens[..], &context[..]).unwrap();
 
         assert_eq!(
-            *normalize(node),
+            *normalize(&node),
             Node {
                 source_range: Some((0, 1)),
                 group: false,
@@ -94,10 +91,10 @@ mod tests {
         let source = "(x : ((y : type) => y) p) => ((z : type) => z) q";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], context).unwrap();
+        let node = parse(None, source, &tokens[..], &context[..]).unwrap();
 
         assert_eq!(
-            *normalize(node),
+            *normalize(&node),
             Node {
                 source_range: Some((0, 48)),
                 group: true,
@@ -124,10 +121,10 @@ mod tests {
         let source = "(x : ((y : type) => y) p) -> ((z : type) => z) q";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], context).unwrap();
+        let node = parse(None, source, &tokens[..], &context[..]).unwrap();
 
         assert_eq!(
-            *normalize(node),
+            *normalize(&node),
             Node {
                 source_range: Some((0, 48)),
                 group: true,
@@ -154,10 +151,10 @@ mod tests {
         let source = "(((x : type) => x) y) (((z : type) => z) w)";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], context).unwrap();
+        let node = parse(None, source, &tokens[..], &context[..]).unwrap();
 
         assert_eq!(
-            *normalize(node),
+            *normalize(&node),
             Node {
                 source_range: Some((2, 42)),
                 group: true,
@@ -183,10 +180,10 @@ mod tests {
         let source = "((x : type) => x) y";
 
         let tokens = tokenize(None, source).unwrap();
-        let node = parse(None, source, &tokens[..], context).unwrap();
+        let node = parse(None, source, &tokens[..], &context[..]).unwrap();
 
         assert_eq!(
-            *normalize(node),
+            *normalize(&node),
             Node {
                 source_range: Some((18, 19)),
                 group: true,
