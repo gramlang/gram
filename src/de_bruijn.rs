@@ -4,12 +4,13 @@ use crate::ast::{
 };
 use std::rc::Rc;
 
-// Shifting refers to increasing the De Bruijn indices of all free variables.
-pub fn shift<'a>(node: &Node<'a>, depth: usize, amount: usize) -> Rc<Node<'a>> {
+// Shifting refers to increasing the De Bruijn indices of free variables greater than or equal to a
+// given index.
+pub fn shift<'a>(node: &Node<'a>, min_index: usize, amount: usize) -> Rc<Node<'a>> {
     // Recursively shift sub-nodes.
     match &node.variant {
         Variable(variable, index) => {
-            if *index >= depth {
+            if *index >= min_index {
                 Rc::new(Node {
                     source_range: node.source_range,
                     group: node.group,
@@ -24,8 +25,8 @@ pub fn shift<'a>(node: &Node<'a>, depth: usize, amount: usize) -> Rc<Node<'a>> {
             group: node.group,
             variant: Lambda(
                 variable,
-                shift(&**domain, depth, amount),
-                shift(&**body, depth + 1, amount),
+                shift(&**domain, min_index, amount),
+                shift(&**body, min_index + 1, amount),
             ),
         }),
         Pi(variable, domain, codomain) => Rc::new(Node {
@@ -33,23 +34,23 @@ pub fn shift<'a>(node: &Node<'a>, depth: usize, amount: usize) -> Rc<Node<'a>> {
             group: node.group,
             variant: Pi(
                 variable,
-                shift(&**domain, depth, amount),
-                shift(&**codomain, depth + 1, amount),
+                shift(&**domain, min_index, amount),
+                shift(&**codomain, min_index + 1, amount),
             ),
         }),
         Application(applicand, argument) => Rc::new(Node {
             source_range: node.source_range,
             group: node.group,
             variant: Application(
-                shift(&**applicand, depth, amount),
-                shift(&**argument, depth, amount),
+                shift(&**applicand, min_index, amount),
+                shift(&**argument, min_index, amount),
             ),
         }),
     }
 }
 
 // Opening is the act of replacing a free variable by a term and decrementing the De Bruijn indices
-// of the free variables that are to the left of the one being replaced in the context.
+// of the free variables with higher indices than that of the one being replaced.
 pub fn open<'a>(
     node_to_open: &Node<'a>,
     index_to_replace: usize,
