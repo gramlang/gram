@@ -114,7 +114,8 @@ macro_rules! cache_check {
     }};
 }
 
-// This macro should be used to cache a value and return it.
+// This macro caches a value and returns it. In parsing functions, this should always be used
+// instead of `return` to ensure results are memoized.
 macro_rules! cache_return {
     ($cache:ident, $type:ident, $start:expr, $value:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
@@ -128,9 +129,24 @@ macro_rules! cache_return {
     }};
 }
 
+// This macro will return early if `$value` isn't `None`.
+macro_rules! try_return {
+    ($cache:ident, $type:ident, $start:expr, $value:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let start = $start;
+        let value = $value;
+
+        // Record the match if one hasn't already been found.
+        if value.is_some() {
+            cache_return!($cache, $type, start, value)
+        }
+    }};
+}
+
 // This macro should be used instead of the `x?` syntax to return early upon the failure of
 // `$expr` and cache the result. If `$expr` succeeds, this macro evaluates to its value.
-macro_rules! fail_fast {
+macro_rules! try_eval {
     ($cache:ident, $type:ident, $start:expr, $value:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -142,23 +158,6 @@ macro_rules! fail_fast {
             result
         } else {
             cache_return!($cache, $type, start, value)
-        }
-    }};
-}
-
-// This macro is meant to be used as follows:
-//
-//   let mut first_match = None;
-//   try_parse!(first_match, ...);
-//   try_parse!(first_match, ...);
-//   ...
-//
-// Then `first_match` will contain the first matching node, if any matched at all.
-macro_rules! try_parse {
-    ($first_match:ident, $value:expr $(,)?) => {{
-        // Record the match if one hasn't already been found.
-        if $first_match.is_none() {
-            $first_match = $value;
         }
     }};
 }
@@ -481,41 +480,48 @@ fn parse_node<'a, 'b>(
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Node, start, error);
 
-    // This will be set to the result of the first successful parse.
-    let mut first_match = None;
-
     // Try to parse an application.
-    try_parse!(
-        first_match,
-        parse_application(cache, tokens, start, depth, context, error)
+    try_return!(
+        cache,
+        Application,
+        start,
+        parse_application(cache, tokens, start, depth, context, error),
     );
 
     // Try to parse a variable.
-    try_parse!(
-        first_match,
-        parse_variable(cache, tokens, start, depth, context, error)
+    try_return!(
+        cache,
+        Application,
+        start,
+        parse_variable(cache, tokens, start, depth, context, error),
     );
 
     // Try to parse a lambda.
-    try_parse!(
-        first_match,
-        parse_lambda(cache, tokens, start, depth, context, error)
+    try_return!(
+        cache,
+        Application,
+        start,
+        parse_lambda(cache, tokens, start, depth, context, error),
     );
 
     // Try to parse a pi type.
-    try_parse!(
-        first_match,
-        parse_pi(cache, tokens, start, depth, context, error)
+    try_return!(
+        cache,
+        Application,
+        start,
+        parse_pi(cache, tokens, start, depth, context, error),
     );
 
     // Try to parse a group.
-    try_parse!(
-        first_match,
-        parse_group(cache, tokens, start, depth, context, error)
+    try_return!(
+        cache,
+        Application,
+        start,
+        parse_group(cache, tokens, start, depth, context, error),
     );
 
-    // Return the match, if one was found.
-    cache_return!(cache, Node, start, first_match)
+    // If we made it this far, the parse failed.
+    cache_return!(cache, Node, start, None)
 }
 
 // Parse a variable.
@@ -592,7 +598,7 @@ fn parse_lambda<'a, 'b>(
     let next = consume_token!(cache, Lambda, start, tokens, Colon, next, error);
 
     // Parse the domain type.
-    let (domain, next) = fail_fast!(
+    let (domain, next) = try_eval!(
         cache,
         Lambda,
         start,
@@ -639,7 +645,7 @@ fn parse_lambda<'a, 'b>(
     let (body, next) = {
         let mut guard = context_cell.borrow_mut();
 
-        fail_fast!(
+        try_eval!(
             cache,
             Lambda,
             start,
@@ -691,7 +697,7 @@ fn parse_pi<'a, 'b>(
     let next = consume_token!(cache, Pi, start, tokens, Colon, next, error);
 
     // Parse the domain type.
-    let (domain, next) = fail_fast!(
+    let (domain, next) = try_eval!(
         cache,
         Pi,
         start,
@@ -738,7 +744,7 @@ fn parse_pi<'a, 'b>(
     let (codomain, next) = {
         let mut guard = context_cell.borrow_mut();
 
-        fail_fast!(
+        try_eval!(
             cache,
             Pi,
             start,
@@ -781,7 +787,7 @@ fn parse_application<'a, 'b>(
     cache_check!(cache, Application, start, error);
 
     // Parse the applicand.
-    let (applicand, next) = fail_fast!(
+    let (applicand, next) = try_eval!(
         cache,
         Application,
         start,
@@ -789,7 +795,7 @@ fn parse_application<'a, 'b>(
     );
 
     // Parse the argument.
-    let (argument, next) = fail_fast!(
+    let (argument, next) = try_eval!(
         cache,
         Application,
         start,
@@ -830,23 +836,24 @@ fn parse_applicand<'a, 'b>(
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Applicand, start, error);
 
-    // This will be set to the result of the first successful parse.
-    let mut first_match = None;
-
     // Try to parse a variable.
-    try_parse!(
-        first_match,
-        parse_variable(cache, tokens, start, depth, context, error)
+    try_return!(
+        cache,
+        Applicand,
+        start,
+        parse_variable(cache, tokens, start, depth, context, error),
     );
 
     // Try to parse a group.
-    try_parse!(
-        first_match,
-        parse_group(cache, tokens, start, depth, context, error)
+    try_return!(
+        cache,
+        Applicand,
+        start,
+        parse_group(cache, tokens, start, depth, context, error),
     );
 
-    // Return the match, if one was found.
-    cache_return!(cache, Applicand, start, first_match)
+    // If we made it this far, the parse failed.
+    cache_return!(cache, Applicand, start, None)
 }
 
 // Parse a group.
@@ -865,7 +872,7 @@ fn parse_group<'a, 'b>(
     let next = consume_token!(cache, Group, start, tokens, LeftParen, start, error);
 
     // Parse the inner node.
-    let (node, next) = fail_fast!(
+    let (node, next) = try_eval!(
         cache,
         Group,
         start,
