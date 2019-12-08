@@ -23,7 +23,7 @@ use clap::{
     AppSettings::{ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
     Arg, Shell, SubCommand,
 };
-use std::{borrow::Borrow, fs::read_to_string, io::stdout, path::Path, process::exit};
+use std::{fs::read_to_string, io::stdout, path::Path, process::exit};
 
 // The program version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -96,23 +96,18 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
 }
 
 // Run a program.
-fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
+fn run(source_path: &Path) -> Result<(), Error> {
     // Read the source file.
-    let source_contents = read_to_string(source_path.borrow()).map_err(lift(format!(
+    let source_contents = read_to_string(source_path).map_err(lift(format!(
         "Error when reading file {}.",
-        source_path.borrow().to_string_lossy().code_str(),
+        source_path.to_string_lossy().code_str(),
     )))?;
 
     // Tokenize the source file.
-    let tokens = tokenize(Some(source_path.borrow()), &source_contents)?;
+    let tokens = tokenize(Some(source_path), &source_contents)?;
 
     // Parse the source file.
-    let node = parse(
-        Some(source_path.borrow()),
-        &source_contents,
-        &tokens[..],
-        [],
-    )?;
+    let node = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
 
     // Print the AST.
     println!("# Original term:\n\n{}\n", node);
@@ -121,19 +116,19 @@ fn run<T: Borrow<Path>>(source_path: T) -> Result<(), Error> {
     println!("# Normal form:\n\n{}\n", normalize(&node));
 
     // Type check the AST.
-    let node_type = type_check(Some(source_path.borrow()), &source_contents, &node, vec![])?;
+    let node_type = type_check(Some(source_path), &source_contents, &node, &mut vec![])?;
 
     // Normalize and print the type.
-    println!("# Type:\n\n{}", normalize(node_type));
+    println!("# Type:\n\n{}", normalize(&node_type));
 
     // If we made it this far, nothing went wrong.
     Ok(())
 }
 
 // Print a shell completion script to STDOUT.
-fn shell_completion<T: Borrow<str>>(shell: T) -> Result<(), Error> {
+fn shell_completion(shell: &str) -> Result<(), Error> {
     // Determine which shell the user wants the shell completion for.
-    let shell_variant = match shell.borrow().trim().to_lowercase().as_ref() {
+    let shell_variant = match shell.trim().to_lowercase().as_ref() {
         "bash" => Shell::Bash,
         "fish" => Shell::Fish,
         "zsh" => Shell::Zsh,
@@ -143,7 +138,7 @@ fn shell_completion<T: Borrow<str>>(shell: T) -> Result<(), Error> {
             return Err(Error {
                 message: format!(
                     "Unknown shell {}. Must be one of Bash, Fish, Zsh, PowerShell, or Elvish.",
-                    shell.borrow().code_str(),
+                    shell.code_str(),
                 ),
                 reason: None,
             });

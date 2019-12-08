@@ -6,7 +6,7 @@ use crate::{
     type_checker::TYPE,
 };
 use scopeguard::defer;
-use std::{borrow::Borrow, cell::RefCell, collections::HashMap, path::Path, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
 // linear-time parsing. We want to parse into the following abstract syntax:
@@ -186,7 +186,7 @@ macro_rules! consume_token {
                 *$error = (
                     Some(Rc::new(move |source_path, source_contents| {
                         throw(
-                            format!(
+                            &format!(
                                 "Expected {} after {}.",
                                 token::Variant::$variant.to_string().code_str(),
                                 tokens[next - 1].to_string().code_str(),
@@ -211,7 +211,7 @@ macro_rules! consume_token {
                 *$error = (
                     Some(Rc::new(move |source_path, source_contents| {
                         throw(
-                            format!(
+                            &format!(
                                 "Expected {} but encountered {}.",
                                 token::Variant::$variant.to_string().code_str(),
                                 tokens[next].to_string().code_str(),
@@ -253,7 +253,7 @@ macro_rules! consume_identifier {
                 *$error = (
                     Some(Rc::new(move |source_path, source_contents| {
                         throw(
-                            format!(
+                            &format!(
                                 "Expected an identifier after {}.",
                                 tokens[next - 1].to_string().code_str(),
                             ),
@@ -277,7 +277,7 @@ macro_rules! consume_identifier {
                 *$error = (
                     Some(Rc::new(move |source_path, source_contents| {
                         throw(
-                            format!(
+                            &format!(
                                 "Expected an identifier but encountered {}.",
                                 tokens[next].to_string().code_str(),
                             ),
@@ -298,16 +298,12 @@ macro_rules! consume_identifier {
 // This is the top-level parsing function. All the parsed nodes are guaranteed to have a non-`None`
 // `source_range`. The parser also guarantees that all variables are bound, except of course the
 // ones in the initial context. Variable shadowing is not allowed.
-pub fn parse<'a, T: Borrow<[Token<'a>]>, U: Borrow<[&'a str]>>(
+pub fn parse<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
-    tokens: T,
-    context: U, // `TYPE` is implicitly at the front of the context.
+    tokens: &[Token<'a>],
+    context: &[&'a str], // `TYPE` is implicitly at the front of the context.
 ) -> Result<Node<'a>, Error> {
-    // Get references to the borrowed data.
-    let tokens = tokens.borrow();
-    let context = context.borrow();
-
     // Construct a hash table to memoize parsing results.
     let mut cache = Cache::new();
 
@@ -359,7 +355,7 @@ pub fn parse<'a, T: Borrow<[Token<'a>]>, U: Borrow<[&'a str]>>(
         Err(if first_unparsed_token < tokens.len() {
             // There was some token that caused the parse to fail. Report it.
             throw(
-                format!(
+                &format!(
                     "Unexpected {}.",
                     tokens[first_unparsed_token].to_string().code_str()
                 ),
@@ -545,7 +541,7 @@ fn parse_variable<'a, 'b>(
             *error = (
                 Some(Rc::new(move |source_path, source_contents| {
                     throw(
-                        format!("Undefined variable {}.", variable.code_str()),
+                        &format!("Undefined variable {}.", variable.code_str()),
                         source_path,
                         source_contents,
                         tokens[next - 1].source_range,
@@ -618,7 +614,7 @@ fn parse_lambda<'a, 'b>(
                 *error = (
                     Some(Rc::new(move |source_path, source_contents| {
                         throw(
-                            format!("Variable {} already exists.", variable.code_str()),
+                            &format!("Variable {} already exists.", variable.code_str()),
                             source_path,
                             source_contents,
                             tokens[variable_pos].source_range,
@@ -717,7 +713,7 @@ fn parse_pi<'a, 'b>(
                 *error = (
                     Some(Rc::new(move |source_path, source_contents| {
                         throw(
-                            format!("Variable {} already exists.", variable.code_str()),
+                            &format!("Variable {} already exists.", variable.code_str()),
                             source_path,
                             source_contents,
                             tokens[variable_pos].source_range,
@@ -916,7 +912,7 @@ mod tests {
         let context = [];
 
         assert_fails!(
-            parse(None, source, &tokens[..], context),
+            parse(None, source, &tokens[..], &context[..]),
             "Unexpected end of file",
         );
     }
@@ -928,7 +924,7 @@ mod tests {
         let context = ["x"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((0, 1)),
                 group: false,
@@ -944,7 +940,7 @@ mod tests {
         let context = [];
 
         assert_fails!(
-            parse(None, source, &tokens[..], context),
+            parse(None, source, &tokens[..], &context[..]),
             "Undefined variable",
         );
     }
@@ -956,7 +952,7 @@ mod tests {
         let context = ["a"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((0, 12)),
                 group: false,
@@ -983,7 +979,10 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a", "x"];
 
-        assert_fails!(parse(None, source, &tokens[..], context), "already exists");
+        assert_fails!(
+            parse(None, source, &tokens[..], &context[..]),
+            "already exists"
+        );
     }
 
     #[test]
@@ -993,7 +992,7 @@ mod tests {
         let context = ["a"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((0, 23)),
                 group: false,
@@ -1033,7 +1032,7 @@ mod tests {
         let context = ["a"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((0, 12)),
                 group: false,
@@ -1060,7 +1059,10 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a", "x"];
 
-        assert_fails!(parse(None, source, &tokens[..], context), "already exists",);
+        assert_fails!(
+            parse(None, source, &tokens[..], &context[..]),
+            "already exists",
+        );
     }
 
     #[test]
@@ -1070,7 +1072,7 @@ mod tests {
         let context = ["a"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((0, 23)),
                 group: false,
@@ -1110,7 +1112,7 @@ mod tests {
         let context = ["f", "x"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((0, 3)),
                 group: true,
@@ -1137,7 +1139,7 @@ mod tests {
         let context = ["f", "x", "y"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((0, 5)),
                 group: true,
@@ -1175,7 +1177,7 @@ mod tests {
         let context = ["f", "x", "y"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((0, 6)),
                 group: false,
@@ -1213,7 +1215,7 @@ mod tests {
         let context = ["x"];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((1, 2)),
                 group: true,
@@ -1229,7 +1231,7 @@ mod tests {
         let context = [];
 
         assert_eq!(
-            parse(None, source, &tokens[..], context).unwrap(),
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
             Node {
                 source_range: Some((0, 64)),
                 group: false,
