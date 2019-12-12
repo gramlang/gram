@@ -1,3 +1,4 @@
+use crate::token::TYPE;
 use std::{
     fmt::{Display, Formatter, Result},
     rc::Rc,
@@ -15,6 +16,9 @@ pub struct Term<'a> {
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
+    // This is the type of all types, including itself.
+    Type,
+
     // A variable is a placeholder bound by a lambda or a pi type. The integer is the De Bruijn
     // index for the variable.
     Variable(&'a str, usize),
@@ -48,6 +52,7 @@ impl<'a> Display for Term<'a> {
 impl<'a> Display for Variant<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
+            Self::Type => write!(f, "{}", TYPE),
             Self::Variable(variable, _) => write!(f, "{}", variable),
             Self::Lambda(variable, domain, body) => {
                 write!(f, "({} : {}) => {}", variable, domain, body)
