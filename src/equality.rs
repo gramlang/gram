@@ -26,7 +26,7 @@ pub fn syntactically_equal<'a>(node1: &Node<'a>, node2: &Node<'a>) -> bool {
     }
 }
 
-// Check if two terms are equal up to alpha renaming and beta/eta equivalence.
+// Check if two terms are equal up to alpha renaming and beta equivalence.
 pub fn definitionally_equal<'a>(node1: &Node<'a>, node2: &Node<'a>) -> bool {
     // Check if the normalized terms are equal.
     syntactically_equal(&normalize(node1), &normalize(node2))
