@@ -5,13 +5,10 @@ use crate::{
     format::CodeStr,
     term::{
         Term,
-        Variant::{Application, Lambda, Pi, Variable},
+        Variant::{Application, Lambda, Pi, Type, Variable},
     },
 };
 use std::{path::Path, rc::Rc};
-
-// The type of all types
-pub const TYPE: &str = "type";
 
 // This is the top-level type checking function.
 #[allow(clippy::too_many_lines)]
@@ -19,30 +16,22 @@ pub fn type_check<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     term: &Term<'a>,
-    context: &mut Vec<Rc<Term<'a>>>, // `TYPE` is implicitly at the front of the context.
+    context: &mut Vec<Rc<Term<'a>>>,
 ) -> Result<Rc<Term<'a>>, Error> {
-    // Construct `TYPE`.
+    // Construct the type of all types.
     let type_type = Term {
         source_range: None,
         group: false,
-        variant: Variable(TYPE, context.len()),
+        variant: Type,
     };
 
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
     match &term.variant {
+        Type => Ok(Rc::new(type_type)),
         Variable(_, index) => {
-            // Fetch the length of the context, i.e., the implicit position of `TYPE`.
-            let len = context.len();
-
-            // Are we looking up `TYPE`?
-            if *index == len {
-                // `TYPE` is its own type, so just return it.
-                Ok(Rc::new(type_type))
-            } else {
-                // Look up the type in the context, and shift it such that it's valid in the
-                // current context.
-                Ok(shift(&*context[len - 1 - *index], 0, *index + 1))
-            }
+            // Look up the type in the context, and shift it such that it's valid in the
+            // current context.
+            Ok(shift(&*context[context.len() - 1 - *index], 0, *index + 1))
         }
         Lambda(variable, domain, body) => {
             // Temporarily add the variable's type to the context for the purpose of inferring the
@@ -65,7 +54,7 @@ pub fn type_check<'a>(
             // Infer the type of the pi type.
             let pi_type_type = type_check(source_path, source_contents, &pi_type, context)?;
 
-            // Check that the type of the pi type is `TYPE`.
+            // Check that the type of the pi type is the type of all types.
             if !definitionally_equal(&*pi_type_type, &type_type) {
                 return Err(if let Some(source_range) = pi_type.source_range {
                     throw(
@@ -107,7 +96,7 @@ pub fn type_check<'a>(
             // Restore the context.
             context.pop();
 
-            // Check that the domain has type `TYPE`.
+            // Check that the type of the domain is the type of all types.
             if !definitionally_equal(&*domain_type, &type_type) {
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
@@ -131,7 +120,7 @@ pub fn type_check<'a>(
                 });
             }
 
-            // Check that the codomain has type `TYPE`.
+            // Check that the type of the codomain is the type of all types.
             if !definitionally_equal(&*codomain_type, &shift(&type_type, 0, 1)) {
                 return Err(if let Some(source_range) = codomain.source_range {
                     throw(
@@ -156,7 +145,7 @@ pub fn type_check<'a>(
                 });
             }
 
-            // Return `TYPE`.
+            // The type of a pi type is the type of all types.
             Ok(Rc::new(type_type))
         }
         Application(applicand, argument) => {
@@ -230,9 +219,12 @@ mod tests {
         assert_fails,
         equality::definitionally_equal,
         parser::parse,
-        term::{Term, Variant::Variable},
+        term::{
+            Term,
+            Variant::{Type, Variable},
+        },
         tokenizer::tokenize,
-        type_checker::{type_check, TYPE},
+        type_checker::type_check,
     };
     use std::rc::Rc;
 
@@ -261,7 +253,7 @@ mod tests {
             Rc::new(Term {
                 source_range: None,
                 group: false,
-                variant: Variable(TYPE, 0),
+                variant: Type,
             }),
             Rc::new(Term {
                 source_range: None,
@@ -289,7 +281,7 @@ mod tests {
         let mut typing_context = vec![Rc::new(Term {
             source_range: None,
             group: false,
-            variant: Variable(TYPE, 0),
+            variant: Type,
         })];
         let term_source = "(x : a) => x";
         let type_source = "(x : a) -> a";
@@ -311,7 +303,7 @@ mod tests {
         let mut typing_context = vec![Rc::new(Term {
             source_range: None,
             group: false,
-            variant: Variable(TYPE, 0),
+            variant: Type,
         })];
         let term_source = "(x : a) -> a";
         let type_source = "type";
@@ -334,7 +326,7 @@ mod tests {
             Rc::new(Term {
                 source_range: None,
                 group: false,
-                variant: Variable(TYPE, 0),
+                variant: Type,
             }),
             Rc::new(Term {
                 source_range: None,
@@ -363,12 +355,12 @@ mod tests {
             Rc::new(Term {
                 source_range: None,
                 group: false,
-                variant: Variable(TYPE, 0),
+                variant: Type,
             }),
             Rc::new(Term {
                 source_range: None,
                 group: false,
-                variant: Variable(TYPE, 1),
+                variant: Type,
             }),
             Rc::new(Term {
                 source_range: None,
@@ -394,7 +386,7 @@ mod tests {
             Rc::new(Term {
                 source_range: None,
                 group: false,
-                variant: Variable(TYPE, 0),
+                variant: Type,
             }),
             Rc::new(Term {
                 source_range: None,

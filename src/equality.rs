@@ -2,7 +2,7 @@ use crate::{
     normalizer::normalize,
     term::{
         Term,
-        Variant::{Application, Lambda, Pi, Variable},
+        Variant::{Application, Lambda, Pi, Type, Variable},
     },
 };
 
@@ -10,6 +10,7 @@ use crate::{
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     // Recursively check sub-terms.
     match (&term1.variant, &term2.variant) {
+        (Type, Type) => true,
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
         (Lambda(_, domain1, body1), Lambda(_, domain2, body2)) => {
             syntactically_equal(&**domain1, &**domain2) && syntactically_equal(&**body1, &**body2)
@@ -37,8 +38,26 @@ mod tests {
     use crate::{
         equality::{definitionally_equal, syntactically_equal},
         parser::parse,
+        token::TYPE,
         tokenizer::tokenize,
     };
+
+    #[test]
+    fn syntactically_equal_type() {
+        let context1 = [];
+        let source1 = TYPE;
+
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+
+        let context2 = [];
+        let source2 = TYPE;
+
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
 
     #[test]
     fn syntactically_equal_alpha() {

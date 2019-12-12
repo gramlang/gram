@@ -1,6 +1,6 @@
 use crate::term::{
     Term,
-    Variant::{Application, Lambda, Pi, Variable},
+    Variant::{Application, Lambda, Pi, Type, Variable},
 };
 use std::rc::Rc;
 
@@ -9,6 +9,7 @@ use std::rc::Rc;
 pub fn shift<'a>(term: &Term<'a>, min_index: usize, amount: usize) -> Rc<Term<'a>> {
     // Recursively shift sub-terms.
     match &term.variant {
+        Type => Rc::new(term.clone()),
         Variable(variable, index) => {
             if *index >= min_index {
                 Rc::new(Term {
@@ -58,6 +59,7 @@ pub fn open<'a>(
 ) -> Rc<Term<'a>> {
     // Recursively open sub-terms.
     match &term_to_open.variant {
+        Type => Rc::new(term_to_open.clone()),
         Variable(variable, index) => {
             if *index > index_to_replace {
                 Rc::new(Term {
@@ -112,10 +114,31 @@ mod tests {
         de_bruijn::{open, shift},
         term::{
             Term,
-            Variant::{Application, Lambda, Pi, Variable},
+            Variant::{Application, Lambda, Pi, Type, Variable},
         },
+        token::TYPE,
     };
     use std::rc::Rc;
+
+    #[test]
+    fn shift_type() {
+        assert_eq!(
+            *shift(
+                &Term {
+                    source_range: Some((0, TYPE.len())),
+                    group: false,
+                    variant: Type,
+                },
+                0,
+                42,
+            ),
+            Term {
+                source_range: Some((0, TYPE.len())),
+                group: false,
+                variant: Type,
+            },
+        );
+    }
 
     #[test]
     fn shift_variable_free() {
@@ -283,6 +306,30 @@ mod tests {
                         variant: Variable("b", 43),
                     }),
                 ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_type() {
+        assert_eq!(
+            *open(
+                &Term {
+                    source_range: Some((0, TYPE.len())),
+                    group: false,
+                    variant: Type,
+                },
+                0,
+                &Term {
+                    source_range: Some((3, 4)),
+                    group: false,
+                    variant: Variable("y", 0),
+                },
+            ),
+            Term {
+                source_range: Some((0, TYPE.len())),
+                group: false,
+                variant: Type,
             },
         );
     }

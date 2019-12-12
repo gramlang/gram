@@ -3,7 +3,6 @@ use crate::{
     format::CodeStr,
     term::{self, Term},
     token::{self, Token},
-    type_checker::TYPE,
 };
 use scopeguard::defer;
 use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
@@ -11,7 +10,7 @@ use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
 // linear-time parsing. We want to parse into the following abstract syntax:
 //
-//   e = x | ( x : e ) -> e | ( x : e ) => e | e e | ( e )
+//   e = type | x | ( x : e ) -> e | ( x : e ) => e | e e | ( e )
 //
 // If we interpret these rules as a grammar, we face two problems:
 //
@@ -40,8 +39,8 @@ use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 // A similar ambiguity arises with lambdas. To resolve this, we can disallow pi types and lambdas
 // as applicands (unless they are surrounded by parentheses, of course). This leads to:
 //
-//   e = x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
-//   applicand = x | applicand e | ( e )
+//   e = type | x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
+//   applicand = type | x | applicand e | ( e )
 //
 // Now we have to encode the associativity of application into the grammar. As it stands,
 // `applicand x e` can be parsed as either of:
@@ -52,8 +51,8 @@ use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 // As discussed above, we'll parse application as right-associative. We can do this by disallowing
 // applicands from being applications themselves. Thus, the final grammar is:
 //
-//   e = x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
-//   applicand = x | ( e )
+//   e = type | x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
+//   applicand = type | x | ( e )
 
 // This represents a fresh variable name. It's never added to the context.
 pub const PLACEHOLDER_VARIABLE: &str = "_";
@@ -62,6 +61,7 @@ pub const PLACEHOLDER_VARIABLE: &str = "_";
 #[derive(Debug, Eq, Hash, PartialEq)]
 enum CacheType {
     Term,
+    Type,
     Variable,
     Pi,
     Lambda,
@@ -301,15 +301,14 @@ pub fn parse<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     tokens: &[Token<'a>],
-    context: &[&'a str], // `TYPE` is implicitly at the front of the context.
+    context: &[&'a str],
 ) -> Result<Term<'a>, Error> {
     // Construct a hash table to memoize parsing results.
     let mut cache = Cache::new();
 
     // Construct a mutable context.
-    let mut context: HashMap<&'a str, usize> = [TYPE]
+    let mut context: HashMap<&'a str, usize> = context
         .iter()
-        .chain(context.iter())
         .enumerate()
         .map(|(i, variable)| (*variable, i))
         .collect();
@@ -380,6 +379,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
     // construct an application with the accumulator as the applicand and the reduced term as the
     // argument. In the application case, we build up the accumulator.
     let reduced = match &term.variant {
+        term::Variant::Type | term::Variant::Variable(_, _) => term,
         term::Variant::Lambda(variable, domain, body) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
@@ -398,7 +398,6 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, codomain.clone()),
             ),
         }),
-        term::Variant::Variable(_, _) => term,
         term::Variant::Application(applicand, argument) => {
             return if argument.group {
                 if let Some(acc) = acc {
@@ -488,6 +487,14 @@ fn parse_term<'a, 'b>(
         parse_application(cache, tokens, start, depth, context, error),
     );
 
+    // Try to parse the type of all types.
+    try_return!(
+        cache,
+        Type,
+        start,
+        parse_type(cache, tokens, start, depth, context, error),
+    );
+
     // Try to parse a variable.
     try_return!(
         cache,
@@ -522,6 +529,37 @@ fn parse_term<'a, 'b>(
 
     // If we made it this far, the parse failed.
     cache_return!(cache, Term, start, None)
+}
+
+// Parse a variable.
+fn parse_type<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    _depth: usize,
+    _context: &mut HashMap<&'a str, usize>,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, Type, start, error);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, Type, start, tokens, Type, start, error);
+
+    // Construct and return the variable.
+    cache_return!(
+        cache,
+        Type,
+        start,
+        Some((
+            Term {
+                source_range: Some(tokens[start].source_range),
+                group: false,
+                variant: term::Variant::Type,
+            },
+            next,
+        )),
+    )
 }
 
 // Parse a variable.
@@ -836,6 +874,14 @@ fn parse_applicand<'a, 'b>(
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Applicand, start, error);
 
+    // Try to parse the type of all types.
+    try_return!(
+        cache,
+        Type,
+        start,
+        parse_type(cache, tokens, start, depth, context, error),
+    );
+
     // Try to parse a variable.
     try_return!(
         cache,
@@ -905,10 +951,9 @@ mod tests {
         parser::parse,
         term::{
             Term,
-            Variant::{Application, Lambda, Pi, Variable},
+            Variant::{Application, Lambda, Pi, Type, Variable},
         },
         tokenizer::tokenize,
-        type_checker::TYPE,
     };
     use std::rc::Rc;
 
@@ -1247,7 +1292,7 @@ mod tests {
                     Rc::new(Term {
                         source_range: Some((5, 9)),
                         group: false,
-                        variant: Variable(TYPE, 0),
+                        variant: Type,
                     }),
                     Rc::new(Term {
                         source_range: Some((14, 64)),
@@ -1257,7 +1302,7 @@ mod tests {
                             Rc::new(Term {
                                 source_range: Some((19, 23)),
                                 group: false,
-                                variant: Variable(TYPE, 1),
+                                variant: Type,
                             }),
                             Rc::new(Term {
                                 source_range: Some((28, 64)),

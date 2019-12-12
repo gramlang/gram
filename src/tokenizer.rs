@@ -1,11 +1,12 @@
 use crate::{
     error::{throw, Error},
     format::CodeStr,
-    token::{Token, Variant},
+    token::{Token, Variant, TYPE},
 };
 use std::path::Path;
 
 // Tokenize the contents of a source file.
+#[allow(clippy::too_many_lines)]
 pub fn tokenize<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
@@ -83,7 +84,8 @@ pub fn tokenize<'a>(
             }
 
             // If the first code point is alphabetic according to the Unicode derived property,
-            // keep reading subsequent alphanumeric code points to build up an identifier.
+            // keep reading subsequent alphanumeric code points to build up an identifier or
+            // keyword.
             _ if c.is_alphabetic() || c == '_' => {
                 let mut end = source_contents.len();
 
@@ -96,10 +98,17 @@ pub fn tokenize<'a>(
                     }
                 }
 
-                tokens.push(Token {
-                    source_range: (i, end),
-                    variant: Variant::Identifier(&source_contents[i..end]),
-                });
+                if &source_contents[i..end] == TYPE {
+                    tokens.push(Token {
+                        source_range: (i, end),
+                        variant: Variant::Type,
+                    });
+                } else {
+                    tokens.push(Token {
+                        source_range: (i, end),
+                        variant: Variant::Identifier(&source_contents[i..end]),
+                    });
+                }
             }
 
             // Skip whitespace.
@@ -137,7 +146,7 @@ pub fn tokenize<'a>(
 mod tests {
     use crate::{
         assert_fails,
-        token::{Token, Variant},
+        token::{Token, Variant, TYPE},
         tokenizer::tokenize,
     };
 
@@ -202,6 +211,17 @@ mod tests {
             vec![Token {
                 source_range: (0, 2),
                 variant: Variant::ThinArrow,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_type() {
+        assert_eq!(
+            tokenize(None, TYPE).unwrap(),
+            vec![Token {
+                source_range: (0, TYPE.len()),
+                variant: Variant::Type,
             }],
         );
     }

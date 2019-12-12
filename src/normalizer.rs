@@ -2,7 +2,7 @@ use crate::{
     de_bruijn::open,
     term::{
         Term,
-        Variant::{Application, Lambda, Pi, Variable},
+        Variant::{Application, Lambda, Pi, Type, Variable},
     },
 };
 use std::rc::Rc;
@@ -11,8 +11,8 @@ use std::rc::Rc;
 pub fn normalize<'a>(term: &Term<'a>) -> Rc<Term<'a>> {
     // Recursively normalize sub-terms.
     match &term.variant {
-        Variable(_, _) => {
-            // Variables are already in beta normal form.
+        Type | Variable(_, _) => {
+            // The type of all types and variables are already in beta normal form.
             Rc::new(term.clone())
         }
         Lambda(variable, domain, body) => {
@@ -61,11 +61,30 @@ mod tests {
         parser::parse,
         term::{
             Term,
-            Variant::{Application, Lambda, Pi, Variable},
+            Variant::{Application, Lambda, Pi, Type, Variable},
         },
+        token::TYPE,
         tokenizer::tokenize,
     };
     use std::rc::Rc;
+
+    #[test]
+    fn normalize_type() {
+        let context = [];
+        let source = TYPE;
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &context[..]).unwrap();
+
+        assert_eq!(
+            *normalize(&term),
+            Term {
+                source_range: Some((0, TYPE.len())),
+                group: false,
+                variant: Type,
+            },
+        );
+    }
 
     #[test]
     fn normalize_variable() {
