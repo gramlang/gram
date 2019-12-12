@@ -59,7 +59,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = pi_type.source_range {
                     throw(
                         &format!(
-                            "The type of this is {} when {} was expected.",
+                            "The type of this lambda is {} when {} was expected.",
                             pi_type_type.to_string().code_str(),
                             type_type.to_string().code_str(),
                         ),
@@ -70,7 +70,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Computed type {} when {} was expected.",
+                            "Lambda has type {} when {} was expected.",
                             pi_type_type.to_string().code_str(),
                             type_type.to_string().code_str(),
                         ),
@@ -101,8 +101,9 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
                         &format!(
-                            "This domain has type {:?} when {:?} was expected.",
-                            domain_type, type_type,
+                            "This domain has type {} when {} was expected.",
+                            domain_type.to_string().code_str(),
+                            type_type.to_string().code_str(),
                         ),
                         source_path,
                         source_contents,
@@ -125,7 +126,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = codomain.source_range {
                     throw(
                         &format!(
-                            "codomain has type {} when {} was expected.",
+                            "This codomain has type {} when {} was expected.",
                             codomain_type.to_string().code_str(),
                             type_type.to_string().code_str(),
                         ),
