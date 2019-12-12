@@ -437,10 +437,13 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                                 None
                             },
                             group: true, // To ensure the resulting term is still parse-able when printed
-                            variant: term::Variant::Application(acc, applicand.clone()),
+                            variant: term::Variant::Application(
+                                acc,
+                                reassociate_applications(None, applicand.clone()),
+                            ),
                         })
                     } else {
-                        applicand.clone()
+                        reassociate_applications(None, applicand.clone())
                     }),
                     argument.clone(),
                 )
