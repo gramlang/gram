@@ -1,10 +1,10 @@
-mod ast;
 mod de_bruijn;
 mod equality;
 mod error;
 mod format;
 mod normalizer;
 mod parser;
+mod term;
 mod token;
 mod tokenizer;
 mod type_checker;
@@ -107,19 +107,19 @@ fn run(source_path: &Path) -> Result<(), Error> {
     let tokens = tokenize(Some(source_path), &source_contents)?;
 
     // Parse the source file.
-    let node = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
+    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
 
     // Print the AST.
-    println!("# Original term:\n\n{}\n", node);
+    println!("# Original term:\n\n{}\n", term);
 
     // Print the normal form.
-    println!("# Normal form:\n\n{}\n", normalize(&node));
+    println!("# Normal form:\n\n{}\n", normalize(&term));
 
     // Type check the AST.
-    let node_type = type_check(Some(source_path), &source_contents, &node, &mut vec![])?;
+    let term_type = type_check(Some(source_path), &source_contents, &term, &mut vec![])?;
 
     // Normalize and print the type.
-    println!("# Type:\n\n{}", normalize(&node_type));
+    println!("# Type:\n\n{}", normalize(&term_type));
 
     // If we made it this far, nothing went wrong.
     Ok(())
