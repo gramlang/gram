@@ -1,15 +1,15 @@
 use crate::{
-    ast::{
-        Node,
+    normalizer::normalize,
+    term::{
+        Term,
         Variant::{Application, Lambda, Pi, Variable},
     },
-    normalizer::normalize,
 };
 
 // Check if two terms are equal up to alpha renaming.
-pub fn syntactically_equal<'a>(node1: &Node<'a>, node2: &Node<'a>) -> bool {
-    // Recursively check sub-nodes.
-    match (&node1.variant, &node2.variant) {
+pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
+    // Recursively check sub-terms.
+    match (&term1.variant, &term2.variant) {
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
         (Lambda(_, domain1, body1), Lambda(_, domain2, body2)) => {
             syntactically_equal(&**domain1, &**domain2) && syntactically_equal(&**body1, &**body2)
@@ -27,9 +27,9 @@ pub fn syntactically_equal<'a>(node1: &Node<'a>, node2: &Node<'a>) -> bool {
 }
 
 // Check if two terms are equal up to alpha renaming and beta equivalence.
-pub fn definitionally_equal<'a>(node1: &Node<'a>, node2: &Node<'a>) -> bool {
+pub fn definitionally_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     // Check if the normalized terms are equal.
-    syntactically_equal(&normalize(node1), &normalize(node2))
+    syntactically_equal(&normalize(term1), &normalize(term2))
 }
 
 #[cfg(test)]
@@ -46,15 +46,15 @@ mod tests {
         let source1 = "x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = ["y"];
         let source2 = "y";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), true);
+        assert_eq!(syntactically_equal(&term1, &term2), true);
     }
 
     #[test]
@@ -63,15 +63,15 @@ mod tests {
         let source1 = "x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = ["x", "y"];
         let source2 = "x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), false);
+        assert_eq!(syntactically_equal(&term1, &term2), false);
     }
 
     #[test]
@@ -80,15 +80,15 @@ mod tests {
         let source1 = "(x : type) => x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = [];
         let source2 = "(x : type) => x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), true);
+        assert_eq!(syntactically_equal(&term1, &term2), true);
     }
 
     #[test]
@@ -97,15 +97,15 @@ mod tests {
         let source1 = "(x : type) => x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = [];
         let source2 = "(x : (type type)) => x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), false);
+        assert_eq!(syntactically_equal(&term1, &term2), false);
     }
 
     #[test]
@@ -114,15 +114,15 @@ mod tests {
         let source1 = "(x : type) => x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = [];
         let source2 = "(x : type) => type";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), false);
+        assert_eq!(syntactically_equal(&term1, &term2), false);
     }
 
     #[test]
@@ -131,15 +131,15 @@ mod tests {
         let source1 = "(x : type) -> x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = [];
         let source2 = "(x : type) -> x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), true);
+        assert_eq!(syntactically_equal(&term1, &term2), true);
     }
 
     #[test]
@@ -148,15 +148,15 @@ mod tests {
         let source1 = "(x : type) -> x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = [];
         let source2 = "(x : (type type)) -> x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), false);
+        assert_eq!(syntactically_equal(&term1, &term2), false);
     }
 
     #[test]
@@ -165,15 +165,15 @@ mod tests {
         let source1 = "(x : type) -> x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = [];
         let source2 = "(x : type) -> type";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), false);
+        assert_eq!(syntactically_equal(&term1, &term2), false);
     }
 
     #[test]
@@ -182,15 +182,15 @@ mod tests {
         let source1 = "f x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = ["f", "x"];
         let source2 = "f x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), true);
+        assert_eq!(syntactically_equal(&term1, &term2), true);
     }
 
     #[test]
@@ -199,15 +199,15 @@ mod tests {
         let source1 = "f x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = ["f", "x"];
         let source2 = "x x";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), false);
+        assert_eq!(syntactically_equal(&term1, &term2), false);
     }
 
     #[test]
@@ -216,15 +216,15 @@ mod tests {
         let source1 = "f x";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = ["f", "x"];
         let source2 = "f f";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&node1, &node2), false);
+        assert_eq!(syntactically_equal(&term1, &term2), false);
     }
 
     #[test]
@@ -233,15 +233,15 @@ mod tests {
         let source1 = "((x : type) => x x) y";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = ["y"];
         let source2 = "y y";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&node1, &node2), true);
+        assert_eq!(definitionally_equal(&term1, &term2), true);
     }
 
     #[test]
@@ -250,14 +250,14 @@ mod tests {
         let source1 = "((x : type) => x x) y";
 
         let tokens1 = tokenize(None, source1).unwrap();
-        let node1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = ["y"];
         let source2 = "y";
 
         let tokens2 = tokenize(None, source2).unwrap();
-        let node2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&node1, &node2), false);
+        assert_eq!(definitionally_equal(&term1, &term2), false);
     }
 }

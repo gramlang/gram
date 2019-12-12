@@ -1,7 +1,7 @@
 use crate::{
-    ast::{self, Node},
     error::{throw, Error},
     format::CodeStr,
+    term::{self, Term},
     token::{self, Token},
     type_checker::TYPE,
 };
@@ -61,7 +61,7 @@ pub const PLACEHOLDER_VARIABLE: &str = "_";
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
 #[derive(Debug, Eq, Hash, PartialEq)]
 enum CacheType {
-    Node,
+    Term,
     Variable,
     Pi,
     Lambda,
@@ -86,9 +86,9 @@ type ErrorFactory<'a, 'b> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
 //    choose the "best" one.
 type ParseError<'a, 'b> = (Option<ErrorFactory<'a, 'b>>, usize);
 
-// The result of a cache lookup is a pair consisting of the node that was parsed and the position
+// The result of a cache lookup is a pair consisting of the term that was parsed and the position
 // of the next unconsumed token, if the parse was successful. Otherwise, the result is `None`.
-type CacheResult<'a, 'b> = Option<(Node<'a>, usize)>;
+type CacheResult<'a, 'b> = Option<(Term<'a>, usize)>;
 
 // A cache is a map from cache key to result.
 type Cache<'a, 'b> = HashMap<CacheKey, CacheResult<'a, 'b>>;
@@ -294,7 +294,7 @@ macro_rules! consume_identifier {
     }};
 }
 
-// This is the top-level parsing function. All the parsed nodes are guaranteed to have a non-`None`
+// This is the top-level parsing function. All the parsed terms are guaranteed to have a non-`None`
 // `source_range`. The parser also guarantees that all variables are bound, except of course the
 // ones in the initial context. Variable shadowing is not allowed.
 pub fn parse<'a>(
@@ -302,7 +302,7 @@ pub fn parse<'a>(
     source_contents: &'a str,
     tokens: &[Token<'a>],
     context: &[&'a str], // `TYPE` is implicitly at the front of the context.
-) -> Result<Node<'a>, Error> {
+) -> Result<Term<'a>, Error> {
     // Construct a hash table to memoize parsing results.
     let mut cache = Cache::new();
 
@@ -317,8 +317,8 @@ pub fn parse<'a>(
     // Construct a default error in case none of the tokens can be parsed.
     let mut error: ParseError = (None, 0);
 
-    // Parse the node.
-    let result = parse_node(
+    // Parse the term.
+    let result = parse_term(
         &mut cache,
         tokens,
         0,
@@ -328,12 +328,12 @@ pub fn parse<'a>(
     );
 
     // Check if we managed to parse something.
-    let first_unparsed_token = if let Some((node, next)) = result {
+    let first_unparsed_token = if let Some((term, next)) = result {
         // We parsed something, but did we parse everything?
         if next == tokens.len() {
             // We parsed everything. Flip the associativity of applications with non-grouped
             // arguments from right to left and return the result [ref:reassociate-applications].
-            return Ok((*reassociate_applications(None, Rc::new(node))).clone());
+            return Ok((*reassociate_applications(None, Rc::new(term))).clone());
         } else {
             // We didn't parse all the tokens. Remember which one we stopped at.
             next
@@ -375,34 +375,34 @@ pub fn parse<'a>(
 }
 
 // Flip the associativity of applications from right to left.
-fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -> Rc<Node<'a>> {
+fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -> Rc<Term<'a>> {
     // In every case except the application case, if we have a value for the accumulator, we want to
-    // construct an application with the accumulator as the applicand and the reduced node as the
+    // construct an application with the accumulator as the applicand and the reduced term as the
     // argument. In the application case, we build up the accumulator.
-    let reduced = match &node.variant {
-        ast::Variant::Lambda(variable, domain, body) => Rc::new(Node {
-            source_range: node.source_range,
-            group: node.group,
-            variant: ast::Variant::Lambda(
+    let reduced = match &term.variant {
+        term::Variant::Lambda(variable, domain, body) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: term::Variant::Lambda(
                 variable,
                 reassociate_applications(None, domain.clone()),
                 reassociate_applications(None, body.clone()),
             ),
         }),
-        ast::Variant::Pi(variable, domain, codomain) => Rc::new(Node {
-            source_range: node.source_range,
-            group: node.group,
-            variant: ast::Variant::Pi(
+        term::Variant::Pi(variable, domain, codomain) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: term::Variant::Pi(
                 variable,
                 reassociate_applications(None, domain.clone()),
                 reassociate_applications(None, codomain.clone()),
             ),
         }),
-        ast::Variant::Variable(_, _) => node,
-        ast::Variant::Application(applicand, argument) => {
+        term::Variant::Variable(_, _) => term,
+        term::Variant::Application(applicand, argument) => {
             return if argument.group {
                 if let Some(acc) = acc {
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: if let (Some((start, _)), Some((_, end))) =
                             (acc.source_range, argument.source_range)
                         {
@@ -410,17 +410,17 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
                         } else {
                             None
                         },
-                        group: true, // To ensure the resulting node is still parse-able when printed
-                        variant: ast::Variant::Application(
+                        group: true, // To ensure the resulting term is still parse-able when printed
+                        variant: term::Variant::Application(
                             reassociate_applications(Some(acc), applicand.clone()),
                             reassociate_applications(None, argument.clone()),
                         ),
                     })
                 } else {
-                    Rc::new(Node {
-                        source_range: node.source_range,
-                        group: node.group,
-                        variant: ast::Variant::Application(
+                    Rc::new(Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: term::Variant::Application(
                             reassociate_applications(None, applicand.clone()),
                             reassociate_applications(None, argument.clone()),
                         ),
@@ -429,7 +429,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
             } else {
                 reassociate_applications(
                     Some(if let Some(acc) = acc {
-                        Rc::new(Node {
+                        Rc::new(Term {
                             source_range: if let (Some((start, _)), Some((_, end))) =
                                 (acc.source_range, applicand.source_range)
                             {
@@ -437,8 +437,8 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
                             } else {
                                 None
                             },
-                            group: true, // To ensure the resulting node is still parse-able when printed
-                            variant: ast::Variant::Application(acc, applicand.clone()),
+                            group: true, // To ensure the resulting term is still parse-able when printed
+                            variant: term::Variant::Application(acc, applicand.clone()),
                         })
                     } else {
                         applicand.clone()
@@ -449,10 +449,10 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
         }
     };
 
-    // We end up here as long as `node` isn't an application. If we have an accumulator, construct
-    // an application as described above. Otherwise, just return the reduced node.
+    // We end up here as long as `term` isn't an application. If we have an accumulator, construct
+    // an application as described above. Otherwise, just return the reduced term.
     if let Some(acc) = acc {
-        Rc::new(Node {
+        Rc::new(Term {
             source_range: if let (Some((start, _)), Some((_, end))) =
                 (acc.source_range, reduced.source_range)
             {
@@ -460,16 +460,16 @@ fn reassociate_applications<'a>(acc: Option<Rc<Node<'a>>>, node: Rc<Node<'a>>) -
             } else {
                 None
             },
-            group: true, // To ensure the resulting node is still parse-able when printed
-            variant: ast::Variant::Application(acc, reduced),
+            group: true, // To ensure the resulting term is still parse-able when printed
+            variant: term::Variant::Application(acc, reduced),
         })
     } else {
         reduced
     }
 }
 
-// Parse a node.
-fn parse_node<'a, 'b>(
+// Parse a term.
+fn parse_term<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
     start: usize,
@@ -478,7 +478,7 @@ fn parse_node<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Node, start, error);
+    cache_check!(cache, Term, start, error);
 
     // Try to parse an application.
     try_return!(
@@ -521,7 +521,7 @@ fn parse_node<'a, 'b>(
     );
 
     // If we made it this far, the parse failed.
-    cache_return!(cache, Node, start, None)
+    cache_return!(cache, Term, start, None)
 }
 
 // Parse a variable.
@@ -566,10 +566,10 @@ fn parse_variable<'a, 'b>(
         Variable,
         start,
         Some((
-            Node {
+            Term {
                 source_range: Some(tokens[start].source_range),
                 group: false,
-                variant: ast::Variant::Variable(variable, index),
+                variant: term::Variant::Variable(variable, index),
             },
             next,
         )),
@@ -602,7 +602,7 @@ fn parse_lambda<'a, 'b>(
         cache,
         Lambda,
         start,
-        parse_node(cache, tokens, next, depth, context, error),
+        parse_term(cache, tokens, next, depth, context, error),
     );
 
     // Consume the right parenthesis.
@@ -649,7 +649,7 @@ fn parse_lambda<'a, 'b>(
             cache,
             Lambda,
             start,
-            parse_node(cache, tokens, next, depth + 1, &mut *guard, error),
+            parse_term(cache, tokens, next, depth + 1, &mut *guard, error),
         )
     };
 
@@ -659,7 +659,7 @@ fn parse_lambda<'a, 'b>(
         Lambda,
         start,
         Some((
-            Node {
+            Term {
                 source_range: if let ((start, _), Some((_, end))) =
                     (tokens[start].source_range, body.source_range)
                 {
@@ -668,7 +668,7 @@ fn parse_lambda<'a, 'b>(
                     None
                 },
                 group: false,
-                variant: ast::Variant::Lambda(variable, Rc::new(domain), Rc::new(body)),
+                variant: term::Variant::Lambda(variable, Rc::new(domain), Rc::new(body)),
             },
             next
         )),
@@ -701,7 +701,7 @@ fn parse_pi<'a, 'b>(
         cache,
         Pi,
         start,
-        parse_node(cache, tokens, next, depth, context, error),
+        parse_term(cache, tokens, next, depth, context, error),
     );
 
     // Consume the right parenthesis.
@@ -748,7 +748,7 @@ fn parse_pi<'a, 'b>(
             cache,
             Pi,
             start,
-            parse_node(cache, tokens, next, depth + 1, &mut *guard, error),
+            parse_term(cache, tokens, next, depth + 1, &mut *guard, error),
         )
     };
 
@@ -758,7 +758,7 @@ fn parse_pi<'a, 'b>(
         Pi,
         start,
         Some((
-            Node {
+            Term {
                 source_range: if let ((start, _), Some((_, end))) =
                     (tokens[start].source_range, codomain.source_range)
                 {
@@ -767,7 +767,7 @@ fn parse_pi<'a, 'b>(
                     None
                 },
                 group: false,
-                variant: ast::Variant::Pi(variable, Rc::new(domain), Rc::new(codomain)),
+                variant: term::Variant::Pi(variable, Rc::new(domain), Rc::new(codomain)),
             },
             next
         )),
@@ -799,7 +799,7 @@ fn parse_application<'a, 'b>(
         cache,
         Application,
         start,
-        parse_node(cache, tokens, next, depth, context, error),
+        parse_term(cache, tokens, next, depth, context, error),
     );
 
     // Construct and return the application.
@@ -808,7 +808,7 @@ fn parse_application<'a, 'b>(
         Application,
         start,
         Some((
-            Node {
+            Term {
                 source_range: if let (Some((start, _)), Some((_, end))) =
                     (applicand.source_range, argument.source_range)
                 {
@@ -817,7 +817,7 @@ fn parse_application<'a, 'b>(
                     None
                 },
                 group: false,
-                variant: ast::Variant::Application(Rc::new(applicand), Rc::new(argument)),
+                variant: term::Variant::Application(Rc::new(applicand), Rc::new(argument)),
             },
             next,
         )),
@@ -871,27 +871,27 @@ fn parse_group<'a, 'b>(
     // Consume the left parenthesis.
     let next = consume_token!(cache, Group, start, tokens, LeftParen, start, error);
 
-    // Parse the inner node.
-    let (node, next) = try_eval!(
+    // Parse the inner term.
+    let (term, next) = try_eval!(
         cache,
         Group,
         start,
-        parse_node(cache, tokens, next, depth, context, error),
+        parse_term(cache, tokens, next, depth, context, error),
     );
 
     // Consume the right parenthesis.
     let next = consume_token!(cache, Group, start, tokens, RightParen, next, error);
 
-    // If we made it this far, we successfully parsed the group. Return the inner node.
+    // If we made it this far, we successfully parsed the group. Return the inner term.
     cache_return!(
         cache,
         Group,
         start,
         Some((
-            Node {
-                source_range: node.source_range,
+            Term {
+                source_range: term.source_range,
                 group: true,
-                variant: node.variant,
+                variant: term.variant,
             },
             next,
         ))
@@ -902,11 +902,11 @@ fn parse_group<'a, 'b>(
 mod tests {
     use crate::{
         assert_fails,
-        ast::{
-            Node,
+        parser::parse,
+        term::{
+            Term,
             Variant::{Application, Lambda, Pi, Variable},
         },
-        parser::parse,
         tokenizer::tokenize,
         type_checker::TYPE,
     };
@@ -932,7 +932,7 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((0, 1)),
                 group: false,
                 variant: Variable("x", 0),
@@ -960,17 +960,17 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((0, 12)),
                 group: false,
                 variant: Lambda(
                     "x",
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((5, 6)),
                         group: false,
                         variant: Variable("a", 0),
                     }),
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((11, 12)),
                         group: false,
                         variant: Variable("x", 0),
@@ -1000,27 +1000,27 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((0, 23)),
                 group: false,
                 variant: Lambda(
                     "_",
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((5, 6)),
                         group: false,
                         variant: Variable("a", 0),
                     }),
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((11, 23)),
                         group: false,
                         variant: Lambda(
                             "_",
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((16, 17)),
                                 group: false,
                                 variant: Variable("a", 1),
                             }),
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((22, 23)),
                                 group: false,
                                 variant: Variable("a", 2),
@@ -1040,17 +1040,17 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((0, 12)),
                 group: false,
                 variant: Pi(
                     "x",
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((5, 6)),
                         group: false,
                         variant: Variable("a", 0),
                     }),
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((11, 12)),
                         group: false,
                         variant: Variable("x", 0),
@@ -1080,27 +1080,27 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((0, 23)),
                 group: false,
                 variant: Pi(
                     "_",
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((5, 6)),
                         group: false,
                         variant: Variable("a", 0),
                     }),
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((11, 23)),
                         group: false,
                         variant: Pi(
                             "_",
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((16, 17)),
                                 group: false,
                                 variant: Variable("a", 1),
                             }),
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((22, 23)),
                                 group: false,
                                 variant: Variable("a", 2),
@@ -1120,16 +1120,16 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((0, 3)),
                 group: true,
                 variant: Application(
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((0, 1)),
                         group: false,
                         variant: Variable("f", 1),
                     }),
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((2, 3)),
                         group: false,
                         variant: Variable("x", 0),
@@ -1147,27 +1147,27 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((0, 5)),
                 group: true,
                 variant: Application(
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((0, 3)),
                         group: true,
                         variant: Application(
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((0, 1)),
                                 group: false,
                                 variant: Variable("f", 2),
                             }),
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((2, 3)),
                                 group: false,
                                 variant: Variable("x", 1),
                             }),
                         ),
                     }),
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((4, 5)),
                         group: false,
                         variant: Variable("y", 0),
@@ -1185,25 +1185,25 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((0, 6)),
                 group: false,
                 variant: Application(
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((0, 1)),
                         group: false,
                         variant: Variable("f", 2),
                     }),
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((3, 6)),
                         group: true,
                         variant: Application(
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((3, 4)),
                                 group: false,
                                 variant: Variable("x", 1),
                             }),
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((5, 6)),
                                 group: false,
                                 variant: Variable("y", 0),
@@ -1223,7 +1223,7 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((1, 2)),
                 group: true,
                 variant: Variable("x", 0),
@@ -1239,68 +1239,68 @@ mod tests {
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Node {
+            Term {
                 source_range: Some((0, 64)),
                 group: false,
                 variant: Lambda(
                     "a",
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((5, 9)),
                         group: false,
                         variant: Variable(TYPE, 0),
                     }),
-                    Rc::new(Node {
+                    Rc::new(Term {
                         source_range: Some((14, 64)),
                         group: false,
                         variant: Lambda(
                             "b",
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((19, 23)),
                                 group: false,
                                 variant: Variable(TYPE, 1),
                             }),
-                            Rc::new(Node {
+                            Rc::new(Term {
                                 source_range: Some((28, 64)),
                                 group: false,
                                 variant: Lambda(
                                     "f",
-                                    Rc::new(Node {
+                                    Rc::new(Term {
                                         source_range: Some((33, 45)),
                                         group: false,
                                         variant: Pi(
                                             "_",
-                                            Rc::new(Node {
+                                            Rc::new(Term {
                                                 source_range: Some((38, 39)),
                                                 group: false,
                                                 variant: Variable("a", 1),
                                             }),
-                                            Rc::new(Node {
+                                            Rc::new(Term {
                                                 source_range: Some((44, 45)),
                                                 group: false,
                                                 variant: Variable("b", 1),
                                             }),
                                         ),
                                     }),
-                                    Rc::new(Node {
+                                    Rc::new(Term {
                                         source_range: Some((50, 64)),
                                         group: false,
                                         variant: Lambda(
                                             "x",
-                                            Rc::new(Node {
+                                            Rc::new(Term {
                                                 source_range: Some((55, 56)),
                                                 group: false,
                                                 variant: Variable("a", 2),
                                             }),
-                                            Rc::new(Node {
+                                            Rc::new(Term {
                                                 source_range: Some((61, 64)),
                                                 group: true,
                                                 variant: Application(
-                                                    Rc::new(Node {
+                                                    Rc::new(Term {
                                                         source_range: Some((61, 62)),
                                                         group: false,
                                                         variant: Variable("f", 1),
                                                     }),
-                                                    Rc::new(Node {
+                                                    Rc::new(Term {
                                                         source_range: Some((63, 64)),
                                                         group: false,
                                                         variant: Variable("x", 0),

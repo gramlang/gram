@@ -6,13 +6,13 @@ use std::{
 // The token stream is parsed into an abstract syntax tree (AST). This struct represents a node in
 // an AST.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Node<'a> {
+pub struct Term<'a> {
     pub source_range: Option<(usize, usize)>, // [start, end)
     pub group: bool, // For an explanation of this field, see [ref:group-flag].
     pub variant: Variant<'a>,
 }
 
-// We assign each node a "variant" describing what kind of node it is.
+// Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
     // A variable is a placeholder bound by a lambda or a pi type. The integer is the De Bruijn
@@ -20,16 +20,16 @@ pub enum Variant<'a> {
     Variable(&'a str, usize),
 
     // A lambda, or dependent function, is a computable function.
-    Lambda(&'a str, Rc<Node<'a>>, Rc<Node<'a>>),
+    Lambda(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
 
     // Pi types, or dependent function types, are the types ascribed to lambdas.
-    Pi(&'a str, Rc<Node<'a>>, Rc<Node<'a>>),
+    Pi(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
 
     // An application is the act of applying a lambda to an argument.
-    Application(Rc<Node<'a>>, Rc<Node<'a>>),
+    Application(Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
-impl<'a> Display for Node<'a> {
+impl<'a> Display for Term<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         if self.group {
             write!(f, "(")?;

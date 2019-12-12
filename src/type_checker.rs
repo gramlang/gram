@@ -1,12 +1,12 @@
 use crate::{
-    ast::{
-        Node,
-        Variant::{Application, Lambda, Pi, Variable},
-    },
     de_bruijn::{open, shift},
     equality::definitionally_equal,
     error::{throw, Error},
     format::CodeStr,
+    term::{
+        Term,
+        Variant::{Application, Lambda, Pi, Variable},
+    },
 };
 use std::{path::Path, rc::Rc};
 
@@ -18,18 +18,18 @@ pub const TYPE: &str = "type";
 pub fn type_check<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
-    node: &Node<'a>,
-    context: &mut Vec<Rc<Node<'a>>>, // `TYPE` is implicitly at the front of the context.
-) -> Result<Rc<Node<'a>>, Error> {
+    term: &Term<'a>,
+    context: &mut Vec<Rc<Term<'a>>>, // `TYPE` is implicitly at the front of the context.
+) -> Result<Rc<Term<'a>>, Error> {
     // Construct `TYPE`.
-    let type_type = Node {
+    let type_type = Term {
         source_range: None,
         group: false,
         variant: Variable(TYPE, context.len()),
     };
 
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
-    match &node.variant {
+    match &term.variant {
         Variable(_, index) => {
             // Fetch the length of the context, i.e., the implicit position of `TYPE`.
             let len = context.len();
@@ -56,8 +56,8 @@ pub fn type_check<'a>(
             context.pop();
 
             // Construct the pi type.
-            let pi_type = Node {
-                source_range: node.source_range,
+            let pi_type = Term {
+                source_range: term.source_range,
                 group: false,
                 variant: Pi(variable, domain.clone(), codomain),
             };
@@ -228,9 +228,9 @@ pub fn type_check<'a>(
 mod tests {
     use crate::{
         assert_fails,
-        ast::{Node, Variant::Variable},
         equality::definitionally_equal,
         parser::parse,
+        term::{Term, Variant::Variable},
         tokenizer::tokenize,
         type_checker::{type_check, TYPE},
     };
@@ -244,26 +244,26 @@ mod tests {
         let type_source = "type";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_node =
-            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term =
+            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
+        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
     fn type_check_variable() {
         let parsing_context = ["a", "x"];
         let mut typing_context = vec![
-            Rc::new(Node {
+            Rc::new(Term {
                 source_range: None,
                 group: false,
                 variant: Variable(TYPE, 0),
             }),
-            Rc::new(Node {
+            Rc::new(Term {
                 source_range: None,
                 group: false,
                 variant: Variable("a", 0),
@@ -273,20 +273,20 @@ mod tests {
         let type_source = "a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_node =
-            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term =
+            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
+        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
     fn type_check_lambda() {
         let parsing_context = ["a"];
-        let mut typing_context = vec![Rc::new(Node {
+        let mut typing_context = vec![Rc::new(Term {
             source_range: None,
             group: false,
             variant: Variable(TYPE, 0),
@@ -295,20 +295,20 @@ mod tests {
         let type_source = "(x : a) -> a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_node =
-            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term =
+            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
+        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
     fn type_check_pi() {
         let parsing_context = ["a"];
-        let mut typing_context = vec![Rc::new(Node {
+        let mut typing_context = vec![Rc::new(Term {
             source_range: None,
             group: false,
             variant: Variable(TYPE, 0),
@@ -317,26 +317,26 @@ mod tests {
         let type_source = "type";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_node =
-            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term =
+            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
+        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
     fn type_check_application() {
         let parsing_context = ["a", "y"];
         let mut typing_context = vec![
-            Rc::new(Node {
+            Rc::new(Term {
                 source_range: None,
                 group: false,
                 variant: Variable(TYPE, 0),
             }),
-            Rc::new(Node {
+            Rc::new(Term {
                 source_range: None,
                 group: false,
                 variant: Variable("a", 0),
@@ -346,31 +346,31 @@ mod tests {
         let type_source = "a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_node =
-            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term =
+            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
+        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
     fn type_check_bad_application() {
         let parsing_context = ["a", "b", "y"];
         let mut typing_context = vec![
-            Rc::new(Node {
+            Rc::new(Term {
                 source_range: None,
                 group: false,
                 variant: Variable(TYPE, 0),
             }),
-            Rc::new(Node {
+            Rc::new(Term {
                 source_range: None,
                 group: false,
                 variant: Variable(TYPE, 1),
             }),
-            Rc::new(Node {
+            Rc::new(Term {
                 source_range: None,
                 group: false,
                 variant: Variable("b", 0),
@@ -379,10 +379,10 @@ mod tests {
         let term_source = "((x : a) => x) y";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
 
         assert_fails!(
-            type_check(None, term_source, &term_node, &mut typing_context),
+            type_check(None, term_source, &term_term, &mut typing_context),
             "has type `b` when `a` was expected",
         );
     }
@@ -391,12 +391,12 @@ mod tests {
     fn type_check_dependent_apply() {
         let parsing_context = ["int", "y"];
         let mut typing_context = vec![
-            Rc::new(Node {
+            Rc::new(Term {
                 source_range: None,
                 group: false,
                 variant: Variable(TYPE, 0),
             }),
-            Rc::new(Node {
+            Rc::new(Term {
                 source_range: None,
                 group: false,
                 variant: Variable("int", 0),
@@ -412,13 +412,13 @@ mod tests {
         let type_source = "int";
 
         let term_tokens = tokenize(None, term_source).unwrap();
-        let term_node = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_node =
-            type_check(None, term_source, &term_node, &mut typing_context).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term =
+            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
-        let type_node = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_node, &type_node), true);
+        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
     }
 }
