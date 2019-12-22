@@ -63,7 +63,7 @@ mod tests {
             Term,
             Variant::{Application, Lambda, Pi, Type, Variable},
         },
-        token::TYPE,
+        token::TYPE_KEYWORD,
         tokenizer::tokenize,
     };
     use std::rc::Rc;
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn normalize_type() {
         let context = [];
-        let source = TYPE;
+        let source = TYPE_KEYWORD;
 
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &context[..]).unwrap();
@@ -79,7 +79,7 @@ mod tests {
         assert_eq!(
             *normalize(&term),
             Term {
-                source_range: Some((0, TYPE.len())),
+                source_range: Some((0, TYPE_KEYWORD.len())),
                 group: false,
                 variant: Type,
             },

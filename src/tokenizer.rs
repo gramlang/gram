@@ -1,7 +1,7 @@
 use crate::{
     error::{throw, Error},
     format::CodeStr,
-    token::{Token, Variant, TYPE},
+    token::{Token, Variant, TYPE_KEYWORD},
 };
 use std::path::Path;
 
@@ -98,7 +98,7 @@ pub fn tokenize<'a>(
                     }
                 }
 
-                if &source_contents[i..end] == TYPE {
+                if &source_contents[i..end] == TYPE_KEYWORD {
                     tokens.push(Token {
                         source_range: (i, end),
                         variant: Variant::Type,
@@ -146,7 +146,7 @@ pub fn tokenize<'a>(
 mod tests {
     use crate::{
         assert_fails,
-        token::{Token, Variant, TYPE},
+        token::{Token, Variant, TYPE_KEYWORD},
         tokenizer::tokenize,
     };
 
@@ -218,9 +218,9 @@ mod tests {
     #[test]
     fn tokenize_type() {
         assert_eq!(
-            tokenize(None, TYPE).unwrap(),
+            tokenize(None, TYPE_KEYWORD).unwrap(),
             vec![Token {
-                source_range: (0, TYPE.len()),
+                source_range: (0, TYPE_KEYWORD.len()),
                 variant: Variant::Type,
             }],
         );

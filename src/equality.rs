@@ -38,20 +38,20 @@ mod tests {
     use crate::{
         equality::{definitionally_equal, syntactically_equal},
         parser::parse,
-        token::TYPE,
+        token::TYPE_KEYWORD,
         tokenizer::tokenize,
     };
 
     #[test]
     fn syntactically_equal_type() {
         let context1 = [];
-        let source1 = TYPE;
+        let source1 = TYPE_KEYWORD;
 
         let tokens1 = tokenize(None, source1).unwrap();
         let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
 
         let context2 = [];
-        let source2 = TYPE;
+        let source2 = TYPE_KEYWORD;
 
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();

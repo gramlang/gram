@@ -116,7 +116,7 @@ mod tests {
             Term,
             Variant::{Application, Lambda, Pi, Type, Variable},
         },
-        token::TYPE,
+        token::TYPE_KEYWORD,
     };
     use std::rc::Rc;
 
@@ -125,7 +125,7 @@ mod tests {
         assert_eq!(
             *shift(
                 &Term {
-                    source_range: Some((0, TYPE.len())),
+                    source_range: Some((0, TYPE_KEYWORD.len())),
                     group: false,
                     variant: Type,
                 },
@@ -133,7 +133,7 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((0, TYPE.len())),
+                source_range: Some((0, TYPE_KEYWORD.len())),
                 group: false,
                 variant: Type,
             },
@@ -315,7 +315,7 @@ mod tests {
         assert_eq!(
             *open(
                 &Term {
-                    source_range: Some((0, TYPE.len())),
+                    source_range: Some((0, TYPE_KEYWORD.len())),
                     group: false,
                     variant: Type,
                 },
@@ -327,7 +327,7 @@ mod tests {
                 },
             ),
             Term {
-                source_range: Some((0, TYPE.len())),
+                source_range: Some((0, TYPE_KEYWORD.len())),
                 group: false,
                 variant: Type,
             },
