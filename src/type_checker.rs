@@ -6,6 +6,7 @@ use crate::{
     term::{
         Term,
         Variant::{Application, Lambda, Pi, Type, Variable},
+        TYPE_TERM,
     },
 };
 use std::{path::Path, rc::Rc};
@@ -18,16 +19,9 @@ pub fn type_check<'a>(
     term: &Term<'a>,
     context: &mut Vec<Rc<Term<'a>>>,
 ) -> Result<Rc<Term<'a>>, Error> {
-    // Construct the type of all types.
-    let type_type = Term {
-        source_range: None,
-        group: false,
-        variant: Type,
-    };
-
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
     match &term.variant {
-        Type => Ok(Rc::new(type_type)),
+        Type => Ok(Rc::new(TYPE_TERM)),
         Variable(_, index) => {
             // Look up the type in the context, and shift it such that it's valid in the
             // current context.
@@ -55,13 +49,13 @@ pub fn type_check<'a>(
             let pi_type_type = type_check(source_path, source_contents, &pi_type, context)?;
 
             // Check that the type of the pi type is the type of all types.
-            if !definitionally_equal(&*pi_type_type, &type_type) {
+            if !definitionally_equal(&*pi_type_type, &TYPE_TERM) {
                 return Err(if let Some(source_range) = pi_type.source_range {
                     throw(
                         &format!(
                             "The type of this lambda is {} when {} was expected.",
                             pi_type_type.to_string().code_str(),
-                            type_type.to_string().code_str(),
+                            TYPE_TERM.to_string().code_str(),
                         ),
                         source_path,
                         source_contents,
@@ -72,7 +66,7 @@ pub fn type_check<'a>(
                         message: format!(
                             "Lambda has type {} when {} was expected.",
                             pi_type_type.to_string().code_str(),
-                            type_type.to_string().code_str(),
+                            TYPE_TERM.to_string().code_str(),
                         ),
                         reason: None,
                     }
@@ -97,13 +91,13 @@ pub fn type_check<'a>(
             context.pop();
 
             // Check that the type of the domain is the type of all types.
-            if !definitionally_equal(&*domain_type, &type_type) {
+            if !definitionally_equal(&*domain_type, &TYPE_TERM) {
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
                         &format!(
                             "This domain has type {} when {} was expected.",
                             domain_type.to_string().code_str(),
-                            type_type.to_string().code_str(),
+                            TYPE_TERM.to_string().code_str(),
                         ),
                         source_path,
                         source_contents,
@@ -114,7 +108,7 @@ pub fn type_check<'a>(
                         message: format!(
                             "Found domain of type {} when {} was expected.",
                             domain_type.to_string().code_str(),
-                            type_type.to_string().code_str(),
+                            TYPE_TERM.to_string().code_str(),
                         ),
                         reason: None,
                     }
@@ -122,13 +116,13 @@ pub fn type_check<'a>(
             }
 
             // Check that the type of the codomain is the type of all types.
-            if !definitionally_equal(&*codomain_type, &shift(&type_type, 0, 1)) {
+            if !definitionally_equal(&*codomain_type, &shift(&TYPE_TERM, 0, 1)) {
                 return Err(if let Some(source_range) = codomain.source_range {
                     throw(
                         &format!(
                             "This codomain has type {} when {} was expected.",
                             codomain_type.to_string().code_str(),
-                            type_type.to_string().code_str(),
+                            TYPE_TERM.to_string().code_str(),
                         ),
                         source_path,
                         source_contents,
@@ -139,7 +133,7 @@ pub fn type_check<'a>(
                         message: format!(
                             "Found codomain of type {} when {} was expected.",
                             codomain_type.to_string().code_str(),
-                            type_type.to_string().code_str(),
+                            TYPE_TERM.to_string().code_str(),
                         ),
                         reason: None,
                     }
@@ -147,7 +141,7 @@ pub fn type_check<'a>(
             }
 
             // The type of a pi type is the type of all types.
-            Ok(Rc::new(type_type))
+            Ok(Rc::new(TYPE_TERM))
         }
         Application(applicand, argument) => {
             // Infer the type of the applicand.

@@ -1,4 +1,4 @@
-use crate::token::TYPE;
+use crate::token::TYPE_KEYWORD;
 use std::{
     fmt::{Display, Formatter, Result},
     rc::Rc,
@@ -52,7 +52,7 @@ impl<'a> Display for Term<'a> {
 impl<'a> Display for Variant<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
-            Self::Type => write!(f, "{}", TYPE),
+            Self::Type => write!(f, "{}", TYPE_KEYWORD),
             Self::Variable(variable, _) => write!(f, "{}", variable),
             Self::Lambda(variable, domain, body) => {
                 write!(f, "({} : {}) => {}", variable, domain, body)
@@ -64,3 +64,10 @@ impl<'a> Display for Variant<'a> {
         }
     }
 }
+
+// Construct the type of all types once here rather than constructing it many times later.
+pub const TYPE_TERM: Term = Term {
+    source_range: None,
+    group: false,
+    variant: Variant::Type,
+};
