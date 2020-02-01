@@ -28,67 +28,8 @@ pub fn type_check<'a>(
             Ok(shift(&*context[context.len() - 1 - *index], 0, *index + 1))
         }
         Lambda(variable, domain, body) => {
-            // Temporarily add the variable's type to the context for the purpose of inferring the
-            // codomain.
-            context.push(domain.clone());
-
-            // Infer the codomain.
-            let codomain = type_check(source_path, source_contents, &**body, context)?;
-
-            // Restore the context.
-            context.pop();
-
-            // Construct the pi type.
-            let pi_type = Term {
-                source_range: term.source_range,
-                group: false,
-                variant: Pi(variable, domain.clone(), codomain),
-            };
-
-            // Infer the type of the pi type.
-            let pi_type_type = type_check(source_path, source_contents, &pi_type, context)?;
-
-            // Check that the type of the pi type is the type of all types.
-            if !definitionally_equal(&*pi_type_type, &TYPE_TERM) {
-                return Err(if let Some(source_range) = pi_type.source_range {
-                    throw(
-                        &format!(
-                            "The type of this lambda is {} when {} was expected.",
-                            pi_type_type.to_string().code_str(),
-                            TYPE_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "Lambda has type {} when {} was expected.",
-                            pi_type_type.to_string().code_str(),
-                            TYPE_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
-            }
-
-            // Construct the pi type.
-            Ok(Rc::new(pi_type))
-        }
-        Pi(_, domain, codomain) => {
             // Infer the type of the domain.
             let domain_type = type_check(source_path, source_contents, &**domain, context)?;
-
-            // Temporarily add the variable's type to the context for the purpose of inferring the
-            // type of the codomain.
-            context.push(domain.clone());
-
-            // Infer the type of the codomain.
-            let codomain_type = type_check(source_path, source_contents, &**codomain, context)?;
-
-            // Restore the context.
-            context.pop();
 
             // Check that the type of the domain is the type of all types.
             if !definitionally_equal(&*domain_type, &TYPE_TERM) {
@@ -114,6 +55,62 @@ pub fn type_check<'a>(
                     }
                 });
             }
+
+            // Temporarily add the variable's type to the context for the purpose of inferring the
+            // codomain.
+            context.push(domain.clone());
+
+            // Infer the codomain.
+            let codomain = type_check(source_path, source_contents, &**body, context)?;
+
+            // Restore the context.
+            context.pop();
+
+            // Construct and return the pi type.
+            Ok(Rc::new(Term {
+                source_range: term.source_range,
+                group: false,
+                variant: Pi(variable, domain.clone(), codomain),
+            }))
+        }
+        Pi(_, domain, codomain) => {
+            // Infer the type of the domain.
+            let domain_type = type_check(source_path, source_contents, &**domain, context)?;
+
+            // Check that the type of the domain is the type of all types.
+            if !definitionally_equal(&*domain_type, &TYPE_TERM) {
+                return Err(if let Some(source_range) = domain.source_range {
+                    throw(
+                        &format!(
+                            "This domain has type {} when {} was expected.",
+                            domain_type.to_string().code_str(),
+                            TYPE_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Found domain of type {} when {} was expected.",
+                            domain_type.to_string().code_str(),
+                            TYPE_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            }
+
+            // Temporarily add the variable's type to the context for the purpose of inferring the
+            // type of the codomain.
+            context.push(domain.clone());
+
+            // Infer the type of the codomain.
+            let codomain_type = type_check(source_path, source_contents, &**codomain, context)?;
+
+            // Restore the context.
+            context.pop();
 
             // Check that the type of the codomain is the type of all types.
             if !definitionally_equal(&*codomain_type, &shift(&TYPE_TERM, 0, 1)) {
