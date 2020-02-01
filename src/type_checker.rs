@@ -1,8 +1,9 @@
 use crate::{
     de_bruijn::{open, shift},
-    equality::definitionally_equal,
+    equality::syntactically_equal,
     error::{throw, Error},
     format::CodeStr,
+    normalizer::normalize,
     term::{
         Term,
         Variant::{Application, Lambda, Pi, Type, Variable},
@@ -11,7 +12,9 @@ use crate::{
 };
 use std::{path::Path, rc::Rc};
 
-// This is the top-level type checking function.
+// This is the top-level type checking function. Invariants:
+// - The types of the variables in the context are normalized.
+// - The type returned by this function is normalized.
 #[allow(clippy::too_many_lines)]
 pub fn type_check<'a>(
     source_path: Option<&'a Path>,
@@ -20,19 +23,19 @@ pub fn type_check<'a>(
     context: &mut Vec<Rc<Term<'a>>>,
 ) -> Result<Rc<Term<'a>>, Error> {
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
-    match &term.variant {
-        Type => Ok(Rc::new(TYPE_TERM)),
+    Ok(normalize(&*match &term.variant {
+        Type => Rc::new(TYPE_TERM),
         Variable(_, index) => {
             // Look up the type in the context, and shift it such that it's valid in the
             // current context.
-            Ok(shift(&*context[context.len() - 1 - *index], 0, *index + 1))
+            shift(&*context[context.len() - 1 - *index], 0, *index + 1)
         }
         Lambda(variable, domain, body) => {
             // Infer the type of the domain.
             let domain_type = type_check(source_path, source_contents, &**domain, context)?;
 
             // Check that the type of the domain is the type of all types.
-            if !definitionally_equal(&*domain_type, &TYPE_TERM) {
+            if !syntactically_equal(&*domain_type, &TYPE_TERM) {
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
                         &format!(
@@ -67,18 +70,18 @@ pub fn type_check<'a>(
             context.pop();
 
             // Construct and return the pi type.
-            Ok(Rc::new(Term {
+            Rc::new(Term {
                 source_range: term.source_range,
                 group: false,
                 variant: Pi(variable, domain.clone(), codomain),
-            }))
+            })
         }
         Pi(_, domain, codomain) => {
             // Infer the type of the domain.
             let domain_type = type_check(source_path, source_contents, &**domain, context)?;
 
             // Check that the type of the domain is the type of all types.
-            if !definitionally_equal(&*domain_type, &TYPE_TERM) {
+            if !syntactically_equal(&*domain_type, &TYPE_TERM) {
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
                         &format!(
@@ -113,7 +116,7 @@ pub fn type_check<'a>(
             context.pop();
 
             // Check that the type of the codomain is the type of all types.
-            if !definitionally_equal(&*codomain_type, &shift(&TYPE_TERM, 0, 1)) {
+            if !syntactically_equal(&*codomain_type, &TYPE_TERM) {
                 return Err(if let Some(source_range) = codomain.source_range {
                     throw(
                         &format!(
@@ -138,7 +141,7 @@ pub fn type_check<'a>(
             }
 
             // The type of a pi type is the type of all types.
-            Ok(Rc::new(TYPE_TERM))
+            Rc::new(TYPE_TERM)
         }
         Application(applicand, argument) => {
             // Infer the type of the applicand.
@@ -174,7 +177,7 @@ pub fn type_check<'a>(
             let argument_type = type_check(source_path, source_contents, &**argument, context)?;
 
             // Check that the argument type equals the domain.
-            if !definitionally_equal(&*argument_type, &**domain) {
+            if !syntactically_equal(&*argument_type, &**domain) {
                 return Err(if let Some(source_range) = argument.source_range {
                     throw(
                         &format!(
@@ -200,16 +203,16 @@ pub fn type_check<'a>(
             }
 
             // Construct and return the codomain specialized to the argument.
-            Ok(open(&**codomain, 0, &**argument))
+            open(&**codomain, 0, &**argument)
         }
-    }
+    }))
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
         assert_fails,
-        equality::definitionally_equal,
+        equality::syntactically_equal,
         parser::parse,
         term::{
             Term,
@@ -235,7 +238,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
@@ -264,7 +267,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
@@ -286,7 +289,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
@@ -308,7 +311,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
@@ -337,7 +340,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
@@ -403,6 +406,6 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(definitionally_equal(&term_type_term, &type_term), true);
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
     }
 }

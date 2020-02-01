@@ -1,9 +1,6 @@
-use crate::{
-    normalizer::normalize,
-    term::{
-        Term,
-        Variant::{Application, Lambda, Pi, Type, Variable},
-    },
+use crate::term::{
+    Term,
+    Variant::{Application, Lambda, Pi, Type, Variable},
 };
 
 // Check if two terms are equal up to alpha renaming.
@@ -27,19 +24,10 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     }
 }
 
-// Check if two terms are equal up to alpha renaming and beta equivalence.
-pub fn definitionally_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
-    // Check if the normalized terms are equal.
-    syntactically_equal(&normalize(term1), &normalize(term2))
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{
-        equality::{definitionally_equal, syntactically_equal},
-        parser::parse,
-        token::TYPE_KEYWORD,
-        tokenizer::tokenize,
+        equality::syntactically_equal, parser::parse, token::TYPE_KEYWORD, tokenizer::tokenize,
     };
 
     #[test]
@@ -244,39 +232,5 @@ mod tests {
         let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
         assert_eq!(syntactically_equal(&term1, &term2), false);
-    }
-
-    #[test]
-    fn definitionally_equal_beta() {
-        let context1 = ["y"];
-        let source1 = "((x : type) => x x) y";
-
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
-
-        let context2 = ["y"];
-        let source2 = "y y";
-
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
-
-        assert_eq!(definitionally_equal(&term1, &term2), true);
-    }
-
-    #[test]
-    fn definitionally_inequal_beta() {
-        let context1 = ["y"];
-        let source1 = "((x : type) => x x) y";
-
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
-
-        let context2 = ["y"];
-        let source2 = "y";
-
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
-
-        assert_eq!(definitionally_equal(&term1, &term2), false);
     }
 }
