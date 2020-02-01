@@ -2,7 +2,7 @@ use crate::term::{
     Term,
     Variant::{Application, Lambda, Pi, Type, Variable},
 };
-use std::rc::Rc;
+use std::{cmp::Ordering, rc::Rc};
 
 // Shifting refers to increasing the De Bruijn indices of free variables greater than or equal to a
 // given index.
@@ -61,22 +61,22 @@ pub fn open<'a>(
     match &term_to_open.variant {
         Type => Rc::new(term_to_open.clone()),
         Variable(variable, index) => {
-            if *index > index_to_replace {
-                Rc::new(Term {
+            match index.cmp(&index_to_replace) {
+                Ordering::Greater => Rc::new(Term {
                     source_range: term_to_open.source_range,
                     group: term_to_open.group,
                     variant: Variable(variable, index - 1),
-                })
-            } else if *index < index_to_replace {
-                Rc::new(term_to_open.clone())
-            } else {
-                let shifted_term = shift(term_to_insert, 0, index_to_replace);
+                }),
+                Ordering::Less => Rc::new(term_to_open.clone()),
+                Ordering::Equal => {
+                    let shifted_term = shift(term_to_insert, 0, index_to_replace);
 
-                Rc::new(Term {
-                    source_range: shifted_term.source_range,
-                    group: true, // To ensure the resulting term is still parse-able when printed
-                    variant: shifted_term.variant.clone(),
-                })
+                    Rc::new(Term {
+                        source_range: shifted_term.source_range,
+                        group: true, // To ensure the resulting term is still parse-able when printed
+                        variant: shifted_term.variant.clone(),
+                    })
+                }
             }
         }
         Lambda(variable, domain, body) => Rc::new(Term {
