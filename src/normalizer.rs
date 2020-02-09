@@ -43,7 +43,7 @@ pub fn normalize<'a>(term: &Term<'a>) -> Rc<Term<'a>> {
                 // We got a lambda. Perform beta reduction.
                 normalize(&open(&**body, 0, &normalized_argument))
             } else {
-                // We didn't get a lambda. Just reduce the argument.
+                // We didn't get a lambda. We're done here.
                 Rc::new(Term {
                     source_range: term.source_range,
                     group: true, // To ensure the resulting term is still parse-able when printed
