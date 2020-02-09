@@ -12,6 +12,7 @@ pub struct Token<'a> {
 }
 
 // We assign each token a "variant" describing what kind of token it is.
+// [tag:tokens] [ref:bison_tokens]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
     Colon,

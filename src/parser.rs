@@ -49,10 +49,12 @@ use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 //   2. applicand [x e]
 //
 // As discussed above, we'll parse application as right-associative. We can do this by disallowing
-// applicands from being applications themselves. Thus, the final grammar is:
+// applicands from being applications themselves. We end up with:
 //
 //   e = type | x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
 //   applicand = type | x | ( e )
+//
+// This grammar has been verified to be unambiguous by Bison. [tag:grammar] [ref:bison_grammar]
 
 // This represents a fresh variable name. It's never added to the context.
 pub const PLACEHOLDER_VARIABLE: &str = "_";

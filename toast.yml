@@ -5,7 +5,7 @@ tasks:
     command: |
       set -euo pipefail
       apt-get update
-      apt-get install --yes build-essential curl shellcheck
+      apt-get install --yes bison build-essential curl shellcheck
 
   install_tagref:
     dependencies:
@@ -86,6 +86,7 @@ tasks:
       - build
     input_paths:
       - .ignore # Used by `tagref`
+      - grammar.y # Checked by `bison` for shift/reduce and reduce/reduce conflicts
       - install.sh # Linted by ShellCheck
     user: user
     command: |
@@ -96,6 +97,7 @@ tasks:
       cargo fmt --all -- --check
       tagref
       shellcheck install.sh
+      bison --warnings=all -Werror grammar.y && rm grammar.tab.c
 
   run:
     dependencies:
