@@ -27,15 +27,25 @@
 
 /* [tag:bison_grammar] [ref:grammar] */
 
-e:
+term:
   TYPE |
   IDENTIFIER |
-  LEFT_PAREN IDENTIFIER COLON e RIGHT_PAREN THIN_ARROW e |
-  LEFT_PAREN IDENTIFIER COLON e RIGHT_PAREN THICK_ARROW e |
-  applicand e |
-  LEFT_PAREN e RIGHT_PAREN ;
+  non_arrow_term THIN_ARROW term |
+  LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THIN_ARROW term |
+  LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THICK_ARROW term |
+  application |
+  LEFT_PAREN term RIGHT_PAREN ;
+
+application:
+  applicand non_arrow_term ;
 
 applicand:
   TYPE |
   IDENTIFIER |
-  LEFT_PAREN e RIGHT_PAREN ;
+  LEFT_PAREN term RIGHT_PAREN ;
+
+non_arrow_term:
+  TYPE |
+  IDENTIFIER |
+  application |
+  LEFT_PAREN term RIGHT_PAREN ;

@@ -9,10 +9,10 @@
 # The elimination rule for propositional equality
 (eq_ind : (a : type) ->
           (x : a) ->
-          (p : (_ : a) -> type) ->
-          (_ : p x) ->
+          (p : a -> type) ->
+          p x ->
           (y : a) ->
-          (_ : eq a x y) ->
+          eq a x y ->
           p y) =>
 
 # A proof that equality is symmetric
@@ -21,7 +21,7 @@
     eq_symm : (a : type) ->
               (x : a) ->
               (y : a) ->
-              (_ : eq a x y) ->
+              eq a x y ->
               eq a y x
   ) => type
 ) (

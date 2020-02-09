@@ -1,4 +1,4 @@
-use crate::token::TYPE_KEYWORD;
+use crate::{parser::PLACEHOLDER_VARIABLE, token::TYPE_KEYWORD};
 use std::{
     fmt::{Display, Formatter, Result},
     rc::Rc,
@@ -58,7 +58,11 @@ impl<'a> Display for Variant<'a> {
                 write!(f, "({} : {}) => {}", variable, domain, body)
             }
             Self::Pi(variable, domain, codomain) => {
-                write!(f, "({} : {}) -> {}", variable, domain, codomain)
+                if *variable == PLACEHOLDER_VARIABLE {
+                    write!(f, "{} -> {}", domain, codomain)
+                } else {
+                    write!(f, "({} : {}) -> {}", variable, domain, codomain)
+                }
             }
             Self::Application(applicand, argument) => write!(f, "{} {}", applicand, argument),
         }

@@ -8,11 +8,9 @@ use scopeguard::defer;
 use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
-// linear-time parsing. We want to parse into the following abstract syntax:
+// linear-time parsing.
 //
-//   e = type | x | ( x : e ) -> e | ( x : e ) => e | e e | ( e )
-//
-// If we interpret these rules as a grammar, we face two problems:
+// If we naively interpret the abstract syntax as a grammar, we face two problems:
 //
 //   1. The grammar is left-recursive, and left recursion is not supported by the packrat parsing
 //      technique.
@@ -30,31 +28,14 @@ use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 // reassociate `f (x y)`. Thus, when parsing, we record whether a term was parsed as group
 // [tag:group-flag].
 //
-// Now, let's resolve ambiguities. The first ambiguity is that `( x : e ) -> e e` can be parsed in
-// two ways:
+// After resolving ambiguities, we end up with the grammar located in `grammar.y`. This grammar has
+// been verified to be unambiguous by Bison. [tag:grammar] [ref:bison_grammar]
 //
-//   1. [( x : e ) -> e] e
-//   1. ( x : e ) -> [e e]
-//
-// A similar ambiguity arises with lambdas. To resolve this, we can disallow pi types and lambdas
-// as applicands (unless they are surrounded by parentheses, of course). This leads to:
-//
-//   e = type | x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
-//   applicand = type | x | applicand e | ( e )
-//
-// Now we have to encode the associativity of application into the grammar. As it stands,
-// `applicand x e` can be parsed as either of:
-//
-//   1. [applicand x] e
-//   2. applicand [x e]
-//
-// As discussed above, we'll parse application as right-associative. We can do this by disallowing
-// applicands from being applications themselves. We end up with:
-//
-//   e = type | x | ( x : e ) -> e | ( x : e ) => e | applicand e | ( e )
-//   applicand = type | x | ( e )
-//
-// This grammar has been verified to be unambiguous by Bison. [tag:grammar] [ref:bison_grammar]
+// There is one more concern to consider: packrat parsers are greedy, so the order in which we try
+// the productions matters in some cases. We address this by attempting productions that result in
+// potentially longer matches first. For example, when parsing a term, we try to parse it as an
+// application before trying to parse it as a variable, since an application may start with a
+// variable. The grammar has been manually verified to be amenable to greedy parsing in this way.
 
 // This represents a fresh variable name. It's never added to the context.
 pub const PLACEHOLDER_VARIABLE: &str = "_";
@@ -65,11 +46,13 @@ enum CacheType {
     Term,
     Type,
     Variable,
+    NonDependentPi,
     Pi,
     Lambda,
     Application,
-    Applicand,
     Group,
+    Applicand,
+    NonArrowTerm,
 }
 
 // A cache key consists of a `CacheType` indicating which function is being memoized together
@@ -484,6 +467,14 @@ fn parse_term<'a, 'b>(
     // Check the cache and make sure we have some tokens to parse.
     cache_check!(cache, Term, start, error);
 
+    // Try to parse a non-dependent pi type.
+    try_return!(
+        cache,
+        NonDependentPi,
+        start,
+        parse_non_dependent_pi(cache, tokens, start, depth, context, error),
+    );
+
     // Try to parse an application.
     try_return!(
         cache,
@@ -508,20 +499,20 @@ fn parse_term<'a, 'b>(
         parse_variable(cache, tokens, start, depth, context, error),
     );
 
-    // Try to parse a lambda.
-    try_return!(
-        cache,
-        Application,
-        start,
-        parse_lambda(cache, tokens, start, depth, context, error),
-    );
-
     // Try to parse a pi type.
     try_return!(
         cache,
         Application,
         start,
         parse_pi(cache, tokens, start, depth, context, error),
+    );
+
+    // Try to parse a lambda.
+    try_return!(
+        cache,
+        Application,
+        start,
+        parse_lambda(cache, tokens, start, depth, context, error),
     );
 
     // Try to parse a group.
@@ -619,8 +610,8 @@ fn parse_variable<'a, 'b>(
     )
 }
 
-// Parse a lambda.
-fn parse_lambda<'a, 'b>(
+// Parse a non-dependent pi type.
+fn parse_non_dependent_pi<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
     start: usize,
@@ -629,89 +620,49 @@ fn parse_lambda<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Lambda, start, error);
+    cache_check!(cache, NonDependentPi, start, error);
 
-    // Consume the left parenthesis.
-    let variable_pos = consume_token!(cache, Lambda, start, tokens, LeftParen, start, error);
-
-    // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Lambda, start, tokens, variable_pos, error);
-
-    // Consume the colon.
-    let next = consume_token!(cache, Lambda, start, tokens, Colon, next, error);
-
-    // Parse the domain type.
+    // Parse the domain.
     let (domain, next) = try_eval!(
         cache,
-        Lambda,
+        NonDependentPi,
         start,
-        parse_term(cache, tokens, next, depth, context, error),
+        parse_non_arrow_term(cache, tokens, start, depth, context, error),
     );
 
-    // Consume the right parenthesis.
-    let next = consume_token!(cache, Lambda, start, tokens, RightParen, next, error);
-
     // Consume the arrow.
-    let next = consume_token!(cache, Lambda, start, tokens, ThickArrow, next, error);
+    let next = consume_token!(cache, NonDependentPi, start, tokens, ThinArrow, next, error);
 
-    // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and don't add
-    // it to the context.
-    if variable != PLACEHOLDER_VARIABLE {
-        // Fail if the variable is already in the context.
-        if context.contains_key(variable) {
-            if next > error.1 {
-                *error = (
-                    Some(Rc::new(move |source_path, source_contents| {
-                        throw(
-                            &format!("Variable {} already exists.", variable.code_str()),
-                            source_path,
-                            source_contents,
-                            tokens[variable_pos].source_range,
-                        )
-                    }) as ErrorFactory),
-                    next,
-                );
-            }
-
-            cache_return!(cache, Lambda, start, None);
-        }
-
-        // Add the variable to the context.
-        context.insert(variable, depth);
-    }
-
-    // Remove the variable from the context (if it was added) when the function returns.
-    let context_cell = RefCell::new(context);
-    defer! {{ context_cell.borrow_mut().remove(variable); }};
-
-    // Parse the body.
-    let (body, next) = {
-        let mut guard = context_cell.borrow_mut();
-
+    // Parse the codomain.
+    let (codomain, next) = {
         try_eval!(
             cache,
-            Lambda,
+            NonDependentPi,
             start,
-            parse_term(cache, tokens, next, depth + 1, &mut *guard, error),
+            parse_term(cache, tokens, next, depth + 1, context, error),
         )
     };
 
-    // Construct and return the lambda.
+    // Construct and return the pi type.
     cache_return!(
         cache,
-        Lambda,
+        NonDependentPi,
         start,
         Some((
             Term {
                 source_range: if let ((start, _), Some((_, end))) =
-                    (tokens[start].source_range, body.source_range)
+                    (tokens[start].source_range, codomain.source_range)
                 {
                     Some((start, end))
                 } else {
                     None
                 },
                 group: false,
-                variant: term::Variant::Lambda(variable, Rc::new(domain), Rc::new(body)),
+                variant: term::Variant::Pi(
+                    PLACEHOLDER_VARIABLE,
+                    Rc::new(domain),
+                    Rc::new(codomain)
+                ),
             },
             next
         )),
@@ -739,7 +690,7 @@ fn parse_pi<'a, 'b>(
     // Consume the colon.
     let next = consume_token!(cache, Pi, start, tokens, Colon, next, error);
 
-    // Parse the domain type.
+    // Parse the domain.
     let (domain, next) = try_eval!(
         cache,
         Pi,
@@ -817,6 +768,105 @@ fn parse_pi<'a, 'b>(
     )
 }
 
+// Parse a lambda.
+fn parse_lambda<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, Lambda, start, error);
+
+    // Consume the left parenthesis.
+    let variable_pos = consume_token!(cache, Lambda, start, tokens, LeftParen, start, error);
+
+    // Consume the variable.
+    let (variable, next) = consume_identifier!(cache, Lambda, start, tokens, variable_pos, error);
+
+    // Consume the colon.
+    let next = consume_token!(cache, Lambda, start, tokens, Colon, next, error);
+
+    // Parse the domain.
+    let (domain, next) = try_eval!(
+        cache,
+        Lambda,
+        start,
+        parse_term(cache, tokens, next, depth, context, error),
+    );
+
+    // Consume the right parenthesis.
+    let next = consume_token!(cache, Lambda, start, tokens, RightParen, next, error);
+
+    // Consume the arrow.
+    let next = consume_token!(cache, Lambda, start, tokens, ThickArrow, next, error);
+
+    // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and don't add
+    // it to the context.
+    if variable != PLACEHOLDER_VARIABLE {
+        // Fail if the variable is already in the context.
+        if context.contains_key(variable) {
+            if next > error.1 {
+                *error = (
+                    Some(Rc::new(move |source_path, source_contents| {
+                        throw(
+                            &format!("Variable {} already exists.", variable.code_str()),
+                            source_path,
+                            source_contents,
+                            tokens[variable_pos].source_range,
+                        )
+                    }) as ErrorFactory),
+                    next,
+                );
+            }
+
+            cache_return!(cache, Lambda, start, None);
+        }
+
+        // Add the variable to the context.
+        context.insert(variable, depth);
+    }
+
+    // Remove the variable from the context (if it was added) when the function returns.
+    let context_cell = RefCell::new(context);
+    defer! {{ context_cell.borrow_mut().remove(variable); }};
+
+    // Parse the body.
+    let (body, next) = {
+        let mut guard = context_cell.borrow_mut();
+
+        try_eval!(
+            cache,
+            Lambda,
+            start,
+            parse_term(cache, tokens, next, depth + 1, &mut *guard, error),
+        )
+    };
+
+    // Construct and return the lambda.
+    cache_return!(
+        cache,
+        Lambda,
+        start,
+        Some((
+            Term {
+                source_range: if let ((start, _), Some((_, end))) =
+                    (tokens[start].source_range, body.source_range)
+                {
+                    Some((start, end))
+                } else {
+                    None
+                },
+                group: false,
+                variant: term::Variant::Lambda(variable, Rc::new(domain), Rc::new(body)),
+            },
+            next
+        )),
+    )
+}
+
 // Parse an application.
 fn parse_application<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
@@ -840,9 +890,9 @@ fn parse_application<'a, 'b>(
     // Parse the argument.
     let (argument, next) = try_eval!(
         cache,
-        Application,
+        NonArrowTerm,
         start,
-        parse_term(cache, tokens, next, depth, context, error),
+        parse_non_arrow_term(cache, tokens, next, depth, context, error),
     );
 
     // Construct and return the application.
@@ -864,6 +914,48 @@ fn parse_application<'a, 'b>(
             },
             next,
         )),
+    )
+}
+
+// Parse a group.
+fn parse_group<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, Group, start, error);
+
+    // Consume the left parenthesis.
+    let next = consume_token!(cache, Group, start, tokens, LeftParen, start, error);
+
+    // Parse the inner term.
+    let (term, next) = try_eval!(
+        cache,
+        Group,
+        start,
+        parse_term(cache, tokens, next, depth, context, error),
+    );
+
+    // Consume the right parenthesis.
+    let next = consume_token!(cache, Group, start, tokens, RightParen, next, error);
+
+    // If we made it this far, we successfully parsed the group. Return the inner term.
+    cache_return!(
+        cache,
+        Group,
+        start,
+        Some((
+            Term {
+                source_range: term.source_range,
+                group: true,
+                variant: term.variant,
+            },
+            next,
+        ))
     )
 }
 
@@ -907,8 +999,8 @@ fn parse_applicand<'a, 'b>(
     cache_return!(cache, Applicand, start, None)
 }
 
-// Parse a group.
-fn parse_group<'a, 'b>(
+// Parse an argument (the right part of an application).
+fn parse_non_arrow_term<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
     start: usize,
@@ -917,36 +1009,42 @@ fn parse_group<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, Group, start, error);
+    cache_check!(cache, NonArrowTerm, start, error);
 
-    // Consume the left parenthesis.
-    let next = consume_token!(cache, Group, start, tokens, LeftParen, start, error);
-
-    // Parse the inner term.
-    let (term, next) = try_eval!(
+    // Try to parse an application.
+    try_return!(
         cache,
-        Group,
+        Application,
         start,
-        parse_term(cache, tokens, next, depth, context, error),
+        parse_application(cache, tokens, start, depth, context, error),
     );
 
-    // Consume the right parenthesis.
-    let next = consume_token!(cache, Group, start, tokens, RightParen, next, error);
-
-    // If we made it this far, we successfully parsed the group. Return the inner term.
-    cache_return!(
+    // Try to parse the type of all types.
+    try_return!(
         cache,
-        Group,
+        Type,
         start,
-        Some((
-            Term {
-                source_range: term.source_range,
-                group: true,
-                variant: term.variant,
-            },
-            next,
-        ))
-    )
+        parse_type(cache, tokens, start, depth, context, error),
+    );
+
+    // Try to parse a variable.
+    try_return!(
+        cache,
+        NonArrowTerm,
+        start,
+        parse_variable(cache, tokens, start, depth, context, error),
+    );
+
+    // Try to parse a group.
+    try_return!(
+        cache,
+        NonArrowTerm,
+        start,
+        parse_group(cache, tokens, start, depth, context, error),
+    );
+
+    // If we made it this far, the parse failed.
+    cache_return!(cache, NonArrowTerm, start, None)
 }
 
 #[cfg(test)]
@@ -1003,27 +1101,27 @@ mod tests {
     }
 
     #[test]
-    fn parse_lambda() {
-        let source = "(x : a) => x";
+    fn parse_non_dependent_pi() {
+        let source = "a -> b";
         let tokens = tokenize(None, source).unwrap();
-        let context = ["a"];
+        let context = ["a", "b"];
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 12)),
+                source_range: Some((0, 6)),
                 group: false,
-                variant: Lambda(
-                    "x",
+                variant: Pi(
+                    "_",
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        group: false,
+                        variant: Variable("a", 1),
+                    }),
                     Rc::new(Term {
                         source_range: Some((5, 6)),
                         group: false,
-                        variant: Variable("a", 0),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((11, 12)),
-                        group: false,
-                        variant: Variable("x", 0),
+                        variant: Variable("b", 1),
                     }),
                 ),
             },
@@ -1031,49 +1129,37 @@ mod tests {
     }
 
     #[test]
-    fn parse_lambda_shadowing() {
-        let source = "(x : a) => x";
+    fn parse_non_dependent_pi_associativity() {
+        let source = "a -> b -> c";
         let tokens = tokenize(None, source).unwrap();
-        let context = ["a", "x"];
-
-        assert_fails!(
-            parse(None, source, &tokens[..], &context[..]),
-            "already exists"
-        );
-    }
-
-    #[test]
-    fn parse_lambda_placeholder_variable() {
-        let source = "(_ : a) => (_ : a) => a";
-        let tokens = tokenize(None, source).unwrap();
-        let context = ["a"];
+        let context = ["a", "b", "c"];
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 23)),
+                source_range: Some((0, 11)),
                 group: false,
-                variant: Lambda(
+                variant: Pi(
                     "_",
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some((0, 1)),
                         group: false,
-                        variant: Variable("a", 0),
+                        variant: Variable("a", 2),
                     }),
                     Rc::new(Term {
-                        source_range: Some((11, 23)),
+                        source_range: Some((5, 11)),
                         group: false,
-                        variant: Lambda(
+                        variant: Pi(
                             "_",
                             Rc::new(Term {
-                                source_range: Some((16, 17)),
+                                source_range: Some((5, 6)),
                                 group: false,
-                                variant: Variable("a", 1),
+                                variant: Variable("b", 2),
                             }),
                             Rc::new(Term {
-                                source_range: Some((22, 23)),
+                                source_range: Some((10, 11)),
                                 group: false,
-                                variant: Variable("a", 2),
+                                variant: Variable("c", 2),
                             }),
                         ),
                     }),
@@ -1144,6 +1230,86 @@ mod tests {
                         source_range: Some((11, 23)),
                         group: false,
                         variant: Pi(
+                            "_",
+                            Rc::new(Term {
+                                source_range: Some((16, 17)),
+                                group: false,
+                                variant: Variable("a", 1),
+                            }),
+                            Rc::new(Term {
+                                source_range: Some((22, 23)),
+                                group: false,
+                                variant: Variable("a", 2),
+                            }),
+                        ),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_lambda() {
+        let source = "(x : a) => x";
+        let tokens = tokenize(None, source).unwrap();
+        let context = ["a"];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 12)),
+                group: false,
+                variant: Lambda(
+                    "x",
+                    Rc::new(Term {
+                        source_range: Some((5, 6)),
+                        group: false,
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((11, 12)),
+                        group: false,
+                        variant: Variable("x", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_lambda_shadowing() {
+        let source = "(x : a) => x";
+        let tokens = tokenize(None, source).unwrap();
+        let context = ["a", "x"];
+
+        assert_fails!(
+            parse(None, source, &tokens[..], &context[..]),
+            "already exists"
+        );
+    }
+
+    #[test]
+    fn parse_lambda_placeholder_variable() {
+        let source = "(_ : a) => (_ : a) => a";
+        let tokens = tokenize(None, source).unwrap();
+        let context = ["a"];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 23)),
+                group: false,
+                variant: Lambda(
+                    "_",
+                    Rc::new(Term {
+                        source_range: Some((5, 6)),
+                        group: false,
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((11, 23)),
+                        group: false,
+                        variant: Lambda(
                             "_",
                             Rc::new(Term {
                                 source_range: Some((16, 17)),
@@ -1283,14 +1449,14 @@ mod tests {
 
     #[test]
     fn parse_identity_function() {
-        let source = "(a : type) => (b : type) => (f : (_ : a) -> b) => (x : a) => f x";
+        let source = "(a : type) => (b : type) => (f : a -> b) => (x : a) => f x";
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 64)),
+                source_range: Some((0, 58)),
                 group: false,
                 variant: Lambda(
                     "a",
@@ -1300,7 +1466,7 @@ mod tests {
                         variant: Type,
                     }),
                     Rc::new(Term {
-                        source_range: Some((14, 64)),
+                        source_range: Some((14, 58)),
                         group: false,
                         variant: Lambda(
                             "b",
@@ -1310,48 +1476,48 @@ mod tests {
                                 variant: Type,
                             }),
                             Rc::new(Term {
-                                source_range: Some((28, 64)),
+                                source_range: Some((28, 58)),
                                 group: false,
                                 variant: Lambda(
                                     "f",
                                     Rc::new(Term {
-                                        source_range: Some((33, 45)),
+                                        source_range: Some((33, 39)),
                                         group: false,
                                         variant: Pi(
                                             "_",
                                             Rc::new(Term {
-                                                source_range: Some((38, 39)),
+                                                source_range: Some((33, 34)),
                                                 group: false,
                                                 variant: Variable("a", 1),
                                             }),
                                             Rc::new(Term {
-                                                source_range: Some((44, 45)),
+                                                source_range: Some((38, 39)),
                                                 group: false,
                                                 variant: Variable("b", 1),
                                             }),
                                         ),
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((50, 64)),
+                                        source_range: Some((44, 58)),
                                         group: false,
                                         variant: Lambda(
                                             "x",
                                             Rc::new(Term {
-                                                source_range: Some((55, 56)),
+                                                source_range: Some((49, 50)),
                                                 group: false,
                                                 variant: Variable("a", 2),
                                             }),
                                             Rc::new(Term {
-                                                source_range: Some((61, 64)),
+                                                source_range: Some((55, 58)),
                                                 group: true,
                                                 variant: Application(
                                                     Rc::new(Term {
-                                                        source_range: Some((61, 62)),
+                                                        source_range: Some((55, 56)),
                                                         group: false,
                                                         variant: Variable("f", 1),
                                                     }),
                                                     Rc::new(Term {
-                                                        source_range: Some((63, 64)),
+                                                        source_range: Some((57, 58)),
                                                         group: false,
                                                         variant: Variable("x", 0),
                                                     }),
