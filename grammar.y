@@ -1,14 +1,15 @@
 /*
   This Bison file exists only to ensure that the grammar is unambigous. The resulting Bison-
-  generated parser isn't used. Instead, we use a hand-written packrat parser. See src/parser.rs for
-  the implementation.
+  generated parser isn't used. Instead, we use the hand-written packrat parser in `src/parser.rs`
+  for better control over error messages.
 */
 
 /*
-  The default parsing algorithm is LALR(1), but we can accept more grammars by switching to an
-  LR(1) algorithm, such as IELR(1) (Inadequacy Elimination LR(1)). Since we aren't going to use the
-  generated parser, we don't care about the computational complexity of the algorithm. We only care
-  about the set of languages that it accepts.
+  Bison's default parsing algorithm is LALR(1), but more grammars are possible if we configure it
+  to use an LR(1) algorithm instead. Since we aren't going to use the generated parser, the
+  computational complexity of the algorithm doesn't matter. We choose IELR(1) over the canonical
+  LR(1) algorithm because it results in fewer conflicts when the grammar is ambiguous, which makes
+  grammar development easier.
 */
 
 %define lr.type ielr
