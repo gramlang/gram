@@ -13,7 +13,7 @@
           eq a x y ->
           p y) =>
 
-# A proof that equality is symmetric
+# A proof that propositional equality is symmetric
 eq_symm = (
   (
     eq_symm : (a : type) ->
@@ -32,7 +32,7 @@ eq_symm = (
     eq_ind a x motive x_equals_x y x_equals_y
 );
 
-# A proof that equality is transitive
+# A proof that propositional equality is transitive
 eq_trans = (
   (
     eq_trans : (a : type) ->
