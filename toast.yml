@@ -108,8 +108,9 @@ tasks:
     command: |
       set -euo pipefail
       . $HOME/.cargo/env
-      cargo run -- examples/identity.g
-      cargo run -- examples/symmetry.g
+      for file in examples/*.g; do
+        cargo run -- "$file"
+      done
 
   check:
     dependencies:
