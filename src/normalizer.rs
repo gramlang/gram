@@ -112,9 +112,10 @@ pub fn normalize<'a>(
             // Restore the context.
             normalization_context.pop();
 
-            // A let normalizes to its body reduced in the context extended with the variable and
-            // its definition.
-            normalized_body
+            // Return the opened body. Since the body has already been normalized, any references
+            // to the definition should have already been unfolded. This, opening merely decrements
+            // the indices.
+            open(&*normalized_body, 0, definition)
         }
     }
 }
@@ -328,7 +329,7 @@ mod tests {
                     Rc::new(Term {
                         source_range: Some((12, 13)),
                         group: false,
-                        variant: Variable("y", 1),
+                        variant: Variable("y", 0),
                     }),
                 ),
             },
