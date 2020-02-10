@@ -16,6 +16,8 @@ pub struct Token<'a> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
     Colon,
+    Equals,
+    Semicolon,
     LeftParen,
     RightParen,
     ThickArrow,
@@ -34,6 +36,8 @@ impl<'a> Display for Variant<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
             Self::Colon => write!(f, ":"),
+            Self::Equals => write!(f, "="),
+            Self::Semicolon => write!(f, ";"),
             Self::LeftParen => write!(f, "("),
             Self::RightParen => write!(f, ")"),
             Self::ThickArrow => write!(f, "=>"),

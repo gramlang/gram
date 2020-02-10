@@ -22,11 +22,23 @@ pub fn tokenize<'a>(
     while let Some((i, c)) = iter.next() {
         // Match on the first code point of the token.
         match c {
-            // Match tokens consisting of a single fixed code point.
+            // Match tokens corresponding to symbols.
             ':' => {
                 tokens.push(Token {
                     source_range: (i, i + 1),
                     variant: Variant::Colon,
+                });
+            }
+            '=' if iter.peek() != Some(&(i + 1, '>')) => {
+                tokens.push(Token {
+                    source_range: (i, i + 1),
+                    variant: Variant::Equals,
+                });
+            }
+            ';' => {
+                tokens.push(Token {
+                    source_range: (i, i + 1),
+                    variant: Variant::Semicolon,
                 });
             }
             '(' => {
@@ -41,46 +53,19 @@ pub fn tokenize<'a>(
                     variant: Variant::RightParen,
                 });
             }
-
-            // For tokens consisting of two fixed code points, match on the first code point and
-            // test the subsequent code point accordingly.
-            '=' => {
-                if iter.peek() == Some(&(i + 1, '>')) {
-                    iter.next();
-                    tokens.push(Token {
-                        source_range: (i, i + 2),
-                        variant: Variant::ThickArrow,
-                    });
-                } else {
-                    return Err(throw(
-                        &format!(
-                            "Unexpected symbol {}.",
-                            &source_contents[i..i + c.len_utf8()].code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        (i, i + c.len_utf8()),
-                    ));
-                }
+            '=' if iter.peek() == Some(&(i + 1, '>')) => {
+                iter.next();
+                tokens.push(Token {
+                    source_range: (i, i + 2),
+                    variant: Variant::ThickArrow,
+                });
             }
-            '-' => {
-                if iter.peek() == Some(&(i + 1, '>')) {
-                    iter.next();
-                    tokens.push(Token {
-                        source_range: (i, i + 2),
-                        variant: Variant::ThinArrow,
-                    });
-                } else {
-                    return Err(throw(
-                        &format!(
-                            "Unexpected symbol {}.",
-                            &source_contents[i..i + c.len_utf8()].code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        (i, i + c.len_utf8()),
-                    ));
-                }
+            '-' if iter.peek() == Some(&(i + 1, '>')) => {
+                iter.next();
+                tokens.push(Token {
+                    source_range: (i, i + 2),
+                    variant: Variant::ThinArrow,
+                });
             }
 
             // If the first code point is alphabetic according to the Unicode derived property,
@@ -167,6 +152,28 @@ mod tests {
             vec![Token {
                 source_range: (0, 1),
                 variant: Variant::Colon,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_equals() {
+        assert_eq!(
+            tokenize(None, "=").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::Equals,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_semicolon() {
+        assert_eq!(
+            tokenize(None, ";").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::Semicolon,
             }],
         );
     }
@@ -298,15 +305,5 @@ mod tests {
     #[test]
     fn tokenize_unexpected_code_point() {
         assert_fails!(tokenize(None, "$"), "Unexpected symbol");
-    }
-
-    #[test]
-    fn tokenize_partial_thick_arrow() {
-        assert_fails!(tokenize(None, "="), "Unexpected symbol");
-    }
-
-    #[test]
-    fn tokenize_partial_thin_arrow() {
-        assert_fails!(tokenize(None, "-"), "Unexpected symbol");
     }
 }
