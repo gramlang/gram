@@ -113,13 +113,13 @@ fn run(source_path: &Path) -> Result<(), Error> {
     println!("# Original term:\n\n{}\n", term);
 
     // Print the normal form.
-    println!("# Normal form:\n\n{}\n", normalize(&term));
+    println!("# Normal form:\n\n{}\n", normalize(&term, &mut vec![]));
 
     // Type check the AST.
     let term_type = type_check(Some(source_path), &source_contents, &term, &mut vec![])?;
 
     // Normalize and print the type.
-    println!("# Type:\n\n{}", normalize(&term_type));
+    println!("# Type:\n\n{}", term_type);
 
     // If we made it this far, nothing went wrong.
     Ok(())
