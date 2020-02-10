@@ -50,6 +50,7 @@ enum CacheType {
     Pi,
     Lambda,
     Application,
+    Let,
     Group,
     Applicand,
     NonArrowTerm,
@@ -360,9 +361,9 @@ pub fn parse<'a>(
 
 // Flip the associativity of applications from right to left.
 fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -> Rc<Term<'a>> {
-    // In every case except the application case, if we have a value for the accumulator, we want to
-    // construct an application with the accumulator as the applicand and the reduced term as the
-    // argument. In the application case, we build up the accumulator.
+    // In every case except the application case, if we have a value for the accumulator, we want
+    // to construct an application with the accumulator as the applicand and the reduced term as
+    // the argument. In the application case, we build up the accumulator.
     let reduced = match &term.variant {
         term::Variant::Type | term::Variant::Variable(_, _) => term,
         term::Variant::Lambda(variable, domain, body) => Rc::new(Term {
@@ -434,6 +435,15 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 )
             };
         }
+        term::Variant::Let(variable, definition, body) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: term::Variant::Let(
+                variable,
+                reassociate_applications(None, definition.clone()),
+                reassociate_applications(None, body.clone()),
+            ),
+        }),
     };
 
     // We end up here as long as `term` isn't an application. If we have an accumulator, construct
@@ -481,6 +491,14 @@ fn parse_term<'a, 'b>(
         Application,
         start,
         parse_application(cache, tokens, start, depth, context, error),
+    );
+
+    // Try to parse a let.
+    try_return!(
+        cache,
+        Application,
+        start,
+        parse_let(cache, tokens, start, depth, context, error),
     );
 
     // Try to parse the type of all types.
@@ -917,6 +935,99 @@ fn parse_application<'a, 'b>(
     )
 }
 
+// Parse a let.
+fn parse_let<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, Let, start, error);
+
+    // Consume the variable.
+    let (variable, next) = consume_identifier!(cache, Let, start, tokens, start, error);
+
+    // Consume the equals sign.
+    let next = consume_token!(cache, Let, start, tokens, Equals, next, error);
+
+    // Parse the definition.
+    let (definition, next) = try_eval!(
+        cache,
+        Let,
+        start,
+        parse_term(cache, tokens, next, depth, context, error),
+    );
+
+    // Consume the semicolon.
+    let next = consume_token!(cache, Let, start, tokens, Semicolon, next, error);
+
+    // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and don't add
+    // it to the context.
+    if variable != PLACEHOLDER_VARIABLE {
+        // Fail if the variable is already in the context.
+        if context.contains_key(variable) {
+            if next > error.1 {
+                *error = (
+                    Some(Rc::new(move |source_path, source_contents| {
+                        throw(
+                            &format!("Variable {} already exists.", variable.code_str()),
+                            source_path,
+                            source_contents,
+                            tokens[start].source_range,
+                        )
+                    }) as ErrorFactory),
+                    next,
+                );
+            }
+
+            cache_return!(cache, Let, start, None);
+        }
+
+        // Add the variable to the context.
+        context.insert(variable, depth);
+    }
+
+    // Remove the variable from the context (if it was added) when the function returns.
+    let context_cell = RefCell::new(context);
+    defer! {{ context_cell.borrow_mut().remove(variable); }};
+
+    // Parse the body.
+    let (body, next) = {
+        let mut guard = context_cell.borrow_mut();
+
+        try_eval!(
+            cache,
+            Let,
+            start,
+            parse_term(cache, tokens, next, depth + 1, &mut *guard, error),
+        )
+    };
+
+    // Construct and return the let.
+    cache_return!(
+        cache,
+        Let,
+        start,
+        Some((
+            Term {
+                source_range: if let ((start, _), Some((_, end))) =
+                    (tokens[start].source_range, body.source_range)
+                {
+                    Some((start, end))
+                } else {
+                    None
+                },
+                group: false,
+                variant: term::Variant::Let(variable, Rc::new(definition), Rc::new(body)),
+            },
+            next
+        )),
+    )
+}
+
 // Parse a group.
 fn parse_group<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
@@ -1054,7 +1165,7 @@ mod tests {
         parser::parse,
         term::{
             Term,
-            Variant::{Application, Lambda, Pi, Type, Variable},
+            Variant::{Application, Lambda, Let, Pi, Type, Variable},
         },
         tokenizer::tokenize,
     };
@@ -1425,6 +1536,34 @@ mod tests {
                                 variant: Variable("y", 0),
                             }),
                         ),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_let() {
+        let source = "x = a; x";
+        let tokens = tokenize(None, source).unwrap();
+        let context = ["a"];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 8)),
+                group: false,
+                variant: Let(
+                    "x",
+                    Rc::new(Term {
+                        source_range: Some((4, 5)),
+                        group: false,
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((7, 8)),
+                        group: false,
+                        variant: Variable("x", 0),
                     }),
                 ),
             },

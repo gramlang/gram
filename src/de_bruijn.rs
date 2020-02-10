@@ -1,6 +1,6 @@
 use crate::term::{
     Term,
-    Variant::{Application, Lambda, Pi, Type, Variable},
+    Variant::{Application, Lambda, Let, Pi, Type, Variable},
 };
 use std::{cmp::Ordering, rc::Rc};
 
@@ -45,6 +45,15 @@ pub fn shift<'a>(term: &Term<'a>, min_index: usize, amount: usize) -> Rc<Term<'a
             variant: Application(
                 shift(&**applicand, min_index, amount),
                 shift(&**argument, min_index, amount),
+            ),
+        }),
+        Let(variable, definition, body) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Let(
+                variable,
+                shift(&**definition, min_index, amount),
+                shift(&**body, min_index + 1, amount),
             ),
         }),
     }
@@ -105,6 +114,15 @@ pub fn open<'a>(
                 open(&**argument, index_to_replace, term_to_insert),
             ),
         }),
+        Let(variable, definition, body) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            group: true, // To ensure the resulting term is still parse-able when printed
+            variant: Let(
+                variable,
+                open(&**definition, index_to_replace, term_to_insert),
+                open(&**body, index_to_replace + 1, term_to_insert),
+            ),
+        }),
     }
 }
 
@@ -114,7 +132,7 @@ mod tests {
         de_bruijn::{open, shift},
         term::{
             Term,
-            Variant::{Application, Lambda, Pi, Type, Variable},
+            Variant::{Application, Lambda, Let, Pi, Type, Variable},
         },
         token::TYPE_KEYWORD,
     };
@@ -299,6 +317,50 @@ mod tests {
                         source_range: Some((102, 106)),
                         group: false,
                         variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        group: false,
+                        variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_let() {
+        assert_eq!(
+            *shift(
+                &Term {
+                    source_range: Some((97, 112)),
+                    group: false,
+                    variant: Let(
+                        "a",
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            group: false,
+                            variant: Variable("b", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            group: false,
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                },
+                0,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                group: false,
+                variant: Let(
+                    "a",
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        group: false,
+                        variant: Variable("b", 42),
                     }),
                     Rc::new(Term {
                         source_range: Some((111, 112)),
@@ -542,6 +604,54 @@ mod tests {
                         source_range: Some((111, 112)),
                         group: false,
                         variant: Variable("b", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_let() {
+        assert_eq!(
+            *open(
+                &Term {
+                    source_range: Some((97, 112)),
+                    group: false,
+                    variant: Let(
+                        "a",
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            group: false,
+                            variant: Variable("b", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            group: false,
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                },
+                0,
+                &Term {
+                    source_range: Some((3, 4)),
+                    group: false,
+                    variant: Variable("x", 4),
+                },
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                group: true,
+                variant: Let(
+                    "a",
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        group: true,
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        group: true,
+                        variant: Variable("x", 5),
                     }),
                 ),
             },

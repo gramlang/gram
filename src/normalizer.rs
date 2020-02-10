@@ -2,7 +2,7 @@ use crate::{
     de_bruijn::{open, shift},
     term::{
         Term,
-        Variant::{Application, Lambda, Pi, Type, Variable},
+        Variant::{Application, Lambda, Let, Pi, Type, Variable},
     },
 };
 use std::rc::Rc;
@@ -12,7 +12,7 @@ use std::rc::Rc;
 // - When this function is finished, the context is left unmodified.
 pub fn normalize<'a>(
     term: &Term<'a>,
-    context: &mut Vec<(Rc<Term<'a>>, Option<Rc<Term<'a>>>)>, // [(type, definition)]
+    normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
 ) -> Rc<Term<'a>> {
     // Recursively normalize sub-terms.
     match &term.variant {
@@ -22,7 +22,7 @@ pub fn normalize<'a>(
         }
         Variable(_, index) => {
             // Look up the definition in the context.
-            match &context[context.len() - 1 - *index].1 {
+            match &normalization_context[normalization_context.len() - 1 - *index] {
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context.
                     shift(&*definition, 0, *index + 1)
@@ -35,17 +35,17 @@ pub fn normalize<'a>(
         }
         Lambda(variable, domain, body) => {
             // Reduce the domain.
-            let normalized_domain = normalize(&**domain, context);
+            let normalized_domain = normalize(&**domain, normalization_context);
 
             // Temporarily add the variable's type to the context for the purpose of normalizing
             // the body.
-            context.push((normalized_domain.clone(), None));
+            normalization_context.push(None);
 
             // Normalize the body.
-            let normalized_body = normalize(&**body, context);
+            let normalized_body = normalize(&**body, normalization_context);
 
             // Restore the context.
-            context.pop();
+            normalization_context.pop();
 
             // For lambdas, we simply reduce the domain and body.
             Rc::new(Term {
@@ -56,17 +56,17 @@ pub fn normalize<'a>(
         }
         Pi(variable, domain, codomain) => {
             // Reduce the domain.
-            let normalized_domain = normalize(&**domain, context);
+            let normalized_domain = normalize(&**domain, normalization_context);
 
             // Temporarily add the variable's type to the context for the purpose of normalizing
             // the codomain.
-            context.push((normalized_domain.clone(), None));
+            normalization_context.push(None);
 
             // Normalize the body.
-            let normalized_codomain = normalize(&**codomain, context);
+            let normalized_codomain = normalize(&**codomain, normalization_context);
 
             // Restore the context.
-            context.pop();
+            normalization_context.pop();
 
             // For pi types, we simply reduce the domain and codomain.
             Rc::new(Term {
@@ -77,15 +77,18 @@ pub fn normalize<'a>(
         }
         Application(applicand, argument) => {
             // Reduce the applicand.
-            let normalized_applicand = normalize(&**applicand, context);
+            let normalized_applicand = normalize(&**applicand, normalization_context);
 
             // Reduce the argument. This means we're doing applicative order reduction.
-            let normalized_argument = normalize(&**argument, context);
+            let normalized_argument = normalize(&**argument, normalization_context);
 
             // Check if the applicand reduced to a lambda.
             if let Lambda(_, _, body) = &normalized_applicand.variant {
                 // We got a lambda. Perform beta reduction.
-                normalize(&open(&**body, 0, &normalized_argument), context)
+                normalize(
+                    &open(&**body, 0, &normalized_argument),
+                    normalization_context,
+                )
             } else {
                 // We didn't get a lambda. We're done here.
                 Rc::new(Term {
@@ -94,6 +97,24 @@ pub fn normalize<'a>(
                     variant: Application(normalized_applicand, normalized_argument),
                 })
             }
+        }
+        Let(_, definition, body) => {
+            // Reduce the definition.
+            let normalized_definition = normalize(&**definition, normalization_context);
+
+            // Temporarily add the variable's type to the context for the purpose of normalizing
+            // the body.
+            normalization_context.push(Some(normalized_definition.clone()));
+
+            // Normalize the body.
+            let normalized_body = normalize(&**body, normalization_context);
+
+            // Restore the context.
+            normalization_context.pop();
+
+            // A let normalizes to its body reduced in the context extended with the variable and
+            // its definition.
+            normalized_body
         }
     }
 }
@@ -134,14 +155,7 @@ mod tests {
     #[test]
     fn normalize_variable_no_definition() {
         let parsing_context = ["x"];
-        let mut normalization_context = vec![(
-            Rc::new(Term {
-                source_range: None,
-                group: false,
-                variant: Type,
-            }),
-            None,
-        )];
+        let mut normalization_context = vec![None];
         let source = "x";
 
         let tokens = tokenize(None, source).unwrap();
@@ -160,18 +174,11 @@ mod tests {
     #[test]
     fn normalize_variable_definition() {
         let parsing_context = ["x"];
-        let mut normalization_context = vec![(
-            Rc::new(Term {
-                source_range: None,
-                group: false,
-                variant: Type,
-            }),
-            Some(Rc::new(Term {
-                source_range: None,
-                group: false,
-                variant: Type,
-            })),
-        )];
+        let mut normalization_context = vec![Some(Rc::new(Term {
+            source_range: None,
+            group: false,
+            variant: Type,
+        }))];
         let source = "x";
 
         let tokens = tokenize(None, source).unwrap();
@@ -190,24 +197,7 @@ mod tests {
     #[test]
     fn normalize_redex_under_lambda() {
         let parsing_context = ["p", "q"];
-        let mut normalization_context = vec![
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Type,
-                }),
-                None,
-            ),
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Variable("p", 0),
-                }),
-                None,
-            ),
-        ];
+        let mut normalization_context = vec![None, None];
         let source = "(x : ((y : type) => y) p) => ((z : type) => z) q";
 
         let tokens = tokenize(None, source).unwrap();
@@ -238,24 +228,7 @@ mod tests {
     #[test]
     fn normalize_redex_under_pi() {
         let parsing_context = ["p", "q"];
-        let mut normalization_context = vec![
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Type,
-                }),
-                None,
-            ),
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Variable("p", 0),
-                }),
-                None,
-            ),
-        ];
+        let mut normalization_context = vec![None, None];
         let source = "(x : ((y : type) => y) p) -> ((z : type) => z) q";
 
         let tokens = tokenize(None, source).unwrap();
@@ -286,24 +259,7 @@ mod tests {
     #[test]
     fn normalize_non_redex() {
         let parsing_context = ["y", "w"];
-        let mut normalization_context = vec![
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Type,
-                }),
-                None,
-            ),
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Variable("w", 0),
-                }),
-                None,
-            ),
-        ];
+        let mut normalization_context = vec![None, None];
         let source = "(((x : type) => x) y) (((z : type) => z) w)";
 
         let tokens = tokenize(None, source).unwrap();
@@ -333,14 +289,7 @@ mod tests {
     #[test]
     fn normalize_redex() {
         let parsing_context = ["y"];
-        let mut normalization_context = vec![(
-            Rc::new(Term {
-                source_range: None,
-                group: false,
-                variant: Type,
-            }),
-            None,
-        )];
+        let mut normalization_context = vec![None];
         let source = "((x : type) => x) y";
 
         let tokens = tokenize(None, source).unwrap();
@@ -352,6 +301,36 @@ mod tests {
                 source_range: Some((18, 19)),
                 group: true,
                 variant: Variable("y", 0),
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_let() {
+        let parsing_context = ["y"];
+        let mut normalization_context = vec![None];
+        let source = "x = type; x y";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize(&term, &mut normalization_context),
+            Term {
+                source_range: Some((10, 13)),
+                group: true,
+                variant: Application(
+                    Rc::new(Term {
+                        source_range: Some((4, 8)),
+                        group: false,
+                        variant: Type,
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((12, 13)),
+                        group: false,
+                        variant: Variable("y", 1),
+                    }),
+                ),
             },
         );
     }

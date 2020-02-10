@@ -17,6 +17,8 @@
 /* [tag:bison_tokens] [ref:tokens] */
 
 %token COLON
+%token EQUALS
+%token SEMICOLON
 %token LEFT_PAREN
 %token RIGHT_PAREN
 %token THICK_ARROW
@@ -35,6 +37,7 @@ term:
   LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THIN_ARROW term |
   LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THICK_ARROW term |
   application |
+  IDENTIFIER EQUALS term SEMICOLON term |
   LEFT_PAREN term RIGHT_PAREN ;
 
 application:

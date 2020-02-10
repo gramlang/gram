@@ -6,7 +6,7 @@ use crate::{
     normalizer::normalize,
     term::{
         Term,
-        Variant::{Application, Lambda, Pi, Type, Variable},
+        Variant::{Application, Lambda, Let, Pi, Type, Variable},
         TYPE_TERM,
     },
 };
@@ -15,13 +15,15 @@ use std::{path::Path, rc::Rc};
 // This is the top-level type checking function. Invariants:
 // - The types and definitions of the variables in the context are normalized.
 // - The type returned by this function is normalized.
-// - When this function is finished, the context is left unmodified.
+// - The two contexts have the same length.
+// - When this function is finished, the contexts are left unmodified.
 #[allow(clippy::too_many_lines)]
 pub fn type_check<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     term: &Term<'a>,
-    context: &mut Vec<(Rc<Term<'a>>, Option<Rc<Term<'a>>>)>, // [(type, definition)]
+    typing_context: &mut Vec<Rc<Term<'a>>>,
+    normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
 ) -> Result<Rc<Term<'a>>, Error> {
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
     Ok(normalize(
@@ -30,11 +32,21 @@ pub fn type_check<'a>(
             Variable(_, index) => {
                 // Look up the type in the context, and shift it such that it's valid in the
                 // current context.
-                shift(&*context[context.len() - 1 - *index].0, 0, *index + 1)
+                shift(
+                    &*typing_context[typing_context.len() - 1 - *index],
+                    0,
+                    *index + 1,
+                )
             }
             Lambda(variable, domain, body) => {
                 // Infer the type of the domain.
-                let domain_type = type_check(source_path, source_contents, &**domain, context)?;
+                let domain_type = type_check(
+                    source_path,
+                    source_contents,
+                    &**domain,
+                    typing_context,
+                    normalization_context,
+                )?;
 
                 // Check that the type of the domain is the type of all types.
                 if !syntactically_equal(&*domain_type, &TYPE_TERM) {
@@ -61,15 +73,26 @@ pub fn type_check<'a>(
                     });
                 }
 
-                // Temporarily add the variable's type to the context for the purpose of inferring the
-                // codomain.
-                context.push((domain.clone(), None));
+                // Temporarily add the variable's type to the context for the purpose of inferring
+                // the codomain.
+                typing_context.push(domain.clone());
+                normalization_context.push(None);
 
                 // Infer the codomain.
-                let codomain = type_check(source_path, source_contents, &**body, context)?;
+                let codomain_result = type_check(
+                    source_path,
+                    source_contents,
+                    &**body,
+                    typing_context,
+                    normalization_context,
+                );
 
                 // Restore the context.
-                context.pop();
+                normalization_context.pop();
+                typing_context.pop();
+
+                // Fail if the codomain is not well-typed.
+                let codomain = codomain_result?;
 
                 // Construct and return the pi type.
                 Rc::new(Term {
@@ -80,7 +103,13 @@ pub fn type_check<'a>(
             }
             Pi(_, domain, codomain) => {
                 // Infer the type of the domain.
-                let domain_type = type_check(source_path, source_contents, &**domain, context)?;
+                let domain_type = type_check(
+                    source_path,
+                    source_contents,
+                    &**domain,
+                    typing_context,
+                    normalization_context,
+                )?;
 
                 // Check that the type of the domain is the type of all types.
                 if !syntactically_equal(&*domain_type, &TYPE_TERM) {
@@ -107,15 +136,26 @@ pub fn type_check<'a>(
                     });
                 }
 
-                // Temporarily add the variable's type to the context for the purpose of inferring the
-                // type of the codomain.
-                context.push((domain.clone(), None));
+                // Temporarily add the variable's type to the context for the purpose of inferring
+                // the type of the codomain.
+                typing_context.push(domain.clone());
+                normalization_context.push(None);
 
                 // Infer the type of the codomain.
-                let codomain_type = type_check(source_path, source_contents, &**codomain, context)?;
+                let codomain_type_result = type_check(
+                    source_path,
+                    source_contents,
+                    &**codomain,
+                    typing_context,
+                    normalization_context,
+                );
 
                 // Restore the context.
-                context.pop();
+                normalization_context.pop();
+                typing_context.pop();
+
+                // Fail if the type of the codomain is not well-typed.
+                let codomain_type = codomain_type_result?;
 
                 // Check that the type of the codomain is the type of all types.
                 if !syntactically_equal(&*codomain_type, &TYPE_TERM) {
@@ -147,8 +187,13 @@ pub fn type_check<'a>(
             }
             Application(applicand, argument) => {
                 // Infer the type of the applicand.
-                let applicand_type =
-                    type_check(source_path, source_contents, &**applicand, context)?;
+                let applicand_type = type_check(
+                    source_path,
+                    source_contents,
+                    &**applicand,
+                    typing_context,
+                    normalization_context,
+                )?;
 
                 // Make sure the type of the applicand is a pi type.
                 let (domain, codomain) = if let Pi(_, domain, codomain) = &applicand_type.variant {
@@ -177,7 +222,13 @@ pub fn type_check<'a>(
                 };
 
                 // Infer the type of the argument.
-                let argument_type = type_check(source_path, source_contents, &**argument, context)?;
+                let argument_type = type_check(
+                    source_path,
+                    source_contents,
+                    &**argument,
+                    typing_context,
+                    normalization_context,
+                )?;
 
                 // Check that the argument type equals the domain.
                 if !syntactically_equal(&*argument_type, &**domain) {
@@ -208,8 +259,42 @@ pub fn type_check<'a>(
                 // Construct and return the codomain specialized to the argument.
                 open(&**codomain, 0, &**argument)
             }
+            Let(_, definition, body) => {
+                // Infer the type of the definition.
+                let definition_type = type_check(
+                    source_path,
+                    source_contents,
+                    &**definition,
+                    typing_context,
+                    normalization_context,
+                )?;
+
+                // Normalize the definition.
+                let normalized_definition = normalize(definition, normalization_context);
+
+                // Temporarily add the definition and its type to the context for the purpose of
+                // inferring the codomain.
+                typing_context.push(definition_type.clone());
+                normalization_context.push(Some(normalized_definition));
+
+                // Infer the type of the body.
+                let body_type_result = type_check(
+                    source_path,
+                    source_contents,
+                    &**body,
+                    typing_context,
+                    normalization_context,
+                );
+
+                // Restore the context.
+                normalization_context.pop();
+                typing_context.pop();
+
+                // Return the type of the body.
+                body_type_result?
+            }
         },
-        context,
+        normalization_context,
     ))
 }
 
@@ -232,13 +317,20 @@ mod tests {
     fn type_check_type() {
         let parsing_context = [];
         let mut typing_context = vec![];
+        let mut normalization_context = vec![];
         let term_source = "type";
         let type_source = "type";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term =
-            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut normalization_context,
+        )
+        .unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
@@ -250,30 +342,31 @@ mod tests {
     fn type_check_variable() {
         let parsing_context = ["a", "x"];
         let mut typing_context = vec![
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Type,
-                }),
-                None,
-            ),
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Variable("a", 0),
-                }),
-                None,
-            ),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Type,
+            }),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Variable("a", 0),
+            }),
         ];
+        let mut normalization_context = vec![None, None];
         let term_source = "x";
         let type_source = "a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term =
-            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut normalization_context,
+        )
+        .unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
@@ -284,21 +377,25 @@ mod tests {
     #[test]
     fn type_check_lambda() {
         let parsing_context = ["a"];
-        let mut typing_context = vec![(
-            Rc::new(Term {
-                source_range: None,
-                group: false,
-                variant: Type,
-            }),
-            None,
-        )];
+        let mut typing_context = vec![Rc::new(Term {
+            source_range: None,
+            group: false,
+            variant: Type,
+        })];
+        let mut normalization_context = vec![None];
         let term_source = "(x : a) => x";
         let type_source = "(x : a) -> a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term =
-            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut normalization_context,
+        )
+        .unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
@@ -309,21 +406,25 @@ mod tests {
     #[test]
     fn type_check_pi() {
         let parsing_context = ["a"];
-        let mut typing_context = vec![(
-            Rc::new(Term {
-                source_range: None,
-                group: false,
-                variant: Type,
-            }),
-            None,
-        )];
+        let mut typing_context = vec![Rc::new(Term {
+            source_range: None,
+            group: false,
+            variant: Type,
+        })];
+        let mut normalization_context = vec![None];
         let term_source = "(x : a) -> a";
         let type_source = "type";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term =
-            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut normalization_context,
+        )
+        .unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
@@ -335,30 +436,31 @@ mod tests {
     fn type_check_application() {
         let parsing_context = ["a", "y"];
         let mut typing_context = vec![
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Type,
-                }),
-                None,
-            ),
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Variable("a", 0),
-                }),
-                None,
-            ),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Type,
+            }),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Variable("a", 0),
+            }),
         ];
+        let mut normalization_context = vec![None, None];
         let term_source = "((x : a) => x) y";
         let type_source = "a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term =
-            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut normalization_context,
+        )
+        .unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
@@ -370,63 +472,85 @@ mod tests {
     fn type_check_bad_application() {
         let parsing_context = ["a", "b", "y"];
         let mut typing_context = vec![
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Type,
-                }),
-                None,
-            ),
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Type,
-                }),
-                None,
-            ),
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Variable("b", 0),
-                }),
-                None,
-            ),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Type,
+            }),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Type,
+            }),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Variable("b", 0),
+            }),
         ];
+        let mut normalization_context = vec![None, None, None];
         let term_source = "((x : a) => x) y";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
 
         assert_fails!(
-            type_check(None, term_source, &term_term, &mut typing_context),
+            type_check(
+                None,
+                term_source,
+                &term_term,
+                &mut typing_context,
+                &mut normalization_context
+            ),
             "has type `b` when `a` was expected",
         );
+    }
+
+    #[test]
+    fn type_check_let() {
+        let parsing_context = ["a"];
+        let mut typing_context = vec![Rc::new(Term {
+            source_range: None,
+            group: false,
+            variant: Type,
+        })];
+        let mut normalization_context = vec![None];
+        let term_source = "x = a; x";
+        let type_source = "type";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut normalization_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
     }
 
     #[test]
     fn type_check_dependent_apply() {
         let parsing_context = ["int", "y"];
         let mut typing_context = vec![
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Type,
-                }),
-                None,
-            ),
-            (
-                Rc::new(Term {
-                    source_range: None,
-                    group: false,
-                    variant: Variable("int", 0),
-                }),
-                None,
-            ),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Type,
+            }),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Variable("int", 0),
+            }),
         ];
+        let mut normalization_context = vec![None, None];
         let term_source = "
           ((a : type) => (P: (x : a) -> type) => (f : (x : a) -> P x) => (x : a) => f x)
             (((t : type) => t) int)
@@ -438,8 +562,14 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term =
-            type_check(None, term_source, &term_term, &mut typing_context).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut normalization_context,
+        )
+        .unwrap();
 
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();

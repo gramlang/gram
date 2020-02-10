@@ -1,6 +1,6 @@
 use crate::term::{
     Term,
-    Variant::{Application, Lambda, Pi, Type, Variable},
+    Variant::{Application, Lambda, Let, Pi, Type, Variable},
 };
 
 // Check if two terms are equal up to alpha renaming.
@@ -19,6 +19,10 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
         (Application(applicand1, argument1), Application(applicand2, argument2)) => {
             syntactically_equal(&**applicand1, &**applicand2)
                 && syntactically_equal(&**argument1, &**argument2)
+        }
+        (Let(_, definition1, body1), Let(_, definition2, body2)) => {
+            syntactically_equal(&**definition1, &**definition2)
+                && syntactically_equal(&**body1, &**body2)
         }
         _ => false,
     }
@@ -167,7 +171,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_pi() {
+    fn syntactically_inequal_pi_codomain() {
         let context1 = [];
         let source1 = "(x : type) -> x";
 
@@ -227,6 +231,57 @@ mod tests {
 
         let context2 = ["f", "x"];
         let source2 = "f f";
+
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_let() {
+        let context1 = [];
+        let source1 = "x = type; x";
+
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+
+        let context2 = [];
+        let source2 = "x = type; x";
+
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_let_definition() {
+        let context1 = [];
+        let source1 = "x = type; x";
+
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+
+        let context2 = [];
+        let source2 = "x = type type; x";
+
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_let_body() {
+        let context1 = [];
+        let source1 = "x = type type; x";
+
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context1[..]).unwrap();
+
+        let context2 = [];
+        let source2 = "x = type; type";
 
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();

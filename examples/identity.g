@@ -1,3 +1,5 @@
 #!/usr/bin/env gram
 
-(a : type) => (x : a) => x
+id = (a : type) => (x : a) => x;
+
+id type type
