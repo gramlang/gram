@@ -14,20 +14,45 @@
           p y) =>
 
 # A proof that equality is symmetric
-(
+eq_symm = (
   (
     eq_symm : (a : type) ->
               (x : a) ->
               (y : a) ->
               eq a x y ->
               eq a y x
-  ) => type
+  ) => eq_symm
 ) (
   (a : type) =>
   (x : a) =>
   (y : a) =>
   (x_equals_y : eq a x y) =>
     motive = (z : a) => eq a z x;
-    motive_holds_for_x = refl a x;
-    eq_ind a x motive motive_holds_for_x y x_equals_y
-)
+    x_equals_x = refl a x;
+    eq_ind a x motive x_equals_x y x_equals_y
+);
+
+# A proof that equality is transitive
+eq_trans = (
+  (
+    eq_trans : (a : type) ->
+               (x : a) ->
+               (y : a) ->
+               (z : a) ->
+               eq a x y ->
+               eq a y z ->
+               eq a x z
+  ) => eq_trans
+) (
+  (a : type) =>
+  (x : a) =>
+  (y : a) =>
+  (z : a) =>
+  (x_equals_y : eq a x y) =>
+  (y_equals_z : eq a y z) =>
+    y_equals_x = eq_symm a x y x_equals_y;
+    motive = (w : a) => eq a w z;
+    eq_ind a y motive y_equals_z x y_equals_x
+);
+
+type
