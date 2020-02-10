@@ -1,5 +1,3 @@
-#!/usr/bin/env gram
-
 # The formation rule for propositional equality
 (eq : (a : type) -> (x : a) -> (y : a) -> type) =>
 
