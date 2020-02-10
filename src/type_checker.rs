@@ -290,8 +290,10 @@ pub fn type_check<'a>(
                 normalization_context.pop();
                 typing_context.pop();
 
-                // Return the type of the body.
-                body_type_result?
+                // Return the opened type of the body. Since the type has already been normalized,
+                // any references to the definition should have already been unfolded. This,
+                // opening merely decrements the indices.
+                open(&*body_type_result?, 0, definition)
             }
         },
         normalization_context,
@@ -508,15 +510,22 @@ mod tests {
 
     #[test]
     fn type_check_let() {
-        let parsing_context = ["a"];
-        let mut typing_context = vec![Rc::new(Term {
-            source_range: None,
-            group: false,
-            variant: Type,
-        })];
-        let mut normalization_context = vec![None];
-        let term_source = "x = a; x";
-        let type_source = "type";
+        let parsing_context = ["a", "x"];
+        let mut typing_context = vec![
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Type,
+            }),
+            Rc::new(Term {
+                source_range: None,
+                group: false,
+                variant: Variable("a", 0),
+            }),
+        ];
+        let mut normalization_context = vec![None, None];
+        let term_source = "y = x; y";
+        let type_source = "a";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();

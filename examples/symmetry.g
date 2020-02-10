@@ -26,6 +26,8 @@
   (a : type) =>
   (x : a) =>
   (y : a) =>
-  (proof : eq a x y) =>
-  eq_ind a x ((p : a) => eq a p x) (refl a x) y proof
+  (x_equals_y : eq a x y) =>
+    motive = (z : a) => eq a z x;
+    motive_holds_for_x = refl a x;
+    eq_ind a x motive motive_holds_for_x y x_equals_y
 )

@@ -106,21 +106,13 @@ fn run(source_path: &Path) -> Result<(), Error> {
     // Tokenize the source file.
     let tokens = tokenize(Some(source_path), &source_contents)?;
 
-    // Parse the source file.
-    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
-
     // Print the AST.
-    println!("# Original term:\n\n{}\n", term);
+    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
+    println!("# Original term:\n\n{}\n", term.to_string().code_str());
 
-    // Print the normal form.
-    let mut normalization_context = vec![];
-    println!(
-        "# Normal form:\n\n{}\n",
-        normalize(&term, &mut normalization_context)
-    );
-
-    // Type check the AST.
+    // Print the type.
     let mut typing_context = vec![];
+    let mut normalization_context = vec![];
     let term_type = type_check(
         Some(source_path),
         &source_contents,
@@ -128,9 +120,11 @@ fn run(source_path: &Path) -> Result<(), Error> {
         &mut typing_context,
         &mut normalization_context,
     )?;
+    println!("# Type:\n\n{}\n", term_type.to_string().code_str());
 
-    // Normalize and print the type.
-    println!("# Type:\n\n{}", term_type);
+    // Print the normal form.
+    let normal_form = normalize(&term, &mut normalization_context);
+    println!("# Normal form:\n\n{}", normal_form.to_string().code_str());
 
     // If we made it this far, nothing went wrong.
     Ok(())
