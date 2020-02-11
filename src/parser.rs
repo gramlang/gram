@@ -545,7 +545,7 @@ fn parse_term<'a, 'b>(
     cache_return!(cache, Term, start, None)
 }
 
-// Parse a variable.
+// Parse the type of all types.
 fn parse_type<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],

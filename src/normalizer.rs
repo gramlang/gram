@@ -25,10 +25,18 @@ pub fn normalize_weak_head<'a>(
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
-                    normalize_weak_head(
+                    let normalized_shifted_definition = normalize_weak_head(
                         shift(definition.clone(), 0, *index + 1),
                         normalization_context,
-                    )
+                    );
+
+                    // Turn on the `group` flag to ensure it parses correctly in whatever term
+                    // surrounds it.
+                    Rc::new(Term {
+                        source_range: normalized_shifted_definition.source_range,
+                        group: true,
+                        variant: normalized_shifted_definition.variant.clone(),
+                    })
                 }
                 None => {
                     // The variable doesn't have a definition. Just return it as a "neutral term".
@@ -88,10 +96,18 @@ pub fn normalize_beta<'a>(
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
-                    normalize_beta(
+                    let normalized_shifted_definition = normalize_beta(
                         shift(definition.clone(), 0, *index + 1),
                         normalization_context,
-                    )
+                    );
+
+                    // Turn on the `group` flag to ensure it parses correctly in whatever term
+                    // surrounds it.
+                    Rc::new(Term {
+                        source_range: normalized_shifted_definition.source_range,
+                        group: true,
+                        variant: normalized_shifted_definition.variant.clone(),
+                    })
                 }
                 None => {
                     // The variable doesn't have a definition. Just return it as a "neutral term".
@@ -250,7 +266,7 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: None,
-                group: false,
+                group: true,
                 variant: Type,
             },
         );
@@ -567,7 +583,7 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: None,
-                group: false,
+                group: true,
                 variant: Type
             },
         );

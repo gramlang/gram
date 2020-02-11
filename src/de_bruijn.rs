@@ -75,8 +75,11 @@ pub fn open<'a>(
             }),
             Ordering::Less => term_to_open,
             Ordering::Equal => {
+                // Shift the term such that it's valid in the current context.
                 let shifted_term = shift(term_to_insert, 0, index_to_replace);
 
+                // Turn on the `group` flag to ensure it parses correctly in whatever term
+                // surrounds it.
                 Rc::new(Term {
                     source_range: shifted_term.source_range,
                     group: true,
