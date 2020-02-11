@@ -1,6 +1,6 @@
 use crate::{
     de_bruijn::{open, shift},
-    equality::syntactically_equal,
+    equality::definitionally_equal,
     error::{throw, Error},
     format::CodeStr,
     term::{
@@ -44,7 +44,11 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the domain is the type of all types.
-            if !syntactically_equal(&*domain_type, &TYPE_TERM) {
+            if !definitionally_equal(
+                domain_type.clone(),
+                Rc::new(TYPE_TERM),
+                normalization_context,
+            ) {
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
                         &format!(
@@ -107,7 +111,11 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the domain is the type of all types.
-            if !syntactically_equal(&*domain_type, &TYPE_TERM) {
+            if !definitionally_equal(
+                domain_type.clone(),
+                Rc::new(TYPE_TERM),
+                normalization_context,
+            ) {
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
                         &format!(
@@ -145,15 +153,37 @@ pub fn type_check<'a>(
                 normalization_context,
             );
 
+            // Fail if the type of the codomain is not well-typed.
+            let codomain_type = match codomain_type_result {
+                Ok(codomain_type) => codomain_type,
+                Err(err) => {
+                    // Restore the context.
+                    normalization_context.pop();
+                    typing_context.pop();
+
+                    // Return the error.
+                    return Err(err);
+                }
+            };
+
+            // Check that the type of the codomain is the type of all types.
+            let codomain_is_type = definitionally_equal(
+                codomain_type.clone(),
+                Rc::new(TYPE_TERM),
+                normalization_context,
+            );
+
             // Restore the context.
             normalization_context.pop();
             typing_context.pop();
 
-            // Fail if the type of the codomain is not well-typed.
-            let codomain_type = codomain_type_result?;
+            // If the codomain is not a type, throw a type error.
+            if !codomain_is_type {
+                // Restore the context.
+                normalization_context.pop();
+                typing_context.pop();
 
-            // Check that the type of the codomain is the type of all types.
-            if !syntactically_equal(&*codomain_type, &TYPE_TERM) {
+                // Throw a type error.
                 return Err(if let Some(source_range) = codomain.source_range {
                     throw(
                         &format!(
@@ -226,7 +256,7 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the argument type equals the domain.
-            if !syntactically_equal(&*argument_type, &**domain) {
+            if !definitionally_equal(argument_type.clone(), domain.clone(), normalization_context) {
                 return Err(if let Some(source_range) = argument.source_range {
                     throw(
                         &format!(
@@ -555,7 +585,7 @@ mod tests {
                 ((x : int) => x)
                   y
         ";
-        let type_source = "int";
+        let type_source = "(((x : int) => int) (y))";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();

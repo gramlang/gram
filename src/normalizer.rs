@@ -15,8 +15,8 @@ pub fn normalize_weak_head<'a>(
     normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
 ) -> Rc<Term<'a>> {
     match &term.variant {
-        Type => {
-            // The type of all types is already in beta normal form.
+        Type | Lambda(_, _, _) | Pi(_, _, _) => {
+            // These cases are already in beta normal form.
             term
         }
         Variable(_, index) => {
@@ -35,14 +35,6 @@ pub fn normalize_weak_head<'a>(
                     term
                 }
             }
-        }
-        Lambda(_, _, _) => {
-            // Lambdas are already in beta normal form.
-            term
-        }
-        Pi(_, _, _) => {
-            // Pi types are already in beta normal form.
-            term
         }
         Application(applicand, argument) => {
             // Reduce the applicand.
@@ -111,8 +103,7 @@ pub fn normalize_beta<'a>(
             // Reduce the domain.
             let normalized_domain = normalize_beta(domain.clone(), normalization_context);
 
-            // Temporarily add the variable's type to the context for the purpose of normalizing
-            // the body.
+            // Temporarily add the variable to the context for the purpose of normalizing the body.
             normalization_context.push(None);
 
             // Normalize the body.
@@ -132,8 +123,8 @@ pub fn normalize_beta<'a>(
             // Reduce the domain.
             let normalized_domain = normalize_beta(domain.clone(), normalization_context);
 
-            // Temporarily add the variable's type to the context for the purpose of normalizing
-            // the codomain.
+            // Temporarily add the variable the context for the purpose of normalizing the
+            // codomain.
             normalization_context.push(None);
 
             // Normalize the body.
