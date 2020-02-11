@@ -27,11 +27,19 @@ pub fn type_check<'a>(
         Variable(_, index) => {
             // Look up the type in the context, and shift it such that it's valid in the
             // current context.
-            shift(
+            let shifted_type = shift(
                 typing_context[typing_context.len() - 1 - *index].clone(),
                 0,
                 *index + 1,
-            )
+            );
+
+            // Turn on the `group` flag to ensure it parses correctly in whatever term surrounds
+            // it.
+            Rc::new(Term {
+                source_range: shifted_type.source_range,
+                group: true,
+                variant: shifted_type.variant.clone(),
+            })
         }
         Lambda(variable, domain, body) => {
             // Infer the type of the domain.
@@ -96,7 +104,7 @@ pub fn type_check<'a>(
             // Construct and return the pi type.
             Rc::new(Term {
                 source_range: term.source_range,
-                group: false,
+                group: true,
                 variant: Pi(variable, domain.clone(), codomain),
             })
         }
@@ -522,7 +530,7 @@ mod tests {
                 &mut typing_context,
                 &mut normalization_context
             ),
-            "has type `b` when `a` was expected",
+            "has type `(b)` when `a` was expected",
         );
     }
 
