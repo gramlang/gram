@@ -12,7 +12,7 @@ mod type_checker;
 use crate::{
     error::{lift, Error},
     format::CodeStr,
-    normalizer::normalize,
+    normalizer::normalize_beta,
     parser::parse,
     tokenizer::tokenize,
     type_checker::type_check,
@@ -123,7 +123,7 @@ fn run(source_path: &Path) -> Result<(), Error> {
     println!("# Type:\n\n{}\n", term_type.to_string().code_str());
 
     // Print the normal form.
-    let normal_form = normalize(&term, &mut normalization_context);
+    let normal_form = normalize_beta(&term, &mut normalization_context);
     println!("# Normal form:\n\n{}", normal_form.to_string().code_str());
 
     // If we made it this far, nothing went wrong.

@@ -10,7 +10,7 @@ use std::rc::Rc;
 // This function reduces a term to normal form using applicative order reduction. Invariants:
 // - The types and definitions of the variables in the context are normalized.
 // - When this function is finished, the context is left unmodified.
-pub fn normalize<'a>(
+pub fn normalize_beta<'a>(
     term: &Term<'a>,
     normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
 ) -> Rc<Term<'a>> {
@@ -35,14 +35,14 @@ pub fn normalize<'a>(
         }
         Lambda(variable, domain, body) => {
             // Reduce the domain.
-            let normalized_domain = normalize(&**domain, normalization_context);
+            let normalized_domain = normalize_beta(&**domain, normalization_context);
 
             // Temporarily add the variable's type to the context for the purpose of normalizing
             // the body.
             normalization_context.push(None);
 
             // Normalize the body.
-            let normalized_body = normalize(&**body, normalization_context);
+            let normalized_body = normalize_beta(&**body, normalization_context);
 
             // Restore the context.
             normalization_context.pop();
@@ -56,14 +56,14 @@ pub fn normalize<'a>(
         }
         Pi(variable, domain, codomain) => {
             // Reduce the domain.
-            let normalized_domain = normalize(&**domain, normalization_context);
+            let normalized_domain = normalize_beta(&**domain, normalization_context);
 
             // Temporarily add the variable's type to the context for the purpose of normalizing
             // the codomain.
             normalization_context.push(None);
 
             // Normalize the body.
-            let normalized_codomain = normalize(&**codomain, normalization_context);
+            let normalized_codomain = normalize_beta(&**codomain, normalization_context);
 
             // Restore the context.
             normalization_context.pop();
@@ -77,15 +77,15 @@ pub fn normalize<'a>(
         }
         Application(applicand, argument) => {
             // Reduce the applicand.
-            let normalized_applicand = normalize(&**applicand, normalization_context);
+            let normalized_applicand = normalize_beta(&**applicand, normalization_context);
 
             // Reduce the argument. This means we're doing applicative order reduction.
-            let normalized_argument = normalize(&**argument, normalization_context);
+            let normalized_argument = normalize_beta(&**argument, normalization_context);
 
             // Check if the applicand reduced to a lambda.
             if let Lambda(_, _, body) = &normalized_applicand.variant {
                 // We got a lambda. Perform beta reduction.
-                normalize(
+                normalize_beta(
                     &open(&**body, 0, &normalized_argument),
                     normalization_context,
                 )
@@ -100,14 +100,14 @@ pub fn normalize<'a>(
         }
         Let(_, definition, body) => {
             // Reduce the definition.
-            let normalized_definition = normalize(&**definition, normalization_context);
+            let normalized_definition = normalize_beta(&**definition, normalization_context);
 
             // Temporarily add the variable's type to the context for the purpose of normalizing
             // the body.
             normalization_context.push(Some(normalized_definition.clone()));
 
             // Normalize the body.
-            let normalized_body = normalize(&**body, normalization_context);
+            let normalized_body = normalize_beta(&**body, normalization_context);
 
             // Restore the context.
             normalization_context.pop();
@@ -123,7 +123,7 @@ pub fn normalize<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        normalizer::normalize,
+        normalizer::normalize_beta,
         parser::parse,
         term::{
             Term,
@@ -144,7 +144,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize(&term, &mut normalization_context),
+            *normalize_beta(&term, &mut normalization_context),
             Term {
                 source_range: Some((0, TYPE_KEYWORD.len())),
                 group: false,
@@ -163,7 +163,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize(&term, &mut normalization_context),
+            *normalize_beta(&term, &mut normalization_context),
             Term {
                 source_range: Some((0, 1)),
                 group: false,
@@ -186,7 +186,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize(&term, &mut normalization_context),
+            *normalize_beta(&term, &mut normalization_context),
             Term {
                 source_range: None,
                 group: false,
@@ -205,7 +205,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize(&term, &mut normalization_context),
+            *normalize_beta(&term, &mut normalization_context),
             Term {
                 source_range: Some((0, 48)),
                 group: true,
@@ -236,7 +236,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize(&term, &mut normalization_context),
+            *normalize_beta(&term, &mut normalization_context),
             Term {
                 source_range: Some((0, 48)),
                 group: true,
@@ -267,7 +267,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize(&term, &mut normalization_context),
+            *normalize_beta(&term, &mut normalization_context),
             Term {
                 source_range: Some((2, 42)),
                 group: true,
@@ -297,7 +297,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize(&term, &mut normalization_context),
+            *normalize_beta(&term, &mut normalization_context),
             Term {
                 source_range: Some((18, 19)),
                 group: true,
@@ -316,7 +316,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize(&term, &mut normalization_context),
+            *normalize_beta(&term, &mut normalization_context),
             Term {
                 source_range: Some((10, 13)),
                 group: true,

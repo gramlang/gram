@@ -3,7 +3,7 @@ use crate::{
     equality::syntactically_equal,
     error::{throw, Error},
     format::CodeStr,
-    normalizer::normalize,
+    normalizer::normalize_beta,
     term::{
         Term,
         Variant::{Application, Lambda, Let, Pi, Type, Variable},
@@ -26,7 +26,7 @@ pub fn type_check<'a>(
     normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
 ) -> Result<Rc<Term<'a>>, Error> {
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
-    Ok(normalize(
+    Ok(normalize_beta(
         &*match &term.variant {
             Type => Rc::new(TYPE_TERM),
             Variable(_, index) => {
@@ -270,7 +270,7 @@ pub fn type_check<'a>(
                 )?;
 
                 // Normalize the definition.
-                let normalized_definition = normalize(definition, normalization_context);
+                let normalized_definition = normalize_beta(definition, normalization_context);
 
                 // Temporarily add the definition and its type to the context for the purpose of
                 // inferring the codomain.
