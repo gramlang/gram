@@ -23,7 +23,7 @@ use clap::{
     AppSettings::{ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
     Arg, Shell, SubCommand,
 };
-use std::{fs::read_to_string, io::stdout, path::Path, process::exit};
+use std::{fs::read_to_string, io::stdout, path::Path, process::exit, rc::Rc};
 
 // The program version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -123,7 +123,7 @@ fn run(source_path: &Path) -> Result<(), Error> {
     println!("# Type:\n\n{}\n", term_type.to_string().code_str());
 
     // Print the normal form.
-    let normal_form = normalize_beta(&term, &mut normalization_context);
+    let normal_form = normalize_beta(Rc::new(term), &mut normalization_context);
     println!("# Normal form:\n\n{}", normal_form.to_string().code_str());
 
     // If we made it this far, nothing went wrong.

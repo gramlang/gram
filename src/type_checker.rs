@@ -27,13 +27,13 @@ pub fn type_check<'a>(
 ) -> Result<Rc<Term<'a>>, Error> {
     // The type checking rules are syntax-directed, so here we pattern match on the syntax.
     Ok(normalize_beta(
-        &*match &term.variant {
+        match &term.variant {
             Type => Rc::new(TYPE_TERM),
             Variable(_, index) => {
                 // Look up the type in the context, and shift it such that it's valid in the
                 // current context.
                 shift(
-                    &*typing_context[typing_context.len() - 1 - *index],
+                    typing_context[typing_context.len() - 1 - *index].clone(),
                     0,
                     *index + 1,
                 )
@@ -257,7 +257,7 @@ pub fn type_check<'a>(
                 }
 
                 // Construct and return the codomain specialized to the argument.
-                open(&**codomain, 0, &**argument)
+                open(codomain.clone(), 0, argument.clone())
             }
             Let(_, definition, body) => {
                 // Infer the type of the definition.
@@ -270,12 +270,13 @@ pub fn type_check<'a>(
                 )?;
 
                 // Normalize the definition.
-                let normalized_definition = normalize_beta(definition, normalization_context);
+                let normalized_definition =
+                    normalize_beta(definition.clone(), normalization_context);
 
                 // Temporarily add the definition and its type to the context for the purpose of
                 // inferring the codomain.
                 typing_context.push(definition_type.clone());
-                normalization_context.push(Some(normalized_definition));
+                normalization_context.push(Some(normalized_definition.clone()));
 
                 // Infer the type of the body.
                 let body_type_result = type_check(
@@ -293,7 +294,7 @@ pub fn type_check<'a>(
                 // Return the opened type of the body. Since the type has already been normalized,
                 // any references to the definition should have already been unfolded. This,
                 // opening merely decrements the indices.
-                open(&*body_type_result?, 0, definition)
+                open(body_type_result?, 0, normalized_definition)
             }
         },
         normalization_context,

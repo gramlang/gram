@@ -6,10 +6,10 @@ use std::{cmp::Ordering, rc::Rc};
 
 // Shifting refers to increasing the De Bruijn indices of free variables greater than or equal to a
 // given index.
-pub fn shift<'a>(term: &Term<'a>, min_index: usize, amount: usize) -> Rc<Term<'a>> {
+pub fn shift<'a>(term: Rc<Term<'a>>, min_index: usize, amount: usize) -> Rc<Term<'a>> {
     // Recursively shift sub-terms.
     match &term.variant {
-        Type => Rc::new(term.clone()),
+        Type => term,
         Variable(variable, index) => {
             if *index >= min_index {
                 Rc::new(Term {
@@ -18,7 +18,7 @@ pub fn shift<'a>(term: &Term<'a>, min_index: usize, amount: usize) -> Rc<Term<'a
                     variant: Variable(variable, index + amount),
                 })
             } else {
-                Rc::new(term.clone())
+                term
             }
         }
         Lambda(variable, domain, body) => Rc::new(Term {
@@ -26,8 +26,8 @@ pub fn shift<'a>(term: &Term<'a>, min_index: usize, amount: usize) -> Rc<Term<'a
             group: term.group,
             variant: Lambda(
                 variable,
-                shift(&**domain, min_index, amount),
-                shift(&**body, min_index + 1, amount),
+                shift(domain.clone(), min_index, amount),
+                shift(body.clone(), min_index + 1, amount),
             ),
         }),
         Pi(variable, domain, codomain) => Rc::new(Term {
@@ -35,16 +35,16 @@ pub fn shift<'a>(term: &Term<'a>, min_index: usize, amount: usize) -> Rc<Term<'a
             group: term.group,
             variant: Pi(
                 variable,
-                shift(&**domain, min_index, amount),
-                shift(&**codomain, min_index + 1, amount),
+                shift(domain.clone(), min_index, amount),
+                shift(codomain.clone(), min_index + 1, amount),
             ),
         }),
         Application(applicand, argument) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Application(
-                shift(&**applicand, min_index, amount),
-                shift(&**argument, min_index, amount),
+                shift(applicand.clone(), min_index, amount),
+                shift(argument.clone(), min_index, amount),
             ),
         }),
         Let(variable, definition, body) => Rc::new(Term {
@@ -52,8 +52,8 @@ pub fn shift<'a>(term: &Term<'a>, min_index: usize, amount: usize) -> Rc<Term<'a
             group: term.group,
             variant: Let(
                 variable,
-                shift(&**definition, min_index, amount),
-                shift(&**body, min_index + 1, amount),
+                shift(definition.clone(), min_index, amount),
+                shift(body.clone(), min_index + 1, amount),
             ),
         }),
     }
@@ -62,13 +62,13 @@ pub fn shift<'a>(term: &Term<'a>, min_index: usize, amount: usize) -> Rc<Term<'a
 // Opening is the act of replacing a free variable by a term and decrementing the De Bruijn indices
 // of the free variables with higher indices than that of the one being replaced.
 pub fn open<'a>(
-    term_to_open: &Term<'a>,
+    term_to_open: Rc<Term<'a>>,
     index_to_replace: usize,
-    term_to_insert: &Term<'a>,
+    term_to_insert: Rc<Term<'a>>,
 ) -> Rc<Term<'a>> {
     // Recursively open sub-terms.
     match &term_to_open.variant {
-        Type => Rc::new(term_to_open.clone()),
+        Type => term_to_open,
         Variable(variable, index) => {
             match index.cmp(&index_to_replace) {
                 Ordering::Greater => Rc::new(Term {
@@ -76,7 +76,7 @@ pub fn open<'a>(
                     group: term_to_open.group,
                     variant: Variable(variable, index - 1),
                 }),
-                Ordering::Less => Rc::new(term_to_open.clone()),
+                Ordering::Less => term_to_open,
                 Ordering::Equal => {
                     let shifted_term = shift(term_to_insert, 0, index_to_replace);
 
@@ -93,8 +93,8 @@ pub fn open<'a>(
             group: true, // To ensure the resulting term is still parse-able when printed
             variant: Lambda(
                 variable,
-                open(&**domain, index_to_replace, term_to_insert),
-                open(&**body, index_to_replace + 1, term_to_insert),
+                open(domain.clone(), index_to_replace, term_to_insert.clone()),
+                open(body.clone(), index_to_replace + 1, term_to_insert),
             ),
         }),
         Pi(variable, domain, codomain) => Rc::new(Term {
@@ -102,16 +102,16 @@ pub fn open<'a>(
             group: true, // To ensure the resulting term is still parse-able when printed
             variant: Pi(
                 variable,
-                open(&**domain, index_to_replace, term_to_insert),
-                open(&**codomain, index_to_replace + 1, term_to_insert),
+                open(domain.clone(), index_to_replace, term_to_insert.clone()),
+                open(codomain.clone(), index_to_replace + 1, term_to_insert),
             ),
         }),
         Application(applicand, argument) => Rc::new(Term {
             source_range: term_to_open.source_range,
             group: true, // To ensure the resulting term is still parse-able when printed
             variant: Application(
-                open(&**applicand, index_to_replace, term_to_insert),
-                open(&**argument, index_to_replace, term_to_insert),
+                open(applicand.clone(), index_to_replace, term_to_insert.clone()),
+                open(argument.clone(), index_to_replace, term_to_insert),
             ),
         }),
         Let(variable, definition, body) => Rc::new(Term {
@@ -119,8 +119,8 @@ pub fn open<'a>(
             group: true, // To ensure the resulting term is still parse-able when printed
             variant: Let(
                 variable,
-                open(&**definition, index_to_replace, term_to_insert),
-                open(&**body, index_to_replace + 1, term_to_insert),
+                open(definition.clone(), index_to_replace, term_to_insert.clone()),
+                open(body.clone(), index_to_replace + 1, term_to_insert),
             ),
         }),
     }
@@ -142,11 +142,11 @@ mod tests {
     fn shift_type() {
         assert_eq!(
             *shift(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((0, TYPE_KEYWORD.len())),
                     group: false,
                     variant: Type,
-                },
+                }),
                 0,
                 42,
             ),
@@ -162,11 +162,11 @@ mod tests {
     fn shift_variable_free() {
         assert_eq!(
             *shift(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 0),
-                },
+                }),
                 0,
                 42,
             ),
@@ -182,11 +182,11 @@ mod tests {
     fn shift_variable_bound() {
         assert_eq!(
             *shift(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 0),
-                },
+                }),
                 1,
                 42,
             ),
@@ -202,7 +202,7 @@ mod tests {
     fn shift_lambda() {
         assert_eq!(
             *shift(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Lambda(
@@ -218,7 +218,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                },
+                }),
                 0,
                 42,
             ),
@@ -246,7 +246,7 @@ mod tests {
     fn shift_pi() {
         assert_eq!(
             *shift(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Pi(
@@ -262,7 +262,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                },
+                }),
                 0,
                 42,
             ),
@@ -290,7 +290,7 @@ mod tests {
     fn shift_application() {
         assert_eq!(
             *shift(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Application(
@@ -305,7 +305,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                },
+                }),
                 1,
                 42,
             ),
@@ -332,7 +332,7 @@ mod tests {
     fn shift_let() {
         assert_eq!(
             *shift(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Let(
@@ -348,7 +348,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                },
+                }),
                 0,
                 42,
             ),
@@ -376,17 +376,17 @@ mod tests {
     fn open_type() {
         assert_eq!(
             *open(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((0, TYPE_KEYWORD.len())),
                     group: false,
                     variant: Type,
-                },
+                }),
                 0,
-                &Term {
+                Rc::new(Term {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("y", 0),
-                },
+                }),
             ),
             Term {
                 source_range: Some((0, TYPE_KEYWORD.len())),
@@ -400,17 +400,17 @@ mod tests {
     fn open_variable_match() {
         assert_eq!(
             *open(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 0),
-                },
+                }),
                 0,
-                &Term {
+                Rc::new(Term {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("y", 0),
-                },
+                }),
             ),
             Term {
                 source_range: Some((3, 4)),
@@ -424,17 +424,17 @@ mod tests {
     fn open_variable_free() {
         assert_eq!(
             *open(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 1),
-                },
+                }),
                 0,
-                &Term {
+                Rc::new(Term {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("y", 0),
-                },
+                }),
             ),
             Term {
                 source_range: Some((0, 1)),
@@ -448,17 +448,17 @@ mod tests {
     fn open_variable_bound() {
         assert_eq!(
             *open(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((0, 1)),
                     group: false,
                     variant: Variable("x", 0),
-                },
+                }),
                 1,
-                &Term {
+                Rc::new(Term {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("y", 0),
-                },
+                }),
             ),
             Term {
                 source_range: Some((0, 1)),
@@ -472,7 +472,7 @@ mod tests {
     fn open_lambda() {
         assert_eq!(
             *open(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Lambda(
@@ -488,13 +488,13 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                },
+                }),
                 0,
-                &Term {
+                Rc::new(Term {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("x", 4),
-                },
+                }),
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -520,7 +520,7 @@ mod tests {
     fn open_pi() {
         assert_eq!(
             *open(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Pi(
@@ -536,13 +536,13 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                },
+                }),
                 0,
-                &Term {
+                Rc::new(Term {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("x", 4),
-                },
+                }),
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -568,7 +568,7 @@ mod tests {
     fn open_application() {
         assert_eq!(
             *open(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Application(
@@ -583,13 +583,13 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                },
+                }),
                 0,
-                &Term {
+                Rc::new(Term {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("x", 4),
-                },
+                }),
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -614,7 +614,7 @@ mod tests {
     fn open_let() {
         assert_eq!(
             *open(
-                &Term {
+                Rc::new(Term {
                     source_range: Some((97, 112)),
                     group: false,
                     variant: Let(
@@ -630,13 +630,13 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                },
+                }),
                 0,
-                &Term {
+                Rc::new(Term {
                     source_range: Some((3, 4)),
                     group: false,
                     variant: Variable("x", 4),
-                },
+                }),
             ),
             Term {
                 source_range: Some((97, 112)),

@@ -11,38 +11,38 @@ use std::rc::Rc;
 // - The types and definitions of the variables in the context are normalized.
 // - When this function is finished, the context is left unmodified.
 pub fn normalize_beta<'a>(
-    term: &Term<'a>,
+    term: Rc<Term<'a>>,
     normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
 ) -> Rc<Term<'a>> {
     // Recursively normalize sub-terms.
     match &term.variant {
         Type => {
             // The type of all types is already in beta normal form.
-            Rc::new(term.clone())
+            term
         }
         Variable(_, index) => {
             // Look up the definition in the context.
             match &normalization_context[normalization_context.len() - 1 - *index] {
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context.
-                    shift(&*definition, 0, *index + 1)
+                    shift(definition.clone(), 0, *index + 1)
                 }
                 None => {
                     // The variable doesn't have a definition. Just return it as a "neutral term".
-                    Rc::new(term.clone())
+                    term
                 }
             }
         }
         Lambda(variable, domain, body) => {
             // Reduce the domain.
-            let normalized_domain = normalize_beta(&**domain, normalization_context);
+            let normalized_domain = normalize_beta(domain.clone(), normalization_context);
 
             // Temporarily add the variable's type to the context for the purpose of normalizing
             // the body.
             normalization_context.push(None);
 
             // Normalize the body.
-            let normalized_body = normalize_beta(&**body, normalization_context);
+            let normalized_body = normalize_beta(body.clone(), normalization_context);
 
             // Restore the context.
             normalization_context.pop();
@@ -56,14 +56,14 @@ pub fn normalize_beta<'a>(
         }
         Pi(variable, domain, codomain) => {
             // Reduce the domain.
-            let normalized_domain = normalize_beta(&**domain, normalization_context);
+            let normalized_domain = normalize_beta(domain.clone(), normalization_context);
 
             // Temporarily add the variable's type to the context for the purpose of normalizing
             // the codomain.
             normalization_context.push(None);
 
             // Normalize the body.
-            let normalized_codomain = normalize_beta(&**codomain, normalization_context);
+            let normalized_codomain = normalize_beta(codomain.clone(), normalization_context);
 
             // Restore the context.
             normalization_context.pop();
@@ -77,16 +77,16 @@ pub fn normalize_beta<'a>(
         }
         Application(applicand, argument) => {
             // Reduce the applicand.
-            let normalized_applicand = normalize_beta(&**applicand, normalization_context);
+            let normalized_applicand = normalize_beta(applicand.clone(), normalization_context);
 
             // Reduce the argument. This means we're doing applicative order reduction.
-            let normalized_argument = normalize_beta(&**argument, normalization_context);
+            let normalized_argument = normalize_beta(argument.clone(), normalization_context);
 
             // Check if the applicand reduced to a lambda.
             if let Lambda(_, _, body) = &normalized_applicand.variant {
                 // We got a lambda. Perform beta reduction.
                 normalize_beta(
-                    &open(&**body, 0, &normalized_argument),
+                    open(body.clone(), 0, normalized_argument),
                     normalization_context,
                 )
             } else {
@@ -100,14 +100,14 @@ pub fn normalize_beta<'a>(
         }
         Let(_, definition, body) => {
             // Reduce the definition.
-            let normalized_definition = normalize_beta(&**definition, normalization_context);
+            let normalized_definition = normalize_beta(definition.clone(), normalization_context);
 
             // Temporarily add the variable's type to the context for the purpose of normalizing
             // the body.
             normalization_context.push(Some(normalized_definition.clone()));
 
             // Normalize the body.
-            let normalized_body = normalize_beta(&**body, normalization_context);
+            let normalized_body = normalize_beta(body.clone(), normalization_context);
 
             // Restore the context.
             normalization_context.pop();
@@ -115,7 +115,7 @@ pub fn normalize_beta<'a>(
             // Return the opened body. Since the body has already been normalized, any references
             // to the definition should have already been unfolded. This, opening merely decrements
             // the indices.
-            open(&*normalized_body, 0, definition)
+            open(normalized_body, 0, definition.clone())
         }
     }
 }
@@ -144,7 +144,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_beta(&term, &mut normalization_context),
+            *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, TYPE_KEYWORD.len())),
                 group: false,
@@ -163,7 +163,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_beta(&term, &mut normalization_context),
+            *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 1)),
                 group: false,
@@ -186,7 +186,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_beta(&term, &mut normalization_context),
+            *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: None,
                 group: false,
@@ -205,7 +205,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_beta(&term, &mut normalization_context),
+            *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 48)),
                 group: true,
@@ -236,7 +236,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_beta(&term, &mut normalization_context),
+            *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 48)),
                 group: true,
@@ -267,7 +267,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_beta(&term, &mut normalization_context),
+            *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((2, 42)),
                 group: true,
@@ -297,7 +297,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_beta(&term, &mut normalization_context),
+            *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((18, 19)),
                 group: true,
@@ -316,7 +316,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_beta(&term, &mut normalization_context),
+            *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((10, 13)),
                 group: true,
