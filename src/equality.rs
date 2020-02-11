@@ -3,7 +3,7 @@ use crate::term::{
     Variant::{Application, Lambda, Let, Pi, Type, Variable},
 };
 
-// Check if two terms are equal up to alpha conversion.
+// Check if two terms are equal up to alpha conversion. Type annotations are not checked.
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     // Due to the catch-all case at the bottom of this `match`, the compiler will not complain if a
     // new syntactic form is added and this `match` is not updated. Be sure to update it when
@@ -11,9 +11,7 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     match (&term1.variant, &term2.variant) {
         (Type, Type) => true,
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
-        (Lambda(_, domain1, body1), Lambda(_, domain2, body2)) => {
-            syntactically_equal(&**domain1, &**domain2) && syntactically_equal(&**body1, &**body2)
-        }
+        (Lambda(_, _, body1), Lambda(_, _, body2)) => syntactically_equal(&**body1, &**body2),
         (Pi(_, domain1, codomain1), Pi(_, domain2, codomain2)) => {
             syntactically_equal(&**domain1, &**domain2)
                 && syntactically_equal(&**codomain1, &**codomain2)
@@ -105,7 +103,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_lambda_domain() {
+    fn syntactically_equal_lambda_inequal_domain() {
         let context1 = [];
         let source1 = "(x : type) => x";
 
@@ -118,7 +116,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context2[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert_eq!(syntactically_equal(&term1, &term2), true);
     }
 
     #[test]
