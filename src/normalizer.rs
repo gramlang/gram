@@ -7,8 +7,7 @@ use crate::{
 };
 use std::rc::Rc;
 
-// This function reduces a term to normal form using applicative order reduction. Invariants:
-// - The types and definitions of the variables in the context are normalized.
+// This function reduces a term to beta normal form using applicative order reduction. Invariant:
 // - When this function is finished, the context is left unmodified.
 pub fn normalize_beta<'a>(
     term: Rc<Term<'a>>,
@@ -24,8 +23,12 @@ pub fn normalize_beta<'a>(
             // Look up the definition in the context.
             match &normalization_context[normalization_context.len() - 1 - *index] {
                 Some(definition) => {
-                    // Shift the definition so it's valid in the current context.
-                    shift(definition.clone(), 0, *index + 1)
+                    // Shift the definition so it's valid in the current context and then normalize
+                    // it.
+                    normalize_beta(
+                        shift(definition.clone(), 0, *index + 1),
+                        normalization_context,
+                    )
                 }
                 None => {
                     // The variable doesn't have a definition. Just return it as a "neutral term".
@@ -99,23 +102,14 @@ pub fn normalize_beta<'a>(
             }
         }
         Let(_, definition, body) => {
-            // Reduce the definition.
+            // Reduce the definition. This means we're doing applicative order reduction.
             let normalized_definition = normalize_beta(definition.clone(), normalization_context);
 
-            // Temporarily add the variable's type to the context for the purpose of normalizing
-            // the body.
-            normalization_context.push(Some(normalized_definition.clone()));
-
-            // Normalize the body.
-            let normalized_body = normalize_beta(body.clone(), normalization_context);
-
-            // Restore the context.
-            normalization_context.pop();
-
-            // Return the opened body. Since the body has already been normalized, any references
-            // to the definition should have already been unfolded. This, opening merely decrements
-            // the indices.
-            open(normalized_body, 0, definition.clone())
+            // Open and normalize the body.
+            normalize_beta(
+                open(body.clone(), 0, normalized_definition),
+                normalization_context,
+            )
         }
     }
 }
@@ -323,7 +317,7 @@ mod tests {
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((4, 8)),
-                        group: false,
+                        group: true,
                         variant: Type,
                     }),
                     Rc::new(Term {
