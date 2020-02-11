@@ -13,7 +13,6 @@ pub fn normalize_beta<'a>(
     term: Rc<Term<'a>>,
     normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
 ) -> Rc<Term<'a>> {
-    // Recursively normalize sub-terms.
     match &term.variant {
         Type => {
             // The type of all types is already in beta normal form.
@@ -50,10 +49,10 @@ pub fn normalize_beta<'a>(
             // Restore the context.
             normalization_context.pop();
 
-            // For lambdas, we simply reduce the domain and body.
+            // Construct and return the normalized lambda.
             Rc::new(Term {
                 source_range: term.source_range,
-                group: true, // To ensure the resulting term is still parse-able when printed
+                group: true,
                 variant: Lambda(variable, normalized_domain, normalized_body),
             })
         }
@@ -71,10 +70,10 @@ pub fn normalize_beta<'a>(
             // Restore the context.
             normalization_context.pop();
 
-            // For pi types, we simply reduce the domain and codomain.
+            // Construct and return the normalized pi type.
             Rc::new(Term {
                 source_range: term.source_range,
-                group: true, // To ensure the resulting term is still parse-able when printed
+                group: true,
                 variant: Pi(variable, normalized_domain, normalized_codomain),
             })
         }
@@ -96,18 +95,23 @@ pub fn normalize_beta<'a>(
                 // We didn't get a lambda. We're done here.
                 Rc::new(Term {
                     source_range: term.source_range,
-                    group: true, // To ensure the resulting term is still parse-able when printed
+                    group: true,
                     variant: Application(normalized_applicand, normalized_argument),
                 })
             }
         }
         Let(_, definition, body) => {
-            // Reduce the definition. This means we're doing applicative order reduction.
-            let normalized_definition = normalize_beta(definition.clone(), normalization_context);
-
-            // Open and normalize the body.
+            // Eagerly reduce the definition (not necessary for correctness, only relevant for
+            // performance), open the body, and normalize the result. Alternatively, we could have
+            // added the definition to the context and normalized the body, but then we still would
+            // have had to decrement the indices corresponding to free variables in the body (e.g.,
+            // by opening).
             normalize_beta(
-                open(body.clone(), 0, normalized_definition),
+                open(
+                    body.clone(),
+                    0,
+                    normalize_beta(definition.clone(), normalization_context),
+                ),
                 normalization_context,
             )
         }

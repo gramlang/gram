@@ -7,7 +7,6 @@ use std::{cmp::Ordering, rc::Rc};
 // Shifting refers to increasing the De Bruijn indices of free variables greater than or equal to a
 // given index.
 pub fn shift<'a>(term: Rc<Term<'a>>, min_index: usize, amount: usize) -> Rc<Term<'a>> {
-    // Recursively shift sub-terms.
     match &term.variant {
         Type => term,
         Variable(variable, index) => {
@@ -66,31 +65,28 @@ pub fn open<'a>(
     index_to_replace: usize,
     term_to_insert: Rc<Term<'a>>,
 ) -> Rc<Term<'a>> {
-    // Recursively open sub-terms.
     match &term_to_open.variant {
         Type => term_to_open,
-        Variable(variable, index) => {
-            match index.cmp(&index_to_replace) {
-                Ordering::Greater => Rc::new(Term {
-                    source_range: term_to_open.source_range,
-                    group: term_to_open.group,
-                    variant: Variable(variable, index - 1),
-                }),
-                Ordering::Less => term_to_open,
-                Ordering::Equal => {
-                    let shifted_term = shift(term_to_insert, 0, index_to_replace);
+        Variable(variable, index) => match index.cmp(&index_to_replace) {
+            Ordering::Greater => Rc::new(Term {
+                source_range: term_to_open.source_range,
+                group: term_to_open.group,
+                variant: Variable(variable, index - 1),
+            }),
+            Ordering::Less => term_to_open,
+            Ordering::Equal => {
+                let shifted_term = shift(term_to_insert, 0, index_to_replace);
 
-                    Rc::new(Term {
-                        source_range: shifted_term.source_range,
-                        group: true, // To ensure the resulting term is still parse-able when printed
-                        variant: shifted_term.variant.clone(),
-                    })
-                }
+                Rc::new(Term {
+                    source_range: shifted_term.source_range,
+                    group: true,
+                    variant: shifted_term.variant.clone(),
+                })
             }
-        }
+        },
         Lambda(variable, domain, body) => Rc::new(Term {
             source_range: term_to_open.source_range,
-            group: true, // To ensure the resulting term is still parse-able when printed
+            group: true,
             variant: Lambda(
                 variable,
                 open(domain.clone(), index_to_replace, term_to_insert.clone()),
@@ -99,7 +95,7 @@ pub fn open<'a>(
         }),
         Pi(variable, domain, codomain) => Rc::new(Term {
             source_range: term_to_open.source_range,
-            group: true, // To ensure the resulting term is still parse-able when printed
+            group: true,
             variant: Pi(
                 variable,
                 open(domain.clone(), index_to_replace, term_to_insert.clone()),
@@ -108,7 +104,7 @@ pub fn open<'a>(
         }),
         Application(applicand, argument) => Rc::new(Term {
             source_range: term_to_open.source_range,
-            group: true, // To ensure the resulting term is still parse-able when printed
+            group: true,
             variant: Application(
                 open(applicand.clone(), index_to_replace, term_to_insert.clone()),
                 open(argument.clone(), index_to_replace, term_to_insert),
@@ -116,7 +112,7 @@ pub fn open<'a>(
         }),
         Let(variable, definition, body) => Rc::new(Term {
             source_range: term_to_open.source_range,
-            group: true, // To ensure the resulting term is still parse-able when printed
+            group: true,
             variant: Let(
                 variable,
                 open(definition.clone(), index_to_replace, term_to_insert.clone()),

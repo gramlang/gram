@@ -3,9 +3,11 @@ use crate::term::{
     Variant::{Application, Lambda, Let, Pi, Type, Variable},
 };
 
-// Check if two terms are equal up to alpha renaming.
+// Check if two terms are equal up to alpha conversion.
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
-    // Recursively check sub-terms.
+    // Due to the catch-all case at the bottom of this `match`, the compiler will not complain if a
+    // new syntactic form is added and this `match` is not updated. Be sure to update it when
+    // adding new syntactic forms!
     match (&term1.variant, &term2.variant) {
         (Type, Type) => true,
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,

@@ -22,7 +22,6 @@ pub fn type_check<'a>(
     typing_context: &mut Vec<Rc<Term<'a>>>,
     normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
 ) -> Result<Rc<Term<'a>>, Error> {
-    // The type checking rules are syntax-directed, so here we pattern match on the syntax.
     Ok(match &term.variant {
         Type => Rc::new(TYPE_TERM),
         Variable(_, index) => {
