@@ -51,7 +51,7 @@ pub fn normalize_weak_head<'a>(
 
             // Check if the applicand reduced to a lambda.
             if let Lambda(_, _, body) = &normalized_applicand.variant {
-                // Perform beta reduction. Here we're doing normal order reduction.
+                // Perform beta reduction and normalize the result.
                 normalize_weak_head(
                     open(body.clone(), 0, argument.clone()),
                     normalization_context,
@@ -66,10 +66,7 @@ pub fn normalize_weak_head<'a>(
             }
         }
         Let(_, definition, body) => {
-            // Open the body, and normalize the result. Alternatively, we could have added the
-            // definition to the context and normalized the body, but then we still would have had
-            // to decrement the indices corresponding to free variables in the body (e.g., by
-            // opening).
+            // Open the body and normalize the result.
             normalize_weak_head(
                 open(body.clone(), 0, definition.clone()),
                 normalization_context,
@@ -160,7 +157,7 @@ pub fn normalize_beta<'a>(
             // Reduce the applicand.
             let normalized_applicand = normalize_beta(applicand.clone(), normalization_context);
 
-            // Reduce the argument. This means we're doing applicative order reduction.
+            // Reduce the argument.
             let normalized_argument = normalize_beta(argument.clone(), normalization_context);
 
             // Check if the applicand reduced to a lambda.
@@ -180,11 +177,7 @@ pub fn normalize_beta<'a>(
             }
         }
         Let(_, definition, body) => {
-            // Eagerly reduce the definition (not necessary for correctness, only relevant for
-            // performance), open the body, and normalize the result. Alternatively, we could have
-            // added the definition to the context and normalized the body, but then we still would
-            // have had to decrement the indices corresponding to free variables in the body (e.g.,
-            // by opening).
+            // Eagerly normalize the definition, open the body, and normalize the result.
             normalize_beta(
                 open(
                     body.clone(),

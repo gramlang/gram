@@ -9,9 +9,6 @@ use std::rc::Rc;
 
 // Check if two terms are equal up to alpha conversion. Type annotations are not checked.
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
-    // Due to the catch-all case at the bottom of this `match`, the compiler will not complain if a
-    // new syntactic form is added and this `match` is not updated. Be sure to update it when
-    // adding new syntactic forms!
     match (&term1.variant, &term2.variant) {
         (Type, Type) => true,
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
@@ -28,7 +25,16 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
             syntactically_equal(&**definition1, &**definition2)
                 && syntactically_equal(&**body1, &**body2)
         }
-        _ => false,
+        (Variable(_, _), _)
+        | (_, Variable(_, _))
+        | (Lambda(_, _, _), _)
+        | (_, Lambda(_, _, _))
+        | (Pi(_, _, _), _)
+        | (_, Pi(_, _, _))
+        | (Application(_, _), _)
+        | (_, Application(_, _))
+        | (Let(_, _, _), _)
+        | (_, Let(_, _, _)) => false,
     }
 }
 
@@ -44,11 +50,7 @@ pub fn definitionally_equal<'a>(
         return true;
     }
 
-    // Reduce both terms to weak head normal form and recursively check for convertibility. Note
-    // that there is no case for lets because lets are never in weak head normal form. Due to the
-    // catch-all case at the bottom of this `match`, the compiler will not complain if a new
-    // syntactic form is added and this `match` is not updated. Be sure to update it when adding
-    // new syntactic forms!
+    // Reduce both terms to weak head normal form and recursively check for convertibility.
     match (
         &normalize_weak_head(term1, normalization_context).variant,
         &normalize_weak_head(term2, normalization_context).variant,
@@ -95,7 +97,17 @@ pub fn definitionally_equal<'a>(
                 normalization_context,
             ) && definitionally_equal(argument1.clone(), argument2.clone(), normalization_context)
         }
-        _ => false,
+        (Variable(_, _), _)
+        | (_, Variable(_, _))
+        | (Lambda(_, _, _), _)
+        | (_, Lambda(_, _, _))
+        | (Pi(_, _, _), _)
+        | (_, Pi(_, _, _))
+        | (Application(_, _), _)
+        | (_, Application(_, _)) => false,
+        (Let(_, _, _), _) | (_, Let(_, _, _)) => {
+            panic!("Encountered a let after conversion to weak head normal form.")
+        }
     }
 }
 
