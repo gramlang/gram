@@ -282,11 +282,11 @@ mod tests {
                 variant: Lambda(
                     "x",
                     Rc::new(Term {
-                        source_range: Some((6, 24)),
+                        source_range: Some((5, 24)),
                         group: true,
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((6, 21)),
+                                source_range: Some((5, 22)),
                                 group: true,
                                 variant: Lambda(
                                     "y",
@@ -310,11 +310,11 @@ mod tests {
                         ),
                     }),
                     Rc::new(Term {
-                        source_range: Some((30, 48)),
+                        source_range: Some((29, 48)),
                         group: true,
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((30, 45)),
+                                source_range: Some((29, 46)),
                                 group: true,
                                 variant: Lambda(
                                     "z",
@@ -359,11 +359,11 @@ mod tests {
                 variant: Pi(
                     "x",
                     Rc::new(Term {
-                        source_range: Some((6, 24)),
+                        source_range: Some((5, 24)),
                         group: true,
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((6, 21)),
+                                source_range: Some((5, 22)),
                                 group: true,
                                 variant: Lambda(
                                     "y",
@@ -387,11 +387,11 @@ mod tests {
                         ),
                     }),
                     Rc::new(Term {
-                        source_range: Some((30, 48)),
+                        source_range: Some((29, 48)),
                         group: true,
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((30, 45)),
+                                source_range: Some((29, 46)),
                                 group: true,
                                 variant: Lambda(
                                     "z",
@@ -431,7 +431,7 @@ mod tests {
         assert_eq!(
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
-                source_range: Some((2, 42)),
+                source_range: Some((0, 43)),
                 group: true,
                 variant: Application(
                     Rc::new(Term {
@@ -440,11 +440,11 @@ mod tests {
                         variant: Variable("y", 1),
                     }),
                     Rc::new(Term {
-                        source_range: Some((24, 42)),
+                        source_range: Some((23, 42)),
                         group: true,
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((24, 39)),
+                                source_range: Some((23, 40)),
                                 group: true,
                                 variant: Lambda(
                                     "z",
@@ -656,7 +656,7 @@ mod tests {
         assert_eq!(
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
-                source_range: Some((2, 42)),
+                source_range: Some((0, 43)),
                 group: true,
                 variant: Application(
                     Rc::new(Term {

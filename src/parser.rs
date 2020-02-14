@@ -1061,7 +1061,10 @@ fn parse_group<'a, 'b>(
         start,
         Some((
             Term {
-                source_range: term.source_range,
+                source_range: Some((
+                    tokens[start].source_range.0,
+                    tokens[next - 1].source_range.1
+                )),
                 group: true,
                 variant: term.variant,
             },
@@ -1513,7 +1516,7 @@ mod tests {
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 6)),
+                source_range: Some((0, 7)),
                 group: false,
                 variant: Application(
                     Rc::new(Term {
@@ -1579,7 +1582,7 @@ mod tests {
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((1, 2)),
+                source_range: Some((0, 3)),
                 group: true,
                 variant: Variable("x", 0),
             },
