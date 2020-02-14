@@ -3,6 +3,7 @@ use crate::{
     equality::definitionally_equal,
     error::{throw, Error},
     format::CodeStr,
+    normalizer::normalize_weak_head,
     term::{
         Term,
         Variant::{Application, Lambda, Let, Pi, Type, Variable},
@@ -228,8 +229,12 @@ pub fn type_check<'a>(
                 normalization_context,
             )?;
 
+            // Reduce the type of the applicand to weak head normal form.
+            let applicand_type_whnf =
+                normalize_weak_head(applicand_type.clone(), normalization_context);
+
             // Make sure the type of the applicand is a pi type.
-            let (domain, codomain) = if let Pi(_, domain, codomain) = &applicand_type.variant {
+            let (domain, codomain) = if let Pi(_, domain, codomain) = &applicand_type_whnf.variant {
                 (domain, codomain)
             } else {
                 return Err(if let Some(source_range) = applicand.source_range {
