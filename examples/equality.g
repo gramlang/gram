@@ -13,15 +13,16 @@
           eq a x y ->
           p y) =>
 
+# A helper function to check the type of a term
+prove = (a : type) => (x : a) => x;
+
 # A proof that propositional equality is symmetric
-eq_symm = (
-  (
-    eq_symm : (a : type) ->
-              (x : a) ->
-              (y : a) ->
-              eq a x y ->
-              eq a y x
-  ) => eq_symm
+eq_symm = prove (
+  (a : type) ->
+  (x : a) ->
+  (y : a) ->
+  eq a x y ->
+  eq a y x
 ) (
   (a : type) =>
   (x : a) =>
@@ -33,16 +34,14 @@ eq_symm = (
 );
 
 # A proof that propositional equality is transitive
-eq_trans = (
-  (
-    eq_trans : (a : type) ->
-               (x : a) ->
-               (y : a) ->
-               (z : a) ->
-               eq a x y ->
-               eq a y z ->
-               eq a x z
-  ) => eq_trans
+eq_trans = prove (
+  (a : type) ->
+  (x : a) ->
+  (y : a) ->
+  (z : a) ->
+  eq a x y ->
+  eq a y z ->
+  eq a x z
 ) (
   (a : type) =>
   (x : a) =>
