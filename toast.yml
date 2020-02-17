@@ -109,7 +109,20 @@ tasks:
       set -euo pipefail
       . $HOME/.cargo/env
       for file in examples/*.g; do
-        cargo run -- "$file"
+        echo "Running $file..."
+        if [ "$file" = 'examples/girard.g' ]; then
+          if timeout 5 cargo run -- "$file"; then
+            echo 'This example was supposed to time out.' >&2
+            exit 1
+          else
+            if [ "$?" -ne 124 ]; then
+              echo 'This example was supposed to time out.' >&2
+              exit 1
+            fi
+          fi
+        else
+          cargo run -- "$file"
+        fi
       done
 
   check:
