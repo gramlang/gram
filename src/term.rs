@@ -9,7 +9,6 @@ use std::{
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Term<'a> {
     pub source_range: Option<(usize, usize)>, // [start, end)
-    pub group: bool, // For an explanation of this field, see [ref:group-flag].
     pub variant: Variant<'a>,
 }
 
@@ -19,7 +18,7 @@ pub enum Variant<'a> {
     // This is the type of all types, including itself.
     Type,
 
-    // A variable is a placeholder bound by a lambda or a pi type. The integer is the De Bruijn
+    // A variable is a placeholder bound by a lambda, pi type, or let. The integer is the De Bruijn
     // index for the variable.
     Variable(&'a str, usize),
 
@@ -38,16 +37,7 @@ pub enum Variant<'a> {
 
 impl<'a> Display for Term<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        if self.group {
-            write!(f, "(")?;
-        }
-
-        write!(f, "{}", self.variant)?;
-
-        if self.group {
-            write!(f, ")")?;
-        }
-
+        write!(f, "({})", self.variant)?;
         Ok(())
     }
 }
@@ -78,6 +68,5 @@ impl<'a> Display for Variant<'a> {
 // Construct the type of all types once here rather than constructing it many times later.
 pub const TYPE_TERM: Term = Term {
     source_range: None,
-    group: false,
     variant: Variant::Type,
 };

@@ -25,18 +25,10 @@ pub fn normalize_weak_head<'a>(
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
-                    let normalized_shifted_definition = normalize_weak_head(
+                    normalize_weak_head(
                         shift(definition.clone(), 0, *index + 1),
                         normalization_context,
-                    );
-
-                    // Turn on the `group` flag to ensure it parses correctly in whatever term
-                    // surrounds it.
-                    Rc::new(Term {
-                        source_range: normalized_shifted_definition.source_range,
-                        group: true,
-                        variant: normalized_shifted_definition.variant.clone(),
-                    })
+                    )
                 }
                 None => {
                     // The variable doesn't have a definition. Just return it as a "neutral term".
@@ -60,7 +52,6 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get a lambda. We're done here.
                 Rc::new(Term {
                     source_range: term.source_range,
-                    group: true,
                     variant: Application(normalized_applicand, argument.clone()),
                 })
             }
@@ -93,18 +84,10 @@ pub fn normalize_beta<'a>(
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
-                    let normalized_shifted_definition = normalize_beta(
+                    normalize_beta(
                         shift(definition.clone(), 0, *index + 1),
                         normalization_context,
-                    );
-
-                    // Turn on the `group` flag to ensure it parses correctly in whatever term
-                    // surrounds it.
-                    Rc::new(Term {
-                        source_range: normalized_shifted_definition.source_range,
-                        group: true,
-                        variant: normalized_shifted_definition.variant.clone(),
-                    })
+                    )
                 }
                 None => {
                     // The variable doesn't have a definition. Just return it as a "neutral term".
@@ -128,7 +111,6 @@ pub fn normalize_beta<'a>(
             // Construct and return the normalized lambda.
             Rc::new(Term {
                 source_range: term.source_range,
-                group: true,
                 variant: Lambda(variable, normalized_domain, normalized_body),
             })
         }
@@ -149,7 +131,6 @@ pub fn normalize_beta<'a>(
             // Construct and return the normalized pi type.
             Rc::new(Term {
                 source_range: term.source_range,
-                group: true,
                 variant: Pi(variable, normalized_domain, normalized_codomain),
             })
         }
@@ -171,7 +152,6 @@ pub fn normalize_beta<'a>(
                 // We didn't get a lambda. We're done here.
                 Rc::new(Term {
                     source_range: term.source_range,
-                    group: true,
                     variant: Application(normalized_applicand, normalized_argument),
                 })
             }
@@ -217,7 +197,6 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, TYPE_KEYWORD.len())),
-                group: false,
                 variant: Type,
             },
         );
@@ -236,7 +215,6 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 1)),
-                group: false,
                 variant: Variable("x", 0),
             },
         );
@@ -247,7 +225,6 @@ mod tests {
         let parsing_context = ["x"];
         let mut normalization_context = vec![Some(Rc::new(Term {
             source_range: None,
-            group: false,
             variant: Type,
         }))];
         let source = "x";
@@ -259,7 +236,6 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: None,
-                group: true,
                 variant: Type,
             },
         );
@@ -278,61 +254,50 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 48)),
-                group: false,
                 variant: Lambda(
                     "x",
                     Rc::new(Term {
                         source_range: Some((5, 24)),
-                        group: true,
                         variant: Application(
                             Rc::new(Term {
                                 source_range: Some((5, 22)),
-                                group: true,
                                 variant: Lambda(
                                     "y",
                                     Rc::new(Term {
                                         source_range: Some((11, 15)),
-                                        group: false,
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((20, 21)),
-                                        group: false,
                                         variant: Variable("y", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((23, 24)),
-                                group: false,
                                 variant: Variable("p", 1),
                             }),
                         ),
                     }),
                     Rc::new(Term {
                         source_range: Some((29, 48)),
-                        group: true,
                         variant: Application(
                             Rc::new(Term {
                                 source_range: Some((29, 46)),
-                                group: true,
                                 variant: Lambda(
                                     "z",
                                     Rc::new(Term {
                                         source_range: Some((35, 39)),
-                                        group: false,
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((44, 45)),
-                                        group: false,
                                         variant: Variable("z", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((47, 48)),
-                                group: false,
                                 variant: Variable("q", 1),
                             }),
                         ),
@@ -355,61 +320,50 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 48)),
-                group: false,
                 variant: Pi(
                     "x",
                     Rc::new(Term {
                         source_range: Some((5, 24)),
-                        group: true,
                         variant: Application(
                             Rc::new(Term {
                                 source_range: Some((5, 22)),
-                                group: true,
                                 variant: Lambda(
                                     "y",
                                     Rc::new(Term {
                                         source_range: Some((11, 15)),
-                                        group: false,
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((20, 21)),
-                                        group: false,
                                         variant: Variable("y", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((23, 24)),
-                                group: false,
                                 variant: Variable("p", 1),
                             }),
                         ),
                     }),
                     Rc::new(Term {
                         source_range: Some((29, 48)),
-                        group: true,
                         variant: Application(
                             Rc::new(Term {
                                 source_range: Some((29, 46)),
-                                group: true,
                                 variant: Lambda(
                                     "z",
                                     Rc::new(Term {
                                         source_range: Some((35, 39)),
-                                        group: false,
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((44, 45)),
-                                        group: false,
                                         variant: Variable("z", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((47, 48)),
-                                group: false,
                                 variant: Variable("q", 1),
                             }),
                         ),
@@ -432,37 +386,30 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 43)),
-                group: true,
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((19, 20)),
-                        group: true,
                         variant: Variable("y", 1),
                     }),
                     Rc::new(Term {
                         source_range: Some((23, 42)),
-                        group: true,
                         variant: Application(
                             Rc::new(Term {
                                 source_range: Some((23, 40)),
-                                group: true,
                                 variant: Lambda(
                                     "z",
                                     Rc::new(Term {
                                         source_range: Some((29, 33)),
-                                        group: false,
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((38, 39)),
-                                        group: false,
                                         variant: Variable("z", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((41, 42)),
-                                group: false,
                                 variant: Variable("w", 0),
                             }),
                         ),
@@ -485,7 +432,6 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((18, 19)),
-                group: true,
                 variant: Variable("y", 0),
             },
         );
@@ -504,16 +450,13 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((10, 13)),
-                group: true,
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((4, 8)),
-                        group: true,
                         variant: Type,
                     }),
                     Rc::new(Term {
                         source_range: Some((12, 13)),
-                        group: false,
                         variant: Variable("y", 0),
                     }),
                 ),
@@ -534,7 +477,6 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, TYPE_KEYWORD.len())),
-                group: false,
                 variant: Type,
             },
         );
@@ -553,7 +495,6 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 1)),
-                group: false,
                 variant: Variable("x", 0),
             },
         );
@@ -564,7 +505,6 @@ mod tests {
         let parsing_context = ["x"];
         let mut normalization_context = vec![Some(Rc::new(Term {
             source_range: None,
-            group: false,
             variant: Type,
         }))];
         let source = "x";
@@ -576,7 +516,6 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: None,
-                group: true,
                 variant: Type
             },
         );
@@ -595,17 +534,14 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 48)),
-                group: true,
                 variant: Lambda(
                     "x",
                     Rc::new(Term {
                         source_range: Some((23, 24)),
-                        group: true,
                         variant: Variable("p", 1),
                     }),
                     Rc::new(Term {
                         source_range: Some((47, 48)),
-                        group: true,
                         variant: Variable("q", 1),
                     }),
                 ),
@@ -626,17 +562,14 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 48)),
-                group: true,
                 variant: Pi(
                     "x",
                     Rc::new(Term {
                         source_range: Some((23, 24)),
-                        group: true,
                         variant: Variable("p", 1),
                     }),
                     Rc::new(Term {
                         source_range: Some((47, 48)),
-                        group: true,
                         variant: Variable("q", 1),
                     }),
                 ),
@@ -657,16 +590,13 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 43)),
-                group: true,
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((19, 20)),
-                        group: true,
                         variant: Variable("y", 1),
                     }),
                     Rc::new(Term {
                         source_range: Some((41, 42)),
-                        group: true,
                         variant: Variable("w", 0),
                     }),
                 ),
@@ -687,7 +617,6 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((18, 19)),
-                group: true,
                 variant: Variable("y", 0),
             },
         );
@@ -706,16 +635,13 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((10, 13)),
-                group: true,
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((4, 8)),
-                        group: true,
                         variant: Type,
                     }),
                     Rc::new(Term {
                         source_range: Some((12, 13)),
-                        group: false,
                         variant: Variable("y", 0),
                     }),
                 ),
