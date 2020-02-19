@@ -113,8 +113,7 @@ type CacheResult<'a, 'b> = Option<(Term<'a>, usize)>;
 type Cache<'a, 'b> = HashMap<CacheKey, CacheResult<'a, 'b>>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
-// return early on cache hit. This macro also updates the `$error` such that it occurs at `$start`
-// or later.
+// return early on cache hit.
 macro_rules! cache_check {
     ($cache:ident, $type:ident, $start:expr, $error:ident $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
@@ -124,11 +123,6 @@ macro_rules! cache_check {
         // Do the cache lookup.
         if let Some(result) = $cache.get(&(CacheType::$type, start)) {
             return (*result).clone();
-        }
-
-        // Update the error if necessary to record that we've at least seen the `$start` token.
-        if start > $error.1 {
-            *$error = (None, start);
         }
     }};
 }
@@ -688,7 +682,7 @@ fn parse_term<'a, 'b>(
     // Try to parse a non-dependent pi type.
     try_return!(
         cache,
-        NonDependentPi,
+        Term,
         start,
         parse_non_dependent_pi(cache, tokens, start, error),
     );
@@ -696,53 +690,38 @@ fn parse_term<'a, 'b>(
     // Try to parse an application.
     try_return!(
         cache,
-        Application,
+        Term,
         start,
         parse_application(cache, tokens, start, error),
     );
 
     // Try to parse a let.
-    try_return!(
-        cache,
-        Application,
-        start,
-        parse_let(cache, tokens, start, error),
-    );
+    try_return!(cache, Term, start, parse_let(cache, tokens, start, error),);
 
     // Try to parse the type of all types.
-    try_return!(cache, Type, start, parse_type(cache, tokens, start, error));
+    try_return!(cache, Term, start, parse_type(cache, tokens, start, error));
 
     // Try to parse a variable.
     try_return!(
         cache,
-        Application,
+        Term,
         start,
         parse_variable(cache, tokens, start, error),
     );
 
     // Try to parse a pi type.
-    try_return!(
-        cache,
-        Application,
-        start,
-        parse_pi(cache, tokens, start, error),
-    );
+    try_return!(cache, Term, start, parse_pi(cache, tokens, start, error),);
 
     // Try to parse a lambda.
     try_return!(
         cache,
-        Application,
+        Term,
         start,
         parse_lambda(cache, tokens, start, error),
     );
 
     // Try to parse a group.
-    try_return!(
-        cache,
-        Application,
-        start,
-        parse_group(cache, tokens, start, error),
-    );
+    try_return!(cache, Term, start, parse_group(cache, tokens, start, error),);
 
     // If we made it this far, the parse failed.
     cache_return!(cache, Term, start, None)
@@ -968,7 +947,7 @@ fn parse_application<'a, 'b>(
     // Parse the argument.
     let (argument, next) = try_eval!(
         cache,
-        NonArrowTerm,
+        Application,
         start,
         parse_non_arrow_term(cache, tokens, next, error),
     );
@@ -1079,7 +1058,12 @@ fn parse_applicand<'a, 'b>(
     cache_check!(cache, Applicand, start, error);
 
     // Try to parse the type of all types.
-    try_return!(cache, Type, start, parse_type(cache, tokens, start, error));
+    try_return!(
+        cache,
+        Applicand,
+        start,
+        parse_type(cache, tokens, start, error)
+    );
 
     // Try to parse a variable.
     try_return!(
@@ -1114,7 +1098,7 @@ fn parse_non_arrow_term<'a, 'b>(
     // Try to parse an application.
     try_return!(
         cache,
-        Application,
+        NonArrowTerm,
         start,
         parse_application(cache, tokens, start, error),
     );
