@@ -1008,8 +1008,8 @@ fn parse_let<'a, 'b>(
     // Parse the definition.
     let (definition, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error),);
 
-    // Consume the semicolon.
-    let next = consume_token!(cache, Let, start, tokens, Semicolon, next, error);
+    // Consume the terminator.
+    let next = consume_token!(cache, Let, start, tokens, Terminator, next, error);
 
     // Parse the body.
     let (body, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));

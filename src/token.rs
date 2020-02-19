@@ -17,9 +17,9 @@ pub struct Token<'a> {
 pub enum Variant<'a> {
     Colon,
     Equals,
-    Semicolon,
     LeftParen,
     RightParen,
+    Terminator,
     ThickArrow,
     ThinArrow,
     Type,
@@ -37,9 +37,9 @@ impl<'a> Display for Variant<'a> {
         match self {
             Self::Colon => write!(f, ":"),
             Self::Equals => write!(f, "="),
-            Self::Semicolon => write!(f, ";"),
             Self::LeftParen => write!(f, "("),
             Self::RightParen => write!(f, ")"),
+            Self::Terminator => write!(f, "\\n"),
             Self::ThickArrow => write!(f, "=>"),
             Self::ThinArrow => write!(f, "->"),
             Self::Type => write!(f, "{}", TYPE_KEYWORD),

@@ -6,37 +6,33 @@
 #   and Applications (TLCA ’95). Springer-Verlag, Berlin, Heidelberg, 266–278.
 
 # The cast of characters in our story
-false = (p : type) -> p;
-negate = (phi : type) => phi -> false;
-power = (S : type) => S -> type;
-U = (X : type) -> ((power (power X) -> X) -> power (power X));
+false = (p : type) -> p
+negate = (phi : type) => phi -> false
+power = (S : type) => S -> type
+universe = (X : type) -> ((power (power X) -> X) -> power (power X))
 tau =
-  (t : power (power U)) =>
+  (t : power (power universe)) =>
     (X : type) =>
       (f : power (power X) -> X) =>
         (p : power X) =>
-          t ((x : U) => p (f (x X f)));
-sigma = (s : U) => s U ((t : power (power U)) => tau t);
-Delta = (y : U) => negate ((p : power U) -> sigma y p -> p (tau (sigma y)));
-Omega = tau ((p : power U) => (x : U) -> sigma x p -> p x);
+          t ((x : universe) => p (f (x X f)))
+sigma = (s : universe) => s universe ((t : power (power universe)) => tau t)
+delta = (y : universe) => negate ((p : power universe) -> sigma y p -> p (tau (sigma y)))
+omega = tau ((p : power universe) => (x : universe) -> sigma x p -> p x)
 
 # Let the fun begin!
 (
-  (zero : (p : power U) -> ((x : U) -> sigma x p -> p x) -> p Omega) =>
+  (zero : (p : power universe) -> ((x : universe) -> sigma x p -> p x) -> p omega) =>
     (
-      zero
-      Delta
-      (
-        (x : U) =>
-          (two : sigma x Delta) =>
-            (three : (p : power U) -> sigma x p -> p (tau (sigma x))) =>
-              three Delta two ((p : power U) => three ((y : U) => p (tau (sigma y))))
+      zero delta (
+        (x : universe) =>
+          (two : sigma x delta) =>
+            (three : (p : power universe) -> sigma x p -> p (tau (sigma x))) =>
+              three delta two ((p : power universe) => three ((y : universe) => p (tau (sigma y))))
       )
-    )
-    ((p : power U) => zero ((y : U) => p (tau (sigma y))))
-)
-(
-  (p : power U) =>
-    (one : (x : U) -> sigma x p -> p x) =>
-      one Omega ((x : U) => one (tau (sigma x)))
+    ) ((p : power universe) => zero ((y : universe) => p (tau (sigma y))))
+) (
+  (p : power universe) =>
+    (one : (x : universe) -> sigma x p -> p x) =>
+      one omega ((x : universe) => one (tau (sigma x)))
 )

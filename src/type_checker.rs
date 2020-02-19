@@ -570,11 +570,10 @@ mod tests {
         ];
         let mut normalization_context = vec![None, None];
         let term_source = "
-          ((a : type) => (P: (x : a) -> type) => (f : (x : a) -> P x) => (x : a) => f x)
-            (((t : type) => t) int)
-              ((x : int) => int)
-                ((x : int) => x)
-                  y
+          ((a : type) => (P: (x : a) -> type) => (f : (x : a) -> P x) => (x : a) => f x) (
+            ((t : type) => t) int) (
+              (x : int) => int) (
+                (x : int) => x) y
         ";
         let type_source = "(((x : int) => int) (y))";
 

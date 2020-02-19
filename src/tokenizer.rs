@@ -35,12 +35,6 @@ pub fn tokenize<'a>(
                     variant: Variant::Equals,
                 });
             }
-            ';' => {
-                tokens.push(Token {
-                    source_range: (i, i + 1),
-                    variant: Variant::Semicolon,
-                });
-            }
             '(' => {
                 tokens.push(Token {
                     source_range: (i, i + 1),
@@ -52,6 +46,31 @@ pub fn tokenize<'a>(
                     source_range: (i, i + 1),
                     variant: Variant::RightParen,
                 });
+            }
+            ';' => {
+                tokens.push(Token {
+                    source_range: (i, i + 1),
+                    variant: Variant::Terminator,
+                });
+            }
+            '\n' => {
+                // [tag:line-break] [tag:tokens_nonempty]
+                if !tokens.is_empty()
+                    && match tokens.last().unwrap().variant /* [ref:tokens_nonempty] */ {
+                        Variant::Colon
+                        | Variant::Equals
+                        | Variant::LeftParen
+                        | Variant::Terminator
+                        | Variant::ThickArrow
+                        | Variant::ThinArrow => false,
+                        Variant::RightParen | Variant::Type | Variant::Identifier(_) => true,
+                    }
+                {
+                    tokens.push(Token {
+                        source_range: (i, i + 1),
+                        variant: Variant::Terminator,
+                    });
+                }
             }
             '=' if iter.peek() == Some(&(i + 1, '>')) => {
                 iter.next();
@@ -96,13 +115,13 @@ pub fn tokenize<'a>(
                 }
             }
 
-            // Skip whitespace.
+            // Skip whitespace. Note that line breaks are handled above [ref:line-break].
             _ if c.is_whitespace() => continue,
 
-            // Skip comments.
+            // Skip comments. Don't skip the terminating line break, if it exists [ref:line-break].
             '#' => {
-                for (_, d) in &mut iter {
-                    if d == '\n' {
+                while let Some((j, _)) = iter.next() {
+                    if iter.peek() == Some(&(j + 1, '\n')) {
                         break;
                     }
                 }
@@ -123,8 +142,31 @@ pub fn tokenize<'a>(
         }
     }
 
+    // Remove trailing terminators and terminators before certain token types.
+    let mut filtered_tokens = vec![];
+    let mut tokens_iter = tokens.iter().peekable();
+    while let Some(token) = tokens_iter.next() {
+        if token.variant == Variant::Terminator {
+            if let Some(next_token) = tokens_iter.peek() {
+                if match next_token.variant {
+                    Variant::Colon
+                    | Variant::Equals
+                    | Variant::Terminator
+                    | Variant::ThickArrow
+                    | Variant::ThinArrow
+                    | Variant::RightParen => false,
+                    Variant::LeftParen | Variant::Type | Variant::Identifier(_) => true,
+                } {
+                    filtered_tokens.push(token.clone());
+                }
+            }
+        } else {
+            filtered_tokens.push(token.clone());
+        }
+    }
+
     // If we made it this far, we've successfully tokenized the input.
-    Ok(tokens)
+    Ok(filtered_tokens)
 }
 
 #[cfg(test)]
@@ -168,13 +210,23 @@ mod tests {
     }
 
     #[test]
-    fn tokenize_semicolon() {
+    fn tokenize_terminator() {
         assert_eq!(
-            tokenize(None, ";").unwrap(),
-            vec![Token {
-                source_range: (0, 1),
-                variant: Variant::Semicolon,
-            }],
+            tokenize(None, "type\ntype\n").unwrap(),
+            vec![
+                Token {
+                    source_range: (0, TYPE_KEYWORD.len()),
+                    variant: Variant::Type,
+                },
+                Token {
+                    source_range: (TYPE_KEYWORD.len(), TYPE_KEYWORD.len() + 1),
+                    variant: Variant::Terminator,
+                },
+                Token {
+                    source_range: (TYPE_KEYWORD.len() + 1, TYPE_KEYWORD.len() * 2 + 1),
+                    variant: Variant::Type,
+                },
+            ],
         );
     }
 

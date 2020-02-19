@@ -23,9 +23,9 @@
 
 %token COLON
 %token EQUALS
-%token SEMICOLON
 %token LEFT_PAREN
 %token RIGHT_PAREN
+%token TERMINATOR
 %token THICK_ARROW
 %token THIN_ARROW
 %token TYPE
@@ -42,7 +42,7 @@ term:
   LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THIN_ARROW term |
   LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THICK_ARROW term |
   application |
-  IDENTIFIER EQUALS term SEMICOLON term |
+  IDENTIFIER EQUALS term TERMINATOR term |
   LEFT_PAREN term RIGHT_PAREN ;
 
 application:
