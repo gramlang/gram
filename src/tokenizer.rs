@@ -146,7 +146,9 @@ pub fn tokenize<'a>(
     let mut filtered_tokens = vec![];
     let mut tokens_iter = tokens.iter().peekable();
     while let Some(token) = tokens_iter.next() {
-        if token.variant == Variant::Terminator {
+        if token.variant == Variant::Terminator
+            && &source_contents[token.source_range.0..token.source_range.1] == "\n"
+        {
             if let Some(next_token) = tokens_iter.peek() {
                 if match next_token.variant {
                     Variant::Colon
