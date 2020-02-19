@@ -710,7 +710,7 @@ fn parse_term<'a, 'b>(
     );
 
     // Try to parse the type of all types.
-    try_return!(cache, Type, start, parse_type(cache, tokens, start, error),);
+    try_return!(cache, Type, start, parse_type(cache, tokens, start, error));
 
     // Try to parse a variable.
     try_return!(
@@ -873,7 +873,7 @@ fn parse_pi<'a, 'b>(
     let next = consume_token!(cache, Pi, start, tokens, Colon, next, error);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(cache, Pi, start, parse_term(cache, tokens, next, error),);
+    let (domain, next) = try_eval!(cache, Pi, start, parse_term(cache, tokens, next, error));
 
     // Consume the right parenthesis.
     let next = consume_token!(cache, Pi, start, tokens, RightParen, next, error);
@@ -920,7 +920,7 @@ fn parse_lambda<'a, 'b>(
     let next = consume_token!(cache, Lambda, start, tokens, Colon, next, error);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(cache, Lambda, start, parse_term(cache, tokens, next, error),);
+    let (domain, next) = try_eval!(cache, Lambda, start, parse_term(cache, tokens, next, error));
 
     // Consume the right parenthesis.
     let next = consume_token!(cache, Lambda, start, tokens, RightParen, next, error);
@@ -1006,7 +1006,7 @@ fn parse_let<'a, 'b>(
     let next = consume_token!(cache, Let, start, tokens, Equals, next, error);
 
     // Parse the definition.
-    let (definition, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error),);
+    let (definition, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
 
     // Consume the terminator.
     let next = consume_token!(cache, Let, start, tokens, Terminator, next, error);
@@ -1044,7 +1044,7 @@ fn parse_group<'a, 'b>(
     let next = consume_token!(cache, Group, start, tokens, LeftParen, start, error);
 
     // Parse the inner term.
-    let (term, next) = try_eval!(cache, Group, start, parse_term(cache, tokens, next, error),);
+    let (term, next) = try_eval!(cache, Group, start, parse_term(cache, tokens, next, error));
 
     // Consume the right parenthesis.
     let next = consume_token!(cache, Group, start, tokens, RightParen, next, error);
@@ -1079,7 +1079,7 @@ fn parse_applicand<'a, 'b>(
     cache_check!(cache, Applicand, start, error);
 
     // Try to parse the type of all types.
-    try_return!(cache, Type, start, parse_type(cache, tokens, start, error),);
+    try_return!(cache, Type, start, parse_type(cache, tokens, start, error));
 
     // Try to parse a variable.
     try_return!(
@@ -1120,7 +1120,7 @@ fn parse_non_arrow_term<'a, 'b>(
     );
 
     // Try to parse the type of all types.
-    try_return!(cache, Type, start, parse_type(cache, tokens, start, error),);
+    try_return!(cache, Type, start, parse_type(cache, tokens, start, error));
 
     // Try to parse a variable.
     try_return!(
