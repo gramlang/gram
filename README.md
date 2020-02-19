@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.org/gramlang/gram.svg?branch=master)](https://travis-ci.org/gramlang/gram)
 
-[Gram](https://www.gram.org) is a high-level programming language.
+[Gram](https://www.gram.org) is a programming language for distributed systems.
 
 ## Installation
 

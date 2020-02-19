@@ -49,8 +49,8 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
         .about("")
         .about(
             " \
-             Gram is high-level programming language. Visit https://www.gram.org for more \
-             information. \
+             Gram is programming language for distributed systems. Visit https://www.gram.org for \
+             more information. \
              "
             .trim(),
         )
