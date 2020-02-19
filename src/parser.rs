@@ -696,7 +696,7 @@ fn parse_term<'a, 'b>(
     );
 
     // Try to parse a let.
-    try_return!(cache, Term, start, parse_let(cache, tokens, start, error),);
+    try_return!(cache, Term, start, parse_let(cache, tokens, start, error));
 
     // Try to parse the type of all types.
     try_return!(cache, Term, start, parse_type(cache, tokens, start, error));
@@ -710,7 +710,7 @@ fn parse_term<'a, 'b>(
     );
 
     // Try to parse a pi type.
-    try_return!(cache, Term, start, parse_pi(cache, tokens, start, error),);
+    try_return!(cache, Term, start, parse_pi(cache, tokens, start, error));
 
     // Try to parse a lambda.
     try_return!(
@@ -721,7 +721,7 @@ fn parse_term<'a, 'b>(
     );
 
     // Try to parse a group.
-    try_return!(cache, Term, start, parse_group(cache, tokens, start, error),);
+    try_return!(cache, Term, start, parse_group(cache, tokens, start, error));
 
     // If we made it this far, the parse failed.
     cache_return!(cache, Term, start, None)
