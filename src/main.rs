@@ -20,7 +20,7 @@ use crate::{
 use atty::Stream;
 use clap::{
     App,
-    AppSettings::{ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
+    AppSettings::{ArgRequiredElseHelp, ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
     Arg, Shell, SubCommand,
 };
 use std::{fs::read_to_string, io::stdout, path::Path, process::exit, rc::Rc};
@@ -38,9 +38,6 @@ const SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION: &str = "shell-completion-shell";
 const RUN_SUBCOMMAND: &str = "run";
 const RUN_SUBCOMMAND_PATH_OPTION: &str = "run-path";
 
-// The default path to the entrypoint.
-const DEFAULT_ENTRYPOINT_PATH: &str = "main.g";
-
 // Set up the command-line interface.
 fn cli<'a, 'b>() -> App<'a, 'b> {
     App::new("Gram")
@@ -53,6 +50,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
              "
             .trim(),
         )
+        .setting(ArgRequiredElseHelp) // [tag:arg_required_else_help]
         .setting(ColoredHelp)
         .setting(UnifiedHelpMessage)
         .setting(VersionlessSubcommands)
@@ -70,6 +68,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                     Arg::with_name(RUN_SUBCOMMAND_PATH_OPTION)
                         .value_name("PATH")
                         .help("Sets the path of the program entrypoint")
+                        .required(true) // [tag:run-subcommand-shell-required]
                         .takes_value(true)
                         .number_of_values(1),
                 ),
@@ -180,7 +179,7 @@ fn entry() -> Result<(), Error> {
                         .subcommand_matches(RUN_SUBCOMMAND)
                         .unwrap() // [ref:run-subcommand]
                         .value_of(RUN_SUBCOMMAND_PATH_OPTION)
-                        .unwrap_or(DEFAULT_ENTRYPOINT_PATH),
+                        .unwrap(), // [ref:run-subcommand-shell-required]
                 );
 
                 // Run the program.
@@ -202,8 +201,9 @@ fn entry() -> Result<(), Error> {
             // above.
             Some(_) => panic!("Subcommand not implemented."),
 
-            // If no path or subcommand was provided, look for a program at the default path.
-            None => run(Path::new(DEFAULT_ENTRYPOINT_PATH))?,
+            // If no path or subcommand was provided, the help message should have been printed
+            // [ref:arg_required_else_help].
+            None => panic!("The help message should have been printed."),
         }
     }
 
