@@ -2,7 +2,7 @@ use crate::{
     error::{throw, Error},
     format::CodeStr,
     term,
-    token::{self, Token},
+    token::{self, TerminatorType, Token},
 };
 use scopeguard::defer;
 use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
@@ -238,6 +238,83 @@ macro_rules! consume_token {
                             &format!(
                                 "Expected {} but encountered {}.",
                                 token::Variant::$variant.to_string().code_str(),
+                                tokens[next].to_string().code_str(),
+                            ),
+                            source_path,
+                            source_contents,
+                            tokens[next].source_range,
+                        )
+                    }) as ErrorFactory),
+                    next,
+                    ErrorConfidenceLevel::$confidence,
+                );
+            }
+
+            cache_return!($cache, $type, start, None)
+        }
+    }};
+}
+
+// This macro consumes a single terminator token and evaluates to the position of the next token.
+// This is similar to the `consume_token!` macro above, except that macro doesn't work for
+// terminator tokens since the terminator variant constructor takes an argument.
+macro_rules! consume_terminator {
+    (
+        $cache:ident,
+        $type:ident,
+        $start:expr,
+        $tokens:expr,
+        $next:expr,
+        $error:ident,
+        $confidence:ident $(,)?
+    ) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let start = $start;
+        let tokens = $tokens;
+        let next = $next;
+
+        // Fail if there are no more tokens to parse.
+        if next == tokens.len() {
+            if next > $error.1 || (next == $error.1 && ErrorConfidenceLevel::$confidence > $error.2)
+            {
+                *$error = (
+                    Some(Rc::new(move |source_path, source_contents| {
+                        throw(
+                            &format!(
+                                "Expected {} after {}.",
+                                token::Variant::Terminator(TerminatorType::Semicolon)
+                                    .to_string()
+                                    .code_str(),
+                                tokens[next - 1].to_string().code_str(),
+                            ),
+                            source_path,
+                            source_contents,
+                            tokens[next - 1].source_range,
+                        )
+                    }) as ErrorFactory),
+                    next,
+                    ErrorConfidenceLevel::$confidence,
+                );
+            }
+
+            cache_return!($cache, $type, start, None)
+        }
+
+        // Check if the token was the expected one.
+        if let token::Variant::Terminator(_) = tokens[next].variant {
+            next + 1
+        } else {
+            if next > $error.1 || (next == $error.1 && ErrorConfidenceLevel::$confidence > $error.2)
+            {
+                *$error = (
+                    Some(Rc::new(move |source_path, source_contents| {
+                        throw(
+                            &format!(
+                                "Expected {} but encountered {}.",
+                                token::Variant::Terminator(TerminatorType::Semicolon)
+                                    .to_string()
+                                    .code_str(),
                                 tokens[next].to_string().code_str(),
                             ),
                             source_path,
@@ -1034,7 +1111,7 @@ fn parse_let<'a, 'b>(
     let (definition, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
 
     // Consume the terminator.
-    let next = consume_token!(cache, Let, start, tokens, Terminator, next, error, High);
+    let next = consume_terminator!(cache, Let, start, tokens, next, error, High);
 
     // Parse the body.
     let (body, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));

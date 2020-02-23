@@ -19,11 +19,19 @@ pub enum Variant<'a> {
     Equals,
     LeftParen,
     RightParen,
-    Terminator,
+    Terminator(TerminatorType),
     ThickArrow,
     ThinArrow,
     Type,
     Identifier(&'a str),
+}
+
+// A terminator can be a line break or a semicolon. Note that not every line break is parsed as a
+// terminator, however.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum TerminatorType {
+    LineBreak,
+    Semicolon,
 }
 
 impl<'a> Display for Token<'a> {
@@ -39,7 +47,8 @@ impl<'a> Display for Variant<'a> {
             Self::Equals => write!(f, "="),
             Self::LeftParen => write!(f, "("),
             Self::RightParen => write!(f, ")"),
-            Self::Terminator => write!(f, "; or \\n"),
+            Self::Terminator(TerminatorType::LineBreak) => write!(f, "\\n"),
+            Self::Terminator(TerminatorType::Semicolon) => write!(f, ";"),
             Self::ThickArrow => write!(f, "=>"),
             Self::ThinArrow => write!(f, "->"),
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
