@@ -1,7 +1,7 @@
 use crate::{
     error::{throw, Error},
     format::CodeStr,
-    token::{Token, Variant, TYPE_KEYWORD},
+    token::{TerminatorType, Token, Variant, TYPE_KEYWORD},
 };
 use std::path::Path;
 
@@ -50,7 +50,7 @@ pub fn tokenize<'a>(
             ';' => {
                 tokens.push(Token {
                     source_range: (i, i + 1),
-                    variant: Variant::Terminator,
+                    variant: Variant::Terminator(TerminatorType::Semicolon),
                 });
             }
             '\n' => {
@@ -60,15 +60,18 @@ pub fn tokenize<'a>(
                         Variant::Colon
                         | Variant::Equals
                         | Variant::LeftParen
-                        | Variant::Terminator
+                        | Variant::Terminator(TerminatorType::LineBreak) /* [tag:no_consecutive_line_break_terminators] */
                         | Variant::ThickArrow
                         | Variant::ThinArrow => false,
-                        Variant::RightParen | Variant::Type | Variant::Identifier(_) => true,
+                        Variant::RightParen
+                        | Variant::Terminator(TerminatorType::Semicolon)
+                        | Variant::Type
+                        | Variant::Identifier(_) => true,
                     }
                 {
                     tokens.push(Token {
                         source_range: (i, i + 1),
-                        variant: Variant::Terminator,
+                        variant: Variant::Terminator(TerminatorType::LineBreak),
                     });
                 }
             }
@@ -142,22 +145,26 @@ pub fn tokenize<'a>(
         }
     }
 
-    // Remove trailing terminators and terminators before certain token types.
+    // Remove trailing line break terminators and line break terminators before certain token types.
     let mut filtered_tokens = vec![];
     let mut tokens_iter = tokens.iter().peekable();
     while let Some(token) = tokens_iter.next() {
-        if token.variant == Variant::Terminator
-            && &source_contents[token.source_range.0..token.source_range.1] == "\n"
-        {
+        if token.variant == Variant::Terminator(TerminatorType::LineBreak) {
             if let Some(next_token) = tokens_iter.peek() {
                 if match next_token.variant {
                     Variant::Colon
                     | Variant::Equals
-                    | Variant::Terminator
                     | Variant::ThickArrow
                     | Variant::ThinArrow
                     | Variant::RightParen => false,
-                    Variant::LeftParen | Variant::Type | Variant::Identifier(_) => true,
+                    Variant::LeftParen
+                    | Variant::Terminator(TerminatorType::Semicolon)
+                    | Variant::Type
+                    | Variant::Identifier(_) => true,
+                    Variant::Terminator(TerminatorType::LineBreak) => {
+                        // [ref:no_consecutive_line_break_terminators]
+                        panic!("Two consecutive line break terminators were found.");
+                    }
                 } {
                     filtered_tokens.push(token.clone());
                 }
@@ -175,7 +182,7 @@ pub fn tokenize<'a>(
 mod tests {
     use crate::{
         assert_fails,
-        token::{Token, Variant, TYPE_KEYWORD},
+        token::{TerminatorType, Token, Variant, TYPE_KEYWORD},
         tokenizer::tokenize,
     };
 
@@ -222,7 +229,7 @@ mod tests {
                 },
                 Token {
                     source_range: (TYPE_KEYWORD.len(), TYPE_KEYWORD.len() + 1),
-                    variant: Variant::Terminator,
+                    variant: Variant::Terminator(TerminatorType::LineBreak),
                 },
                 Token {
                     source_range: (TYPE_KEYWORD.len() + 1, TYPE_KEYWORD.len() * 2 + 1),
