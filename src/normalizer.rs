@@ -8,8 +8,7 @@ use crate::{
 use std::{convert::TryFrom, rc::Rc};
 
 // This function reduces a term to weak head normal form using normal order reduction.
-// Invariant:
-// - When this function is finished, the context is left unmodified.
+// Invariant: When this function is finished, the context is left unmodified.
 pub fn normalize_weak_head<'a>(
     term: Rc<Term<'a>>,
     normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
@@ -23,15 +22,12 @@ pub fn normalize_weak_head<'a>(
             // Look up the definition in the context. Here we rely on the invariant that `index` is
             // non-negative (otherwise the program will panic).
             match &normalization_context
-                [normalization_context.len() - 1 - usize::try_from(*index).unwrap()]
+                [normalization_context.len() - usize::try_from(*index).unwrap()]
             {
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
-                    normalize_weak_head(
-                        shift(definition.clone(), 0, *index + 1),
-                        normalization_context,
-                    )
+                    normalize_weak_head(shift(definition.clone(), 1, *index), normalization_context)
                 }
                 None => {
                     // The variable doesn't have a definition. Just return it as a "neutral term".
@@ -48,7 +44,7 @@ pub fn normalize_weak_head<'a>(
             if let Lambda(_, _, body) = &normalized_applicand.variant {
                 // Perform beta reduction and normalize the result.
                 normalize_weak_head(
-                    open(body.clone(), 0, argument.clone()),
+                    open(body.clone(), 1, argument.clone()),
                     normalization_context,
                 )
             } else {
@@ -62,7 +58,7 @@ pub fn normalize_weak_head<'a>(
         Let(_, definition, body) => {
             // Open the body and normalize the result.
             normalize_weak_head(
-                open(body.clone(), 0, definition.clone()),
+                open(body.clone(), 1, definition.clone()),
                 normalization_context,
             )
         }
@@ -70,8 +66,7 @@ pub fn normalize_weak_head<'a>(
 }
 
 // This function reduces a term to beta normal form using applicative order reduction.
-// Invariant:
-// - When this function is finished, the context is left unmodified.
+// Invariant: When this function is finished, the context is left unmodified.
 pub fn normalize_beta<'a>(
     term: Rc<Term<'a>>,
     normalization_context: &mut Vec<Option<Rc<Term<'a>>>>,
@@ -83,17 +78,14 @@ pub fn normalize_beta<'a>(
         }
         Variable(_, index) => {
             // Look up the definition in the context. Here we rely on the invariant that `index` is
-            // non-negative (otherwise the program will panic).
+            // positive (otherwise the program will panic).
             match &normalization_context
-                [normalization_context.len() - 1 - usize::try_from(*index).unwrap()]
+                [normalization_context.len() - usize::try_from(*index).unwrap()]
             {
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
-                    normalize_beta(
-                        shift(definition.clone(), 0, *index + 1),
-                        normalization_context,
-                    )
+                    normalize_beta(shift(definition.clone(), 1, *index), normalization_context)
                 }
                 None => {
                     // The variable doesn't have a definition. Just return it as a "neutral term".
@@ -151,7 +143,7 @@ pub fn normalize_beta<'a>(
             if let Lambda(_, _, body) = &normalized_applicand.variant {
                 // We got a lambda. Perform beta reduction.
                 normalize_beta(
-                    open(body.clone(), 0, normalized_argument),
+                    open(body.clone(), 1, normalized_argument),
                     normalization_context,
                 )
             } else {
@@ -167,7 +159,7 @@ pub fn normalize_beta<'a>(
             normalize_beta(
                 open(
                     body.clone(),
-                    0,
+                    1,
                     normalize_beta(definition.clone(), normalization_context),
                 ),
                 normalization_context,
@@ -221,7 +213,7 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 1)),
-                variant: Variable("x", 0),
+                variant: Variable("x", 1),
             },
         );
     }
@@ -275,13 +267,13 @@ mod tests {
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((20, 21)),
-                                        variant: Variable("y", 0),
+                                        variant: Variable("y", 1),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((23, 24)),
-                                variant: Variable("p", 1),
+                                variant: Variable("p", 2),
                             }),
                         ),
                     }),
@@ -298,13 +290,13 @@ mod tests {
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((44, 45)),
-                                        variant: Variable("z", 0),
+                                        variant: Variable("z", 1),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((47, 48)),
-                                variant: Variable("q", 1),
+                                variant: Variable("q", 2),
                             }),
                         ),
                     }),
@@ -341,13 +333,13 @@ mod tests {
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((20, 21)),
-                                        variant: Variable("y", 0),
+                                        variant: Variable("y", 1),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((23, 24)),
-                                variant: Variable("p", 1),
+                                variant: Variable("p", 2),
                             }),
                         ),
                     }),
@@ -364,13 +356,13 @@ mod tests {
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((44, 45)),
-                                        variant: Variable("z", 0),
+                                        variant: Variable("z", 1),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((47, 48)),
-                                variant: Variable("q", 1),
+                                variant: Variable("q", 2),
                             }),
                         ),
                     }),
@@ -395,7 +387,7 @@ mod tests {
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((19, 20)),
-                        variant: Variable("y", 1),
+                        variant: Variable("y", 2),
                     }),
                     Rc::new(Term {
                         source_range: Some((23, 42)),
@@ -410,13 +402,13 @@ mod tests {
                                     }),
                                     Rc::new(Term {
                                         source_range: Some((38, 39)),
-                                        variant: Variable("z", 0),
+                                        variant: Variable("z", 1),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
                                 source_range: Some((41, 42)),
-                                variant: Variable("w", 0),
+                                variant: Variable("w", 1),
                             }),
                         ),
                     }),
@@ -438,7 +430,7 @@ mod tests {
             *normalize_weak_head(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((18, 19)),
-                variant: Variable("y", 0),
+                variant: Variable("y", 1),
             },
         );
     }
@@ -463,7 +455,7 @@ mod tests {
                     }),
                     Rc::new(Term {
                         source_range: Some((12, 13)),
-                        variant: Variable("y", 0),
+                        variant: Variable("y", 1),
                     }),
                 ),
             },
@@ -501,7 +493,7 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((0, 1)),
-                variant: Variable("x", 0),
+                variant: Variable("x", 1),
             },
         );
     }
@@ -544,11 +536,11 @@ mod tests {
                     "x",
                     Rc::new(Term {
                         source_range: Some((23, 24)),
-                        variant: Variable("p", 1),
+                        variant: Variable("p", 2),
                     }),
                     Rc::new(Term {
                         source_range: Some((47, 48)),
-                        variant: Variable("q", 1),
+                        variant: Variable("q", 2),
                     }),
                 ),
             },
@@ -572,11 +564,11 @@ mod tests {
                     "x",
                     Rc::new(Term {
                         source_range: Some((23, 24)),
-                        variant: Variable("p", 1),
+                        variant: Variable("p", 2),
                     }),
                     Rc::new(Term {
                         source_range: Some((47, 48)),
-                        variant: Variable("q", 1),
+                        variant: Variable("q", 2),
                     }),
                 ),
             },
@@ -599,11 +591,11 @@ mod tests {
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((19, 20)),
-                        variant: Variable("y", 1),
+                        variant: Variable("y", 2),
                     }),
                     Rc::new(Term {
                         source_range: Some((41, 42)),
-                        variant: Variable("w", 0),
+                        variant: Variable("w", 1),
                     }),
                 ),
             },
@@ -623,7 +615,7 @@ mod tests {
             *normalize_beta(Rc::new(term), &mut normalization_context),
             Term {
                 source_range: Some((18, 19)),
-                variant: Variable("y", 0),
+                variant: Variable("y", 1),
             },
         );
     }
@@ -648,7 +640,7 @@ mod tests {
                     }),
                     Rc::new(Term {
                         source_range: Some((12, 13)),
-                        variant: Variable("y", 0),
+                        variant: Variable("y", 1),
                     }),
                 ),
             },

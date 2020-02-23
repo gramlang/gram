@@ -30,9 +30,9 @@ pub fn type_check<'a>(
             // current context. Here we rely on the invariant that `index` is non-negative
             // (otherwise the program will panic).
             shift(
-                typing_context[typing_context.len() - 1 - usize::try_from(*index).unwrap()].clone(),
-                0,
-                *index + 1,
+                typing_context[typing_context.len() - usize::try_from(*index).unwrap()].clone(),
+                1,
+                *index,
             )
         }
         Lambda(variable, domain, body) => {
@@ -287,7 +287,7 @@ pub fn type_check<'a>(
             }
 
             // Construct and return the codomain specialized to the argument.
-            open(codomain.clone(), 0, argument.clone())
+            open(codomain.clone(), 1, argument.clone())
         }
         Let(_, definition, body) => {
             // Infer the type of the definition.
@@ -318,7 +318,7 @@ pub fn type_check<'a>(
             typing_context.pop();
 
             // Return the opened type of the body.
-            open(body_type_result?, 0, definition.clone())
+            open(body_type_result?, 1, definition.clone())
         }
     })
 }
@@ -373,7 +373,7 @@ mod tests {
             }),
             Rc::new(Term {
                 source_range: None,
-                variant: Variable("a", 0),
+                variant: Variable("a", 1),
             }),
         ];
         let mut normalization_context = vec![None, None];
@@ -463,7 +463,7 @@ mod tests {
             }),
             Rc::new(Term {
                 source_range: None,
-                variant: Variable("a", 0),
+                variant: Variable("a", 1),
             }),
         ];
         let mut normalization_context = vec![None, None];
@@ -501,7 +501,7 @@ mod tests {
             }),
             Rc::new(Term {
                 source_range: None,
-                variant: Variable("b", 0),
+                variant: Variable("b", 1),
             }),
         ];
         let mut normalization_context = vec![None, None, None];
@@ -532,7 +532,7 @@ mod tests {
             }),
             Rc::new(Term {
                 source_range: None,
-                variant: Variable("a", 0),
+                variant: Variable("a", 1),
             }),
         ];
         let mut normalization_context = vec![None, None];
@@ -566,7 +566,7 @@ mod tests {
             }),
             Rc::new(Term {
                 source_range: None,
-                variant: Variable("int", 0),
+                variant: Variable("int", 1),
             }),
         ];
         let mut normalization_context = vec![None, None];

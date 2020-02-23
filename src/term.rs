@@ -19,7 +19,9 @@ pub enum Variant<'a> {
     Type,
 
     // A variable is a placeholder bound by a lambda, pi type, or let. The integer is the De Bruijn
-    // index for the variable.
+    // index for the variable. Positive indices refer to variables earlier in the context. Zero is
+    // a recursive reference. Negative indices refer to variables later in the context, which
+    // happens in let bindings with forward references.
     Variable(&'a str, isize),
 
     // A lambda, or dependent function, is a computable function.

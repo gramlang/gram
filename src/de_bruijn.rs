@@ -6,6 +6,7 @@ use std::{cmp::Ordering, rc::Rc};
 
 // Shifting refers to increasing the De Bruijn indices of free variables greater than or equal to a
 // given index.
+// Invariant: `min_index` should be greater than 0.
 pub fn shift<'a>(term: Rc<Term<'a>>, min_index: isize, amount: isize) -> Rc<Term<'a>> {
     match &term.variant {
         Type => term,
@@ -55,6 +56,7 @@ pub fn shift<'a>(term: Rc<Term<'a>>, min_index: isize, amount: isize) -> Rc<Term
 
 // Opening is the act of replacing a free variable by a term and decrementing the De Bruijn indices
 // of the free variables with higher indices than that of the one being replaced.
+// Invariant: `index_to_replace` should be greater than 0.
 pub fn open<'a>(
     term_to_open: Rc<Term<'a>>,
     index_to_replace: isize,
@@ -68,7 +70,7 @@ pub fn open<'a>(
                 variant: Variable(variable, index - 1),
             }),
             Ordering::Less => term_to_open,
-            Ordering::Equal => shift(term_to_insert, 0, index_to_replace),
+            Ordering::Equal => shift(term_to_insert, 1, index_to_replace - 1),
         },
         Lambda(variable, domain, body) => Rc::new(Term {
             source_range: term_to_open.source_range,
@@ -124,7 +126,7 @@ mod tests {
                     source_range: Some((0, TYPE_KEYWORD.len())),
                     variant: Type,
                 }),
-                0,
+                1,
                 42,
             ),
             Term {
@@ -140,14 +142,14 @@ mod tests {
             *shift(
                 Rc::new(Term {
                     source_range: Some((0, 1)),
-                    variant: Variable("x", 0),
+                    variant: Variable("x", 1),
                 }),
-                0,
+                1,
                 42,
             ),
             Term {
                 source_range: Some((0, 1)),
-                variant: Variable("x", 42),
+                variant: Variable("x", 43),
             },
         );
     }
@@ -158,14 +160,14 @@ mod tests {
             *shift(
                 Rc::new(Term {
                     source_range: Some((0, 1)),
-                    variant: Variable("x", 0),
+                    variant: Variable("x", 1),
                 }),
-                1,
+                2,
                 42,
             ),
             Term {
                 source_range: Some((0, 1)),
-                variant: Variable("x", 0),
+                variant: Variable("x", 1),
             },
         );
     }
@@ -180,15 +182,15 @@ mod tests {
                         "a",
                         Rc::new(Term {
                             source_range: Some((102, 106)),
-                            variant: Variable("b", 0),
+                            variant: Variable("b", 1),
                         }),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            variant: Variable("b", 2),
                         }),
                     ),
                 }),
-                0,
+                1,
                 42,
             ),
             Term {
@@ -197,11 +199,11 @@ mod tests {
                     "a",
                     Rc::new(Term {
                         source_range: Some((102, 106)),
-                        variant: Variable("b", 42),
+                        variant: Variable("b", 43),
                     }),
                     Rc::new(Term {
                         source_range: Some((111, 112)),
-                        variant: Variable("b", 43),
+                        variant: Variable("b", 44),
                     }),
                 ),
             },
@@ -218,15 +220,15 @@ mod tests {
                         "a",
                         Rc::new(Term {
                             source_range: Some((102, 106)),
-                            variant: Variable("b", 0),
+                            variant: Variable("b", 1),
                         }),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            variant: Variable("b", 2),
                         }),
                     ),
                 }),
-                0,
+                1,
                 42,
             ),
             Term {
@@ -235,11 +237,11 @@ mod tests {
                     "a",
                     Rc::new(Term {
                         source_range: Some((102, 106)),
-                        variant: Variable("b", 42),
+                        variant: Variable("b", 43),
                     }),
                     Rc::new(Term {
                         source_range: Some((111, 112)),
-                        variant: Variable("b", 43),
+                        variant: Variable("b", 44),
                     }),
                 ),
             },
@@ -255,15 +257,15 @@ mod tests {
                     variant: Application(
                         Rc::new(Term {
                             source_range: Some((102, 106)),
-                            variant: Variable("a", 0),
+                            variant: Variable("a", 1),
                         }),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            variant: Variable("b", 2),
                         }),
                     ),
                 }),
-                1,
+                2,
                 42,
             ),
             Term {
@@ -271,11 +273,11 @@ mod tests {
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((102, 106)),
-                        variant: Variable("a", 0),
+                        variant: Variable("a", 1),
                     }),
                     Rc::new(Term {
                         source_range: Some((111, 112)),
-                        variant: Variable("b", 43),
+                        variant: Variable("b", 44),
                     }),
                 ),
             },
@@ -292,15 +294,15 @@ mod tests {
                         "a",
                         Rc::new(Term {
                             source_range: Some((102, 106)),
-                            variant: Variable("b", 0),
+                            variant: Variable("b", 1),
                         }),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            variant: Variable("b", 2),
                         }),
                     ),
                 }),
-                0,
+                1,
                 42,
             ),
             Term {
@@ -309,11 +311,11 @@ mod tests {
                     "a",
                     Rc::new(Term {
                         source_range: Some((102, 106)),
-                        variant: Variable("b", 42),
+                        variant: Variable("b", 43),
                     }),
                     Rc::new(Term {
                         source_range: Some((111, 112)),
-                        variant: Variable("b", 43),
+                        variant: Variable("b", 44),
                     }),
                 ),
             },
@@ -328,10 +330,10 @@ mod tests {
                     source_range: Some((0, TYPE_KEYWORD.len())),
                     variant: Type,
                 }),
-                0,
+                1,
                 Rc::new(Term {
                     source_range: Some((3, 4)),
-                    variant: Variable("y", 0),
+                    variant: Variable("y", 1),
                 }),
             ),
             Term {
@@ -347,17 +349,17 @@ mod tests {
             *open(
                 Rc::new(Term {
                     source_range: Some((0, 1)),
-                    variant: Variable("x", 0),
+                    variant: Variable("x", 1),
                 }),
-                0,
+                1,
                 Rc::new(Term {
                     source_range: Some((3, 4)),
-                    variant: Variable("y", 0),
+                    variant: Variable("y", 1),
                 }),
             ),
             Term {
                 source_range: Some((3, 4)),
-                variant: Variable("y", 0),
+                variant: Variable("y", 1),
             },
         );
     }
@@ -368,17 +370,17 @@ mod tests {
             *open(
                 Rc::new(Term {
                     source_range: Some((0, 1)),
-                    variant: Variable("x", 1),
+                    variant: Variable("x", 2),
                 }),
-                0,
+                1,
                 Rc::new(Term {
                     source_range: Some((3, 4)),
-                    variant: Variable("y", 0),
+                    variant: Variable("y", 1),
                 }),
             ),
             Term {
                 source_range: Some((0, 1)),
-                variant: Variable("x", 0),
+                variant: Variable("x", 1),
             },
         );
     }
@@ -389,17 +391,17 @@ mod tests {
             *open(
                 Rc::new(Term {
                     source_range: Some((0, 1)),
-                    variant: Variable("x", 0),
+                    variant: Variable("x", 1),
                 }),
-                1,
+                2,
                 Rc::new(Term {
                     source_range: Some((3, 4)),
-                    variant: Variable("y", 0),
+                    variant: Variable("y", 1),
                 }),
             ),
             Term {
                 source_range: Some((0, 1)),
-                variant: Variable("x", 0),
+                variant: Variable("x", 1),
             },
         );
     }
@@ -414,18 +416,18 @@ mod tests {
                         "a",
                         Rc::new(Term {
                             source_range: Some((102, 106)),
-                            variant: Variable("b", 0),
+                            variant: Variable("b", 1),
                         }),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            variant: Variable("b", 2),
                         }),
                     ),
                 }),
-                0,
+                1,
                 Rc::new(Term {
                     source_range: Some((3, 4)),
-                    variant: Variable("x", 4),
+                    variant: Variable("x", 5),
                 }),
             ),
             Term {
@@ -434,11 +436,11 @@ mod tests {
                     "a",
                     Rc::new(Term {
                         source_range: Some((3, 4)),
-                        variant: Variable("x", 4),
+                        variant: Variable("x", 5),
                     }),
                     Rc::new(Term {
                         source_range: Some((3, 4)),
-                        variant: Variable("x", 5),
+                        variant: Variable("x", 6),
                     }),
                 ),
             },
@@ -455,18 +457,18 @@ mod tests {
                         "a",
                         Rc::new(Term {
                             source_range: Some((102, 106)),
-                            variant: Variable("b", 0),
+                            variant: Variable("b", 1),
                         }),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            variant: Variable("b", 2),
                         }),
                     ),
                 }),
-                0,
+                1,
                 Rc::new(Term {
                     source_range: Some((3, 4)),
-                    variant: Variable("x", 4),
+                    variant: Variable("x", 5),
                 }),
             ),
             Term {
@@ -475,11 +477,11 @@ mod tests {
                     "a",
                     Rc::new(Term {
                         source_range: Some((3, 4)),
-                        variant: Variable("x", 4),
+                        variant: Variable("x", 5),
                     }),
                     Rc::new(Term {
                         source_range: Some((3, 4)),
-                        variant: Variable("x", 5),
+                        variant: Variable("x", 6),
                     }),
                 ),
             },
@@ -495,18 +497,18 @@ mod tests {
                     variant: Application(
                         Rc::new(Term {
                             source_range: Some((102, 106)),
-                            variant: Variable("a", 0),
+                            variant: Variable("a", 1),
                         }),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            variant: Variable("b", 2),
                         }),
                     ),
                 }),
-                0,
+                1,
                 Rc::new(Term {
                     source_range: Some((3, 4)),
-                    variant: Variable("x", 4),
+                    variant: Variable("x", 5),
                 }),
             ),
             Term {
@@ -514,11 +516,11 @@ mod tests {
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((3, 4)),
-                        variant: Variable("x", 4),
+                        variant: Variable("x", 5),
                     }),
                     Rc::new(Term {
                         source_range: Some((111, 112)),
-                        variant: Variable("b", 0),
+                        variant: Variable("b", 1),
                     }),
                 ),
             },
@@ -535,18 +537,18 @@ mod tests {
                         "a",
                         Rc::new(Term {
                             source_range: Some((102, 106)),
-                            variant: Variable("b", 0),
+                            variant: Variable("b", 1),
                         }),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            variant: Variable("b", 2),
                         }),
                     ),
                 }),
-                0,
+                1,
                 Rc::new(Term {
                     source_range: Some((3, 4)),
-                    variant: Variable("x", 4),
+                    variant: Variable("x", 5),
                 }),
             ),
             Term {
@@ -555,11 +557,11 @@ mod tests {
                     "a",
                     Rc::new(Term {
                         source_range: Some((3, 4)),
-                        variant: Variable("x", 4),
+                        variant: Variable("x", 5),
                     }),
                     Rc::new(Term {
                         source_range: Some((3, 4)),
-                        variant: Variable("x", 5),
+                        variant: Variable("x", 6),
                     }),
                 ),
             },
