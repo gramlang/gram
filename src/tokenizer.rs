@@ -91,8 +91,8 @@ pub fn tokenize<'a>(
             }
 
             // If the first code point is alphabetic according to the Unicode derived property,
-            // keep reading subsequent alphanumeric code points to build up an identifier or
-            // keyword.
+            // keep reading subsequent alphanumeric code points and underscores to build up an
+            // identifier or keyword.
             _ if c.is_alphabetic() || c == '_' => {
                 let mut end = source_contents.len();
 
