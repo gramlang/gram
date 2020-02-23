@@ -200,7 +200,7 @@ fn entry() -> Result<(), Error> {
 
             // We should never end up in this branch, provided we handled all the subcommands
             // above.
-            Some(_) => panic!(),
+            Some(_) => panic!("Subcommand not implemented."),
 
             // If no path or subcommand was provided, look for a program at the default path.
             None => run(Path::new(DEFAULT_ENTRYPOINT_PATH))?,
