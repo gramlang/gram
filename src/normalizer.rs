@@ -5,7 +5,7 @@ use crate::{
         Variant::{Application, Lambda, Let, Pi, Type, Variable},
     },
 };
-use std::rc::Rc;
+use std::{convert::TryFrom, rc::Rc};
 
 // This function reduces a term to weak head normal form using normal order reduction.
 // Invariant:
@@ -20,8 +20,11 @@ pub fn normalize_weak_head<'a>(
             term
         }
         Variable(_, index) => {
-            // Look up the definition in the context.
-            match &normalization_context[normalization_context.len() - 1 - *index] {
+            // Look up the definition in the context. Here we rely on the invariant that `index` is
+            // non-negative (otherwise the program will panic).
+            match &normalization_context
+                [normalization_context.len() - 1 - usize::try_from(*index).unwrap()]
+            {
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
@@ -79,8 +82,11 @@ pub fn normalize_beta<'a>(
             term
         }
         Variable(_, index) => {
-            // Look up the definition in the context.
-            match &normalization_context[normalization_context.len() - 1 - *index] {
+            // Look up the definition in the context. Here we rely on the invariant that `index` is
+            // non-negative (otherwise the program will panic).
+            match &normalization_context
+                [normalization_context.len() - 1 - usize::try_from(*index).unwrap()]
+            {
                 Some(definition) => {
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.

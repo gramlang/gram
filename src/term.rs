@@ -20,7 +20,7 @@ pub enum Variant<'a> {
 
     // A variable is a placeholder bound by a lambda, pi type, or let. The integer is the De Bruijn
     // index for the variable.
-    Variable(&'a str, usize),
+    Variable(&'a str, isize),
 
     // A lambda, or dependent function, is a computable function.
     Lambda(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),

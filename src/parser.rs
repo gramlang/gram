@@ -5,7 +5,7 @@ use crate::{
     token::{self, TerminatorType, Token},
 };
 use scopeguard::defer;
-use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
+use std::{cell::RefCell, collections::HashMap, convert::TryFrom, path::Path, rc::Rc};
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
 // linear-time parsing.
@@ -458,10 +458,11 @@ pub fn parse<'a>(
             let reassociated_term = reassociate_applications(None, Rc::new(term));
 
             // Construct a mutable context.
-            let mut context: HashMap<&'a str, usize> = context
+            let mut context: HashMap<&'a str, isize> = context
                 .iter()
                 .enumerate()
-                .map(|(i, variable)| (*variable, i))
+                // This will panic if `i` cannot be converted into an `isize`.
+                .map(|(i, variable)| (*variable, isize::try_from(i).unwrap()))
                 .collect();
 
             // Resolve variables and return the term.
@@ -469,7 +470,8 @@ pub fn parse<'a>(
                 source_path,
                 source_contents,
                 &*reassociated_term,
-                context.len(),
+                // This will panic if `context.len()` cannot be converted into an `isize`.
+                isize::try_from(context.len()).unwrap(),
                 &mut context,
             )?);
         } else {
@@ -591,8 +593,8 @@ fn resolve_variables<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     term: &Term<'a>,
-    depth: usize,
-    context: &mut HashMap<&'a str, usize>,
+    depth: isize,
+    context: &mut HashMap<&'a str, isize>,
 ) -> Result<term::Term<'a>, Error> {
     Ok(match &term.variant {
         Variant::Type => {

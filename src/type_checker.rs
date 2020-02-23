@@ -10,7 +10,7 @@ use crate::{
         TYPE_TERM,
     },
 };
-use std::{path::Path, rc::Rc};
+use std::{convert::TryFrom, path::Path, rc::Rc};
 
 // This is the top-level type checking function. Invariants:
 // - The two contexts have the same length.
@@ -27,9 +27,10 @@ pub fn type_check<'a>(
         Type => Rc::new(TYPE_TERM),
         Variable(_, index) => {
             // Look up the type in the context, and shift it such that it's valid in the
-            // current context.
+            // current context. Here we rely on the invariant that `index` is non-negative
+            // (otherwise the program will panic).
             shift(
-                typing_context[typing_context.len() - 1 - *index].clone(),
+                typing_context[typing_context.len() - 1 - usize::try_from(*index).unwrap()].clone(),
                 0,
                 *index + 1,
             )

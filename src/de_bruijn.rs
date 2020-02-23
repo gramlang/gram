@@ -6,7 +6,7 @@ use std::{cmp::Ordering, rc::Rc};
 
 // Shifting refers to increasing the De Bruijn indices of free variables greater than or equal to a
 // given index.
-pub fn shift<'a>(term: Rc<Term<'a>>, min_index: usize, amount: usize) -> Rc<Term<'a>> {
+pub fn shift<'a>(term: Rc<Term<'a>>, min_index: isize, amount: isize) -> Rc<Term<'a>> {
     match &term.variant {
         Type => term,
         Variable(variable, index) => {
@@ -57,7 +57,7 @@ pub fn shift<'a>(term: Rc<Term<'a>>, min_index: usize, amount: usize) -> Rc<Term
 // of the free variables with higher indices than that of the one being replaced.
 pub fn open<'a>(
     term_to_open: Rc<Term<'a>>,
-    index_to_replace: usize,
+    index_to_replace: isize,
     term_to_insert: Rc<Term<'a>>,
 ) -> Rc<Term<'a>> {
     match &term_to_open.variant {
