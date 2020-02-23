@@ -289,7 +289,7 @@ pub fn type_check<'a>(
             // Construct and return the codomain specialized to the argument.
             open(codomain.clone(), 1, argument.clone())
         }
-        Let(_, definition, body) => {
+        Let(_, definition, annotation, body) => {
             // Infer the type of the definition.
             let definition_type = type_check(
                 source_path,
@@ -298,6 +298,77 @@ pub fn type_check<'a>(
                 typing_context,
                 normalization_context,
             )?;
+
+            // Check if we have an annotation.
+            if let Some(ascription) = annotation {
+                // Infer the type of the annotation.
+                let ascription_type = type_check(
+                    source_path,
+                    source_contents,
+                    &**ascription,
+                    typing_context,
+                    normalization_context,
+                )?;
+
+                // Check that the type of the annotation is the type of all types.
+                if !definitionally_equal(
+                    ascription_type.clone(),
+                    Rc::new(TYPE_TERM),
+                    normalization_context,
+                ) {
+                    return Err(if let Some(source_range) = ascription.source_range {
+                        throw(
+                            &format!(
+                                "This annotation has type {} when {} was expected.",
+                                ascription_type.to_string().code_str(),
+                                TYPE_TERM.to_string().code_str(),
+                            ),
+                            source_path,
+                            source_contents,
+                            source_range,
+                        )
+                    } else {
+                        Error {
+                            message: format!(
+                                "Found annotation of type {} when {} was expected.",
+                                ascription_type.to_string().code_str(),
+                                TYPE_TERM.to_string().code_str(),
+                            ),
+                            reason: None,
+                        }
+                    });
+                }
+
+                // Check that the type of the definition matches the annotation.
+                if !definitionally_equal(
+                    definition_type.clone(),
+                    ascription.clone(),
+                    normalization_context,
+                ) {
+                    return Err(if let Some(source_range) = definition.source_range {
+                        throw(
+                            &format!(
+                                "This has type {} when {} was expected.",
+                                definition_type.to_string().code_str(),
+                                ascription.to_string().code_str(),
+                            ),
+                            source_path,
+                            source_contents,
+                            source_range,
+                        )
+                    } else {
+                        Error {
+                            message: format!(
+                                "Definition {} has type {} when {} was expected.",
+                                definition.to_string().code_str(),
+                                definition_type.to_string().code_str(),
+                                ascription.to_string().code_str(),
+                            ),
+                            reason: None,
+                        }
+                    });
+                }
+            }
 
             // Temporarily add the definition and its type to the context for the purpose of
             // inferring the codomain.

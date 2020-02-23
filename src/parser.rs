@@ -70,7 +70,7 @@ pub enum Variant<'a> {
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
 
     // A let is a local variable definition.
-    Let(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
+    Let(&'a str, Rc<Term<'a>>, Option<Rc<Term<'a>>>, Rc<Term<'a>>),
 }
 
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
@@ -563,12 +563,15 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 )
             };
         }
-        Variant::Let(variable, definition, body) => Rc::new(Term {
+        Variant::Let(variable, definition, annotation, body) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Let(
                 variable,
                 reassociate_applications(None, definition.clone()),
+                annotation
+                    .as_ref()
+                    .map(|ascription| reassociate_applications(None, ascription.clone())),
                 reassociate_applications(None, body.clone()),
             ),
         }),
@@ -733,10 +736,22 @@ fn resolve_variables<'a>(
                 ),
             }
         }
-        Variant::Let(variable, definition, body) => {
+        Variant::Let(variable, definition, annotation, body) => {
             // Resolve variables in the definition.
             let resolved_definition =
                 resolve_variables(source_path, source_contents, &*definition, depth, context)?;
+
+            // Resolve variables in the annotation.
+            let resolved_annotation = match annotation {
+                Some(ascription) => Some(resolve_variables(
+                    source_path,
+                    source_contents,
+                    &*ascription,
+                    depth,
+                    context,
+                )?),
+                None => None,
+            };
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -767,6 +782,7 @@ fn resolve_variables<'a>(
                 variant: term::Variant::Let(
                     variable,
                     Rc::new(resolved_definition),
+                    resolved_annotation.map(Rc::new),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
@@ -1112,6 +1128,27 @@ fn parse_let<'a, 'b>(
     // Parse the definition.
     let (definition, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
 
+    // Parse the annotation, if there is one.
+    let (annotation, next) = if next < tokens.len() {
+        if let token::Variant::Colon = tokens[next].variant {
+            // Consume the colon.
+            let next = consume_token!(cache, Let, start, tokens, Colon, next, error, Low);
+
+            // Parse the annotation.
+            let (annotation, next) =
+                try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
+
+            // Package up the annotation in the right form.
+            (Some(Rc::new(annotation)), next)
+        } else {
+            // There is no annotation.
+            (None, next)
+        }
+    } else {
+        // There is no annotation because we're at the end of the token stream.
+        (None, next)
+    };
+
     // Consume the terminator.
     let next = consume_terminator!(cache, Let, start, tokens, next, error, High);
 
@@ -1127,7 +1164,7 @@ fn parse_let<'a, 'b>(
             Term {
                 source_range: (tokens[start].source_range.0, body.source_range.1),
                 group: false,
-                variant: Variant::Let(variable, Rc::new(definition), Rc::new(body)),
+                variant: Variant::Let(variable, Rc::new(definition), annotation, Rc::new(body)),
             },
             next
         )),
@@ -1621,6 +1658,7 @@ mod tests {
                         source_range: Some((4, 5)),
                         variant: Variable("a", 1),
                     }),
+                    None,
                     Rc::new(Term {
                         source_range: Some((7, 8)),
                         variant: Variable("x", 1),

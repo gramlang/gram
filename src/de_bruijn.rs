@@ -43,11 +43,14 @@ pub fn shift<'a>(term: Rc<Term<'a>>, min_index: isize, amount: isize) -> Rc<Term
                 shift(argument.clone(), min_index, amount),
             ),
         }),
-        Let(variable, definition, body) => Rc::new(Term {
+        Let(variable, definition, annotation, body) => Rc::new(Term {
             source_range: term.source_range,
             variant: Let(
                 variable,
                 shift(definition.clone(), min_index, amount),
+                annotation
+                    .as_ref()
+                    .map(|ascription| shift(ascription.clone(), min_index, amount)),
                 shift(body.clone(), min_index + 1, amount),
             ),
         }),
@@ -95,11 +98,14 @@ pub fn open<'a>(
                 open(argument.clone(), index_to_replace, term_to_insert),
             ),
         }),
-        Let(variable, definition, body) => Rc::new(Term {
+        Let(variable, definition, annotation, body) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Let(
                 variable,
                 open(definition.clone(), index_to_replace, term_to_insert.clone()),
+                annotation.as_ref().map(|ascription| {
+                    open(ascription.clone(), index_to_replace, term_to_insert.clone())
+                }),
                 open(body.clone(), index_to_replace + 1, term_to_insert),
             ),
         }),
@@ -296,6 +302,7 @@ mod tests {
                             source_range: Some((102, 106)),
                             variant: Variable("b", 1),
                         }),
+                        None,
                         Rc::new(Term {
                             source_range: Some((111, 112)),
                             variant: Variable("b", 2),
@@ -313,6 +320,7 @@ mod tests {
                         source_range: Some((102, 106)),
                         variant: Variable("b", 43),
                     }),
+                    None,
                     Rc::new(Term {
                         source_range: Some((111, 112)),
                         variant: Variable("b", 44),
@@ -539,6 +547,7 @@ mod tests {
                             source_range: Some((102, 106)),
                             variant: Variable("b", 1),
                         }),
+                        None,
                         Rc::new(Term {
                             source_range: Some((111, 112)),
                             variant: Variable("b", 2),
@@ -559,6 +568,7 @@ mod tests {
                         source_range: Some((3, 4)),
                         variant: Variable("x", 5),
                     }),
+                    None,
                     Rc::new(Term {
                         source_range: Some((3, 4)),
                         variant: Variable("x", 6),

@@ -49,7 +49,9 @@ lambda: LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THICK_ARROW term;
 
 application: applicand term_minus_arrows_let;
 
-let: IDENTIFIER EQUALS term TERMINATOR term;
+let: IDENTIFIER EQUALS term let_annotation TERMINATOR term;
+
+let_annotation: %empty | COLON term;
 
 group: LEFT_PAREN term RIGHT_PAREN;
 

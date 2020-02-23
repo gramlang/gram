@@ -21,7 +21,7 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
             syntactically_equal(&**applicand1, &**applicand2)
                 && syntactically_equal(&**argument1, &**argument2)
         }
-        (Let(_, definition1, body1), Let(_, definition2, body2)) => {
+        (Let(_, definition1, _, body1), Let(_, definition2, _, body2)) => {
             syntactically_equal(&**definition1, &**definition2)
                 && syntactically_equal(&**body1, &**body2)
         }
@@ -33,8 +33,8 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
         | (_, Pi(_, _, _))
         | (Application(_, _), _)
         | (_, Application(_, _))
-        | (Let(_, _, _), _)
-        | (_, Let(_, _, _)) => false,
+        | (Let(_, _, _, _), _)
+        | (_, Let(_, _, _, _)) => false,
     }
 }
 
@@ -105,7 +105,7 @@ pub fn definitionally_equal<'a>(
         | (_, Pi(_, _, _))
         | (Application(_, _), _)
         | (_, Application(_, _)) => false,
-        (Let(_, _, _), _) | (_, Let(_, _, _)) => {
+        (Let(_, _, _, _), _) | (_, Let(_, _, _, _)) => {
             panic!("Encountered a let after conversion to weak head normal form.")
         }
     }
