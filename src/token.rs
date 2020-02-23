@@ -39,7 +39,7 @@ impl<'a> Display for Variant<'a> {
             Self::Equals => write!(f, "="),
             Self::LeftParen => write!(f, "("),
             Self::RightParen => write!(f, ")"),
-            Self::Terminator => write!(f, ";"),
+            Self::Terminator => write!(f, "; or \\n"),
             Self::ThickArrow => write!(f, "=>"),
             Self::ThinArrow => write!(f, "->"),
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
