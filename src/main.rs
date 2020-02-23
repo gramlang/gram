@@ -68,7 +68,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                     Arg::with_name(RUN_SUBCOMMAND_PATH_OPTION)
                         .value_name("PATH")
                         .help("Sets the path of the program entrypoint")
-                        .required(true) // [tag:run-subcommand-shell-required]
+                        .required(true) // [tag:run_subcommand_shell_required]
                         .takes_value(true)
                         .number_of_values(1),
                 ),
@@ -86,7 +86,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                     Arg::with_name(SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION)
                         .value_name("SHELL")
                         .help("Bash, Fish, Zsh, PowerShell, or Elvish")
-                        .required(true) // [tag:shell-completion-subcommand-shell-required]
+                        .required(true) // [tag:shell_completion_subcommand_shell_required]
                         .takes_value(true)
                         .number_of_values(1),
                 ),
@@ -171,29 +171,29 @@ fn entry() -> Result<(), Error> {
     } else {
         // Decide what to do based on the subcommand.
         match matches.subcommand_name() {
-            // [tag:run-subcommand]
+            // [tag:run_subcommand]
             Some(subcommand) if subcommand == RUN_SUBCOMMAND => {
                 // Determine the path to the source file.
                 let source_path = Path::new(
                     matches
                         .subcommand_matches(RUN_SUBCOMMAND)
-                        .unwrap() // [ref:run-subcommand]
+                        .unwrap() // [ref:run_subcommand]
                         .value_of(RUN_SUBCOMMAND_PATH_OPTION)
-                        .unwrap(), // [ref:run-subcommand-shell-required]
+                        .unwrap(), // [ref:run_subcommand_shell_required]
                 );
 
                 // Run the program.
                 run(source_path)?;
             }
 
-            // [tag:shell-completion-subcommand]
+            // [tag:shell_completion_subcommand]
             Some(subcommand) if subcommand == SHELL_COMPLETION_SUBCOMMAND => {
                 shell_completion(
                     matches
                         .subcommand_matches(SHELL_COMPLETION_SUBCOMMAND)
-                        .unwrap() // [ref:shell-completion-subcommand]
+                        .unwrap() // [ref:shell_completion_subcommand]
                         .value_of(SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION)
-                        .unwrap(), // [ref:shell-completion-subcommand-shell-required]
+                        .unwrap(), // [ref:shell_completion_subcommand_shell_required]
                 )?;
             }
 

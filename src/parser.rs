@@ -22,11 +22,11 @@ use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
 // is the natural choice to make currying ergonomic. However, this reinforces the left-recursion
 // problem (1). To resolve this, we employ a trick: we parse applications as right-associative, but
 // then we reassociate them in a post-processing step to achieve the desired left-associativity
-// [tag:reassociate-applications]. For example, we parse `f x y` as `f [x y]`, then transform it
+// [tag:reassociate_applications]. For example, we parse `f x y` as `f [x y]`, then transform it
 // into `[f x] y`. We have to be careful not to reassociate applications in which the
 // associativity has already been specified by explicit grouping. For example, we should not
 // reassociate `f (x y)`. Thus, when parsing, we record whether a term was parsed as group
-// [tag:group-flag].
+// [tag:group_flag].
 //
 // After resolving ambiguities, we end up with the grammar located in `grammar.y`. This grammar has
 // been verified to be unambiguous by Bison. [tag:grammar] [ref:bison_grammar]
@@ -43,11 +43,11 @@ pub const PLACEHOLDER_VARIABLE: &str = "_";
 // The token stream is parsed into an abstract syntax tree (AST). This struct represents a node in
 // an AST. This is similar to `term::Term`, except:
 // - It doesn't contain De Bruijn indices.
-// - It has a `group` field (see see [ref:group-flag]).
+// - It has a `group` field (see see [ref:group_flag]).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Term<'a> {
     pub source_range: (usize, usize), // [start, end)
-    pub group: bool,                  // For an explanation of this field, see [ref:group-flag].
+    pub group: bool,                  // For an explanation of this field, see [ref:group_flag].
     pub variant: Variant<'a>,
 }
 

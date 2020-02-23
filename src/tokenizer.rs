@@ -54,7 +54,7 @@ pub fn tokenize<'a>(
                 });
             }
             '\n' => {
-                // [tag:line-break] [tag:tokens_nonempty]
+                // [tag:line_break] [tag:tokens_nonempty]
                 if !tokens.is_empty()
                     && match tokens.last().unwrap().variant /* [ref:tokens_nonempty] */ {
                         Variant::Colon
@@ -118,10 +118,10 @@ pub fn tokenize<'a>(
                 }
             }
 
-            // Skip whitespace. Note that line breaks are handled above [ref:line-break].
+            // Skip whitespace. Note that line breaks are handled above [ref:line_break].
             _ if c.is_whitespace() => continue,
 
-            // Skip comments. Don't skip the terminating line break, if it exists [ref:line-break].
+            // Skip comments. Don't skip the terminating line break, if it exists [ref:line_break].
             '#' => {
                 while let Some((j, _)) = iter.next() {
                     if iter.peek() == Some(&(j + 1, '\n')) {
