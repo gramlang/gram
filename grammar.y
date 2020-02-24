@@ -35,26 +35,24 @@
 
 /* [tag:bison_grammar] [ref:grammar] */
 
-term:
-  TYPE |
-  IDENTIFIER |
-  term_minus_arrows_let THIN_ARROW term |
-  LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THIN_ARROW term |
-  LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THICK_ARROW term |
-  application |
-  IDENTIFIER EQUALS term TERMINATOR term |
-  LEFT_PAREN term RIGHT_PAREN ;
+term: non_dependent_pi | application | let | type | variable | pi | lambda | group;
 
-application:
-  applicand term_minus_arrows_let ;
+type: TYPE;
 
-applicand:
-  TYPE |
-  IDENTIFIER |
-  LEFT_PAREN term RIGHT_PAREN ;
+variable: IDENTIFIER;
 
-term_minus_arrows_let:
-  TYPE |
-  IDENTIFIER |
-  application |
-  LEFT_PAREN term RIGHT_PAREN ;
+non_dependent_pi: term_minus_arrows_let THIN_ARROW term;
+
+pi: LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THIN_ARROW term;
+
+lambda: LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THICK_ARROW term;
+
+application: applicand term_minus_arrows_let;
+
+let: IDENTIFIER EQUALS term TERMINATOR term;
+
+group: LEFT_PAREN term RIGHT_PAREN;
+
+applicand: type | variable | group;
+
+term_minus_arrows_let: application | type | variable | group;
