@@ -1212,7 +1212,7 @@ fn parse_applicand<'a, 'b>(
     cache_return!(cache, Applicand, start, None)
 }
 
-// Parse an argument (the right part of an application).
+// Parse a term, except for arrows (pi types and lambdas) and lets.
 fn parse_term_minus_arrows_let<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
