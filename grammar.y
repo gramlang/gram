@@ -43,18 +43,20 @@ variable: IDENTIFIER;
 
 non_dependent_pi: term_minus_arrows_let THIN_ARROW term;
 
-pi: LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THIN_ARROW term;
+pi: LEFT_PAREN IDENTIFIER COLON term_minus_let RIGHT_PAREN THIN_ARROW term;
 
-lambda: LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THICK_ARROW term;
+lambda: LEFT_PAREN IDENTIFIER COLON term_minus_let RIGHT_PAREN THICK_ARROW term;
 
 application: applicand term_minus_arrows_let;
 
-let: IDENTIFIER EQUALS term let_annotation TERMINATOR term;
+let: IDENTIFIER let_annotation EQUALS term TERMINATOR term;
 
-let_annotation: %empty | COLON term;
+let_annotation: %empty | COLON term_minus_arrows_let;
 
 group: LEFT_PAREN term RIGHT_PAREN;
 
 applicand: type | variable | group;
 
 term_minus_arrows_let: application | type | variable | group;
+
+term_minus_let: non_dependent_pi | application | type | variable | pi | lambda | group;

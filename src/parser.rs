@@ -87,6 +87,7 @@ enum CacheType {
     Group,
     Applicand,
     TermMinusArrowsLet,
+    TermMinusLet,
 }
 
 // A cache key consists of a `CacheType` indicating which function is being memoized together
@@ -992,7 +993,12 @@ fn parse_pi<'a, 'b>(
     let next = consume_token!(cache, Pi, start, tokens, Colon, next, error, Low);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(cache, Pi, start, parse_term(cache, tokens, next, error));
+    let (domain, next) = try_eval!(
+        cache,
+        Pi,
+        start,
+        parse_term_minus_let(cache, tokens, next, error)
+    );
 
     // Consume the right parenthesis.
     let next = consume_token!(cache, Pi, start, tokens, RightParen, next, error, Low);
@@ -1040,7 +1046,12 @@ fn parse_lambda<'a, 'b>(
     let next = consume_token!(cache, Lambda, start, tokens, Colon, next, error, Low);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(cache, Lambda, start, parse_term(cache, tokens, next, error));
+    let (domain, next) = try_eval!(
+        cache,
+        Lambda,
+        start,
+        parse_term_minus_let(cache, tokens, next, error)
+    );
 
     // Consume the right parenthesis.
     let next = consume_token!(cache, Lambda, start, tokens, RightParen, next, error, Low);
@@ -1122,12 +1133,6 @@ fn parse_let<'a, 'b>(
     // Consume the variable.
     let (variable, next) = consume_identifier!(cache, Let, start, tokens, start, error, Low);
 
-    // Consume the equals sign.
-    let next = consume_token!(cache, Let, start, tokens, Equals, next, error, Low);
-
-    // Parse the definition.
-    let (definition, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
-
     // Parse the annotation, if there is one.
     let (annotation, next) = if next < tokens.len() {
         if let token::Variant::Colon = tokens[next].variant {
@@ -1135,8 +1140,12 @@ fn parse_let<'a, 'b>(
             let next = consume_token!(cache, Let, start, tokens, Colon, next, error, Low);
 
             // Parse the annotation.
-            let (annotation, next) =
-                try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
+            let (annotation, next) = try_eval!(
+                cache,
+                Let,
+                start,
+                parse_term_minus_arrows_let(cache, tokens, next, error)
+            );
 
             // Package up the annotation in the right form.
             (Some(Rc::new(annotation)), next)
@@ -1148,6 +1157,12 @@ fn parse_let<'a, 'b>(
         // There is no annotation because we're at the end of the token stream.
         (None, next)
     };
+
+    // Consume the equals sign.
+    let next = consume_token!(cache, Let, start, tokens, Equals, next, error, Low);
+
+    // Parse the definition.
+    let (definition, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
 
     // Consume the terminator.
     let next = consume_terminator!(cache, Let, start, tokens, next, error, High);
@@ -1294,6 +1309,80 @@ fn parse_term_minus_arrows_let<'a, 'b>(
 
     // Return `None` since the parse failed.
     cache_return!(cache, TermMinusArrowsLet, start, None)
+}
+
+// Parse a term, except for lets.
+fn parse_term_minus_let<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, TermMinusLet, start, error);
+
+    // Try to parse a non-dependent pi type.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_non_dependent_pi(cache, tokens, start, error),
+    );
+
+    // Try to parse an application.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_application(cache, tokens, start, error),
+    );
+
+    // Try to parse the type of all types.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_type(cache, tokens, start, error)
+    );
+
+    // Try to parse a variable.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_variable(cache, tokens, start, error),
+    );
+
+    // Try to parse a pi type.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_pi(cache, tokens, start, error)
+    );
+
+    // Try to parse a lambda.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_lambda(cache, tokens, start, error),
+    );
+
+    // Try to parse a group.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_group(cache, tokens, start, error)
+    );
+
+    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
+    // confidence error, employ a generic error message.
+    set_generic_error(tokens, start, error);
+
+    // Return `None` since the parse failed.
+    cache_return!(cache, TermMinusLet, start, None)
 }
 
 #[cfg(test)]
