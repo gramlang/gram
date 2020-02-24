@@ -33,8 +33,12 @@ pub enum Variant<'a> {
     // An application is the act of applying a lambda to an argument.
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
 
-    // A let is a local variable definition with an optional type annotation.
-    Let(&'a str, Rc<Term<'a>>, Option<Rc<Term<'a>>>, Rc<Term<'a>>),
+    // A let is a vector of local variable definitions with an optional type annotations.
+    #[allow(clippy::type_complexity)]
+    Let(
+        Vec<(&'a str, Rc<Term<'a>>, Option<Rc<Term<'a>>>)>,
+        Rc<Term<'a>>,
+    ),
 }
 
 impl<'a> Display for Term<'a> {
@@ -48,7 +52,7 @@ impl<'a> Display for Variant<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
-            Self::Variable(variable, _) => write!(f, "{}", variable),
+            Self::Variable(variable, index) => write!(f, "{}@{}", variable, index),
             Self::Lambda(variable, domain, body) => {
                 write!(f, "({} : {}) => {}", variable, domain, body)
             }
@@ -60,14 +64,20 @@ impl<'a> Display for Variant<'a> {
                 }
             }
             Self::Application(applicand, argument) => write!(f, "{} {}", applicand, argument),
-            Self::Let(variable, definition, annotation, body) => match annotation {
-                Some(ascription) => write!(
-                    f,
-                    "{} = {} : {}; {}",
-                    variable, definition, ascription, body
-                ),
-                None => write!(f, "{} = {}; {}", variable, definition, body),
-            },
+            Self::Let(definitions, body) => {
+                for (variable, definition, annotation) in definitions {
+                    match annotation {
+                        Some(ascription) => {
+                            write!(f, "{} = {} : {}; ", variable, definition, ascription)?;
+                        }
+                        None => {
+                            write!(f, "{} = {}; ", variable, definition)?;
+                        }
+                    }
+                }
+
+                write!(f, "{}", body)
+            }
         }
     }
 }

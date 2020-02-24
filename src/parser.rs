@@ -470,7 +470,7 @@ pub fn parse<'a>(
             return Ok(resolve_variables(
                 source_path,
                 source_contents,
-                &*reassociated_term,
+                &reassociated_term,
                 // This will panic if `context.len()` cannot be converted into an `isize`.
                 isize::try_from(context.len()).unwrap(),
                 &mut context,
@@ -596,7 +596,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
 fn resolve_variables<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
-    term: &Term<'a>,
+    term: &Rc<Term<'a>>,
     depth: isize,
     context: &mut HashMap<&'a str, isize>,
 ) -> Result<term::Term<'a>, Error> {
@@ -630,7 +630,7 @@ fn resolve_variables<'a>(
         Variant::Lambda(variable, domain, body) => {
             // Resolve variables in the domain.
             let resolved_domain =
-                resolve_variables(source_path, source_contents, &*domain, depth, context)?;
+                resolve_variables(source_path, source_contents, domain, depth, context)?;
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -664,7 +664,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*body,
+                        body,
                         depth + 1,
                         &mut *guard,
                     )?),
@@ -674,7 +674,7 @@ fn resolve_variables<'a>(
         Variant::Pi(variable, domain, codomain) => {
             // Resolve variables in the domain.
             let resolved_domain =
-                resolve_variables(source_path, source_contents, &*domain, depth, context)?;
+                resolve_variables(source_path, source_contents, domain, depth, context)?;
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -708,7 +708,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*codomain,
+                        codomain,
                         depth + 1,
                         &mut *guard,
                     )?),
@@ -723,78 +723,164 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*applicand,
+                        applicand,
                         depth,
                         context,
                     )?),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*argument,
+                        argument,
                         depth,
                         context,
                     )?),
                 ),
             }
         }
-        Variant::Let(variable, definition, annotation, body) => {
-            // Resolve variables in the definition.
-            let resolved_definition =
-                resolve_variables(source_path, source_contents, &*definition, depth, context)?;
+        Variant::Let(_, _, _, _) => {
+            // Collect the definitions from nested lets.
+            let mut definitions = vec![];
+            let innermost_body = collect_definitions(&mut definitions, term.clone());
 
-            // Resolve variables in the annotation.
-            let resolved_annotation = match annotation {
-                Some(ascription) => Some(resolve_variables(
-                    source_path,
-                    source_contents,
-                    &*ascription,
-                    depth,
-                    context,
-                )?),
-                None => None,
-            };
+            // When the function returns, remove the variables from the context that we are
+            // temporarily adding.
+            let context_cell = RefCell::new((context, vec![]));
+            defer! {{
+                let mut guard = context_cell.borrow_mut();
+                let (borrowed_context, borrowed_variables_added) = &mut (*guard);
 
-            // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
-            // don't add it to the context.
-            if *variable != PLACEHOLDER_VARIABLE {
-                // Fail if the variable is already in the context.
-                if context.contains_key(variable) {
-                    return Err(throw(
-                        &format!("Variable {} already exists.", variable.code_str()),
-                        source_path,
-                        source_contents,
-                        term.source_range,
-                    ));
+                for variable_added in borrowed_variables_added {
+                    borrowed_context.remove(*variable_added);
                 }
+            }};
 
-                // Add the variable to the context.
-                context.insert(variable, depth);
+            // Add definitions which have type annotations to the context.
+            for (i, (inner_variable, _, inner_annotation)) in definitions.iter().enumerate() {
+                // Temporarily borrow from the scope guard.
+                let mut guard = context_cell.borrow_mut();
+                let (borrowed_context, borrowed_variables_added) = &mut (*guard);
+
+                // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
+                // don't add it to the context. Also, only add the variable to the context if it
+                // has a type annotation.
+                if *inner_variable != PLACEHOLDER_VARIABLE && inner_annotation.is_some() {
+                    // Fail if the variable is already in the context.
+                    if borrowed_context.contains_key(inner_variable) {
+                        return Err(throw(
+                            &format!("Variable {} already exists.", inner_variable.code_str()),
+                            source_path,
+                            source_contents,
+                            term.source_range, // TODO: Refine this source range.
+                        ));
+                    }
+
+                    // Remember to remove the variable from the context when we're done.
+                    borrowed_variables_added.push(inner_variable);
+
+                    // Add the variable to the context. This will panic if `i` cannot be
+                    // converted to an `isize`.
+                    borrowed_context.insert(inner_variable, depth + isize::try_from(i).unwrap());
+                }
             }
 
-            // Remove the variable from the context (if it was added) when the function
-            // returns.
-            let context_cell = RefCell::new(context);
-            defer! {{ context_cell.borrow_mut().remove(variable); }};
+            // Resolve variables in the definitions and annotations.
+            let mut resolved_definitions = vec![];
+            for (i, (inner_variable, inner_definition, inner_annotation)) in
+                definitions.iter().enumerate()
+            {
+                // Temporarily borrow from the scope guard.
+                let mut guard = context_cell.borrow_mut();
+                let (borrowed_context, borrowed_variables_added) = &mut (*guard);
+
+                // This will panic if `i` cannot be converted to an `isize`.
+                let new_depth = depth + isize::try_from(i).unwrap();
+
+                // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
+                // don't add it to the context. Also, don't add the variable to the context if it's
+                // already been added.
+                if *inner_variable != PLACEHOLDER_VARIABLE && inner_annotation.is_none() {
+                    // Fail if the variable is already in the context.
+                    if borrowed_context.contains_key(inner_variable) {
+                        return Err(throw(
+                            &format!("Variable {} already exists.", inner_variable.code_str()),
+                            source_path,
+                            source_contents,
+                            term.source_range, // TODO: Refine this source range.
+                        ));
+                    }
+
+                    // Remember to remove the variable from the context when we're done.
+                    borrowed_variables_added.push(inner_variable);
+
+                    // Add the variable to the context. This will panic if `i` cannot be
+                    // converted to an `isize`.
+                    borrowed_context.insert(inner_variable, depth + isize::try_from(i).unwrap());
+                }
+
+                // Resolve variables in the definition.
+                let resolved_definition = resolve_variables(
+                    source_path,
+                    source_contents,
+                    inner_definition,
+                    new_depth,
+                    borrowed_context,
+                )?;
+
+                // Resolve variables in the annotation.
+                let resolved_annotation = match inner_annotation {
+                    Some(ascription) => Some(Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        ascription,
+                        new_depth,
+                        borrowed_context,
+                    )?)),
+                    None => None,
+                };
+
+                // Add the definition to the vector.
+                resolved_definitions.push((
+                    *inner_variable,
+                    Rc::new(resolved_definition),
+                    resolved_annotation,
+                ));
+            }
 
             // Construct the let.
             let mut guard = context_cell.borrow_mut();
+            let (borrowed_context, _) = &mut (*guard);
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Let(
-                    variable,
-                    Rc::new(resolved_definition),
-                    resolved_annotation.map(Rc::new),
+                    resolved_definitions,
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*body,
-                        depth + 1,
-                        &mut *guard,
+                        &innermost_body,
+                        // This will panic if `definitions.len()` cannot be converted to an
+                        // `isize`.
+                        depth + isize::try_from(definitions.len()).unwrap(),
+                        borrowed_context,
                     )?),
                 ),
             }
         }
     })
+}
+
+// Recurse into nested lets to collect their definitions and return the innermost body.
+#[allow(clippy::type_complexity)]
+fn collect_definitions<'a>(
+    definitions: &mut Vec<(&'a str, Rc<Term<'a>>, Option<Rc<Term<'a>>>)>,
+    term: Rc<Term<'a>>,
+) -> Rc<Term<'a>> {
+    match &term.variant {
+        Variant::Let(variable, definition, annotation, body) => {
+            definitions.push((variable, definition.clone(), annotation.clone()));
+            collect_definitions(definitions, body.clone())
+        }
+        _ => term,
+    }
 }
 
 // Parse a term.
@@ -1392,7 +1478,7 @@ mod tests {
         parser::parse,
         term::{
             Term,
-            Variant::{Application, Lambda, Let, Pi, Type, Variable},
+            Variant::{Application, Lambda, Pi, Type, Variable},
         },
         tokenizer::tokenize,
     };
@@ -1725,32 +1811,6 @@ mod tests {
                                 variant: Variable("y", 1),
                             }),
                         ),
-                    }),
-                ),
-            },
-        );
-    }
-
-    #[test]
-    fn parse_let() {
-        let source = "x = a; x";
-        let tokens = tokenize(None, source).unwrap();
-        let context = ["a"];
-
-        assert_eq!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
-            Term {
-                source_range: Some((0, 8)),
-                variant: Let(
-                    "x",
-                    Rc::new(Term {
-                        source_range: Some((4, 5)),
-                        variant: Variable("a", 1),
-                    }),
-                    None,
-                    Rc::new(Term {
-                        source_range: Some((7, 8)),
-                        variant: Variable("x", 1),
                     }),
                 ),
             },

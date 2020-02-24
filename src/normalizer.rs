@@ -55,13 +55,7 @@ pub fn normalize_weak_head<'a>(
                 })
             }
         }
-        Let(_, definition, _, body) => {
-            // Open the body and normalize the result.
-            normalize_weak_head(
-                open(body.clone(), 1, definition.clone()),
-                normalization_context,
-            )
-        }
+        Let(_, _) => panic!(),
     }
 }
 
@@ -154,17 +148,7 @@ pub fn normalize_beta<'a>(
                 })
             }
         }
-        Let(_, definition, _, body) => {
-            // Eagerly normalize the definition, open the body, and normalize the result.
-            normalize_beta(
-                open(
-                    body.clone(),
-                    1,
-                    normalize_beta(definition.clone(), normalization_context),
-                ),
-                normalization_context,
-            )
-        }
+        Let(_, _) => panic!(),
     }
 }
 
