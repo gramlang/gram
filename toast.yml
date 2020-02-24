@@ -97,7 +97,8 @@ tasks:
       cargo fmt --all -- --check
       tagref
       shellcheck install.sh
-      bison --verbose --report=itemset --report=lookahead --warnings=all -Werror grammar.y
+      bison --verbose --report=itemset --report=lookahead --warnings=all -Werror grammar.y || \
+        (cat grammar.output && false)
       rm grammar.output grammar.tab.c
 
   run:
