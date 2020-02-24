@@ -758,7 +758,7 @@ fn resolve_variables<'a>(
             let context_cell = RefCell::new(context);
             defer! {{ context_cell.borrow_mut().remove(variable); }};
 
-            // Construct the pi type.
+            // Construct the let.
             let mut guard = context_cell.borrow_mut();
             term::Term {
                 source_range: Some(term.source_range),
