@@ -86,7 +86,7 @@ enum CacheType {
     Let,
     Group,
     Applicand,
-    NonArrowTerm,
+    TermMinusArrowsLet,
 }
 
 // A cache key consists of a `CacheType` indicating which function is being memoized together
@@ -913,7 +913,7 @@ fn parse_non_dependent_pi<'a, 'b>(
         cache,
         NonDependentPi,
         start,
-        parse_non_arrow_term(cache, tokens, start, error),
+        parse_term_minus_arrows_let(cache, tokens, start, error),
     );
 
     // Consume the arrow.
@@ -1072,7 +1072,7 @@ fn parse_application<'a, 'b>(
         cache,
         Application,
         start,
-        parse_non_arrow_term(cache, tokens, next, error),
+        parse_term_minus_arrows_let(cache, tokens, next, error),
     );
 
     // Construct and return the application.
@@ -1213,19 +1213,19 @@ fn parse_applicand<'a, 'b>(
 }
 
 // Parse an argument (the right part of an application).
-fn parse_non_arrow_term<'a, 'b>(
+fn parse_term_minus_arrows_let<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache and make sure we have some tokens to parse.
-    cache_check!(cache, NonArrowTerm, start, error);
+    cache_check!(cache, TermMinusArrowsLet, start, error);
 
     // Try to parse an application.
     try_return!(
         cache,
-        NonArrowTerm,
+        TermMinusArrowsLet,
         start,
         parse_application(cache, tokens, start, error),
     );
@@ -1236,7 +1236,7 @@ fn parse_non_arrow_term<'a, 'b>(
     // Try to parse a variable.
     try_return!(
         cache,
-        NonArrowTerm,
+        TermMinusArrowsLet,
         start,
         parse_variable(cache, tokens, start, error),
     );
@@ -1244,7 +1244,7 @@ fn parse_non_arrow_term<'a, 'b>(
     // Try to parse a group.
     try_return!(
         cache,
-        NonArrowTerm,
+        TermMinusArrowsLet,
         start,
         parse_group(cache, tokens, start, error),
     );
@@ -1254,7 +1254,7 @@ fn parse_non_arrow_term<'a, 'b>(
     set_generic_error(tokens, start, error);
 
     // Return `None` since the parse failed.
-    cache_return!(cache, NonArrowTerm, start, None)
+    cache_return!(cache, TermMinusArrowsLet, start, None)
 }
 
 #[cfg(test)]

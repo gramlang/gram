@@ -38,7 +38,7 @@
 term:
   TYPE |
   IDENTIFIER |
-  non_arrow_term THIN_ARROW term |
+  term_minus_arrows_let THIN_ARROW term |
   LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THIN_ARROW term |
   LEFT_PAREN IDENTIFIER COLON term RIGHT_PAREN THICK_ARROW term |
   application |
@@ -46,14 +46,14 @@ term:
   LEFT_PAREN term RIGHT_PAREN ;
 
 application:
-  applicand non_arrow_term ;
+  applicand term_minus_arrows_let ;
 
 applicand:
   TYPE |
   IDENTIFIER |
   LEFT_PAREN term RIGHT_PAREN ;
 
-non_arrow_term:
+term_minus_arrows_let:
   TYPE |
   IDENTIFIER |
   application |
