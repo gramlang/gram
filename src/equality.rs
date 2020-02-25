@@ -73,7 +73,8 @@ pub fn definitionally_equal<'a>(
         }
         (Pi(_, domain1, codomain1), Pi(_, domain2, codomain2)) => {
             definitionally_equal(domain1.clone(), domain2.clone(), normalization_context) && {
-                // Temporarily add the variable to the context for the purpose of normalizing the body.
+                // Temporarily add the variable to the context for the purpose of normalizing the
+                // codomain.
                 normalization_context.push(None);
 
                 // Check if the codomains are definitionally equal.
