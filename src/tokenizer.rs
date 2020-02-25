@@ -60,7 +60,11 @@ pub fn tokenize<'a>(
                         Variant::Colon
                         | Variant::Equals
                         | Variant::LeftParen
+<<<<<<< Updated upstream
                         | Variant::Terminator(TerminatorType::LineBreak) /* [tag:no_consecutive_line_break_terminators] */
+=======
+                        | Variant::Terminator(_)
+>>>>>>> Stashed changes
                         | Variant::ThickArrow
                         | Variant::ThinArrow => false,
                         Variant::RightParen
@@ -154,6 +158,10 @@ pub fn tokenize<'a>(
                 if match next_token.variant {
                     Variant::Colon
                     | Variant::Equals
+<<<<<<< Updated upstream
+=======
+                    | Variant::Terminator(_)
+>>>>>>> Stashed changes
                     | Variant::ThickArrow
                     | Variant::ThinArrow
                     | Variant::RightParen => false,
@@ -233,7 +241,11 @@ mod tests {
                     variant: Variant::Type,
                 },
                 Token {
+<<<<<<< Updated upstream
                     source_range: (6, 7),
+=======
+                    source_range: (TYPE_KEYWORD.len(), TYPE_KEYWORD.len() + 1),
+>>>>>>> Stashed changes
                     variant: Variant::Terminator(TerminatorType::LineBreak),
                 },
                 Token {

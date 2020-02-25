@@ -26,8 +26,12 @@ pub enum Variant<'a> {
     Identifier(&'a str),
 }
 
+<<<<<<< Updated upstream
 // A terminator can be a line break or a semicolon. Note that not every line break is parsed as a
 // terminator, however.
+=======
+// A terminator token has two variants.
+>>>>>>> Stashed changes
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum TerminatorType {
     LineBreak,

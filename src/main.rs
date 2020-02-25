@@ -1,6 +1,7 @@
 mod de_bruijn;
 mod equality;
 mod error;
+mod evaluator;
 mod format;
 mod normalizer;
 mod parser;
@@ -11,8 +12,8 @@ mod type_checker;
 
 use crate::{
     error::{lift, Error},
+    evaluator::evaluate,
     format::CodeStr,
-    normalizer::normalize_beta,
     parser::parse,
     tokenizer::tokenize,
     type_checker::type_check,
@@ -104,11 +105,11 @@ fn run(source_path: &Path) -> Result<(), Error> {
     // Tokenize the source file.
     let tokens = tokenize(Some(source_path), &source_contents)?;
 
-    // Print the AST.
+    // Parse the term.
     let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
     println!("# Original term:\n\n{}\n", term.to_string().code_str());
 
-    // Print the type.
+    // Type check the term.
     let mut typing_context = vec![];
     let mut normalization_context = vec![];
     let term_type = type_check(
@@ -120,9 +121,9 @@ fn run(source_path: &Path) -> Result<(), Error> {
     )?;
     println!("# Type:\n\n{}\n", term_type.to_string().code_str());
 
-    // Print the normal form.
-    let normal_form = normalize_beta(Rc::new(term), &mut normalization_context);
-    println!("# Normal form:\n\n{}", normal_form.to_string().code_str());
+    // Evaluate the term.
+    let value = evaluate(Rc::new(term));
+    println!("# Value:\n\n{}", value.to_string().code_str());
 
     // If we made it this far, nothing went wrong.
     Ok(())

@@ -333,6 +333,76 @@ macro_rules! consume_terminator {
     }};
 }
 
+// This macro consumes a single terminator and evaluates to the position of the next token.
+macro_rules! consume_terminator {
+    (
+        $cache:ident,
+        $type:ident,
+        $start:expr,
+        $tokens:expr,
+        $next:expr,
+        $error:ident $(,)?
+    ) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let start = $start;
+        let tokens = $tokens;
+        let next = $next;
+
+        // Fail if there are no more tokens to parse.
+        if next == tokens.len() {
+            if next > $error.1 {
+                *$error = (
+                    Some(Rc::new(move |source_path, source_contents| {
+                        throw(
+                            &format!(
+                                "Expected {} after {}.",
+                                token::Variant::Terminator(token::TerminatorType::Semicolon)
+                                    .to_string()
+                                    .code_str(),
+                                tokens[next - 1].to_string().code_str(),
+                            ),
+                            source_path,
+                            source_contents,
+                            tokens[next - 1].source_range,
+                        )
+                    }) as ErrorFactory),
+                    next,
+                );
+            }
+
+            cache_return!($cache, $type, start, None)
+        }
+
+        // Check if the token was the expected one.
+        if let token::Variant::Terminator(_) = tokens[next].variant {
+            next + 1
+        } else {
+            if next > $error.1 {
+                *$error = (
+                    Some(Rc::new(move |source_path, source_contents| {
+                        throw(
+                            &format!(
+                                "Expected {} but encountered {}.",
+                                token::Variant::Terminator(token::TerminatorType::Semicolon)
+                                    .to_string()
+                                    .code_str(),
+                                tokens[next].to_string().code_str(),
+                            ),
+                            source_path,
+                            source_contents,
+                            tokens[next].source_range,
+                        )
+                    }) as ErrorFactory),
+                    next,
+                );
+            }
+
+            cache_return!($cache, $type, start, None)
+        }
+    }};
+}
+
 // This macro consumes an identifier and evaluates to the identifier paired with the position of
 // the next token.
 macro_rules! consume_identifier {
@@ -1251,7 +1321,11 @@ fn parse_let<'a, 'b>(
     let (definition, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
 
     // Consume the terminator.
+<<<<<<< Updated upstream
     let next = consume_terminator!(cache, Let, start, tokens, next, error, High);
+=======
+    let next = consume_terminator!(cache, Let, start, tokens, next, error);
+>>>>>>> Stashed changes
 
     // Parse the body.
     let (body, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));

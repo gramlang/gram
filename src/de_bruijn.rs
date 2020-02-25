@@ -2,11 +2,10 @@ use crate::term::{
     Term,
     Variant::{Application, Lambda, Let, Pi, Type, Variable},
 };
-use std::{cmp::Ordering, rc::Rc};
+use std::{cmp::Ordering, convert::TryFrom, rc::Rc};
 
 // Shifting refers to increasing the De Bruijn indices of free variables greater than or equal to a
-// given index.
-// Invariant: `min_index` should be greater than 0.
+// given index. Invariant: `min_index` should be greater than 0.
 pub fn shift<'a>(term: Rc<Term<'a>>, min_index: isize, amount: isize) -> Rc<Term<'a>> {
     match &term.variant {
         Type => term,
@@ -43,13 +42,49 @@ pub fn shift<'a>(term: Rc<Term<'a>>, min_index: isize, amount: isize) -> Rc<Term
                 shift(argument.clone(), min_index, amount),
             ),
         }),
-        Let(_, _) => panic!(),
+        Let(definitions, body) => {
+            Rc::new(Term {
+                source_range: term.source_range,
+                variant: Let(
+                    definitions
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, (variable, definition, annotation))| {
+                            (
+                                *variable,
+                                shift(
+                                    definition.clone(),
+                                    // This will panic if `i` cannot be converted into an `isize`.
+                                    min_index + isize::try_from(i).unwrap(),
+                                    amount,
+                                ),
+                                annotation.as_ref().map(|ascription| {
+                                    shift(
+                                        ascription.clone(),
+                                        // This will panic if `i` cannot be converted into an
+                                        // `isize`.
+                                        min_index + isize::try_from(i).unwrap(),
+                                        amount,
+                                    )
+                                }),
+                            )
+                        })
+                        .collect(),
+                    // This will panic if `definitions.len()` cannot be converted into an `isize`.
+                    shift(
+                        body.clone(),
+                        min_index + isize::try_from(definitions.len()).unwrap(),
+                        amount,
+                    ),
+                ),
+            })
+        }
     }
 }
 
 // Opening is the act of replacing a free variable by a term and decrementing the De Bruijn indices
-// of the free variables with higher indices than that of the one being replaced.
-// Invariant: `index_to_replace` should be greater than 0.
+// of the free variables with higher indices than that of the one being replaced. Invariant:
+// `index_to_replace` should be greater than 0.
 pub fn open<'a>(
     term_to_open: Rc<Term<'a>>,
     index_to_replace: isize,
@@ -88,390 +123,42 @@ pub fn open<'a>(
                 open(argument.clone(), index_to_replace, term_to_insert),
             ),
         }),
-        Let(_, _) => panic!(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{
-        de_bruijn::{open, shift},
-        term::{
-            Term,
-            Variant::{Application, Lambda, Pi, Type, Variable},
-        },
-        token::TYPE_KEYWORD,
-    };
-    use std::rc::Rc;
-
-    #[test]
-    fn shift_type() {
-        assert_eq!(
-            *shift(
-                Rc::new(Term {
-                    source_range: Some((0, TYPE_KEYWORD.len())),
-                    variant: Type,
-                }),
-                1,
-                42,
-            ),
-            Term {
-                source_range: Some((0, TYPE_KEYWORD.len())),
-                variant: Type,
-            },
-        );
-    }
-
-    #[test]
-    fn shift_variable_free() {
-        assert_eq!(
-            *shift(
-                Rc::new(Term {
-                    source_range: Some((0, 1)),
-                    variant: Variable("x", 1),
-                }),
-                1,
-                42,
-            ),
-            Term {
-                source_range: Some((0, 1)),
-                variant: Variable("x", 43),
-            },
-        );
-    }
-
-    #[test]
-    fn shift_variable_bound() {
-        assert_eq!(
-            *shift(
-                Rc::new(Term {
-                    source_range: Some((0, 1)),
-                    variant: Variable("x", 1),
-                }),
-                2,
-                42,
-            ),
-            Term {
-                source_range: Some((0, 1)),
-                variant: Variable("x", 1),
-            },
-        );
-    }
-
-    #[test]
-    fn shift_lambda() {
-        assert_eq!(
-            *shift(
-                Rc::new(Term {
-                    source_range: Some((97, 112)),
-                    variant: Lambda(
-                        "a",
-                        Rc::new(Term {
-                            source_range: Some((102, 106)),
-                            variant: Variable("b", 1),
-                        }),
-                        Rc::new(Term {
-                            source_range: Some((111, 112)),
-                            variant: Variable("b", 2),
-                        }),
+        Let(definitions, body) => {
+            Rc::new(Term {
+                source_range: term_to_open.source_range,
+                variant: Let(
+                    definitions
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, (variable, definition, annotation))| {
+                            (
+                                *variable,
+                                open(
+                                    definition.clone(),
+                                    // This will panic if `i` cannot be converted into an `isize`.
+                                    index_to_replace + isize::try_from(i).unwrap(),
+                                    term_to_insert.clone(),
+                                ),
+                                annotation.as_ref().map(|ascription| {
+                                    open(
+                                        ascription.clone(),
+                                        // This will panic if `i` cannot be converted into an
+                                        // `isize`.
+                                        index_to_replace + isize::try_from(i).unwrap(),
+                                        term_to_insert.clone(),
+                                    )
+                                }),
+                            )
+                        })
+                        .collect(),
+                    // This will panic if `definitions.len()` cannot be converted into an `isize`.
+                    open(
+                        body.clone(),
+                        index_to_replace + isize::try_from(definitions.len()).unwrap(),
+                        term_to_insert,
                     ),
-                }),
-                1,
-                42,
-            ),
-            Term {
-                source_range: Some((97, 112)),
-                variant: Lambda(
-                    "a",
-                    Rc::new(Term {
-                        source_range: Some((102, 106)),
-                        variant: Variable("b", 43),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((111, 112)),
-                        variant: Variable("b", 44),
-                    }),
                 ),
-            },
-        );
-    }
-
-    #[test]
-    fn shift_pi() {
-        assert_eq!(
-            *shift(
-                Rc::new(Term {
-                    source_range: Some((97, 112)),
-                    variant: Pi(
-                        "a",
-                        Rc::new(Term {
-                            source_range: Some((102, 106)),
-                            variant: Variable("b", 1),
-                        }),
-                        Rc::new(Term {
-                            source_range: Some((111, 112)),
-                            variant: Variable("b", 2),
-                        }),
-                    ),
-                }),
-                1,
-                42,
-            ),
-            Term {
-                source_range: Some((97, 112)),
-                variant: Pi(
-                    "a",
-                    Rc::new(Term {
-                        source_range: Some((102, 106)),
-                        variant: Variable("b", 43),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((111, 112)),
-                        variant: Variable("b", 44),
-                    }),
-                ),
-            },
-        );
-    }
-
-    #[test]
-    fn shift_application() {
-        assert_eq!(
-            *shift(
-                Rc::new(Term {
-                    source_range: Some((97, 112)),
-                    variant: Application(
-                        Rc::new(Term {
-                            source_range: Some((102, 106)),
-                            variant: Variable("a", 1),
-                        }),
-                        Rc::new(Term {
-                            source_range: Some((111, 112)),
-                            variant: Variable("b", 2),
-                        }),
-                    ),
-                }),
-                2,
-                42,
-            ),
-            Term {
-                source_range: Some((97, 112)),
-                variant: Application(
-                    Rc::new(Term {
-                        source_range: Some((102, 106)),
-                        variant: Variable("a", 1),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((111, 112)),
-                        variant: Variable("b", 44),
-                    }),
-                ),
-            },
-        );
-    }
-
-    #[test]
-    fn open_type() {
-        assert_eq!(
-            *open(
-                Rc::new(Term {
-                    source_range: Some((0, TYPE_KEYWORD.len())),
-                    variant: Type,
-                }),
-                1,
-                Rc::new(Term {
-                    source_range: Some((3, 4)),
-                    variant: Variable("y", 1),
-                }),
-            ),
-            Term {
-                source_range: Some((0, TYPE_KEYWORD.len())),
-                variant: Type,
-            },
-        );
-    }
-
-    #[test]
-    fn open_variable_match() {
-        assert_eq!(
-            *open(
-                Rc::new(Term {
-                    source_range: Some((0, 1)),
-                    variant: Variable("x", 1),
-                }),
-                1,
-                Rc::new(Term {
-                    source_range: Some((3, 4)),
-                    variant: Variable("y", 1),
-                }),
-            ),
-            Term {
-                source_range: Some((3, 4)),
-                variant: Variable("y", 1),
-            },
-        );
-    }
-
-    #[test]
-    fn open_variable_free() {
-        assert_eq!(
-            *open(
-                Rc::new(Term {
-                    source_range: Some((0, 1)),
-                    variant: Variable("x", 2),
-                }),
-                1,
-                Rc::new(Term {
-                    source_range: Some((3, 4)),
-                    variant: Variable("y", 1),
-                }),
-            ),
-            Term {
-                source_range: Some((0, 1)),
-                variant: Variable("x", 1),
-            },
-        );
-    }
-
-    #[test]
-    fn open_variable_bound() {
-        assert_eq!(
-            *open(
-                Rc::new(Term {
-                    source_range: Some((0, 1)),
-                    variant: Variable("x", 1),
-                }),
-                2,
-                Rc::new(Term {
-                    source_range: Some((3, 4)),
-                    variant: Variable("y", 1),
-                }),
-            ),
-            Term {
-                source_range: Some((0, 1)),
-                variant: Variable("x", 1),
-            },
-        );
-    }
-
-    #[test]
-    fn open_lambda() {
-        assert_eq!(
-            *open(
-                Rc::new(Term {
-                    source_range: Some((97, 112)),
-                    variant: Lambda(
-                        "a",
-                        Rc::new(Term {
-                            source_range: Some((102, 106)),
-                            variant: Variable("b", 1),
-                        }),
-                        Rc::new(Term {
-                            source_range: Some((111, 112)),
-                            variant: Variable("b", 2),
-                        }),
-                    ),
-                }),
-                1,
-                Rc::new(Term {
-                    source_range: Some((3, 4)),
-                    variant: Variable("x", 5),
-                }),
-            ),
-            Term {
-                source_range: Some((97, 112)),
-                variant: Lambda(
-                    "a",
-                    Rc::new(Term {
-                        source_range: Some((3, 4)),
-                        variant: Variable("x", 5),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((3, 4)),
-                        variant: Variable("x", 6),
-                    }),
-                ),
-            },
-        );
-    }
-
-    #[test]
-    fn open_pi() {
-        assert_eq!(
-            *open(
-                Rc::new(Term {
-                    source_range: Some((97, 112)),
-                    variant: Pi(
-                        "a",
-                        Rc::new(Term {
-                            source_range: Some((102, 106)),
-                            variant: Variable("b", 1),
-                        }),
-                        Rc::new(Term {
-                            source_range: Some((111, 112)),
-                            variant: Variable("b", 2),
-                        }),
-                    ),
-                }),
-                1,
-                Rc::new(Term {
-                    source_range: Some((3, 4)),
-                    variant: Variable("x", 5),
-                }),
-            ),
-            Term {
-                source_range: Some((97, 112)),
-                variant: Pi(
-                    "a",
-                    Rc::new(Term {
-                        source_range: Some((3, 4)),
-                        variant: Variable("x", 5),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((3, 4)),
-                        variant: Variable("x", 6),
-                    }),
-                ),
-            },
-        );
-    }
-
-    #[test]
-    fn open_application() {
-        assert_eq!(
-            *open(
-                Rc::new(Term {
-                    source_range: Some((97, 112)),
-                    variant: Application(
-                        Rc::new(Term {
-                            source_range: Some((102, 106)),
-                            variant: Variable("a", 1),
-                        }),
-                        Rc::new(Term {
-                            source_range: Some((111, 112)),
-                            variant: Variable("b", 2),
-                        }),
-                    ),
-                }),
-                1,
-                Rc::new(Term {
-                    source_range: Some((3, 4)),
-                    variant: Variable("x", 5),
-                }),
-            ),
-            Term {
-                source_range: Some((97, 112)),
-                variant: Application(
-                    Rc::new(Term {
-                        source_range: Some((3, 4)),
-                        variant: Variable("x", 5),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((111, 112)),
-                        variant: Variable("b", 1),
-                    }),
-                ),
-            },
-        );
+            })
+        }
     }
 }
