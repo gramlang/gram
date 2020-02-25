@@ -197,6 +197,11 @@ mod tests {
     }
 
     #[test]
+    fn tokenize_comment() {
+        assert_eq!(tokenize(None, "# Hello, World!").unwrap(), vec![]);
+    }
+
+    #[test]
     fn tokenize_colon() {
         assert_eq!(
             tokenize(None, ":").unwrap(),
@@ -219,21 +224,62 @@ mod tests {
     }
 
     #[test]
-    fn tokenize_terminator() {
+    fn tokenize_terminator_line_break() {
         assert_eq!(
-            tokenize(None, "type\ntype\n").unwrap(),
+            tokenize(None, "\n\ntype\n\ntype\n\n").unwrap(),
             vec![
                 Token {
-                    source_range: (0, TYPE_KEYWORD.len()),
+                    source_range: (2, 6),
                     variant: Variant::Type,
                 },
                 Token {
-                    source_range: (TYPE_KEYWORD.len(), TYPE_KEYWORD.len() + 1),
+                    source_range: (6, 7),
                     variant: Variant::Terminator(TerminatorType::LineBreak),
                 },
                 Token {
-                    source_range: (TYPE_KEYWORD.len() + 1, TYPE_KEYWORD.len() * 2 + 1),
+                    source_range: (8, 12),
                     variant: Variant::Type,
+                },
+            ],
+        );
+    }
+
+    #[test]
+    fn tokenize_terminator_semicolon() {
+        assert_eq!(
+            tokenize(None, ";;type;;type;;").unwrap(),
+            vec![
+                Token {
+                    source_range: (0, 1),
+                    variant: Variant::Terminator(TerminatorType::Semicolon),
+                },
+                Token {
+                    source_range: (1, 2),
+                    variant: Variant::Terminator(TerminatorType::Semicolon),
+                },
+                Token {
+                    source_range: (2, 6),
+                    variant: Variant::Type,
+                },
+                Token {
+                    source_range: (6, 7),
+                    variant: Variant::Terminator(TerminatorType::Semicolon),
+                },
+                Token {
+                    source_range: (7, 8),
+                    variant: Variant::Terminator(TerminatorType::Semicolon),
+                },
+                Token {
+                    source_range: (8, 12),
+                    variant: Variant::Type,
+                },
+                Token {
+                    source_range: (12, 13),
+                    variant: Variant::Terminator(TerminatorType::Semicolon),
+                },
+                Token {
+                    source_range: (13, 14),
+                    variant: Variant::Terminator(TerminatorType::Semicolon),
                 },
             ],
         );
