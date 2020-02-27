@@ -31,8 +31,12 @@ pub enum Variant<'a> {
     // An application is the act of applying a lambda to an argument.
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
 
-    // A let is a local variable definition.
-    Let(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
+    // A let is a vector of local variable definitions with an optional type annotations.
+    #[allow(clippy::type_complexity)]
+    Let(
+        Vec<(&'a str, Option<Rc<Term<'a>>>, Rc<Term<'a>>)>,
+        Rc<Term<'a>>,
+    ),
 }
 
 impl<'a> Display for Term<'a> {
@@ -58,8 +62,19 @@ impl<'a> Display for Variant<'a> {
                 }
             }
             Self::Application(applicand, argument) => write!(f, "{} {}", applicand, argument),
-            Self::Let(variable, definition, body) => {
-                write!(f, "{} = {}; {}", variable, definition, body)
+            Self::Let(definitions, body) => {
+                for (variable, annotation, definition) in definitions {
+                    match annotation {
+                        Some(annotation) => {
+                            write!(f, "{} : {} = {}; ", variable, annotation, definition)?;
+                        }
+                        None => {
+                            write!(f, "{} = {}; ", variable, definition)?;
+                        }
+                    }
+                }
+
+                write!(f, "{}", body)
             }
         }
     }

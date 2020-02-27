@@ -1,5 +1,5 @@
 use crate::{
-    de_bruijn::open,
+    de_bruijn::{open, shift},
     format::CodeStr,
     term::{
         Term,
@@ -9,7 +9,7 @@ use crate::{
 use std::rc::Rc;
 
 // This function evaluates a term using a call-by-value strategy. The term is assumed to be
-// well-typed. Runtime type errors will result in panicking.
+// well-typed in the empty context. Runtime type errors will result in panicking.
 pub fn evaluate<'a>(term: Rc<Term<'a>>) -> Rc<Term<'a>> {
     match &term.variant {
         Type | Lambda(_, _, _) | Pi(_, _, _) => {
@@ -43,9 +43,78 @@ pub fn evaluate<'a>(term: Rc<Term<'a>>) -> Rc<Term<'a>> {
                 ))
             }
         }
-        Let(_, definition, body) => {
-            // Eagerly evaluate the definition, open the body, and continue evaluating.
-            evaluate(open(body.clone(), 0, evaluate(definition.clone())))
+        Let(definitions, body) => {
+            // Evaluate the definitions and substitute them into the body.
+            let mut substituted_definitions = definitions.clone();
+            let mut substituted_body = body.clone();
+            for i in 0..definitions.len() {
+                // Compute these once rather than multiple times.
+                let i_index = definitions.len() - 1 - i;
+                let i_index_plus_1 = i_index + 1;
+
+                // Unfold each remaining definition and substitute it in.
+                for j in i..definitions.len() {
+                    // Compute this once rather than multiple times.
+                    let j_index = definitions.len() - 1 - j;
+
+                    // Unfold the definition.
+                    let unfolded_definition = Rc::new(Term {
+                        source_range: None,
+                        variant: Let(
+                            substituted_definitions[i..]
+                                .iter()
+                                .map(|(variable, annotation, definition)| {
+                                    (
+                                        *variable,
+                                        annotation.as_ref().map(|annotation| {
+                                            shift(
+                                                annotation.clone(),
+                                                definitions.len(),
+                                                i_index_plus_1,
+                                            )
+                                        }),
+                                        shift(
+                                            definition.clone(),
+                                            definitions.len(),
+                                            i_index_plus_1,
+                                        ),
+                                    )
+                                })
+                                .collect(),
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Variable(substituted_definitions[j].0, 0),
+                            }),
+                        ),
+                    });
+
+                    // Substitute the unfolded definition.
+                    substituted_definitions[i].2 = open(
+                        substituted_definitions[i].2.clone(),
+                        j_index,
+                        unfolded_definition,
+                    );
+                }
+
+                // Evaluate the definition.
+                let evaluated_definition = evaluate(substituted_definitions[i].2.clone());
+
+                // Substitute the value in subsequent definitions.
+                for definition in substituted_definitions.iter_mut().skip(i + 1) {
+                    definition.2 =
+                        open(definition.2.clone(), i_index, evaluated_definition.clone());
+                }
+
+                // Substitute the value in the body.
+                substituted_body = open(
+                    substituted_body.clone(),
+                    i_index,
+                    evaluated_definition.clone(),
+                );
+            }
+
+            // Evaluate the body.
+            evaluate(substituted_body)
         }
     }
 }
@@ -59,7 +128,6 @@ mod tests {
             Term,
             Variant::{Application, Lambda, Pi, Type, Variable},
         },
-        token::TYPE_KEYWORD,
         tokenizer::tokenize,
     };
     use std::rc::Rc;
@@ -73,7 +141,7 @@ mod tests {
         assert_eq!(
             *evaluate(Rc::new(term)),
             Term {
-                source_range: Some((0, TYPE_KEYWORD.len())),
+                source_range: Some((0, 4)),
                 variant: Type,
             },
         );
@@ -225,15 +293,15 @@ mod tests {
 
     #[test]
     fn evaluate_let() {
-        let source = "x = type; ((y : type) => y) x";
+        let source = "f = (x : type) => g x; g = (x : type) => x; f type";
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
             *evaluate(Rc::new(term)),
             Term {
-                source_range: Some((4, 8)),
-                variant: Type,
+                source_range: Some((46, 50)),
+                variant: Type
             },
         );
     }

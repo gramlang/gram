@@ -44,33 +44,47 @@ pub const PLACEHOLDER_VARIABLE: &str = "_";
 // an AST. This is similar to `term::Term`, except:
 // - It doesn't contain De Bruijn indices.
 // - It has a `group` field (see see [ref:group_flag]).
+// - It has source ranges for variables.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct Term<'a> {
-    pub source_range: (usize, usize), // [start, end)
-    pub group: bool,                  // For an explanation of this field, see [ref:group_flag].
-    pub variant: Variant<'a>,
+struct Term<'a> {
+    source_range: (usize, usize), // [start, end)
+    group: bool,                  // For an explanation of this field, see [ref:group_flag].
+    variant: Variant<'a>,
 }
 
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Variant<'a> {
+enum Variant<'a> {
     // This is the type of all types, including itself.
     Type,
 
     // A variable is a placeholder bound by a lambda, pi type, or let.
-    Variable(&'a str),
+    Variable(SourceVariable<'a>),
 
     // A lambda, or dependent function, is a computable function.
-    Lambda(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
+    Lambda(SourceVariable<'a>, Rc<Term<'a>>, Rc<Term<'a>>),
 
     // Pi types, or dependent function types, are the types ascribed to lambdas.
-    Pi(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
+    Pi(SourceVariable<'a>, Rc<Term<'a>>, Rc<Term<'a>>),
 
     // An application is the act of applying a lambda to an argument.
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
 
-    // A let is a local variable definition.
-    Let(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
+    // A let is a local variable definition with an optional type annotation.
+    Let(
+        SourceVariable<'a>,
+        Option<Rc<Term<'a>>>,
+        Rc<Term<'a>>,
+        Rc<Term<'a>>,
+    ),
+}
+
+// For variables, we store the name of the variable and its source range. The source range allows
+// us to report nice errors when there are multiple variables with the same name.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SourceVariable<'a> {
+    source_range: (usize, usize), // [start, end)
+    name: &'a str,
 }
 
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
@@ -87,6 +101,7 @@ enum CacheType {
     Group,
     Applicand,
     TermMinusArrowsLet,
+    TermMinusLet,
 }
 
 // A cache key consists of a `CacheType` indicating which function is being memoized together
@@ -508,7 +523,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Lambda(
-                variable,
+                *variable,
                 reassociate_applications(None, domain.clone()),
                 reassociate_applications(None, body.clone()),
             ),
@@ -517,7 +532,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Pi(
-                variable,
+                *variable,
                 reassociate_applications(None, domain.clone()),
                 reassociate_applications(None, codomain.clone()),
             ),
@@ -561,11 +576,14 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 )
             };
         }
-        Variant::Let(variable, definition, body) => Rc::new(Term {
+        Variant::Let(variable, annotation, definition, body) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Let(
-                variable,
+                *variable,
+                annotation
+                    .as_ref()
+                    .map(|annotation| reassociate_applications(None, annotation.clone())),
                 reassociate_applications(None, definition.clone()),
                 reassociate_applications(None, body.clone()),
             ),
@@ -604,21 +622,21 @@ fn resolve_variables<'a>(
         }
         Variant::Variable(variable) => {
             // Calculate the De Bruijn index of the variable.
-            let index = if let Some(variable_depth) = context.get(variable) {
+            let index = if let Some(variable_depth) = context.get(variable.name) {
                 depth - variable_depth - 1
             } else {
                 return Err(throw(
-                    &format!("Undefined variable {}.", variable.code_str()),
+                    &format!("Undefined variable {}.", variable.name.code_str()),
                     source_path,
                     source_contents,
-                    term.source_range,
+                    variable.source_range,
                 ));
             };
 
             // Construct the variable.
             term::Term {
                 source_range: Some(term.source_range),
-                variant: term::Variant::Variable(variable, index),
+                variant: term::Variant::Variable(variable.name, index),
             }
         }
         Variant::Lambda(variable, domain, body) => {
@@ -628,32 +646,32 @@ fn resolve_variables<'a>(
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
-            if *variable != PLACEHOLDER_VARIABLE {
+            if variable.name != PLACEHOLDER_VARIABLE {
                 // Fail if the variable is already in the context.
-                if context.contains_key(variable) {
+                if context.contains_key(variable.name) {
                     return Err(throw(
-                        &format!("Variable {} already exists.", variable.code_str()),
+                        &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
                         source_contents,
-                        term.source_range,
+                        variable.source_range,
                     ));
                 }
 
                 // Add the variable to the context.
-                context.insert(variable, depth);
+                context.insert(variable.name, depth);
             }
 
             // Remove the variable from the context (if it was added) when the function
             // returns.
             let context_cell = RefCell::new(context);
-            defer! {{ context_cell.borrow_mut().remove(variable); }};
+            defer! {{ context_cell.borrow_mut().remove(variable.name); }};
 
             // Construct the lambda.
             let mut guard = context_cell.borrow_mut();
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Lambda(
-                    variable,
+                    variable.name,
                     Rc::new(resolved_domain),
                     Rc::new(resolve_variables(
                         source_path,
@@ -672,32 +690,32 @@ fn resolve_variables<'a>(
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
-            if *variable != PLACEHOLDER_VARIABLE {
+            if variable.name != PLACEHOLDER_VARIABLE {
                 // Fail if the variable is already in the context.
-                if context.contains_key(variable) {
+                if context.contains_key(variable.name) {
                     return Err(throw(
-                        &format!("Variable {} already exists.", variable.code_str()),
+                        &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
                         source_contents,
-                        term.source_range,
+                        variable.source_range,
                     ));
                 }
 
                 // Add the variable to the context.
-                context.insert(variable, depth);
+                context.insert(variable.name, depth);
             }
 
             // Remove the variable from the context (if it was added) when the function
             // returns.
             let context_cell = RefCell::new(context);
-            defer! {{ context_cell.borrow_mut().remove(variable); }};
+            defer! {{ context_cell.borrow_mut().remove(variable.name); }};
 
             // Construct the pi type.
             let mut guard = context_cell.borrow_mut();
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Pi(
-                    variable,
+                    variable.name,
                     Rc::new(resolved_domain),
                     Rc::new(resolve_variables(
                         source_path,
@@ -731,51 +749,125 @@ fn resolve_variables<'a>(
                 ),
             }
         }
-        Variant::Let(variable, definition, body) => {
-            // Resolve variables in the definition.
-            let resolved_definition =
-                resolve_variables(source_path, source_contents, &*definition, depth, context)?;
+        Variant::Let(_, _, _, _) => {
+            // Collect the definitions from nested lets.
+            let mut definitions = vec![];
+            let innermost_body = collect_definitions(&mut definitions, Rc::new(term.clone()));
 
-            // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
-            // don't add it to the context.
-            if *variable != PLACEHOLDER_VARIABLE {
-                // Fail if the variable is already in the context.
-                if context.contains_key(variable) {
-                    return Err(throw(
-                        &format!("Variable {} already exists.", variable.code_str()),
-                        source_path,
-                        source_contents,
-                        term.source_range,
-                    ));
+            // When the function returns, remove the variables from the context that we are
+            // temporarily adding.
+            let context_cell = RefCell::new((context, vec![]));
+            defer! {{
+                let mut guard = context_cell.borrow_mut();
+                let (borrowed_context, borrowed_variables_added) = &mut (*guard);
+
+                for variable_added in borrowed_variables_added {
+                    borrowed_context.remove(*variable_added);
                 }
+            }};
 
-                // Add the variable to the context.
-                context.insert(variable, depth);
+            // Add the definitions to the context.
+            for (i, (inner_variable, _, _)) in definitions.iter().enumerate() {
+                // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts,
+                // and don't add it to the context.
+                if inner_variable.name != PLACEHOLDER_VARIABLE {
+                    // Temporarily borrow from the scope guard.
+                    let mut guard = context_cell.borrow_mut();
+                    let (borrowed_context, borrowed_variables_added) = &mut (*guard);
+
+                    // Fail if the variable is already in the context.
+                    if borrowed_context.contains_key(inner_variable.name) {
+                        return Err(throw(
+                            &format!(
+                                "Variable {} already exists.",
+                                inner_variable.name.code_str()
+                            ),
+                            source_path,
+                            source_contents,
+                            inner_variable.source_range,
+                        ));
+                    }
+
+                    // Add the variable to the context.
+                    borrowed_context.insert(inner_variable.name, depth + i);
+                    borrowed_variables_added.push(inner_variable.name);
+                }
             }
 
-            // Remove the variable from the context (if it was added) when the function
-            // returns.
-            let context_cell = RefCell::new(context);
-            defer! {{ context_cell.borrow_mut().remove(variable); }};
+            // The depth for the annotations, definitions, and innermost body will be as follows:
+            let new_depth = depth + definitions.len();
+
+            // Resolve variables in the definitions and annotations.
+            let mut resolved_definitions = vec![];
+            for (inner_variable, inner_annotation, inner_definition) in &definitions {
+                // Temporarily borrow from the scope guard.
+                let mut guard = context_cell.borrow_mut();
+                let (borrowed_context, _) = &mut (*guard);
+
+                // Resolve variables in the annotation.
+                let resolved_annotation = match inner_annotation {
+                    Some(annotation) => Some(Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*annotation,
+                        new_depth,
+                        borrowed_context,
+                    )?)),
+                    None => None,
+                };
+
+                // Resolve variables in the definition.
+                let resolved_definition = resolve_variables(
+                    source_path,
+                    source_contents,
+                    &*inner_definition,
+                    new_depth,
+                    borrowed_context,
+                )?;
+
+                // Add the definition to the vector.
+                resolved_definitions.push((
+                    inner_variable.name,
+                    resolved_annotation,
+                    Rc::new(resolved_definition),
+                ));
+            }
+
+            // Temporarily borrow from the scope guard.
+            let mut guard = context_cell.borrow_mut();
+            let (borrowed_context, _) = &mut (*guard);
 
             // Construct the let.
-            let mut guard = context_cell.borrow_mut();
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Let(
-                    variable,
-                    Rc::new(resolved_definition),
+                    resolved_definitions,
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*body,
-                        depth + 1,
-                        &mut *guard,
+                        &innermost_body,
+                        new_depth,
+                        borrowed_context,
                     )?),
                 ),
             }
         }
     })
+}
+
+// Recurse into nested lets to collect their definitions and return the innermost body.
+#[allow(clippy::type_complexity)]
+fn collect_definitions<'a>(
+    definitions: &mut Vec<(SourceVariable<'a>, Option<Rc<Term<'a>>>, Rc<Term<'a>>)>,
+    term: Rc<Term<'a>>,
+) -> Rc<Term<'a>> {
+    match &term.variant {
+        Variant::Let(variable, annotation, definition, body) => {
+            definitions.push((*variable, annotation.clone(), definition.clone()));
+            collect_definitions(definitions, body.clone())
+        }
+        _ => term,
+    }
 }
 
 // Parse a term.
@@ -891,7 +983,10 @@ fn parse_variable<'a, 'b>(
             Term {
                 source_range: tokens[start].source_range,
                 group: false,
-                variant: Variant::Variable(variable),
+                variant: Variant::Variable(SourceVariable {
+                    source_range: tokens[start].source_range,
+                    name: variable
+                }),
             },
             next,
         )),
@@ -938,6 +1033,10 @@ fn parse_non_dependent_pi<'a, 'b>(
         )
     };
 
+    // The source range for the implicit placeholder variable will be the empty range at this
+    // location.
+    let placeholder_variable_location = tokens[start].source_range.0;
+
     // Construct and return the pi type.
     cache_return!(
         cache,
@@ -947,7 +1046,17 @@ fn parse_non_dependent_pi<'a, 'b>(
             Term {
                 source_range: (tokens[start].source_range.0, codomain.source_range.1),
                 group: false,
-                variant: Variant::Pi(PLACEHOLDER_VARIABLE, Rc::new(domain), Rc::new(codomain)),
+                variant: Variant::Pi(
+                    SourceVariable {
+                        source_range: (
+                            placeholder_variable_location,
+                            placeholder_variable_location,
+                        ),
+                        name: PLACEHOLDER_VARIABLE,
+                    },
+                    Rc::new(domain),
+                    Rc::new(codomain),
+                ),
             },
             next
         )),
@@ -974,7 +1083,12 @@ fn parse_pi<'a, 'b>(
     let next = consume_token!(cache, Pi, start, tokens, Colon, next, error, Low);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(cache, Pi, start, parse_term(cache, tokens, next, error));
+    let (domain, next) = try_eval!(
+        cache,
+        Pi,
+        start,
+        parse_term_minus_let(cache, tokens, next, error)
+    );
 
     // Consume the right parenthesis.
     let next = consume_token!(cache, Pi, start, tokens, RightParen, next, error, Low);
@@ -994,9 +1108,16 @@ fn parse_pi<'a, 'b>(
             Term {
                 source_range: (tokens[start].source_range.0, codomain.source_range.1),
                 group: false,
-                variant: Variant::Pi(variable, Rc::new(domain), Rc::new(codomain)),
+                variant: Variant::Pi(
+                    SourceVariable {
+                        source_range: tokens[variable_pos].source_range,
+                        name: variable,
+                    },
+                    Rc::new(domain),
+                    Rc::new(codomain),
+                ),
             },
-            next
+            next,
         )),
     )
 }
@@ -1022,7 +1143,12 @@ fn parse_lambda<'a, 'b>(
     let next = consume_token!(cache, Lambda, start, tokens, Colon, next, error, Low);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(cache, Lambda, start, parse_term(cache, tokens, next, error));
+    let (domain, next) = try_eval!(
+        cache,
+        Lambda,
+        start,
+        parse_term_minus_let(cache, tokens, next, error)
+    );
 
     // Consume the right parenthesis.
     let next = consume_token!(cache, Lambda, start, tokens, RightParen, next, error, Low);
@@ -1042,9 +1168,16 @@ fn parse_lambda<'a, 'b>(
             Term {
                 source_range: (tokens[start].source_range.0, body.source_range.1),
                 group: false,
-                variant: Variant::Lambda(variable, Rc::new(domain), Rc::new(body)),
+                variant: Variant::Lambda(
+                    SourceVariable {
+                        source_range: tokens[variable_pos].source_range,
+                        name: variable,
+                    },
+                    Rc::new(domain),
+                    Rc::new(body),
+                ),
             },
-            next
+            next,
         )),
     )
 }
@@ -1104,6 +1237,31 @@ fn parse_let<'a, 'b>(
     // Consume the variable.
     let (variable, next) = consume_identifier!(cache, Let, start, tokens, start, error, Low);
 
+    // Parse the annotation, if there is one.
+    let (annotation, next) = if next < tokens.len() {
+        if let token::Variant::Colon = tokens[next].variant {
+            // Consume the colon.
+            let next = consume_token!(cache, Let, start, tokens, Colon, next, error, Low);
+
+            // Parse the annotation.
+            let (annotation, next) = try_eval!(
+                cache,
+                Let,
+                start,
+                parse_term_minus_arrows_let(cache, tokens, next, error)
+            );
+
+            // Package up the annotation in the right form.
+            (Some(Rc::new(annotation)), next)
+        } else {
+            // There is no annotation.
+            (None, next)
+        }
+    } else {
+        // There is no annotation because we're at the end of the token stream.
+        (None, next)
+    };
+
     // Consume the equals sign.
     let next = consume_token!(cache, Let, start, tokens, Equals, next, error, Low);
 
@@ -1125,9 +1283,17 @@ fn parse_let<'a, 'b>(
             Term {
                 source_range: (tokens[start].source_range.0, body.source_range.1),
                 group: false,
-                variant: Variant::Let(variable, Rc::new(definition), Rc::new(body)),
+                variant: Variant::Let(
+                    SourceVariable {
+                        source_range: tokens[start].source_range,
+                        name: variable,
+                    },
+                    annotation,
+                    Rc::new(definition),
+                    Rc::new(body),
+                ),
             },
-            next
+            next,
         )),
     )
 }
@@ -1158,6 +1324,10 @@ fn parse_group<'a, 'b>(
         start,
         Some((
             Term {
+                // It's important for this source range to include the parentheses, because parent
+                // nodes might use this source range for their own source ranges. We want to avoid
+                // a situation in which a parent node's source range includes one of these
+                // parentheses but not both.
                 source_range: (
                     tokens[start].source_range.0,
                     tokens[next - 1].source_range.1
@@ -1255,6 +1425,80 @@ fn parse_term_minus_arrows_let<'a, 'b>(
 
     // Return `None` since the parse failed.
     cache_return!(cache, TermMinusArrowsLet, start, None)
+}
+
+// Parse a term, except for lets.
+fn parse_term_minus_let<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache and make sure we have some tokens to parse.
+    cache_check!(cache, TermMinusLet, start, error);
+
+    // Try to parse a non-dependent pi type.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_non_dependent_pi(cache, tokens, start, error),
+    );
+
+    // Try to parse an application.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_application(cache, tokens, start, error),
+    );
+
+    // Try to parse the type of all types.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_type(cache, tokens, start, error)
+    );
+
+    // Try to parse a variable.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_variable(cache, tokens, start, error),
+    );
+
+    // Try to parse a pi type.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_pi(cache, tokens, start, error)
+    );
+
+    // Try to parse a lambda.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_lambda(cache, tokens, start, error),
+    );
+
+    // Try to parse a group.
+    try_return!(
+        cache,
+        TermMinusLet,
+        start,
+        parse_group(cache, tokens, start, error)
+    );
+
+    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
+    // confidence error, employ a generic error message.
+    set_generic_error(tokens, start, error);
+
+    // Return `None` since the parse failed.
+    cache_return!(cache, TermMinusLet, start, None)
 }
 
 #[cfg(test)]
@@ -1605,23 +1849,42 @@ mod tests {
 
     #[test]
     fn parse_let() {
-        let source = "x = a; x";
+        let source = "x : type = y; y : type = x; x";
         let tokens = tokenize(None, source).unwrap();
-        let context = ["a"];
+        let context = [];
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 8)),
+                source_range: Some((0, 29)),
                 variant: Let(
-                    "x",
+                    vec![
+                        (
+                            "x",
+                            Some(Rc::new(Term {
+                                source_range: Some((4, 8)),
+                                variant: Type,
+                            })),
+                            Rc::new(Term {
+                                source_range: Some((11, 12)),
+                                variant: Variable("y", 0),
+                            }),
+                        ),
+                        (
+                            "y",
+                            Some(Rc::new(Term {
+                                source_range: Some((18, 22)),
+                                variant: Type,
+                            })),
+                            Rc::new(Term {
+                                source_range: Some((25, 26)),
+                                variant: Variable("x", 1),
+                            }),
+                        ),
+                    ],
                     Rc::new(Term {
-                        source_range: Some((4, 5)),
-                        variant: Variable("a", 0),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((7, 8)),
-                        variant: Variable("x", 0),
+                        source_range: Some((28, 29)),
+                        variant: Variable("x", 1),
                     }),
                 ),
             },
