@@ -349,16 +349,16 @@ mod tests {
 
     #[test]
     fn definitionally_equal_type() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = TYPE_KEYWORD;
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = TYPE_KEYWORD;
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -368,16 +368,16 @@ mod tests {
 
     #[test]
     fn definitionally_equal_variable() {
-        let context = ["x"];
+        let parsing_context = ["x"];
         let mut normalization_context = vec![None, None];
 
         let source1 = "x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "x";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -387,16 +387,16 @@ mod tests {
 
     #[test]
     fn definitionally_inequal_variable() {
-        let context = ["x", "y"];
+        let parsing_context = ["x", "y"];
         let mut normalization_context = vec![None, None];
 
         let source1 = "x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "y";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -406,16 +406,16 @@ mod tests {
 
     #[test]
     fn definitionally_equal_lambda() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = "(x : type) => x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "(x : type) => x";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -425,16 +425,16 @@ mod tests {
 
     #[test]
     fn definitionally_equal_lambda_inequal_domain() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = "(x : type) => x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "(x : (type type)) => x";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -444,16 +444,16 @@ mod tests {
 
     #[test]
     fn definitionally_inequal_lambda_body() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = "(x : type) => x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "(x : type) => type";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -463,16 +463,16 @@ mod tests {
 
     #[test]
     fn definitionally_equal_pi() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = "(x : type) -> x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "(x : type) -> x";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -482,16 +482,16 @@ mod tests {
 
     #[test]
     fn definitionally_inequal_pi_domain() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = "(x : type) -> x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "(x : (type type)) -> x";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -501,16 +501,16 @@ mod tests {
 
     #[test]
     fn definitionally_inequal_pi_codomain() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = "(x : type) -> x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "(x : type) -> type";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -520,16 +520,16 @@ mod tests {
 
     #[test]
     fn definitionally_equal_application() {
-        let context = ["f", "x"];
+        let parsing_context = ["f", "x"];
         let mut normalization_context = vec![None, None];
 
         let source1 = "f x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "f x";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -539,16 +539,16 @@ mod tests {
 
     #[test]
     fn definitionally_inequal_application_applicand() {
-        let context = ["f", "x"];
+        let parsing_context = ["f", "x"];
         let mut normalization_context = vec![None, None];
 
         let source1 = "f x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "x x";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -558,16 +558,16 @@ mod tests {
 
     #[test]
     fn definitionally_inequal_application_argument() {
-        let context = ["f", "x"];
+        let parsing_context = ["f", "x"];
         let mut normalization_context = vec![None, None];
 
         let source1 = "f x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "f f";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -577,16 +577,16 @@ mod tests {
 
     #[test]
     fn definitionally_equal_let() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = "x = type; x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "x = type; x";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -596,16 +596,16 @@ mod tests {
 
     #[test]
     fn definitionally_inequal_let_definition() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = "x = type; x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "x = type type; x";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
@@ -615,16 +615,16 @@ mod tests {
 
     #[test]
     fn definitionally_inequal_let_body() {
-        let context = [];
+        let parsing_context = [];
         let mut normalization_context = vec![];
 
         let source1 = "x = type type; x";
         let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "x = type; type";
         let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut normalization_context),
