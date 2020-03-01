@@ -42,14 +42,30 @@ pub fn shift<'a>(term: Rc<Term<'a>>, min_index: usize, amount: usize) -> Rc<Term
                 shift(argument.clone(), min_index, amount),
             ),
         }),
-        Let(variable, definition, body) => Rc::new(Term {
-            source_range: term.source_range,
-            variant: Let(
-                variable,
-                shift(definition.clone(), min_index, amount),
-                shift(body.clone(), min_index + 1, amount),
-            ),
-        }),
+        Let(definitions, body) => {
+            // Compute this once rather than multiple times.
+            let new_min_index = min_index + definitions.len();
+
+            // Shift definitions, annotations, and the body by the new index.
+            Rc::new(Term {
+                source_range: term.source_range,
+                variant: Let(
+                    definitions
+                        .iter()
+                        .map(|(variable, annotation, definition)| {
+                            (
+                                *variable,
+                                annotation.as_ref().map(|annotation| {
+                                    shift(annotation.clone(), new_min_index, amount)
+                                }),
+                                shift(definition.clone(), new_min_index, amount),
+                            )
+                        })
+                        .collect(),
+                    shift(body.clone(), new_min_index, amount),
+                ),
+            })
+        }
     }
 }
 
@@ -93,14 +109,38 @@ pub fn open<'a>(
                 open(argument.clone(), index_to_replace, term_to_insert),
             ),
         }),
-        Let(variable, definition, body) => Rc::new(Term {
-            source_range: term_to_open.source_range,
-            variant: Let(
-                variable,
-                open(definition.clone(), index_to_replace, term_to_insert.clone()),
-                open(body.clone(), index_to_replace + 1, term_to_insert),
-            ),
-        }),
+        Let(definitions, body) => {
+            // Compute this once rather than multiple times.
+            let new_index_to_replace = index_to_replace + definitions.len();
+
+            // Open definitions, annotations, and the body at the new index to replace.
+            Rc::new(Term {
+                source_range: term_to_open.source_range,
+                variant: Let(
+                    definitions
+                        .iter()
+                        .map(|(variable, annotation, definition)| {
+                            (
+                                *variable,
+                                annotation.as_ref().map(|annotation| {
+                                    open(
+                                        annotation.clone(),
+                                        new_index_to_replace,
+                                        term_to_insert.clone(),
+                                    )
+                                }),
+                                open(
+                                    definition.clone(),
+                                    new_index_to_replace,
+                                    term_to_insert.clone(),
+                                ),
+                            )
+                        })
+                        .collect(),
+                    open(body.clone(), new_index_to_replace, term_to_insert),
+                ),
+            })
+        }
     }
 }
 
@@ -287,33 +327,71 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: Some((0, 29)),
                     variant: Let(
-                        "a",
+                        vec![
+                            (
+                                "x",
+                                Some(Rc::new(Term {
+                                    source_range: Some((4, 8)),
+                                    variant: Type,
+                                })),
+                                Rc::new(Term {
+                                    source_range: Some((11, 12)),
+                                    variant: Variable("y", 0),
+                                }),
+                            ),
+                            (
+                                "y",
+                                Some(Rc::new(Term {
+                                    source_range: Some((18, 22)),
+                                    variant: Type,
+                                })),
+                                Rc::new(Term {
+                                    source_range: Some((25, 26)),
+                                    variant: Variable("z", 3),
+                                }),
+                            ),
+                        ],
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
-                            variant: Variable("b", 0),
-                        }),
-                        Rc::new(Term {
-                            source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            source_range: Some((28, 29)),
+                            variant: Variable("w", 4),
                         }),
                     ),
                 }),
-                0,
+                1,
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: Some((0, 29)),
                 variant: Let(
-                    "a",
+                    vec![
+                        (
+                            "x",
+                            Some(Rc::new(Term {
+                                source_range: Some((4, 8)),
+                                variant: Type,
+                            })),
+                            Rc::new(Term {
+                                source_range: Some((11, 12)),
+                                variant: Variable("y", 0),
+                            }),
+                        ),
+                        (
+                            "y",
+                            Some(Rc::new(Term {
+                                source_range: Some((18, 22)),
+                                variant: Type,
+                            })),
+                            Rc::new(Term {
+                                source_range: Some((25, 26)),
+                                variant: Variable("z", 45),
+                            }),
+                        ),
+                    ],
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
-                        variant: Variable("b", 42),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((111, 112)),
-                        variant: Variable("b", 43),
+                        source_range: Some((28, 29)),
+                        variant: Variable("w", 46),
                     }),
                 ),
             },
@@ -530,16 +608,35 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: Some((0, 29)),
                     variant: Let(
-                        "a",
+                        vec![
+                            (
+                                "x",
+                                Some(Rc::new(Term {
+                                    source_range: Some((4, 8)),
+                                    variant: Type,
+                                })),
+                                Rc::new(Term {
+                                    source_range: Some((11, 12)),
+                                    variant: Variable("y", 0),
+                                }),
+                            ),
+                            (
+                                "y",
+                                Some(Rc::new(Term {
+                                    source_range: Some((18, 22)),
+                                    variant: Type,
+                                })),
+                                Rc::new(Term {
+                                    source_range: Some((25, 26)),
+                                    variant: Variable("z", 2),
+                                }),
+                            ),
+                        ],
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
-                            variant: Variable("b", 0),
-                        }),
-                        Rc::new(Term {
-                            source_range: Some((111, 112)),
-                            variant: Variable("b", 1),
+                            source_range: Some((28, 29)),
+                            variant: Variable("w", 3),
                         }),
                     ),
                 }),
@@ -550,16 +647,35 @@ mod tests {
                 }),
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: Some((0, 29)),
                 variant: Let(
-                    "a",
+                    vec![
+                        (
+                            "x",
+                            Some(Rc::new(Term {
+                                source_range: Some((4, 8)),
+                                variant: Type,
+                            })),
+                            Rc::new(Term {
+                                source_range: Some((11, 12)),
+                                variant: Variable("y", 0),
+                            }),
+                        ),
+                        (
+                            "y",
+                            Some(Rc::new(Term {
+                                source_range: Some((18, 22)),
+                                variant: Type,
+                            })),
+                            Rc::new(Term {
+                                source_range: Some((3, 4)),
+                                variant: Variable("x", 6),
+                            }),
+                        ),
+                    ],
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
-                        variant: Variable("x", 4),
-                    }),
-                    Rc::new(Term {
-                        source_range: Some((3, 4)),
-                        variant: Variable("x", 5),
+                        source_range: Some((28, 29)),
+                        variant: Variable("w", 2),
                     }),
                 ),
             },
