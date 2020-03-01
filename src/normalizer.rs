@@ -120,7 +120,7 @@ pub fn normalize_weak_head<'a>(
                 substituted_body = open(substituted_body.clone(), i_index, substituted_definition);
             }
 
-            // Normalize the body.
+            // Normalize the body [tag:let_not_in_weak_head_normal_form].
             normalize_weak_head(substituted_body, definitions_context)
         }
     }

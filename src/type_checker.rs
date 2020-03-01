@@ -36,7 +36,8 @@ pub fn type_check<'a>(
                 None => {
                     return Err(if let Some(source_range) = term.source_range {
                         throw(
-                            "Unknown type for this variable.",
+                            "Unknown type for this variable. You can fix this error by annotating \
+                                the variable where it\u{2019}s introduced.",
                             source_path,
                             source_contents,
                             source_range,
@@ -44,7 +45,8 @@ pub fn type_check<'a>(
                     } else {
                         Error {
                             message: format!(
-                                "Unknown type for variable {}.",
+                                "Unknown type for variable {} You can fix this error by \
+                                    annotating the variable where it\u{2019}s introduced.",
                                 (*variable).to_string().code_str(),
                             ),
                             reason: None,

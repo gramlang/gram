@@ -113,6 +113,7 @@ pub fn definitionally_equal<'a>(
         | (Application(_, _), _)
         | (_, Application(_, _)) => false,
         (Let(_, _), _) | (_, Let(_, _)) => {
+            // [ref:let_not_in_weak_head_normal_form]
             panic!("Encountered a let after conversion to weak head normal form.")
         }
     }
