@@ -4,13 +4,14 @@ use crate::term::{
 };
 use std::{cmp::Ordering, rc::Rc};
 
-// Shifting refers to increasing the De Bruijn indices of free variables greater than or equal to a
-// given index.
-pub fn shift<'a>(term: Rc<Term<'a>>, min_index: usize, amount: usize) -> Rc<Term<'a>> {
+// Shifting refers to increasing the De Bruijn indices of free variables. A cutoff determines which
+// variables are considered free. This operation is used to lower a term into a nested scope while
+// preserving its meaning.
+pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a>> {
     match &term.variant {
         Type => term,
         Variable(variable, index) => {
-            if *index >= min_index {
+            if *index >= cutoff {
                 Rc::new(Term {
                     source_range: term.source_range,
                     variant: Variable(variable, index + amount),
@@ -23,28 +24,28 @@ pub fn shift<'a>(term: Rc<Term<'a>>, min_index: usize, amount: usize) -> Rc<Term
             source_range: term.source_range,
             variant: Lambda(
                 variable,
-                shift(domain.clone(), min_index, amount),
-                shift(body.clone(), min_index + 1, amount),
+                shift(domain.clone(), cutoff, amount),
+                shift(body.clone(), cutoff + 1, amount),
             ),
         }),
         Pi(variable, domain, codomain) => Rc::new(Term {
             source_range: term.source_range,
             variant: Pi(
                 variable,
-                shift(domain.clone(), min_index, amount),
-                shift(codomain.clone(), min_index + 1, amount),
+                shift(domain.clone(), cutoff, amount),
+                shift(codomain.clone(), cutoff + 1, amount),
             ),
         }),
         Application(applicand, argument) => Rc::new(Term {
             source_range: term.source_range,
             variant: Application(
-                shift(applicand.clone(), min_index, amount),
-                shift(argument.clone(), min_index, amount),
+                shift(applicand.clone(), cutoff, amount),
+                shift(argument.clone(), cutoff, amount),
             ),
         }),
         Let(definitions, body) => {
             // Compute this once rather than multiple times.
-            let new_min_index = min_index + definitions.len();
+            let new_cutoff = cutoff + definitions.len();
 
             // Shift definitions, annotations, and the body by the new index.
             Rc::new(Term {
@@ -56,13 +57,13 @@ pub fn shift<'a>(term: Rc<Term<'a>>, min_index: usize, amount: usize) -> Rc<Term
                             (
                                 *variable,
                                 annotation.as_ref().map(|annotation| {
-                                    shift(annotation.clone(), new_min_index, amount)
+                                    shift(annotation.clone(), new_cutoff, amount)
                                 }),
-                                shift(definition.clone(), new_min_index, amount),
+                                shift(definition.clone(), new_cutoff, amount),
                             )
                         })
                         .collect(),
-                    shift(body.clone(), new_min_index, amount),
+                    shift(body.clone(), new_cutoff, amount),
                 ),
             })
         }
@@ -70,7 +71,9 @@ pub fn shift<'a>(term: Rc<Term<'a>>, min_index: usize, amount: usize) -> Rc<Term
 }
 
 // Opening is the act of replacing a free variable by a term and decrementing the De Bruijn indices
-// of the free variables with higher indices than that of the one being replaced.
+// of the variables corresponding to entries in the context appearing earlier than the one
+// corresponding to the variable being substituted. This operation is used to perform beta
+// reduction.
 pub fn open<'a>(
     term_to_open: Rc<Term<'a>>,
     index_to_replace: usize,
