@@ -626,7 +626,7 @@ fn resolve_variables<'a>(
                 depth - variable_depth - 1
             } else {
                 return Err(throw(
-                    &format!("Undefined variable {}.", variable.name.code_str()),
+                    &format!("Variable {} not in scope.", variable.name.code_str()),
                     source_path,
                     source_contents,
                     variable.source_range,
@@ -1549,7 +1549,7 @@ mod tests {
 
         assert_fails!(
             parse(None, source, &tokens[..], &context[..]),
-            "Undefined variable",
+            "not in scope",
         );
     }
 
