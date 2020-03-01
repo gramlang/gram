@@ -13,7 +13,7 @@
   Bison's default parsing algorithm is LALR(1), but more grammars are possible if we configure it
   to use an LR(1) algorithm instead. Since we aren't going to use the generated parser, the
   computational complexity of the algorithm doesn't matter. We choose IELR(1) over the canonical
-  LR(1) algorithm because it results in fewer conflicts when the grammar is ambiguous, which makes
+  LR(1) algorithm because it results in fewer conflicts when the grammar isn't LR(1), which makes
   grammar development easier.
 */
 
