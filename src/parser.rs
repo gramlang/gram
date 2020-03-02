@@ -5,7 +5,7 @@ use crate::{
     token::{self, TerminatorType, Token},
 };
 use scopeguard::defer;
-use std::{cell::RefCell, collections::HashMap, path::Path, rc::Rc};
+use std::{cell::RefCell, cmp::max, collections::HashMap, path::Path, rc::Rc};
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
 // linear-time parsing.
@@ -485,7 +485,6 @@ pub fn parse<'a>(
                 source_contents,
                 &*reassociated_term,
                 context.len(),
-                None,
                 &mut context,
             )?);
         } else {
@@ -611,7 +610,6 @@ fn resolve_variables<'a>(
     source_contents: &'a str,
     term: &Term<'a>,
     depth: usize,
-    self_depth: Option<usize>, // Used to detect unguarded forward references
     context: &mut HashMap<&'a str, usize>,
 ) -> Result<term::Term<'a>, Error> {
     Ok(match &term.variant {
@@ -623,26 +621,9 @@ fn resolve_variables<'a>(
             }
         }
         Variant::Variable(variable) => {
-            // Make sure the variable is valid and calculate its De Bruijn index.
+            // Make sure the variable is in scope and calculate its De Bruijn index.
             let index = if let Some(variable_depth) = context.get(variable.name) {
-                // Check that forward references are guarded.
-                if let Some(self_depth) = self_depth {
-                    if *variable_depth >= self_depth {
-                        return Err(throw(
-                            &format!(
-                                "Variable {} is a forward or self reference and therefore must be \
-                                guarded by a binder.",
-                                variable.name.code_str(),
-                            ),
-                            source_path,
-                            source_contents,
-                            variable.source_range,
-                        ));
-                    }
-                }
-
-                // Calculate the De Bruijn index of the variable.
-                depth - variable_depth - 1
+                depth - 1 - variable_depth
             } else {
                 return Err(throw(
                     &format!("Variable {} not in scope.", variable.name.code_str()),
@@ -660,14 +641,8 @@ fn resolve_variables<'a>(
         }
         Variant::Lambda(variable, domain, body) => {
             // Resolve variables in the domain.
-            let resolved_domain = resolve_variables(
-                source_path,
-                source_contents,
-                &*domain,
-                depth,
-                self_depth,
-                context,
-            )?;
+            let resolved_domain =
+                resolve_variables(source_path, source_contents, &*domain, depth, context)?;
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -703,7 +678,6 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*body,
                         depth + 1,
-                        None,
                         &mut *guard,
                     )?),
                 ),
@@ -711,14 +685,8 @@ fn resolve_variables<'a>(
         }
         Variant::Pi(variable, domain, codomain) => {
             // Resolve variables in the domain.
-            let resolved_domain = resolve_variables(
-                source_path,
-                source_contents,
-                &*domain,
-                depth,
-                self_depth,
-                context,
-            )?;
+            let resolved_domain =
+                resolve_variables(source_path, source_contents, &*domain, depth, context)?;
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -754,7 +722,6 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*codomain,
                         depth + 1,
-                        None,
                         &mut *guard,
                     )?),
                 ),
@@ -770,7 +737,6 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*applicand,
                         depth,
-                        self_depth,
                         context,
                     )?),
                     Rc::new(resolve_variables(
@@ -778,7 +744,6 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*argument,
                         depth,
-                        self_depth,
                         context,
                     )?),
                 ),
@@ -815,7 +780,7 @@ fn resolve_variables<'a>(
                         return Err(throw(
                             &format!(
                                 "Variable {} already exists.",
-                                inner_variable.name.code_str()
+                                inner_variable.name.code_str(),
                             ),
                             source_path,
                             source_contents,
@@ -834,9 +799,7 @@ fn resolve_variables<'a>(
 
             // Resolve variables in the definitions and annotations.
             let mut resolved_definitions = vec![];
-            for (i, (inner_variable, inner_annotation, inner_definition)) in
-                definitions.iter().enumerate()
-            {
+            for (inner_variable, inner_annotation, inner_definition) in &definitions {
                 // Temporarily borrow from the scope guard.
                 let mut guard = context_cell.borrow_mut();
                 let (borrowed_context, _) = &mut (*guard);
@@ -848,7 +811,6 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*annotation,
                         new_depth,
-                        self_depth.or(Some(depth + i)),
                         borrowed_context,
                     )?)),
                     None => None,
@@ -860,7 +822,6 @@ fn resolve_variables<'a>(
                     source_contents,
                     &*inner_definition,
                     new_depth,
-                    self_depth.or(Some(depth + i)),
                     borrowed_context,
                 )?;
 
@@ -870,6 +831,36 @@ fn resolve_variables<'a>(
                     resolved_annotation,
                     Rc::new(resolved_definition),
                 ));
+            }
+
+            // Ensure that forward references make semantic sense.
+            let mut availability_cache = HashMap::new();
+            for i in 0..resolved_definitions.len() {
+                // Calculate the availability of the definition.
+                availability_cache.entry(i).or_insert(0);
+                let availability = get_availability(
+                    &resolved_definitions,
+                    new_depth,
+                    &resolved_definitions[i].2,
+                    new_depth,
+                    i + 1,
+                    &mut availability_cache,
+                );
+                availability_cache.insert(i, availability);
+
+                // Check that the definition is available for the subsequent definition.
+                if availability > i + 1 {
+                    return Err(throw(
+                        &format!(
+                            "The definition of variable {} references variables which are not yet \
+                                available.",
+                            definitions[i].0.name.code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        definitions[i].0.source_range,
+                    ));
+                }
             }
 
             // Temporarily borrow from the scope guard.
@@ -886,7 +877,6 @@ fn resolve_variables<'a>(
                         source_contents,
                         &innermost_body,
                         new_depth,
-                        self_depth,
                         borrowed_context,
                     )?),
                 ),
@@ -907,6 +897,133 @@ fn collect_definitions<'a>(
             collect_definitions(definitions, body.clone())
         }
         _ => term,
+    }
+}
+
+// Definitions may be used out of order or in a mutually recursive way, subject to two
+// restrictions:
+//
+// 1. A definition is not available before its free variables are available.
+// 2. A definition is not available before it has been evaluated, unless it's already a value.
+//
+// This function returns the position of the first definition that may use the given definition.
+#[allow(clippy::type_complexity)]
+fn get_availability<'a>(
+    definitions: &[(&'a str, Option<Rc<term::Term<'a>>>, Rc<term::Term<'a>>)],
+    definitions_depth: usize, // Assumes the definitions have already been added to the context
+    term: &Rc<term::Term<'a>>,
+    term_depth: usize,
+    min_position_if_not_value: usize,  // 0 is the first definition.
+    cache: &mut HashMap<usize, usize>, // Map from definition position to availability
+) -> usize {
+    match &term.variant {
+        term::Variant::Type | term::Variant::Pi(_, _, _) => {
+            // These variants can be used by any definition since they are already fully evaluated.
+            0
+        }
+        term::Variant::Variable(_, index) => {
+            // Compute this once rather than multiple times.
+            let variable_offset = term_depth - 1 - index;
+
+            // Check if the variable points to one of the definitions.
+            if variable_offset >= definitions_depth - definitions.len()
+                && variable_offset < definitions_depth
+            {
+                // Compute this once rather than multiple times.
+                let definition_position = variable_offset - (definitions_depth - definitions.len());
+
+                // Check the cache.
+                if let Some(availability) = cache.get(&definition_position) {
+                    // We've already seen the definition of this variable. Return the result from
+                    // cache.
+                    *availability
+                } else {
+                    // Recurse on the definition of the variable.
+                    let availability = get_availability(
+                        definitions,
+                        definitions_depth,
+                        &definitions[definition_position].2,
+                        definitions_depth,
+                        definition_position + 1,
+                        cache,
+                    );
+
+                    // Update the cache and return the result.
+                    cache.insert(definition_position, availability);
+                    availability
+                }
+            } else {
+                // The variable can be used by any definition.
+                0
+            }
+        }
+        term::Variant::Lambda(_, _, body) => {
+            // A lambdas does not need to be evaluated. Just check the availabilities of its free
+            // variables.
+            get_availability(
+                definitions,
+                definitions_depth,
+                body,
+                term_depth + 1,
+                0,
+                cache,
+            )
+        }
+        term::Variant::Application(applicand, argument) => {
+            // An application must be evaluated before it can be used.
+            max(
+                min_position_if_not_value,
+                max(
+                    get_availability(
+                        definitions,
+                        definitions_depth,
+                        applicand,
+                        term_depth,
+                        min_position_if_not_value,
+                        cache,
+                    ),
+                    get_availability(
+                        definitions,
+                        definitions_depth,
+                        argument,
+                        term_depth,
+                        min_position_if_not_value,
+                        cache,
+                    ),
+                ),
+            )
+        }
+        term::Variant::Let(nested_definitions, body) => {
+            // A let must be evaluated before it can be used.
+            max(
+                min_position_if_not_value,
+                max(
+                    nested_definitions
+                        .iter()
+                        .fold(0, |acc, (_, _, definition)| {
+                            max(
+                                acc,
+                                get_availability(
+                                    definitions,
+                                    definitions_depth,
+                                    definition,
+                                    term_depth + nested_definitions.len(),
+                                    min_position_if_not_value,
+                                    cache,
+                                ),
+                            )
+                        }),
+                    get_availability(
+                        definitions,
+                        definitions_depth,
+                        body,
+                        term_depth + nested_definitions.len(),
+                        min_position_if_not_value,
+                        cache,
+                    ),
+                ),
+            )
+        }
     }
 }
 
