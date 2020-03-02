@@ -611,7 +611,7 @@ fn resolve_variables<'a>(
     source_contents: &'a str,
     term: &Term<'a>,
     depth: usize,
-    self_depth: Option<usize>,
+    self_depth: Option<usize>, // Used to detect unguarded forward references
     context: &mut HashMap<&'a str, usize>,
 ) -> Result<term::Term<'a>, Error> {
     Ok(match &term.variant {
@@ -623,11 +623,10 @@ fn resolve_variables<'a>(
             }
         }
         Variant::Variable(variable) => {
-            // Calculate the De Bruijn index of the variable.
+            // Make sure the variable is valid and calculate its De Bruijn index.
             let index = if let Some(variable_depth) = context.get(variable.name) {
+                // Check that forward references are guarded.
                 if let Some(self_depth) = self_depth {
-                    println!("variable_depth: {}", variable_depth);
-                    println!("self_depth: {}", self_depth);
                     if *variable_depth >= self_depth {
                         return Err(throw(
                             &format!(
@@ -642,6 +641,7 @@ fn resolve_variables<'a>(
                     }
                 }
 
+                // Calculate the De Bruijn index of the variable.
                 depth - variable_depth - 1
             } else {
                 return Err(throw(
