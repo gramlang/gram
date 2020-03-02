@@ -6,7 +6,7 @@ use crate::{
         Variant::{Application, Lambda, Let, Pi, Type, Variable},
     },
 };
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
 // This function evaluates a term using a call-by-value strategy. The term is assumed to be
 // well-typed in the empty context. Runtime type errors will result in panicking.
@@ -84,28 +84,55 @@ fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                     // Compute this once rather than multiple times.
                     let j_index = definitions.len() - 1 - j;
 
+                    // Determine which definitions are actually needed.
+                    let mut live_definitions = HashSet::new();
+                    get_live_definitions(
+                        &substituted_definitions,
+                        &Rc::new(Term {
+                            source_range: None,
+                            variant: Variable(substituted_definitions[j].0, 0),
+                        }),
+                        substituted_definitions.len(),
+                        &mut live_definitions,
+                    );
+
                     // Unfold the definition.
                     let unfolded_definition = Rc::new(Term {
                         source_range: None,
                         variant: Let(
                             substituted_definitions[i..]
                                 .iter()
-                                .map(|(variable, annotation, definition)| {
-                                    (
-                                        *variable,
-                                        annotation.as_ref().map(|annotation| {
+                                .enumerate()
+                                .map(|(k, (variable, annotation, definition))| {
+                                    if live_definitions.contains(&(i + k)) {
+                                        (
+                                            *variable,
+                                            annotation.as_ref().map(|annotation| {
+                                                shift(
+                                                    annotation.clone(),
+                                                    definitions.len(),
+                                                    i_index_plus_1,
+                                                )
+                                            }),
                                             shift(
-                                                annotation.clone(),
+                                                definition.clone(),
                                                 definitions.len(),
                                                 i_index_plus_1,
-                                            )
-                                        }),
-                                        shift(
-                                            definition.clone(),
-                                            definitions.len(),
-                                            i_index_plus_1,
-                                        ),
-                                    )
+                                            ),
+                                        )
+                                    } else {
+                                        // The definition isn't needed. Replace it with an
+                                        // arbitrary value to avoid wasting (potentially infinite)
+                                        // time evaluating it.
+                                        (
+                                            *variable,
+                                            None,
+                                            Rc::new(Term {
+                                                source_range: None,
+                                                variant: Type,
+                                            }),
+                                        )
+                                    }
                                 })
                                 .collect(),
                             Rc::new(Term {
@@ -186,6 +213,70 @@ fn is_value<'a>(term: &Term<'a>) -> bool {
     match term.variant {
         Type | Lambda(_, _, _) | Pi(_, _, _) => true,
         Variable(_, _) | Application(_, _) | Let(_, _) => false,
+    }
+}
+
+// Given a set of definitions and a term, this function determines which of the definitions are
+// actually needed to evaluate the term.
+#[allow(clippy::type_complexity)]
+fn get_live_definitions<'a>(
+    definitions: &[(&'a str, Option<Rc<Term<'a>>>, Rc<Term<'a>>)],
+    term: &Rc<Term<'a>>,
+    term_depth: usize,
+    live_definitions: &mut HashSet<usize>,
+) {
+    match &term.variant {
+        Type | Pi(_, _, _) => {
+            // We ignore the contents of pi types since they are not needed for evaluation.
+        }
+        Variable(_, index) => {
+            // Compute this once rather than multiple times.
+            let definition_position = term_depth - 1 - index;
+
+            // Check if the variable points to one of the definitions.
+            if definition_position < definitions.len() {
+                // Check and update `live_definitions`.
+                if live_definitions.insert(definition_position) {
+                    // Recurse on the definition of the variable.
+                    get_live_definitions(
+                        definitions,
+                        &definitions[definition_position].2,
+                        definitions.len(),
+                        live_definitions,
+                    );
+                }
+            }
+        }
+        Lambda(_, _, body) => {
+            // Recurse on the body.
+            get_live_definitions(definitions, body, definitions.len() + 1, live_definitions);
+        }
+        Application(applicand, argument) => {
+            // Recurse on the applicand.
+            get_live_definitions(definitions, applicand, definitions.len(), live_definitions);
+
+            // Recurse on the argument.
+            get_live_definitions(definitions, argument, definitions.len(), live_definitions);
+        }
+        Let(let_definitions, body) => {
+            // Recurse on the definitions.
+            for (_, _, definition) in let_definitions {
+                get_live_definitions(
+                    definitions,
+                    definition,
+                    definitions.len() + let_definitions.len(),
+                    live_definitions,
+                );
+            }
+
+            // Recurse on the body.
+            get_live_definitions(
+                definitions,
+                body,
+                definitions.len() + let_definitions.len(),
+                live_definitions,
+            );
+        }
     }
 }
 
