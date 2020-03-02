@@ -485,6 +485,7 @@ pub fn parse<'a>(
                 source_contents,
                 &*reassociated_term,
                 context.len(),
+                None,
                 &mut context,
             )?);
         } else {
@@ -610,6 +611,7 @@ fn resolve_variables<'a>(
     source_contents: &'a str,
     term: &Term<'a>,
     depth: usize,
+    self_depth: Option<usize>,
     context: &mut HashMap<&'a str, usize>,
 ) -> Result<term::Term<'a>, Error> {
     Ok(match &term.variant {
@@ -623,6 +625,23 @@ fn resolve_variables<'a>(
         Variant::Variable(variable) => {
             // Calculate the De Bruijn index of the variable.
             let index = if let Some(variable_depth) = context.get(variable.name) {
+                if let Some(self_depth) = self_depth {
+                    println!("variable_depth: {}", variable_depth);
+                    println!("self_depth: {}", self_depth);
+                    if *variable_depth >= self_depth {
+                        return Err(throw(
+                            &format!(
+                                "Variable {} is a forward or self reference and therefore must be \
+                                guarded by a binder.",
+                                variable.name.code_str(),
+                            ),
+                            source_path,
+                            source_contents,
+                            variable.source_range,
+                        ));
+                    }
+                }
+
                 depth - variable_depth - 1
             } else {
                 return Err(throw(
@@ -641,8 +660,14 @@ fn resolve_variables<'a>(
         }
         Variant::Lambda(variable, domain, body) => {
             // Resolve variables in the domain.
-            let resolved_domain =
-                resolve_variables(source_path, source_contents, &*domain, depth, context)?;
+            let resolved_domain = resolve_variables(
+                source_path,
+                source_contents,
+                &*domain,
+                depth,
+                self_depth,
+                context,
+            )?;
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -678,6 +703,7 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*body,
                         depth + 1,
+                        None,
                         &mut *guard,
                     )?),
                 ),
@@ -685,8 +711,14 @@ fn resolve_variables<'a>(
         }
         Variant::Pi(variable, domain, codomain) => {
             // Resolve variables in the domain.
-            let resolved_domain =
-                resolve_variables(source_path, source_contents, &*domain, depth, context)?;
+            let resolved_domain = resolve_variables(
+                source_path,
+                source_contents,
+                &*domain,
+                depth,
+                self_depth,
+                context,
+            )?;
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -722,6 +754,7 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*codomain,
                         depth + 1,
+                        None,
                         &mut *guard,
                     )?),
                 ),
@@ -737,6 +770,7 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*applicand,
                         depth,
+                        self_depth,
                         context,
                     )?),
                     Rc::new(resolve_variables(
@@ -744,6 +778,7 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*argument,
                         depth,
+                        self_depth,
                         context,
                     )?),
                 ),
@@ -799,7 +834,9 @@ fn resolve_variables<'a>(
 
             // Resolve variables in the definitions and annotations.
             let mut resolved_definitions = vec![];
-            for (inner_variable, inner_annotation, inner_definition) in &definitions {
+            for (i, (inner_variable, inner_annotation, inner_definition)) in
+                definitions.iter().enumerate()
+            {
                 // Temporarily borrow from the scope guard.
                 let mut guard = context_cell.borrow_mut();
                 let (borrowed_context, _) = &mut (*guard);
@@ -811,6 +848,7 @@ fn resolve_variables<'a>(
                         source_contents,
                         &*annotation,
                         new_depth,
+                        self_depth.or(Some(depth + i)),
                         borrowed_context,
                     )?)),
                     None => None,
@@ -822,6 +860,7 @@ fn resolve_variables<'a>(
                     source_contents,
                     &*inner_definition,
                     new_depth,
+                    self_depth.or(Some(depth + i)),
                     borrowed_context,
                 )?;
 
@@ -847,6 +886,7 @@ fn resolve_variables<'a>(
                         source_contents,
                         &innermost_body,
                         new_depth,
+                        self_depth,
                         borrowed_context,
                     )?),
                 ),
@@ -1849,43 +1889,59 @@ mod tests {
 
     #[test]
     fn parse_let() {
-        let source = "x : type = y; y : type = x; x";
+        let source = "x = ((_ : type) => y) type; y : type = type; x";
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 29)),
+                source_range: Some((0, 46)),
                 variant: Let(
                     vec![
                         (
                             "x",
-                            Some(Rc::new(Term {
-                                source_range: Some((4, 8)),
-                                variant: Type,
-                            })),
+                            None,
                             Rc::new(Term {
-                                source_range: Some((11, 12)),
-                                variant: Variable("y", 0),
+                                source_range: Some((4, 26)),
+                                variant: Application(
+                                    Rc::new(Term {
+                                        source_range: Some((4, 21)),
+                                        variant: Lambda(
+                                            "_",
+                                            Rc::new(Term {
+                                                source_range: Some((10, 14)),
+                                                variant: Type,
+                                            }),
+                                            Rc::new(Term {
+                                                source_range: Some((19, 20)),
+                                                variant: Variable("y", 1),
+                                            }),
+                                        ),
+                                    }),
+                                    Rc::new(Term {
+                                        source_range: Some((22, 26)),
+                                        variant: Type,
+                                    }),
+                                ),
                             }),
                         ),
                         (
                             "y",
                             Some(Rc::new(Term {
-                                source_range: Some((18, 22)),
+                                source_range: Some((32, 36)),
                                 variant: Type,
                             })),
                             Rc::new(Term {
-                                source_range: Some((25, 26)),
-                                variant: Variable("x", 1),
+                                source_range: Some((39, 43)),
+                                variant: Type,
                             }),
                         ),
                     ],
                     Rc::new(Term {
-                        source_range: Some((28, 29)),
+                        source_range: Some((45, 46)),
                         variant: Variable("x", 1),
-                    }),
+                    })
                 ),
             },
         );
