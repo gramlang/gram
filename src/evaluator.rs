@@ -10,41 +10,68 @@ use std::rc::Rc;
 
 // This function evaluates a term using a call-by-value strategy. The term is assumed to be
 // well-typed in the empty context. Runtime type errors will result in panicking.
-pub fn evaluate<'a>(term: Rc<Term<'a>>) -> Rc<Term<'a>> {
+pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Rc<Term<'a>> {
+    // Repeatedly perform small steps for as long as possible.
+    while let Some(stepped_term) = step(&term) {
+        term = stepped_term;
+    }
+
+    // Check if we got a value.
+    if is_value(&*term) {
+        term
+    } else {
+        panic!(format!(
+            "Evaluation of {} is stuck!",
+            term.to_string().code_str(),
+        ))
+    }
+}
+
+// This function implements a call-by-value operational semantics by performing a "small step".
+// Call this repeatedly to evaluate a term. The term is assumed to be well-typed in the empty
+// context. Runtime type errors will result in panicking.
+#[allow(clippy::too_many_lines)]
+fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
     match &term.variant {
-        Type | Lambda(_, _, _) | Pi(_, _, _) => {
-            // These cases are already values.
-            term
-        }
-        Variable(variable, _) => {
-            // We're stuck!
-            panic!(format!(
-                "Attempted to evaluate variable {}.",
-                (*variable).to_string().code_str()
-            ))
-        }
+        Type | Lambda(_, _, _) | Pi(_, _, _) | Variable(_, _) => None,
         Application(applicand, argument) => {
-            // Evaluate the applicand.
-            let evaluated_applicand = evaluate(applicand.clone());
+            // Try to step the applicand.
+            if let Some(stepped_applicand) = step(applicand) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Application(stepped_applicand, argument.clone()),
+                }));
+            };
 
-            // Evaluate the argument.
-            let evaluated_argument = evaluate(argument.clone());
+            // Ensure the applicand is a value.
+            if !is_value(applicand) {
+                return None;
+            }
 
-            // Check if the applicand evaluated to a lambda.
-            if let Lambda(_, _, body) = &evaluated_applicand.variant {
+            // Try to step the argument.
+            if let Some(stepped_argument) = step(argument) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Application(applicand.clone(), stepped_argument),
+                }));
+            };
+
+            // Ensure the argument is a value.
+            if !is_value(argument) {
+                return None;
+            }
+
+            // Check if the applicand is a lambda.
+            if let Lambda(_, _, body) = &applicand.variant {
                 // We got a lambda. Perform beta reduction and continue evaluating.
-                evaluate(open(body.clone(), 0, evaluated_argument))
+                Some(open(body.clone(), 0, argument.clone()))
             } else {
                 // We didn't get a lambda. We're stuck!
-                panic!(format!(
-                    "Attempted to apply non-lambda term {} to {}.",
-                    evaluated_applicand.to_string().code_str(),
-                    evaluated_argument.to_string().code_str()
-                ))
+                None
             }
         }
         Let(definitions, body) => {
-            // Evaluate the definitions and substitute them into the body.
+            // Try to step one of the definitions.
             let mut substituted_definitions = definitions.clone();
             let mut substituted_body = body.clone();
             for i in 0..definitions.len() {
@@ -96,26 +123,69 @@ pub fn evaluate<'a>(term: Rc<Term<'a>>) -> Rc<Term<'a>> {
                     );
                 }
 
-                // Evaluate the definition.
-                let evaluated_definition = evaluate(substituted_definitions[i].2.clone());
+                // Try to step the definition.
+                if let Some(stepped_definition) = step(&substituted_definitions[i].2) {
+                    return Some(Rc::new(Term {
+                        source_range: None,
+                        variant: Let(
+                            definitions
+                                .iter()
+                                .enumerate()
+                                .map(|(j, (variable, annotation, definition))| {
+                                    if i == j {
+                                        (*variable, annotation.clone(), stepped_definition.clone())
+                                    } else {
+                                        (*variable, annotation.clone(), definition.clone())
+                                    }
+                                })
+                                .collect(),
+                            body.clone(),
+                        ),
+                    }));
+                };
+
+                // Here is the fully stepped definition.
+                let stepped_definition = substituted_definitions[i].2.clone();
+
+                // Ensure the definition is a value.
+                if !is_value(&stepped_definition) {
+                    return None;
+                }
 
                 // Substitute the value in subsequent definitions.
                 for definition in substituted_definitions.iter_mut().skip(i + 1) {
-                    definition.2 =
-                        open(definition.2.clone(), i_index, evaluated_definition.clone());
+                    definition.2 = open(definition.2.clone(), i_index, stepped_definition.clone());
                 }
 
                 // Substitute the value in the body.
-                substituted_body = open(
-                    substituted_body.clone(),
-                    i_index,
-                    evaluated_definition.clone(),
-                );
+                substituted_body = open(substituted_body.clone(), i_index, stepped_definition);
             }
 
-            // Evaluate the body.
-            evaluate(substituted_body)
+            // Try to step the body.
+            if let Some(stepped_body) = step(&substituted_body) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Let(substituted_definitions, stepped_body.clone()),
+                }));
+            };
+
+            // Ensure the body is a value.
+            if !is_value(&substituted_body) {
+                return None;
+            }
+
+            // Return the substituted body.
+            Some(substituted_body)
         }
+    }
+}
+
+// This function returns whether a term is a value. Note that a neutral term (e.g., a variable) is
+// not considered a value.
+fn is_value<'a>(term: &Term<'a>) -> bool {
+    match term.variant {
+        Type | Lambda(_, _, _) | Pi(_, _, _) => true,
+        Variable(_, _) | Application(_, _) | Let(_, _) => false,
     }
 }
 
