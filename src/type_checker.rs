@@ -6,7 +6,9 @@ use crate::{
     normalizer::normalize_weak_head,
     term::{
         Term,
-        Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
+        Variant::{
+            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+        },
         INTEGER_TERM, TYPE_TERM,
     },
 };
@@ -453,6 +455,173 @@ pub fn type_check<'a>(
             })
         }
         IntegerLiteral(_) => Rc::new(INTEGER_TERM),
+        Sum(summand1, summand2) => {
+            // Infer the type of the left summand.
+            let summand1_type = type_check(
+                source_path,
+                source_contents,
+                &**summand1,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Reduce the type of the left summand to weak head normal form.
+            let summand1_type_whnf =
+                normalize_weak_head(summand1_type.clone(), definitions_context);
+
+            // Make sure the type of the left summand is the type of integers.
+            if let Integer = &summand1_type_whnf.variant {
+            } else {
+                return Err(if let Some(source_range) = summand1.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            summand1_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Summand {} has type {} when {} was expected.",
+                            summand1.to_string().code_str(),
+                            summand1_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Infer the type of the right summand.
+            let summand2_type = type_check(
+                source_path,
+                source_contents,
+                &**summand2,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Reduce the type of the right summand to weak head normal form.
+            let summand2_type_whnf =
+                normalize_weak_head(summand2_type.clone(), definitions_context);
+
+            // Make sure the type of the right summand is the type of integers.
+            if let Integer = &summand2_type_whnf.variant {
+            } else {
+                return Err(if let Some(source_range) = summand2.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            summand2_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Summand {} has type {} when {} was expected.",
+                            summand2.to_string().code_str(),
+                            summand2_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Return the type of integers.
+            Rc::new(INTEGER_TERM)
+        }
+        Difference(minuend, subtrahend) => {
+            // Infer the type of the minuend.
+            let minuend_type = type_check(
+                source_path,
+                source_contents,
+                &**minuend,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Reduce the type of the minuend to weak head normal form.
+            let minuend_type_whnf = normalize_weak_head(minuend_type.clone(), definitions_context);
+
+            // Make sure the type of the minuend is the type of integers.
+            if let Integer = &minuend_type_whnf.variant {
+            } else {
+                return Err(if let Some(source_range) = minuend.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            minuend_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Summand {} has type {} when {} was expected.",
+                            minuend.to_string().code_str(),
+                            minuend_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Infer the type of the subtrahend.
+            let subtrahend_type = type_check(
+                source_path,
+                source_contents,
+                &**subtrahend,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Reduce the type of the subtrahend to weak head normal form.
+            let subtrahend_type_whnf =
+                normalize_weak_head(subtrahend_type.clone(), definitions_context);
+
+            // Make sure the type of the subtrahend is the type of integers.
+            if let Integer = &subtrahend_type_whnf.variant {
+            } else {
+                return Err(if let Some(source_range) = subtrahend.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            subtrahend_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Summand {} has type {} when {} was expected.",
+                            subtrahend.to_string().code_str(),
+                            subtrahend_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Return the type of integers.
+            Rc::new(INTEGER_TERM)
+        }
     })
 }
 
@@ -740,6 +909,56 @@ mod tests {
         let mut definitions_context = vec![None];
         let term_source = "b = a; b";
         let type_source = "type";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_sum() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "1 + 2";
+        let type_source = "integer";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_difference() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "1 - 2";
+        let type_source = "integer";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();

@@ -27,6 +27,8 @@
 %token INTEGER
 %token INTEGER_LITERAL
 %token LEFT_PAREN
+%token MINUS
+%token PLUS
 %token RIGHT_PAREN
 %token TERMINATOR
 %token THICK_ARROW
@@ -65,4 +67,10 @@ atom: type | variable | integer | integer_literal | group;
 
 simple_term: application | atom;
 
-complex_term: non_dependent_pi | lambda | pi | simple_term;
+sum: simple_term PLUS medium_term;
+
+difference: simple_term MINUS medium_term;
+
+medium_term: sum | difference | simple_term;
+
+complex_term: non_dependent_pi | lambda | pi | medium_term;

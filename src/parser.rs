@@ -84,6 +84,12 @@ enum Variant<'a> {
 
     // An integer supports arbitrary-precision arithmetic.
     IntegerLiteral(BigInt),
+
+    // A sum of two summands.
+    Sum(Rc<Term<'a>>, Rc<Term<'a>>),
+
+    // A difference of a minuend and a subtrahend.
+    Difference(Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
 // For variables, we store the name of the variable and its source range. The source range allows
@@ -107,9 +113,12 @@ enum CacheType {
     Let,
     Integer,
     IntegerLiteral,
+    Sum,
+    Difference,
     Group,
     Atom,
     SimpleTerm,
+    MediumTerm,
     ComplexTerm,
 }
 
@@ -599,6 +608,22 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, body.clone()),
             ),
         }),
+        Variant::Sum(summand1, summand2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Sum(
+                reassociate_applications(None, summand1.clone()),
+                reassociate_applications(None, summand2.clone()),
+            ),
+        }),
+        Variant::Difference(minuend, subtrahend) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Difference(
+                reassociate_applications(None, minuend.clone()),
+                reassociate_applications(None, subtrahend.clone()),
+            ),
+        }),
     };
 
     // We end up here as long as `term` isn't an application. If we have an accumulator, construct
@@ -907,6 +932,50 @@ fn resolve_variables<'a>(
                 variant: term::Variant::IntegerLiteral(integer.clone()),
             }
         }
+        Variant::Sum(summand1, summand2) => {
+            // Just resolve variables in the summands.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::Sum(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*summand1,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*summand2,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
+        Variant::Difference(minuend, subtrahend) => {
+            // Just resolve variables in the minuend and subtrahend.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::Difference(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*minuend,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*subtrahend,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
     })
 }
 
@@ -932,6 +1001,7 @@ fn collect_definitions<'a>(
 // 2. A definition is not available before it has been evaluated, unless it's already a value.
 //
 // This function returns the position of the first definition that may use the given definition.
+#[allow(clippy::too_many_lines)]
 #[allow(clippy::type_complexity)]
 fn get_availability<'a>(
     definitions: &[(&'a str, Option<Rc<term::Term<'a>>>, Rc<term::Term<'a>>)],
@@ -1046,6 +1116,54 @@ fn get_availability<'a>(
                         definitions_depth,
                         body,
                         term_depth + nested_definitions.len(),
+                        min_position_if_not_value,
+                        cache,
+                    ),
+                ),
+            )
+        }
+        term::Variant::Sum(summand1, summand2) => {
+            // A sum must be evaluated before it can be used.
+            max(
+                min_position_if_not_value,
+                max(
+                    get_availability(
+                        definitions,
+                        definitions_depth,
+                        summand1,
+                        term_depth,
+                        min_position_if_not_value,
+                        cache,
+                    ),
+                    get_availability(
+                        definitions,
+                        definitions_depth,
+                        summand2,
+                        term_depth,
+                        min_position_if_not_value,
+                        cache,
+                    ),
+                ),
+            )
+        }
+        term::Variant::Difference(minuend, subtrahend) => {
+            // A difference must be evaluated before it can be used.
+            max(
+                min_position_if_not_value,
+                max(
+                    get_availability(
+                        definitions,
+                        definitions_depth,
+                        minuend,
+                        term_depth,
+                        min_position_if_not_value,
+                        cache,
+                    ),
+                    get_availability(
+                        definitions,
+                        definitions_depth,
+                        subtrahend,
+                        term_depth,
                         min_position_if_not_value,
                         cache,
                     ),
@@ -1345,8 +1463,7 @@ fn parse_application<'a, 'b>(
     cache_check!(cache, Application, start, error);
 
     // Parse the applicand.
-    let (applicand, next) =
-        try_eval!(cache, Application, start, atom(cache, tokens, start, error),);
+    let (applicand, next) = try_eval!(cache, Application, start, atom(cache, tokens, start, error));
 
     // Parse the argument.
     let (argument, next) = try_eval!(
@@ -1549,6 +1666,100 @@ fn parse_integer_literal<'a, 'b>(
     )
 }
 
+// Parse a sum.
+fn parse_sum<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, Sum, start, error);
+
+    // Parse the left summand.
+    let (summand1, next) = try_eval!(
+        cache,
+        Sum,
+        start,
+        parse_simple_term(cache, tokens, start, error),
+    );
+
+    // Consume the plus symbol.
+    let next = consume_token!(cache, Sum, start, tokens, Plus, next, error, Low,);
+
+    // Parse the right summand.
+    let (summand2, next) = {
+        try_eval!(
+            cache,
+            Sum,
+            start,
+            parse_medium_term(cache, tokens, next, error),
+        )
+    };
+
+    // Construct and return the sum.
+    cache_return!(
+        cache,
+        Sum,
+        start,
+        Some((
+            Term {
+                source_range: (summand1.source_range.0, summand2.source_range.1),
+                group: false,
+                variant: Variant::Sum(Rc::new(summand1), Rc::new(summand2)),
+            },
+            next
+        )),
+    )
+}
+
+// Parse a difference.
+fn parse_difference<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, Difference, start, error);
+
+    // Parse the minuend.
+    let (minuend, next) = try_eval!(
+        cache,
+        Difference,
+        start,
+        parse_simple_term(cache, tokens, start, error),
+    );
+
+    // Consume the plus symbol.
+    let next = consume_token!(cache, Difference, start, tokens, Minus, next, error, Low,);
+
+    // Parse the subtrahend.
+    let (subtrahend, next) = {
+        try_eval!(
+            cache,
+            Difference,
+            start,
+            parse_medium_term(cache, tokens, next, error),
+        )
+    };
+
+    // Construct and return the sum.
+    cache_return!(
+        cache,
+        Difference,
+        start,
+        Some((
+            Term {
+                source_range: (minuend.source_range.0, subtrahend.source_range.1),
+                group: false,
+                variant: Variant::Difference(Rc::new(minuend), Rc::new(subtrahend)),
+            },
+            next
+        )),
+    )
+}
+
 // Parse a group.
 fn parse_group<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
@@ -1629,7 +1840,7 @@ fn atom<'a, 'b>(
     );
 
     // Try to parse a group.
-    try_return!(cache, Atom, start, parse_group(cache, tokens, start, error),);
+    try_return!(cache, Atom, start, parse_group(cache, tokens, start, error));
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
     // confidence error, employ a generic error message.
@@ -1658,7 +1869,7 @@ fn parse_simple_term<'a, 'b>(
     );
 
     // Try to parse an atom.
-    try_return!(cache, SimpleTerm, start, atom(cache, tokens, start, error),);
+    try_return!(cache, SimpleTerm, start, atom(cache, tokens, start, error));
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
     // confidence error, employ a generic error message.
@@ -1666,6 +1877,48 @@ fn parse_simple_term<'a, 'b>(
 
     // Return `None` since the parse failed.
     cache_return!(cache, SimpleTerm, start, None)
+}
+
+// Parse a medium term.
+fn parse_medium_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, MediumTerm, start, error);
+
+    // Try to parse a sum.
+    try_return!(
+        cache,
+        MediumTerm,
+        start,
+        parse_sum(cache, tokens, start, error)
+    );
+
+    // Try to parse a difference.
+    try_return!(
+        cache,
+        MediumTerm,
+        start,
+        parse_difference(cache, tokens, start, error)
+    );
+
+    // Try to parse a simple term.
+    try_return!(
+        cache,
+        MediumTerm,
+        start,
+        parse_simple_term(cache, tokens, start, error),
+    );
+
+    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
+    // confidence error, employ a generic error message.
+    set_generic_error(tokens, start, error);
+
+    // Return `None` since the parse failed.
+    cache_return!(cache, MediumTerm, start, None)
 }
 
 // Parse a complex term.
@@ -1702,12 +1955,12 @@ fn parse_complex_term<'a, 'b>(
         parse_pi(cache, tokens, start, error)
     );
 
-    // Try to parse a simple term.
+    // Try to parse a medium term.
     try_return!(
         cache,
         ComplexTerm,
         start,
-        parse_simple_term(cache, tokens, start, error),
+        parse_medium_term(cache, tokens, start, error),
     );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-

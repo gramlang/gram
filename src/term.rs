@@ -47,6 +47,12 @@ pub enum Variant<'a> {
 
     // An integer supports arbitrary-precision arithmetic.
     IntegerLiteral(BigInt),
+
+    // A sum of two summands.
+    Sum(Rc<Term<'a>>, Rc<Term<'a>>),
+
+    // A difference of a minuend and a subtrahend.
+    Difference(Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
 impl<'a> Display for Term<'a> {
@@ -88,6 +94,8 @@ impl<'a> Display for Variant<'a> {
             }
             Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
             Self::IntegerLiteral(integer) => write!(f, "{}", integer),
+            Self::Sum(summand1, summand2) => write!(f, "{} + {}", summand1, summand2),
+            Self::Difference(minuend, subtrahend) => write!(f, "{} + {}", minuend, subtrahend),
         }
     }
 }

@@ -1,6 +1,8 @@
 use crate::term::{
     Term,
-    Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
+    Variant::{
+        Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+    },
 };
 use std::{cmp::Ordering, rc::Rc};
 
@@ -67,6 +69,20 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
                 ),
             })
         }
+        Sum(summand1, summand2) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: Sum(
+                shift(summand1.clone(), cutoff, amount),
+                shift(summand2.clone(), cutoff, amount),
+            ),
+        }),
+        Difference(minuend, subtrahend) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: Difference(
+                shift(minuend.clone(), cutoff, amount),
+                shift(subtrahend.clone(), cutoff, amount),
+            ),
+        }),
     }
 }
 
@@ -144,6 +160,20 @@ pub fn open<'a>(
                 ),
             })
         }
+        Sum(summand1, summand2) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: Sum(
+                open(summand1.clone(), index_to_replace, term_to_insert.clone()),
+                open(summand2.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
+        Difference(minuend, subtrahend) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: Difference(
+                open(minuend.clone(), index_to_replace, term_to_insert.clone()),
+                open(subtrahend.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
     }
 }
 
@@ -153,7 +183,10 @@ mod tests {
         de_bruijn::{open, shift},
         term::{
             Term,
-            Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
+            Variant::{
+                Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type,
+                Variable,
+            },
         },
         token::{INTEGER_KEYWORD, TYPE_KEYWORD},
     };
@@ -434,6 +467,78 @@ mod tests {
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_sum() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Sum(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Sum(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_difference() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Difference(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Difference(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                ),
             },
         );
     }
@@ -760,6 +865,84 @@ mod tests {
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn open_sum() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Sum(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Sum(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_difference() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Difference(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Difference(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                ),
             },
         );
     }
