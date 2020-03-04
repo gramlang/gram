@@ -1,6 +1,6 @@
 use crate::term::{
     Term,
-    Variant::{Application, Lambda, Let, Pi, Type, Variable},
+    Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
 };
 use std::{cmp::Ordering, rc::Rc};
 
@@ -9,7 +9,7 @@ use std::{cmp::Ordering, rc::Rc};
 // preserving its meaning.
 pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a>> {
     match &term.variant {
-        Type => term,
+        Type | Integer | IntegerLiteral(_) => term,
         Variable(variable, index) => {
             if *index >= cutoff {
                 Rc::new(Term {
@@ -80,7 +80,7 @@ pub fn open<'a>(
     term_to_insert: Rc<Term<'a>>,
 ) -> Rc<Term<'a>> {
     match &term_to_open.variant {
-        Type => term_to_open,
+        Type | Integer | IntegerLiteral(_) => term_to_open,
         Variable(variable, index) => match index.cmp(&index_to_replace) {
             Ordering::Greater => Rc::new(Term {
                 source_range: term_to_open.source_range,
@@ -153,10 +153,11 @@ mod tests {
         de_bruijn::{open, shift},
         term::{
             Term,
-            Variant::{Application, Lambda, Let, Pi, Type, Variable},
+            Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
         },
-        token::TYPE_KEYWORD,
+        token::{INTEGER_KEYWORD, TYPE_KEYWORD},
     };
+    use num_bigint::ToBigInt;
     use std::rc::Rc;
 
     #[test]
@@ -397,6 +398,42 @@ mod tests {
                         variant: Variable("w", 46),
                     }),
                 ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_integer() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((0, INTEGER_KEYWORD.len())),
+                    variant: Integer,
+                }),
+                0,
+                42,
+            ),
+            Term {
+                source_range: Some((0, INTEGER_KEYWORD.len())),
+                variant: Integer,
+            },
+        );
+    }
+
+    #[test]
+    fn shift_integer_literal() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((0, 2)),
+                    variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+                }),
+                0,
+                42,
+            ),
+            Term {
+                source_range: Some((0, 2)),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
             },
         );
     }
@@ -681,6 +718,48 @@ mod tests {
                         variant: Variable("w", 2),
                     }),
                 ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_integer() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((0, INTEGER_KEYWORD.len())),
+                    variant: Integer,
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("y", 0),
+                }),
+            ),
+            Term {
+                source_range: Some((0, INTEGER_KEYWORD.len())),
+                variant: Integer,
+            },
+        );
+    }
+
+    #[test]
+    fn open_integer_literal() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((0, 2)),
+                    variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("y", 0),
+                }),
+            ),
+            Term {
+                source_range: Some((0, 2)),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
             },
         );
     }

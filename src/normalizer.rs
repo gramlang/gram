@@ -2,7 +2,7 @@ use crate::{
     de_bruijn::{open, shift},
     term::{
         Term,
-        Variant::{Application, Lambda, Let, Pi, Type, Variable},
+        Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
     },
 };
 use std::rc::Rc;
@@ -14,7 +14,7 @@ pub fn normalize_weak_head<'a>(
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
 ) -> Rc<Term<'a>> {
     match &term.variant {
-        Type | Lambda(_, _, _) | Pi(_, _, _) => {
+        Type | Lambda(_, _, _) | Pi(_, _, _) | Integer | IntegerLiteral(_) => {
             // These cases are already in beta normal form.
             term
         }
@@ -133,10 +133,11 @@ mod tests {
         parser::parse,
         term::{
             Term,
-            Variant::{Application, Lambda, Pi, Type, Variable},
+            Variant::{Application, Integer, IntegerLiteral, Lambda, Pi, Type, Variable},
         },
         tokenizer::tokenize,
     };
+    use num_bigint::ToBigInt;
     use std::rc::Rc;
 
     #[test]
@@ -409,6 +410,42 @@ mod tests {
             Term {
                 source_range: Some((4, 5)),
                 variant: Variable("y", 0),
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_integer() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "integer";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: Some((0, 7)),
+                variant: Integer,
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_integer_literal() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "42";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: Some((0, 2)),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
             },
         );
     }

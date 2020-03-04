@@ -1,7 +1,11 @@
+use num_bigint::BigInt;
 use std::fmt::{Display, Formatter, Result};
 
 // This keyword is for the type of all types, including itself.
 pub const TYPE_KEYWORD: &str = "type";
+
+// This keyword is for the type of integers.
+pub const INTEGER_KEYWORD: &str = "integer";
 
 // The first step of compilation is to split the source into a stream of tokens. This struct
 // represents a single token.
@@ -24,6 +28,8 @@ pub enum Variant<'a> {
     ThinArrow,
     Type,
     Identifier(&'a str),
+    Integer,
+    IntegerLiteral(BigInt),
 }
 
 // A terminator can be a line break or a semicolon. Note that not every line break is parsed as a
@@ -53,6 +59,8 @@ impl<'a> Display for Variant<'a> {
             Self::ThinArrow => write!(f, "->"),
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
             Self::Identifier(name) => write!(f, "{}", name),
+            Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
+            Self::IntegerLiteral(integer) => write!(f, "{}", integer),
         }
     }
 }

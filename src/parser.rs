@@ -4,6 +4,7 @@ use crate::{
     term,
     token::{self, TerminatorType, Token},
 };
+use num_bigint::BigInt;
 use scopeguard::defer;
 use std::{cell::RefCell, cmp::max, collections::HashMap, path::Path, rc::Rc};
 
@@ -77,6 +78,12 @@ enum Variant<'a> {
         Rc<Term<'a>>,
         Rc<Term<'a>>,
     ),
+
+    // This is the type of integers.
+    Integer,
+
+    // An integer supports arbitrary-precision arithmetic.
+    IntegerLiteral(BigInt),
 }
 
 // For variables, we store the name of the variable and its source range. The source range allows
@@ -99,6 +106,8 @@ enum CacheType {
     Application,
     Let,
     Group,
+    Integer,
+    IntegerLiteral,
     Applicand,
     TermMinusArrowsLet,
     TermMinusLet,
@@ -518,7 +527,9 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
     // to construct an application with the accumulator as the applicand and the reduced term as
     // the argument. In the application case, we build up the accumulator.
     let reduced = match &term.variant {
-        Variant::Type | Variant::Variable(_) => term,
+        Variant::Type | Variant::Variable(_) | Variant::Integer | Variant::IntegerLiteral(_) => {
+            term
+        }
         Variant::Lambda(variable, domain, body) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
@@ -882,6 +893,20 @@ fn resolve_variables<'a>(
                 ),
             }
         }
+        Variant::Integer => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::Integer,
+            }
+        }
+        Variant::IntegerLiteral(integer) => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::IntegerLiteral(integer.clone()),
+            }
+        }
     })
 }
 
@@ -917,7 +942,10 @@ fn get_availability<'a>(
     cache: &mut HashMap<usize, usize>, // Map from definition position to availability
 ) -> usize {
     match &term.variant {
-        term::Variant::Type | term::Variant::Pi(_, _, _) => {
+        term::Variant::Type
+        | term::Variant::Pi(_, _, _)
+        | term::Variant::Integer
+        | term::Variant::IntegerLiteral(_) => {
             // These variants can be used by any definition since they are already fully evaluated.
             0
         }
@@ -1034,7 +1062,7 @@ fn parse_term<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, Term, start, error);
 
     // Try to parse a non-dependent pi type.
@@ -1081,6 +1109,22 @@ fn parse_term<'a, 'b>(
     // Try to parse a group.
     try_return!(cache, Term, start, parse_group(cache, tokens, start, error));
 
+    // Try to parse the type of integers.
+    try_return!(
+        cache,
+        Term,
+        start,
+        parse_integer(cache, tokens, start, error)
+    );
+
+    // Try to parse an integer literal.
+    try_return!(
+        cache,
+        Term,
+        start,
+        parse_integer_literal(cache, tokens, start, error)
+    );
+
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
     // confidence error, employ a generic error message.
     set_generic_error(tokens, start, error);
@@ -1096,7 +1140,7 @@ fn parse_type<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, Type, start, error);
 
     // Consume the keyword.
@@ -1125,7 +1169,7 @@ fn parse_variable<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, Variable, start, error);
 
     // Consume the variable.
@@ -1157,7 +1201,7 @@ fn parse_non_dependent_pi<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, NonDependentPi, start, error);
 
     // Parse the domain.
@@ -1227,7 +1271,7 @@ fn parse_pi<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, Pi, start, error);
 
     // Consume the left parenthesis.
@@ -1286,7 +1330,7 @@ fn parse_lambda<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, Lambda, start, error);
 
     // Consume the left parenthesis.
@@ -1346,7 +1390,7 @@ fn parse_application<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, Application, start, error);
 
     // Parse the applicand.
@@ -1388,7 +1432,7 @@ fn parse_let<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, Let, start, error);
 
     // Consume the variable.
@@ -1462,7 +1506,7 @@ fn parse_group<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, Group, start, error);
 
     // Consume the left parenthesis.
@@ -1497,6 +1541,109 @@ fn parse_group<'a, 'b>(
     )
 }
 
+// Parse the type of integers.
+fn parse_integer<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, Integer, start, error);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, Integer, start, tokens, Integer, start, error, Low);
+
+    // Construct and return the variable.
+    cache_return!(
+        cache,
+        Integer,
+        start,
+        Some((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::Integer,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse an integer literal.
+fn parse_integer_literal<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, IntegerLiteral, start, error);
+
+    // Fail if there are no more tokens to parse.
+    if start == tokens.len() {
+        if start > error.1 || (start == error.1 && ErrorConfidenceLevel::Low > error.2) {
+            *error = (
+                Some(Rc::new(move |source_path, source_contents| {
+                    throw(
+                        &format!(
+                            "Expected an integer literal after {}.",
+                            tokens[start - 1].to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        tokens[start - 1].source_range,
+                    )
+                }) as ErrorFactory),
+                start,
+                ErrorConfidenceLevel::Low,
+            );
+        }
+
+        cache_return!(cache, IntegerLiteral, start, None)
+    }
+
+    // Check if the token was the expected one.
+    let (next, integer) = if let token::Variant::IntegerLiteral(integer) = &tokens[start].variant {
+        (start + 1, integer.clone())
+    } else {
+        if start > error.1 || (start == error.1 && ErrorConfidenceLevel::Low > error.2) {
+            *error = (
+                Some(Rc::new(move |source_path, source_contents| {
+                    throw(
+                        &format!(
+                            "Expected an integer literal but encountered {}.",
+                            tokens[start].to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        tokens[start].source_range,
+                    )
+                }) as ErrorFactory),
+                start,
+                ErrorConfidenceLevel::Low,
+            );
+        }
+
+        cache_return!(cache, IntegerLiteral, start, None)
+    };
+
+    // Construct and return the variable.
+    cache_return!(
+        cache,
+        IntegerLiteral,
+        start,
+        Some((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::IntegerLiteral(integer),
+            },
+            next,
+        )),
+    )
+}
+
 // Parse an applicand (the left part of an application).
 fn parse_applicand<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
@@ -1504,7 +1651,7 @@ fn parse_applicand<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, Applicand, start, error);
 
     // Try to parse the type of all types.
@@ -1531,6 +1678,22 @@ fn parse_applicand<'a, 'b>(
         parse_group(cache, tokens, start, error),
     );
 
+    // Try to parse the type of integers.
+    try_return!(
+        cache,
+        Term,
+        start,
+        parse_integer(cache, tokens, start, error)
+    );
+
+    // Try to parse an integer literal.
+    try_return!(
+        cache,
+        Term,
+        start,
+        parse_integer_literal(cache, tokens, start, error)
+    );
+
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
     // confidence error, employ a generic error message.
     set_generic_error(tokens, start, error);
@@ -1546,7 +1709,7 @@ fn parse_term_minus_arrows_let<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, TermMinusArrowsLet, start, error);
 
     // Try to parse an application.
@@ -1576,6 +1739,22 @@ fn parse_term_minus_arrows_let<'a, 'b>(
         parse_group(cache, tokens, start, error),
     );
 
+    // Try to parse the type of integers.
+    try_return!(
+        cache,
+        Term,
+        start,
+        parse_integer(cache, tokens, start, error)
+    );
+
+    // Try to parse an integer literal.
+    try_return!(
+        cache,
+        Term,
+        start,
+        parse_integer_literal(cache, tokens, start, error)
+    );
+
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
     // confidence error, employ a generic error message.
     set_generic_error(tokens, start, error);
@@ -1591,7 +1770,7 @@ fn parse_term_minus_let<'a, 'b>(
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
-    // Check the cache and make sure we have some tokens to parse.
+    // Check the cache.
     cache_check!(cache, TermMinusLet, start, error);
 
     // Try to parse a non-dependent pi type.
@@ -1648,6 +1827,22 @@ fn parse_term_minus_let<'a, 'b>(
         TermMinusLet,
         start,
         parse_group(cache, tokens, start, error)
+    );
+
+    // Try to parse the type of integers.
+    try_return!(
+        cache,
+        Term,
+        start,
+        parse_integer(cache, tokens, start, error)
+    );
+
+    // Try to parse an integer literal.
+    try_return!(
+        cache,
+        Term,
+        start,
+        parse_integer_literal(cache, tokens, start, error)
     );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-

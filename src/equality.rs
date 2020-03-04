@@ -2,7 +2,7 @@ use crate::{
     normalizer::normalize_weak_head,
     term::{
         Term,
-        Variant::{Application, Lambda, Let, Pi, Type, Variable},
+        Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
     },
 };
 use std::rc::Rc;
@@ -10,7 +10,7 @@ use std::rc::Rc;
 // Check if two terms are equal up to alpha conversion. Type annotations are not checked.
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     match (&term1.variant, &term2.variant) {
-        (Type, Type) => true,
+        (Type, Type) | (Integer, Integer) => true,
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
         (Lambda(_, _, body1), Lambda(_, _, body2)) => syntactically_equal(&**body1, &**body2),
         (Pi(_, domain1, codomain1), Pi(_, domain2, codomain2)) => {
@@ -37,7 +37,10 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
                 )
                 && syntactically_equal(&**body1, &**body2)
         }
-        (Variable(_, _), _)
+        (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
+        (Type, _)
+        | (_, Type)
+        | (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _), _)
         | (_, Lambda(_, _, _))
@@ -46,7 +49,9 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
         | (Application(_, _), _)
         | (_, Application(_, _))
         | (Let(_, _), _)
-        | (_, Let(_, _)) => false,
+        | (_, Let(_, _))
+        | (Integer, _)
+        | (_, Integer) => false,
     }
 }
 
@@ -67,7 +72,7 @@ pub fn definitionally_equal<'a>(
         &normalize_weak_head(term1, definitions_context).variant,
         &normalize_weak_head(term2, definitions_context).variant,
     ) {
-        (Type, Type) => true,
+        (Type, Type) | (Integer, Integer) => true,
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
         (Lambda(_, _, body1), Lambda(_, _, body2)) => {
             // Temporarily add the variable to the context for the purpose of normalizing the body.
@@ -104,6 +109,7 @@ pub fn definitionally_equal<'a>(
             definitionally_equal(applicand1.clone(), applicand2.clone(), definitions_context)
                 && definitionally_equal(argument1.clone(), argument2.clone(), definitions_context)
         }
+        (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
         (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _), _)
@@ -111,7 +117,11 @@ pub fn definitionally_equal<'a>(
         | (Pi(_, _, _), _)
         | (_, Pi(_, _, _))
         | (Application(_, _), _)
-        | (_, Application(_, _)) => false,
+        | (_, Application(_, _))
+        | (Integer, _)
+        | (_, Integer)
+        | (IntegerLiteral(_), _)
+        | (_, IntegerLiteral(_)) => false,
         (Let(_, _), _) | (_, Let(_, _)) => {
             // [ref:let_not_in_weak_head_normal_form]
             panic!("Encountered a let after conversion to weak head normal form.")
@@ -347,6 +357,51 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "x = f; y = x; f";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_integer() {
+        let context = [];
+
+        let source1 = "integer";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "integer";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_equal_integer_literal() {
+        let context = [];
+
+        let source1 = "42";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "42";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_integer() {
+        let context = [];
+
+        let source1 = "42";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "43";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
@@ -629,6 +684,63 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "x = type; type type";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_integer() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "integer";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "integer";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_integer_literal() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "42";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "42";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_integer_literal() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "42";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "43";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
