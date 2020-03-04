@@ -108,9 +108,9 @@ enum CacheType {
     Integer,
     IntegerLiteral,
     Group,
+    Atom,
     SimpleTerm,
-    TermMinusArrowsLet,
-    TermMinusLet,
+    ComplexTerm,
 }
 
 // A cache key consists of a `CacheType` indicating which function is being memoized together
@@ -1068,12 +1068,12 @@ fn parse_term<'a, 'b>(
     // Try to parse a let.
     try_return!(cache, Term, start, parse_let(cache, tokens, start, error));
 
-    // Try to parse a term that isn't a let.
+    // Try to parse a complex term.
     try_return!(
         cache,
         Term,
         start,
-        parse_term_minus_let(cache, tokens, start, error)
+        parse_complex_term(cache, tokens, start, error)
     );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
@@ -1170,7 +1170,7 @@ fn parse_lambda<'a, 'b>(
         cache,
         Lambda,
         start,
-        parse_term_minus_let(cache, tokens, next, error)
+        parse_complex_term(cache, tokens, next, error)
     );
 
     // Consume the right parenthesis.
@@ -1229,7 +1229,7 @@ fn parse_pi<'a, 'b>(
         cache,
         Pi,
         start,
-        parse_term_minus_let(cache, tokens, next, error)
+        parse_complex_term(cache, tokens, next, error)
     );
 
     // Consume the right parenthesis.
@@ -1279,7 +1279,7 @@ fn parse_non_dependent_pi<'a, 'b>(
         cache,
         NonDependentPi,
         start,
-        parse_term_minus_arrows_let(cache, tokens, start, error),
+        parse_simple_term(cache, tokens, start, error),
     );
 
     // Consume the arrow.
@@ -1345,19 +1345,15 @@ fn parse_application<'a, 'b>(
     cache_check!(cache, Application, start, error);
 
     // Parse the applicand.
-    let (applicand, next) = try_eval!(
-        cache,
-        Application,
-        start,
-        simple_term(cache, tokens, start, error),
-    );
+    let (applicand, next) =
+        try_eval!(cache, Application, start, atom(cache, tokens, start, error),);
 
     // Parse the argument.
     let (argument, next) = try_eval!(
         cache,
         Application,
         start,
-        parse_term_minus_arrows_let(cache, tokens, next, error),
+        parse_simple_term(cache, tokens, next, error),
     );
 
     // Construct and return the application.
@@ -1400,7 +1396,7 @@ fn parse_let<'a, 'b>(
                 cache,
                 Let,
                 start,
-                parse_term_minus_arrows_let(cache, tokens, next, error)
+                parse_simple_term(cache, tokens, next, error)
             );
 
             // Package up the annotation in the right form.
@@ -1596,37 +1592,24 @@ fn parse_group<'a, 'b>(
 }
 
 // Parse an applicand (the left part of an application).
-fn simple_term<'a, 'b>(
+fn atom<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, SimpleTerm, start, error);
+    cache_check!(cache, Atom, start, error);
 
     // Try to parse the type of all types.
-    try_return!(
-        cache,
-        SimpleTerm,
-        start,
-        parse_type(cache, tokens, start, error)
-    );
+    try_return!(cache, Atom, start, parse_type(cache, tokens, start, error));
 
     // Try to parse a variable.
     try_return!(
         cache,
-        SimpleTerm,
+        Atom,
         start,
         parse_variable(cache, tokens, start, error),
-    );
-
-    // Try to parse a group.
-    try_return!(
-        cache,
-        SimpleTerm,
-        start,
-        parse_group(cache, tokens, start, error),
     );
 
     // Try to parse the type of integers.
@@ -1645,6 +1628,38 @@ fn simple_term<'a, 'b>(
         parse_integer_literal(cache, tokens, start, error)
     );
 
+    // Try to parse a group.
+    try_return!(cache, Atom, start, parse_group(cache, tokens, start, error),);
+
+    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
+    // confidence error, employ a generic error message.
+    set_generic_error(tokens, start, error);
+
+    // Return `None` since the parse failed.
+    cache_return!(cache, Atom, start, None)
+}
+
+// Parse a simple term.
+fn parse_simple_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, SimpleTerm, start, error);
+
+    // Try to parse an application.
+    try_return!(
+        cache,
+        SimpleTerm,
+        start,
+        parse_application(cache, tokens, start, error),
+    );
+
+    // Try to parse an atom.
+    try_return!(cache, SimpleTerm, start, atom(cache, tokens, start, error),);
+
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
     // confidence error, employ a generic error message.
     set_generic_error(tokens, start, error);
@@ -1653,70 +1668,28 @@ fn simple_term<'a, 'b>(
     cache_return!(cache, SimpleTerm, start, None)
 }
 
-// Parse a term, except for arrows (pi types and lambdas) and lets.
-fn parse_term_minus_arrows_let<'a, 'b>(
+// Parse a complex term.
+fn parse_complex_term<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, TermMinusArrowsLet, start, error);
-
-    // Try to parse an application.
-    try_return!(
-        cache,
-        TermMinusArrowsLet,
-        start,
-        parse_application(cache, tokens, start, error),
-    );
-
-    // Try to parse an applicand.
-    try_return!(
-        cache,
-        TermMinusArrowsLet,
-        start,
-        simple_term(cache, tokens, start, error),
-    );
-
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, start, error);
-
-    // Return `None` since the parse failed.
-    cache_return!(cache, TermMinusArrowsLet, start, None)
-}
-
-// Parse a term, except for lets.
-fn parse_term_minus_let<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // Check the cache.
-    cache_check!(cache, TermMinusLet, start, error);
+    cache_check!(cache, ComplexTerm, start, error);
 
     // Try to parse a non-dependent pi type.
     try_return!(
         cache,
-        TermMinusLet,
+        ComplexTerm,
         start,
         parse_non_dependent_pi(cache, tokens, start, error),
-    );
-
-    // Try to parse an application.
-    try_return!(
-        cache,
-        TermMinusLet,
-        start,
-        parse_application(cache, tokens, start, error),
     );
 
     // Try to parse a lambda.
     try_return!(
         cache,
-        TermMinusLet,
+        ComplexTerm,
         start,
         parse_lambda(cache, tokens, start, error),
     );
@@ -1724,17 +1697,17 @@ fn parse_term_minus_let<'a, 'b>(
     // Try to parse a pi type.
     try_return!(
         cache,
-        TermMinusLet,
+        ComplexTerm,
         start,
         parse_pi(cache, tokens, start, error)
     );
 
-    // Try to parse a group.
+    // Try to parse a simple term.
     try_return!(
         cache,
-        TermMinusLet,
+        ComplexTerm,
         start,
-        simple_term(cache, tokens, start, error)
+        parse_simple_term(cache, tokens, start, error),
     );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
@@ -1742,7 +1715,7 @@ fn parse_term_minus_let<'a, 'b>(
     set_generic_error(tokens, start, error);
 
     // Return `None` since the parse failed.
-    cache_return!(cache, TermMinusLet, start, None)
+    cache_return!(cache, ComplexTerm, start, None)
 }
 
 #[cfg(test)]
