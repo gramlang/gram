@@ -21,15 +21,15 @@ pub struct Token<'a> {
 pub enum Variant<'a> {
     Colon,
     Equals,
+    Identifier(&'a str),
+    Integer,
+    IntegerLiteral(BigInt),
     LeftParen,
     RightParen,
     Terminator(TerminatorType),
     ThickArrow,
     ThinArrow,
     Type,
-    Identifier(&'a str),
-    Integer,
-    IntegerLiteral(BigInt),
 }
 
 // A terminator can be a line break or a semicolon. Note that not every line break is parsed as a
@@ -51,6 +51,9 @@ impl<'a> Display for Variant<'a> {
         match self {
             Self::Colon => write!(f, ":"),
             Self::Equals => write!(f, "="),
+            Self::Identifier(name) => write!(f, "{}", name),
+            Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
+            Self::IntegerLiteral(integer) => write!(f, "{}", integer),
             Self::LeftParen => write!(f, "("),
             Self::RightParen => write!(f, ")"),
             Self::Terminator(TerminatorType::LineBreak) => write!(f, "\\n"),
@@ -58,9 +61,6 @@ impl<'a> Display for Variant<'a> {
             Self::ThickArrow => write!(f, "=>"),
             Self::ThinArrow => write!(f, "->"),
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
-            Self::Identifier(name) => write!(f, "{}", name),
-            Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
-            Self::IntegerLiteral(integer) => write!(f, "{}", integer),
         }
     }
 }
