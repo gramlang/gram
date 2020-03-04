@@ -2,13 +2,16 @@ use crate::{
     de_bruijn::{open, shift},
     term::{
         Term,
-        Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
+        Variant::{
+            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+        },
     },
 };
 use std::rc::Rc;
 
 // This function reduces a term to weak head normal form using normal order reduction. Invariant:
 // when this function is finished, the context is left unmodified.
+#[allow(clippy::too_many_lines)]
 pub fn normalize_weak_head<'a>(
     term: Rc<Term<'a>>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
@@ -46,7 +49,7 @@ pub fn normalize_weak_head<'a>(
             } else {
                 // We didn't get a lambda. We're done here.
                 Rc::new(Term {
-                    source_range: term.source_range,
+                    source_range: None,
                     variant: Application(normalized_applicand, argument.clone()),
                 })
             }
@@ -122,6 +125,55 @@ pub fn normalize_weak_head<'a>(
 
             // Normalize the body [tag:let_not_in_weak_head_normal_form].
             normalize_weak_head(substituted_body, definitions_context)
+        }
+        Sum(summand1, summand2) => {
+            // Normalize the left summand.
+            let normalized_summand1 = normalize_weak_head(summand1.clone(), definitions_context);
+
+            // Normalize the right summand.
+            let normalized_summand2 = normalize_weak_head(summand2.clone(), definitions_context);
+
+            // Check if the summands reduced to integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&normalized_summand1.variant, &normalized_summand2.variant)
+            {
+                // Perform addition.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: IntegerLiteral(integer1 + integer2),
+                })
+            } else {
+                // We didn't get integer literals. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Sum(normalized_summand1, normalized_summand2),
+                })
+            }
+        }
+        Difference(minuend, subtrahend) => {
+            // Normalize the minuend.
+            let normalized_minuend = normalize_weak_head(minuend.clone(), definitions_context);
+
+            // Normalize the subtrahend.
+            let normalized_subtrahend =
+                normalize_weak_head(subtrahend.clone(), definitions_context);
+
+            // Check if the minuend and subtrahend reduced to integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&normalized_minuend.variant, &normalized_subtrahend.variant)
+            {
+                // Perform subtraction.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: IntegerLiteral(integer1 - integer2),
+                })
+            } else {
+                // We didn't get integer literals. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Sum(normalized_minuend, normalized_subtrahend),
+                })
+            }
         }
     }
 }
@@ -344,7 +396,7 @@ mod tests {
         assert_eq!(
             *normalize_weak_head(Rc::new(term), &mut definitions_context),
             Term {
-                source_range: Some((0, 43)),
+                source_range: None,
                 variant: Application(
                     Rc::new(Term {
                         source_range: Some((19, 20)),
@@ -446,6 +498,42 @@ mod tests {
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_sum() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "1 + 2";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_difference() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "3 - 2";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
             },
         );
     }

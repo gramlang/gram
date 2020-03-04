@@ -3,7 +3,9 @@ use crate::{
     format::CodeStr,
     term::{
         Term,
-        Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
+        Variant::{
+            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+        },
     },
 };
 use std::{collections::HashSet, rc::Rc};
@@ -204,6 +206,88 @@ fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             // Return the substituted body.
             Some(substituted_body)
         }
+        Sum(summand1, summand2) => {
+            // Try to step the left summand.
+            if let Some(stepped_summand1) = step(summand1) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Sum(stepped_summand1, summand2.clone()),
+                }));
+            };
+
+            // Ensure the left summand is a value.
+            if !is_value(summand1) {
+                return None;
+            }
+
+            // Try to step the right summand.
+            if let Some(stepped_summand2) = step(summand2) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Sum(summand1.clone(), stepped_summand2),
+                }));
+            };
+
+            // Ensure the right summand is a value.
+            if !is_value(summand2) {
+                return None;
+            }
+
+            // Check if the summands are integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&summand1.variant, &summand2.variant)
+            {
+                // We got integer literals. Perform addition and continue evaluating.
+                Some(Rc::new(Term {
+                    source_range: None,
+                    variant: IntegerLiteral(integer1 + integer2),
+                }))
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
+        }
+        Difference(minuend, subtrahend) => {
+            // Try to step the minuend.
+            if let Some(stepped_minuend) = step(minuend) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Difference(stepped_minuend, subtrahend.clone()),
+                }));
+            };
+
+            // Ensure the minuend is a value.
+            if !is_value(minuend) {
+                return None;
+            }
+
+            // Try to step the subtrahend.
+            if let Some(stepped_subtrahend) = step(subtrahend) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Difference(minuend.clone(), stepped_subtrahend),
+                }));
+            };
+
+            // Ensure the subtrahend is a value.
+            if !is_value(subtrahend) {
+                return None;
+            }
+
+            // Check if the minuend and subtrahend are integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&minuend.variant, &subtrahend.variant)
+            {
+                // We got integer literals. Perform subtraction and continue evaluating.
+                Some(Rc::new(Term {
+                    source_range: None,
+                    variant: IntegerLiteral(integer1 - integer2),
+                }))
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
+        }
     }
 }
 
@@ -212,7 +296,7 @@ fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 fn is_value<'a>(term: &Term<'a>) -> bool {
     match term.variant {
         Type | Lambda(_, _, _) | Pi(_, _, _) | Integer | IntegerLiteral(_) => true,
-        Variable(_, _) | Application(_, _) | Let(_, _) => false,
+        Variable(_, _) | Application(_, _) | Let(_, _) | Sum(_, _) | Difference(_, _) => false,
     }
 }
 
@@ -277,6 +361,20 @@ fn get_live_definitions<'a>(
                 definitions.len() + let_definitions.len(),
                 live_definitions,
             );
+        }
+        Sum(summand1, summand2) => {
+            // Recurse on the left summand.
+            get_live_definitions(definitions, summand1, definitions.len(), live_definitions);
+
+            // Recurse on the right summand.
+            get_live_definitions(definitions, summand2, definitions.len(), live_definitions);
+        }
+        Difference(minuend, subtrahend) => {
+            // Recurse on the minuend.
+            get_live_definitions(definitions, minuend, definitions.len(), live_definitions);
+
+            // Recurse on the subtrahend.
+            get_live_definitions(definitions, subtrahend, definitions.len(), live_definitions);
         }
     }
 }
@@ -495,6 +593,36 @@ mod tests {
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_sum() {
+        let source = "1 + 2";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_difference() {
+        let source = "3 - 2";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
             },
         );
     }

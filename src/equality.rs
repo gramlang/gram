@@ -2,7 +2,9 @@ use crate::{
     normalizer::normalize_weak_head,
     term::{
         Term,
-        Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
+        Variant::{
+            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+        },
     },
 };
 use std::rc::Rc;
@@ -38,9 +40,15 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
                 && syntactically_equal(&**body1, &**body2)
         }
         (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
-        (Type, _)
-        | (_, Type)
-        | (Variable(_, _), _)
+        (Sum(summand11, summand12), Sum(summand21, summand22)) => {
+            syntactically_equal(&**summand11, &**summand21)
+                && syntactically_equal(&**summand12, &**summand22)
+        }
+        (Difference(minuend1, subtrahend1), Difference(minuend2, subtrahend2)) => {
+            syntactically_equal(&**minuend1, &**minuend2)
+                && syntactically_equal(&**subtrahend1, &**subtrahend2)
+        }
+        (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _), _)
         | (_, Lambda(_, _, _))
@@ -51,7 +59,13 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
         | (Let(_, _), _)
         | (_, Let(_, _))
         | (Integer, _)
-        | (_, Integer) => false,
+        | (_, Integer)
+        | (IntegerLiteral(_), _)
+        | (_, IntegerLiteral(_))
+        | (Sum(_, _), _)
+        | (_, Sum(_, _))
+        | (Difference(_, _), _)
+        | (_, Difference(_, _)) => false,
     }
 }
 
@@ -110,6 +124,18 @@ pub fn definitionally_equal<'a>(
                 && definitionally_equal(argument1.clone(), argument2.clone(), definitions_context)
         }
         (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
+        (Sum(summand11, summand12), Sum(summand21, summand22)) => {
+            definitionally_equal(summand11.clone(), summand21.clone(), definitions_context)
+                && definitionally_equal(summand12.clone(), summand22.clone(), definitions_context)
+        }
+        (Difference(minuend1, subtrahend1), Difference(minuend2, subtrahend2)) => {
+            definitionally_equal(minuend1.clone(), minuend2.clone(), definitions_context)
+                && definitionally_equal(
+                    subtrahend1.clone(),
+                    subtrahend2.clone(),
+                    definitions_context,
+                )
+        }
         (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _), _)
@@ -121,7 +147,11 @@ pub fn definitionally_equal<'a>(
         | (Integer, _)
         | (_, Integer)
         | (IntegerLiteral(_), _)
-        | (_, IntegerLiteral(_)) => false,
+        | (_, IntegerLiteral(_))
+        | (Sum(_, _), _)
+        | (_, Sum(_, _))
+        | (Difference(_, _), _)
+        | (_, Difference(_, _)) => false,
         (Let(_, _), _) | (_, Let(_, _)) => {
             // [ref:let_not_in_weak_head_normal_form]
             panic!("Encountered a let after conversion to weak head normal form.")
@@ -402,6 +432,96 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "43";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_sum() {
+        let context = [];
+
+        let source1 = "1 + 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 + 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_sum_summand1() {
+        let context = [];
+
+        let source1 = "1 + 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "3 + 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_sum_summand2() {
+        let context = [];
+
+        let source1 = "1 + 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 + 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_difference() {
+        let context = [];
+
+        let source1 = "1 - 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 - 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_difference_minuend() {
+        let context = [];
+
+        let source1 = "1 - 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "3 - 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_difference_subtrahend() {
+        let context = [];
+
+        let source1 = "1 - 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 - 3";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
@@ -741,6 +861,120 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "43";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_sum() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 + 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_sum_summand1() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 + 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "3 + 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_sum_summand2() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 + 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "1 + 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_difference() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "3 - 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "1";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_difference_minuend() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 - 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "3 - 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_difference_subtrahend() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 - 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "1 - 3";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 

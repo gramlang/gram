@@ -42,6 +42,12 @@ pub fn tokenize<'a>(
                     variant: Variant::LeftParen,
                 });
             }
+            '+' => {
+                tokens.push(Token {
+                    source_range: (i, i + 1),
+                    variant: Variant::Plus,
+                });
+            }
             ')' => {
                 tokens.push(Token {
                     source_range: (i, i + 1),
@@ -61,15 +67,17 @@ pub fn tokenize<'a>(
                         Variant::Colon
                         | Variant::Equals
                         | Variant::LeftParen
+                        | Variant::Minus
+                        | Variant::Plus
                         | Variant::Terminator(TerminatorType::LineBreak) /* [tag:no_consecutive_line_break_terminators] */
                         | Variant::ThickArrow
                         | Variant::ThinArrow => false,
                         Variant::RightParen
-                        | Variant::Terminator(TerminatorType::Semicolon)
-                        | Variant::Type
                         | Variant::Identifier(_)
                         | Variant::Integer
-                        | Variant::IntegerLiteral(_) => true,
+                        | Variant::IntegerLiteral(_)
+                        | Variant::Terminator(TerminatorType::Semicolon)
+                        | Variant::Type => true,
                     }
                 {
                     tokens.push(Token {
@@ -85,12 +93,19 @@ pub fn tokenize<'a>(
                     variant: Variant::ThickArrow,
                 });
             }
-            '-' if iter.peek() == Some(&(i + 1, '>')) => {
-                iter.next();
-                tokens.push(Token {
-                    source_range: (i, i + 2),
-                    variant: Variant::ThinArrow,
-                });
+            '-' => {
+                if iter.peek() == Some(&(i + 1, '>')) {
+                    iter.next();
+                    tokens.push(Token {
+                        source_range: (i, i + 2),
+                        variant: Variant::ThinArrow,
+                    });
+                } else {
+                    tokens.push(Token {
+                        source_range: (i, i + 1),
+                        variant: Variant::Minus,
+                    });
+                }
             }
 
             // If the first code point is alphabetic according to the Unicode derived property,
@@ -185,15 +200,17 @@ pub fn tokenize<'a>(
                 if match next_token.variant {
                     Variant::Colon
                     | Variant::Equals
+                    | Variant::Minus
+                    | Variant::Plus
+                    | Variant::RightParen
                     | Variant::ThickArrow
-                    | Variant::ThinArrow
-                    | Variant::RightParen => false,
-                    Variant::LeftParen
-                    | Variant::Terminator(TerminatorType::Semicolon)
-                    | Variant::Type
-                    | Variant::Identifier(_)
+                    | Variant::ThinArrow => false,
+                    Variant::Identifier(_)
                     | Variant::Integer
-                    | Variant::IntegerLiteral(_) => true,
+                    | Variant::IntegerLiteral(_)
+                    | Variant::LeftParen
+                    | Variant::Terminator(TerminatorType::Semicolon)
+                    | Variant::Type => true,
                     Variant::Terminator(TerminatorType::LineBreak) => {
                         // [ref:no_consecutive_line_break_terminators]
                         panic!("Two consecutive line break terminators were found.");
@@ -297,6 +314,28 @@ mod tests {
             vec![Token {
                 source_range: (0, 1),
                 variant: Variant::LeftParen,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_minus() {
+        assert_eq!(
+            tokenize(None, "-").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::Minus,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_plus() {
+        assert_eq!(
+            tokenize(None, "+").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::Plus,
             }],
         );
     }
