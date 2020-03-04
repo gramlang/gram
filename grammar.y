@@ -23,65 +23,46 @@
 
 %token COLON
 %token EQUALS
+%token IDENTIFIER
+%token INTEGER
+%token INTEGER_LITERAL
 %token LEFT_PAREN
 %token RIGHT_PAREN
 %token TERMINATOR
 %token THICK_ARROW
 %token THIN_ARROW
 %token TYPE
-%token INTEGER
-%token INTEGER_LITERAL
-%token IDENTIFIER
 
 %%
 
 /* [tag:bison_grammar] [ref:grammar] */
 
-term:
-  non_dependent_pi |
-  application |
-  let |
-  type |
-  variable |
-  pi |
-  lambda |
-  group |
-  integer |
-  integer_literal;
+term: let | term_minus_let;
 
 type: TYPE;
 
 variable: IDENTIFIER;
 
-non_dependent_pi: term_minus_arrows_let THIN_ARROW term;
+lambda: LEFT_PAREN IDENTIFIER COLON term_minus_let RIGHT_PAREN THICK_ARROW term;
 
 pi: LEFT_PAREN IDENTIFIER COLON term_minus_let RIGHT_PAREN THIN_ARROW term;
 
-lambda: LEFT_PAREN IDENTIFIER COLON term_minus_let RIGHT_PAREN THICK_ARROW term;
+non_dependent_pi: term_minus_arrows_let THIN_ARROW term;
 
-application: applicand term_minus_arrows_let;
+application: simple_term term_minus_arrows_let;
 
 let: IDENTIFIER let_annotation EQUALS term TERMINATOR term;
 
 let_annotation: %empty | COLON term_minus_arrows_let;
 
-group: LEFT_PAREN term RIGHT_PAREN;
-
 integer: INTEGER;
 
 integer_literal: INTEGER_LITERAL;
 
-applicand: type | variable | group | integer | integer_literal;
+group: LEFT_PAREN term RIGHT_PAREN;
 
-term_minus_arrows_let: application | type | variable | group | integer | integer_literal;
+simple_term: type | variable | group | integer | integer_literal;
 
-term_minus_let:
-  non_dependent_pi |
-  application |
-  type |
-  variable |
-  pi |
-  lambda |
-  group |
-  integer |
-  integer_literal;
+term_minus_arrows_let: application | simple_term;
+
+term_minus_let: non_dependent_pi | application | lambda | pi | simple_term;
