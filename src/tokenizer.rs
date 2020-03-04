@@ -258,6 +258,61 @@ mod tests {
     }
 
     #[test]
+    fn tokenize_identifier() {
+        assert_eq!(
+            tokenize(None, "\u{5e78}\u{798f}").unwrap(),
+            vec![Token {
+                source_range: (0, 6),
+                variant: Variant::Identifier("\u{5e78}\u{798f}"),
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_integer() {
+        assert_eq!(
+            tokenize(None, INTEGER_KEYWORD).unwrap(),
+            vec![Token {
+                source_range: (0, INTEGER_KEYWORD.len()),
+                variant: Variant::Integer,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_integer_literal() {
+        assert_eq!(
+            tokenize(None, "42").unwrap(),
+            vec![Token {
+                source_range: (0, 2),
+                variant: Variant::IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_left_paren() {
+        assert_eq!(
+            tokenize(None, "(").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::LeftParen,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_right_paren() {
+        assert_eq!(
+            tokenize(None, ")").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::RightParen,
+            }],
+        );
+    }
+
+    #[test]
     fn tokenize_terminator_line_break() {
         assert_eq!(
             tokenize(None, "\n\ntype\n\ntype\n\n").unwrap(),
@@ -320,28 +375,6 @@ mod tests {
     }
 
     #[test]
-    fn tokenize_left_paren() {
-        assert_eq!(
-            tokenize(None, "(").unwrap(),
-            vec![Token {
-                source_range: (0, 1),
-                variant: Variant::LeftParen,
-            }],
-        );
-    }
-
-    #[test]
-    fn tokenize_right_paren() {
-        assert_eq!(
-            tokenize(None, ")").unwrap(),
-            vec![Token {
-                source_range: (0, 1),
-                variant: Variant::RightParen,
-            }],
-        );
-    }
-
-    #[test]
     fn tokenize_thick_arrow() {
         assert_eq!(
             tokenize(None, "=>").unwrap(),
@@ -370,39 +403,6 @@ mod tests {
             vec![Token {
                 source_range: (0, TYPE_KEYWORD.len()),
                 variant: Variant::Type,
-            }],
-        );
-    }
-
-    #[test]
-    fn tokenize_integer() {
-        assert_eq!(
-            tokenize(None, INTEGER_KEYWORD).unwrap(),
-            vec![Token {
-                source_range: (0, INTEGER_KEYWORD.len()),
-                variant: Variant::Integer,
-            }],
-        );
-    }
-
-    #[test]
-    fn tokenize_identifier() {
-        assert_eq!(
-            tokenize(None, "\u{5e78}\u{798f}").unwrap(),
-            vec![Token {
-                source_range: (0, 6),
-                variant: Variant::Identifier("\u{5e78}\u{798f}"),
-            }],
-        );
-    }
-
-    #[test]
-    fn tokenize_integer_literal() {
-        assert_eq!(
-            tokenize(None, "42").unwrap(),
-            vec![Token {
-                source_range: (0, 2),
-                variant: Variant::IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
             }],
         );
     }
