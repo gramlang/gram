@@ -3,7 +3,7 @@ use crate::{
     format::CodeStr,
     term::{
         Term,
-        Variant::{Application, Lambda, Let, Pi, Type, Variable},
+        Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
     },
 };
 use std::{collections::HashSet, rc::Rc};
@@ -33,7 +33,7 @@ pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Rc<Term<'a>> {
 #[allow(clippy::too_many_lines)]
 fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
     match &term.variant {
-        Type | Lambda(_, _, _) | Pi(_, _, _) | Variable(_, _) => None,
+        Type | Lambda(_, _, _) | Pi(_, _, _) | Variable(_, _) | Integer | IntegerLiteral(_) => None,
         Application(applicand, argument) => {
             // Try to step the applicand.
             if let Some(stepped_applicand) = step(applicand) {
@@ -211,7 +211,7 @@ fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 // not considered a value.
 fn is_value<'a>(term: &Term<'a>) -> bool {
     match term.variant {
-        Type | Lambda(_, _, _) | Pi(_, _, _) => true,
+        Type | Lambda(_, _, _) | Pi(_, _, _) | Integer | IntegerLiteral(_) => true,
         Variable(_, _) | Application(_, _) | Let(_, _) => false,
     }
 }
@@ -226,8 +226,9 @@ fn get_live_definitions<'a>(
     live_definitions: &mut HashSet<usize>,
 ) {
     match &term.variant {
-        Type | Pi(_, _, _) => {
-            // We ignore the contents of pi types since they are not needed for evaluation.
+        Type | Pi(_, _, _) | Integer | IntegerLiteral(_) => {
+            // Note that we ignore the contents of pi types since they are not needed for
+            // evaluation.
         }
         Variable(_, index) => {
             // Compute this once rather than multiple times.
@@ -287,10 +288,11 @@ mod tests {
         parser::parse,
         term::{
             Term,
-            Variant::{Application, Lambda, Pi, Type, Variable},
+            Variant::{Application, Integer, IntegerLiteral, Lambda, Pi, Type, Variable},
         },
         tokenizer::tokenize,
     };
+    use num_bigint::ToBigInt;
     use std::rc::Rc;
 
     #[test]
@@ -462,7 +464,37 @@ mod tests {
             *evaluate(Rc::new(term)),
             Term {
                 source_range: Some((46, 50)),
-                variant: Type
+                variant: Type,
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_integer() {
+        let source = "integer";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)),
+            Term {
+                source_range: Some((0, 7)),
+                variant: Integer,
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_integer_literal() {
+        let source = "42";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)),
+            Term {
+                source_range: Some((0, 2)),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
             },
         );
     }

@@ -6,8 +6,8 @@ use crate::{
     normalizer::normalize_weak_head,
     term::{
         Term,
-        Variant::{Application, Lambda, Let, Pi, Type, Variable},
-        TYPE_TERM,
+        Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
+        INTEGER_TERM, TYPE_TERM,
     },
 };
 use scopeguard::defer;
@@ -25,7 +25,7 @@ pub fn type_check<'a>(
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
 ) -> Result<Rc<Term<'a>>, Error> {
     Ok(match &term.variant {
-        Type => Rc::new(TYPE_TERM),
+        Type | Integer => Rc::new(TYPE_TERM),
         Variable(variable, index) => {
             // Check if we have a type for this variable.
             match &typing_context[typing_context.len() - 1 - *index] {
@@ -452,6 +452,7 @@ pub fn type_check<'a>(
                 )
             })
         }
+        IntegerLiteral(_) => Rc::new(INTEGER_TERM),
     })
 }
 

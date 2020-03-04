@@ -1,8 +1,9 @@
 use crate::{
     error::{throw, Error},
     format::CodeStr,
-    token::{TerminatorType, Token, Variant, TYPE_KEYWORD},
+    token::{TerminatorType, Token, Variant, INTEGER_KEYWORD, TYPE_KEYWORD},
 };
+use num_bigint::BigInt;
 use std::path::Path;
 
 // Tokenize the contents of a source file.
@@ -66,7 +67,9 @@ pub fn tokenize<'a>(
                         Variant::RightParen
                         | Variant::Terminator(TerminatorType::Semicolon)
                         | Variant::Type
-                        | Variant::Identifier(_) => true,
+                        | Variant::Identifier(_)
+                        | Variant::Integer
+                        | Variant::IntegerLiteral(_) => true,
                     }
                 {
                     tokens.push(Token {
@@ -110,12 +113,40 @@ pub fn tokenize<'a>(
                         source_range: (i, end),
                         variant: Variant::Type,
                     });
+                } else if &source_contents[i..end] == INTEGER_KEYWORD {
+                    tokens.push(Token {
+                        source_range: (i, end),
+                        variant: Variant::Integer,
+                    });
                 } else {
                     tokens.push(Token {
                         source_range: (i, end),
                         variant: Variant::Identifier(&source_contents[i..end]),
                     });
                 }
+            }
+
+            // If the first code point is a digit, keep reading subsequent digits to build up an
+            // integer literal.
+            '0'..='9' => {
+                let mut end = source_contents.len();
+
+                while let Some((j, d)) = iter.peek() {
+                    if ('0'..='9').contains(d) {
+                        iter.next();
+                    } else {
+                        end = *j;
+                        break;
+                    }
+                }
+
+                tokens.push(Token {
+                    source_range: (i, end),
+                    variant: Variant::IntegerLiteral(
+                        // This unwrap is safe due to the format integer literals.
+                        BigInt::parse_bytes(source_contents[i..end].as_bytes(), 10).unwrap(),
+                    ),
+                });
             }
 
             // Skip whitespace. Note that line breaks are handled above [ref:line_break].
@@ -160,7 +191,9 @@ pub fn tokenize<'a>(
                     Variant::LeftParen
                     | Variant::Terminator(TerminatorType::Semicolon)
                     | Variant::Type
-                    | Variant::Identifier(_) => true,
+                    | Variant::Identifier(_)
+                    | Variant::Integer
+                    | Variant::IntegerLiteral(_) => true,
                     Variant::Terminator(TerminatorType::LineBreak) => {
                         // [ref:no_consecutive_line_break_terminators]
                         panic!("Two consecutive line break terminators were found.");
@@ -182,9 +215,10 @@ pub fn tokenize<'a>(
 mod tests {
     use crate::{
         assert_fails,
-        token::{TerminatorType, Token, Variant, TYPE_KEYWORD},
+        token::{TerminatorType, Token, Variant, INTEGER_KEYWORD, TYPE_KEYWORD},
         tokenizer::tokenize,
     };
+    use num_bigint::ToBigInt;
 
     #[test]
     fn tokenize_empty() {
@@ -341,12 +375,34 @@ mod tests {
     }
 
     #[test]
+    fn tokenize_integer() {
+        assert_eq!(
+            tokenize(None, INTEGER_KEYWORD).unwrap(),
+            vec![Token {
+                source_range: (0, INTEGER_KEYWORD.len()),
+                variant: Variant::Integer,
+            }],
+        );
+    }
+
+    #[test]
     fn tokenize_identifier() {
         assert_eq!(
             tokenize(None, "\u{5e78}\u{798f}").unwrap(),
             vec![Token {
                 source_range: (0, 6),
                 variant: Variant::Identifier("\u{5e78}\u{798f}"),
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_integer_literal() {
+        assert_eq!(
+            tokenize(None, "42").unwrap(),
+            vec![Token {
+                source_range: (0, 2),
+                variant: Variant::IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
             }],
         );
     }

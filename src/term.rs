@@ -1,4 +1,8 @@
-use crate::{parser::PLACEHOLDER_VARIABLE, token::TYPE_KEYWORD};
+use crate::{
+    parser::PLACEHOLDER_VARIABLE,
+    token::{INTEGER_KEYWORD, TYPE_KEYWORD},
+};
+use num_bigint::BigInt;
 use std::{
     fmt::{Display, Formatter, Result},
     rc::Rc,
@@ -37,6 +41,12 @@ pub enum Variant<'a> {
         Vec<(&'a str, Option<Rc<Term<'a>>>, Rc<Term<'a>>)>,
         Rc<Term<'a>>,
     ),
+
+    // This is the type of integers.
+    Integer,
+
+    // An integer supports arbitrary-precision arithmetic.
+    IntegerLiteral(BigInt),
 }
 
 impl<'a> Display for Term<'a> {
@@ -76,6 +86,8 @@ impl<'a> Display for Variant<'a> {
 
                 write!(f, "{}", body)
             }
+            Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
+            Self::IntegerLiteral(integer) => write!(f, "{}", integer),
         }
     }
 }
@@ -84,4 +96,10 @@ impl<'a> Display for Variant<'a> {
 pub const TYPE_TERM: Term = Term {
     source_range: None,
     variant: Variant::Type,
+};
+
+// Construct the type of integers once here rather than constructing it many times later.
+pub const INTEGER_TERM: Term = Term {
+    source_range: None,
+    variant: Variant::Integer,
 };

@@ -29,13 +29,25 @@
 %token THICK_ARROW
 %token THIN_ARROW
 %token TYPE
+%token INTEGER
+%token INTEGER_LITERAL
 %token IDENTIFIER
 
 %%
 
 /* [tag:bison_grammar] [ref:grammar] */
 
-term: non_dependent_pi | application | let | type | variable | pi | lambda | group;
+term:
+  non_dependent_pi |
+  application |
+  let |
+  type |
+  variable |
+  pi |
+  lambda |
+  group |
+  integer |
+  integer_literal;
 
 type: TYPE;
 
@@ -55,8 +67,21 @@ let_annotation: %empty | COLON term_minus_arrows_let;
 
 group: LEFT_PAREN term RIGHT_PAREN;
 
-applicand: type | variable | group;
+integer: INTEGER;
 
-term_minus_arrows_let: application | type | variable | group;
+integer_literal: INTEGER_LITERAL;
 
-term_minus_let: non_dependent_pi | application | type | variable | pi | lambda | group;
+applicand: type | variable | group | integer | integer_literal;
+
+term_minus_arrows_let: application | type | variable | group | integer | integer_literal;
+
+term_minus_let:
+  non_dependent_pi |
+  application |
+  type |
+  variable |
+  pi |
+  lambda |
+  group |
+  integer |
+  integer_literal;
