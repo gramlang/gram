@@ -4,7 +4,7 @@ use crate::term::{
         Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
     },
 };
-use std::{cmp::Ordering, rc::Rc};
+use std::{cmp::Ordering, collections::HashSet, rc::Rc};
 
 // Shifting refers to increasing the De Bruijn indices of free variables. A cutoff determines which
 // variables are considered free. This operation is used to lower a term into a nested scope while
@@ -177,10 +177,59 @@ pub fn open<'a>(
     }
 }
 
+// Compute the free variables of a term. A cutoff determines which variables are considered free.
+// This function includes free variables in type annotations.
+pub fn free_variables<'a>(
+    term: &Term<'a>,
+    cutoff: usize,
+    depth: usize,
+    variables: &mut HashSet<usize>,
+) {
+    match &term.variant {
+        Type | Integer | IntegerLiteral(_) => {}
+        Variable(_, index) => {
+            if depth - *index <= cutoff {
+                variables.insert(*index - (depth - cutoff));
+            }
+        }
+        Lambda(_, domain, body) => {
+            free_variables(domain, cutoff, depth, variables);
+            free_variables(body, cutoff, depth + 1, variables);
+        }
+        Pi(_, domain, codomain) => {
+            free_variables(domain, cutoff, depth, variables);
+            free_variables(codomain, cutoff, depth + 1, variables);
+        }
+        Application(applicand, argument) => {
+            free_variables(applicand, cutoff, depth, variables);
+            free_variables(argument, cutoff, depth, variables);
+        }
+        Let(definitions, body) => {
+            for (_, annotation, definition) in definitions {
+                if let Some(annotation) = annotation {
+                    free_variables(annotation, cutoff, depth + definitions.len(), variables);
+                }
+
+                free_variables(definition, cutoff, depth + definitions.len(), variables);
+            }
+
+            free_variables(body, cutoff, depth + definitions.len(), variables);
+        }
+        Sum(summand1, summand2) => {
+            free_variables(summand1, cutoff, depth, variables);
+            free_variables(summand2, cutoff, depth, variables);
+        }
+        Difference(minuend, subtrahend) => {
+            free_variables(minuend, cutoff, depth, variables);
+            free_variables(subtrahend, cutoff, depth, variables);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
-        de_bruijn::{open, shift},
+        de_bruijn::{free_variables, open, shift},
         term::{
             Term,
             Variant::{
@@ -191,7 +240,7 @@ mod tests {
         token::{INTEGER_KEYWORD, TYPE_KEYWORD},
     };
     use num_bigint::ToBigInt;
-    use std::rc::Rc;
+    use std::{collections::HashSet, rc::Rc};
 
     #[test]
     fn shift_type() {
@@ -945,5 +994,275 @@ mod tests {
                 ),
             },
         );
+    }
+
+    #[test]
+    fn free_variables_type() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((0, TYPE_KEYWORD.len())),
+                variant: Type,
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_variable_free() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((0, 1)),
+                variant: Variable("x", 15),
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_variable_bound() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((0, 1)),
+                variant: Variable("x", 5),
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_lambda() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((97, 112)),
+                variant: Lambda(
+                    "a",
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 15),
+                    }),
+                ),
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&4));
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_pi() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((97, 112)),
+                variant: Pi(
+                    "a",
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 15),
+                    }),
+                ),
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&4));
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_application() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((97, 112)),
+                variant: Application(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_let() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((0, 29)),
+                variant: Let(
+                    vec![
+                        (
+                            "x",
+                            Some(Rc::new(Term {
+                                source_range: Some((4, 8)),
+                                variant: Type,
+                            })),
+                            Rc::new(Term {
+                                source_range: Some((11, 12)),
+                                variant: Variable("y", 15),
+                            }),
+                        ),
+                        (
+                            "y",
+                            Some(Rc::new(Term {
+                                source_range: Some((18, 22)),
+                                variant: Type,
+                            })),
+                            Rc::new(Term {
+                                source_range: Some((25, 26)),
+                                variant: Variable("z", 16),
+                            }),
+                        ),
+                    ],
+                    Rc::new(Term {
+                        source_range: Some((28, 29)),
+                        variant: Variable("w", 17),
+                    }),
+                ),
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&3));
+        assert!(variables.contains(&4));
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_integer() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((0, INTEGER_KEYWORD.len())),
+                variant: Integer,
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_integer_literal() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((0, 2)),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_sum() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((97, 112)),
+                variant: Sum(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_difference() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((97, 112)),
+                variant: Difference(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            20,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
     }
 }
