@@ -466,11 +466,11 @@ mod tests {
     fn syntactically_equal_integer() {
         let context = [];
 
-        let source1 = "integer";
+        let source1 = "int";
         let tokens1 = tokenize(None, source1).unwrap();
         let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
 
-        let source2 = "integer";
+        let source2 = "int";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
@@ -691,11 +691,11 @@ mod tests {
     fn syntactically_equal_boolean() {
         let context = [];
 
-        let source1 = "boolean";
+        let source1 = "bool";
         let tokens1 = tokenize(None, source1).unwrap();
         let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
 
-        let source2 = "boolean";
+        let source2 = "bool";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
@@ -1082,11 +1082,11 @@ mod tests {
         let parsing_context = [];
         let mut definitions_context = vec![];
 
-        let source1 = "integer";
+        let source1 = "int";
         let tokens1 = tokenize(None, source1).unwrap();
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
-        let source2 = "integer";
+        let source2 = "int";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
@@ -1291,11 +1291,11 @@ mod tests {
         let parsing_context = [];
         let mut definitions_context = vec![];
 
-        let source1 = "boolean";
+        let source1 = "bool";
         let tokens1 = tokenize(None, source1).unwrap();
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
-        let source2 = "boolean";
+        let source2 = "bool";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 

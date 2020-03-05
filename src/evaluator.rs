@@ -613,14 +613,14 @@ mod tests {
 
     #[test]
     fn evaluate_integer() {
-        let source = "integer";
+        let source = "int";
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
             *evaluate(Rc::new(term)).unwrap(),
             Term {
-                source_range: Some((0, 7)),
+                source_range: Some((0, 3)),
                 variant: Integer,
             },
         );
@@ -703,14 +703,14 @@ mod tests {
 
     #[test]
     fn evaluate_boolean() {
-        let source = "boolean";
+        let source = "bool";
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
             *evaluate(Rc::new(term)).unwrap(),
             Term {
-                source_range: Some((0, 7)),
+                source_range: Some((0, 4)),
                 variant: Boolean,
             },
         );

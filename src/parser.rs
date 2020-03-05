@@ -3115,14 +3115,14 @@ mod tests {
 
     #[test]
     fn parse_integer() {
-        let source = "integer";
+        let source = "int";
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 7)),
+                source_range: Some((0, 3)),
                 variant: Integer,
             },
         );
@@ -3296,14 +3296,14 @@ mod tests {
 
     #[test]
     fn parse_boolean() {
-        let source = "boolean";
+        let source = "bool";
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
         assert_eq!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 7)),
+                source_range: Some((0, 4)),
                 variant: Boolean,
             },
         );
