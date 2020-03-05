@@ -1569,7 +1569,7 @@ fn parse_sum<'a, 'b>(
     );
 
     // Consume the plus symbol.
-    let next = consume_token!(cache, Sum, start, tokens, Plus, next, error, Low,);
+    let next = consume_token!(cache, Sum, start, tokens, Plus, next, error, Low);
 
     // Parse the right summand.
     let (summand2, next) = {
@@ -1616,7 +1616,7 @@ fn parse_difference<'a, 'b>(
     );
 
     // Consume the plus symbol.
-    let next = consume_token!(cache, Difference, start, tokens, Minus, next, error, Low,);
+    let next = consume_token!(cache, Difference, start, tokens, Minus, next, error, Low);
 
     // Parse the subtrahend.
     let (subtrahend, next) = {

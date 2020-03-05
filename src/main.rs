@@ -122,7 +122,7 @@ fn run(source_path: &Path) -> Result<(), Error> {
     println!("# Type:\n\n{}\n", term_type.to_string().code_str());
 
     // Evaluate the term.
-    let value = evaluate(Rc::new(term));
+    let value = evaluate(Rc::new(term))?;
     println!("# Value:\n\n{}", value.to_string().code_str());
 
     // If we made it this far, nothing went wrong.
