@@ -556,7 +556,7 @@ mod tests {
     fn normalize_weak_head_integer() {
         let parsing_context = [""];
         let mut definitions_context = vec![];
-        let source = "integer";
+        let source = "int";
 
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
@@ -564,7 +564,7 @@ mod tests {
         assert_eq!(
             *normalize_weak_head(Rc::new(term), &mut definitions_context),
             Term {
-                source_range: Some((0, 7)),
+                source_range: Some((0, 3)),
                 variant: Integer,
             },
         );
@@ -664,7 +664,7 @@ mod tests {
     fn normalize_weak_head_boolean() {
         let parsing_context = [];
         let mut definitions_context = vec![];
-        let source = "boolean";
+        let source = "bool";
 
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
@@ -672,7 +672,7 @@ mod tests {
         assert_eq!(
             *normalize_weak_head(Rc::new(term), &mut definitions_context),
             Term {
-                source_range: Some((0, 7)),
+                source_range: Some((0, 4)),
                 variant: Boolean,
             },
         );

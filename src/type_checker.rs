@@ -1120,13 +1120,13 @@ mod tests {
                 &mut typing_context,
                 &mut definitions_context
             ),
-            "has type `(b)` when `(a)` was expected",
+            "has type `b` when `a` was expected",
         );
     }
 
     #[test]
     fn type_check_dependent_apply() {
-        let parsing_context = ["int", "y"];
+        let parsing_context = ["foo", "y"];
         let mut typing_context = vec![
             Some((
                 Rc::new(Term {
@@ -1138,7 +1138,7 @@ mod tests {
             Some((
                 Rc::new(Term {
                     source_range: None,
-                    variant: Variable("int", 0),
+                    variant: Variable("foo", 0),
                 }),
                 0,
             )),
@@ -1146,11 +1146,11 @@ mod tests {
         let mut definitions_context = vec![None, None];
         let term_source = "
           ((a : type) => (P: (x : a) -> type) => (f : (x : a) -> P x) => (x : a) => f x) (
-            ((t : type) => t) int) (
-              (x : int) => int) (
-                (x : int) => x) y
+            ((t : type) => t) foo) (
+              (x : foo) => foo) (
+                (x : foo) => x) y
         ";
-        let type_source = "(((x : int) => int) (y))";
+        let type_source = "(((x : foo) => foo) (y))";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
@@ -1206,7 +1206,7 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 + 2";
-        let type_source = "integer";
+        let type_source = "int";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
@@ -1231,7 +1231,7 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 - 2";
-        let type_source = "integer";
+        let type_source = "int";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
@@ -1256,7 +1256,7 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "2 * 3";
-        let type_source = "integer";
+        let type_source = "int";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
@@ -1281,7 +1281,7 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "7 / 2";
-        let type_source = "integer";
+        let type_source = "int";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
@@ -1305,7 +1305,7 @@ mod tests {
         let parsing_context = [];
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
-        let term_source = "boolean";
+        let term_source = "bool";
         let type_source = "type";
 
         let term_tokens = tokenize(None, term_source).unwrap();
@@ -1331,7 +1331,7 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "true";
-        let type_source = "boolean";
+        let type_source = "bool";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
@@ -1356,7 +1356,7 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "false";
-        let type_source = "boolean";
+        let type_source = "bool";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();

@@ -82,24 +82,24 @@ pub fn tokenize<'a>(
                     && match tokens.last().unwrap().variant /* [ref:tokens_nonempty] */ {
                         Variant::Asterisk
                         | Variant::Colon
+                        | Variant::Else
                         | Variant::Equals
+                        | Variant::If
                         | Variant::LeftParen
                         | Variant::Minus
                         | Variant::Plus
                         | Variant::Slash
                         | Variant::Terminator(TerminatorType::LineBreak) /* [tag:no_consecutive_line_break_terminators] */
+                        | Variant::Then
                         | Variant::ThickArrow
                         | Variant::ThinArrow => false,
                         Variant::Boolean
-                        | Variant::Else
                         | Variant::False
                         | Variant::Identifier(_)
-                        | Variant::If
                         | Variant::Integer
                         | Variant::IntegerLiteral(_)
                         | Variant::RightParen
                         | Variant::Terminator(TerminatorType::Semicolon)
-                        | Variant::Then
                         | Variant::True
                         | Variant::Type => true,
                     }
@@ -254,15 +254,16 @@ pub fn tokenize<'a>(
                 if match next_token.variant {
                     Variant::Asterisk
                     | Variant::Colon
+                    | Variant::Else
                     | Variant::Equals
                     | Variant::Minus
                     | Variant::Plus
                     | Variant::RightParen
                     | Variant::Slash
+                    | Variant::Then
                     | Variant::ThickArrow
                     | Variant::ThinArrow => false,
                     Variant::Boolean
-                    | Variant::Else
                     | Variant::False
                     | Variant::Identifier(_)
                     | Variant::If
@@ -270,7 +271,6 @@ pub fn tokenize<'a>(
                     | Variant::IntegerLiteral(_)
                     | Variant::LeftParen
                     | Variant::Terminator(TerminatorType::Semicolon)
-                    | Variant::Then
                     | Variant::True
                     | Variant::Type => true,
                     Variant::Terminator(TerminatorType::LineBreak) => {

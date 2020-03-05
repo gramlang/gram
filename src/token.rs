@@ -2,11 +2,11 @@ use num_bigint::BigInt;
 use std::fmt::{Display, Formatter, Result};
 
 // Keywords
-pub const BOOLEAN_KEYWORD: &str = "boolean";
+pub const BOOLEAN_KEYWORD: &str = "bool";
 pub const ELSE_KEYWORD: &str = "else";
 pub const FALSE_KEYWORD: &str = "false";
 pub const IF_KEYWORD: &str = "if";
-pub const INTEGER_KEYWORD: &str = "integer";
+pub const INTEGER_KEYWORD: &str = "int";
 pub const THEN_KEYWORD: &str = "then";
 pub const TRUE_KEYWORD: &str = "true";
 pub const TYPE_KEYWORD: &str = "type";

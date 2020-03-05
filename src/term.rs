@@ -1,9 +1,10 @@
 use crate::{
-    parser::PLACEHOLDER_VARIABLE,
+    de_bruijn::free_variables,
     token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
 };
 use num_bigint::BigInt;
 use std::{
+    collections::HashSet,
     fmt::{Display, Formatter, Result},
     rc::Rc,
 };
@@ -43,7 +44,7 @@ pub enum Variant<'a> {
 
 impl<'a> Display for Term<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
-        write!(f, "({})", self.variant)?;
+        write!(f, "{}", self.variant)?;
         Ok(())
     }
 }
@@ -57,18 +58,27 @@ impl<'a> Display for Variant<'a> {
                 write!(f, "({} : {}) => {}", variable, domain, body)
             }
             Self::Pi(variable, domain, codomain) => {
-                if *variable == PLACEHOLDER_VARIABLE {
-                    write!(f, "{} -> {}", domain, codomain)
-                } else {
+                let mut variables = HashSet::new();
+                free_variables(codomain, 0, &mut variables);
+
+                if variables.contains(&0) {
                     write!(f, "({} : {}) -> {}", variable, domain, codomain)
+                } else {
+                    match domain.variant {
+                        Self::Application(_, _) => write!(f, "{} -> {}", domain, codomain),
+                        _ => write!(f, "{} -> {}", group(domain), codomain),
+                    }
                 }
             }
-            Self::Application(applicand, argument) => write!(f, "{} {}", applicand, argument),
+            Self::Application(applicand, argument) => match applicand.variant {
+                Self::Application(_, _) => write!(f, "{} {}", applicand, group(argument)),
+                _ => write!(f, "{} {}", group(applicand), group(argument)),
+            },
             Self::Let(definitions, body) => {
                 for (variable, annotation, definition) in definitions {
                     match annotation {
                         Some(annotation) => {
-                            write!(f, "{} : {} = {}; ", variable, annotation, definition)?;
+                            write!(f, "{} : {} = {}; ", variable, annotation, group(definition))?;
                         }
                         None => {
                             write!(f, "{} = {}; ", variable, definition)?;
@@ -80,10 +90,14 @@ impl<'a> Display for Variant<'a> {
             }
             Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
             Self::IntegerLiteral(integer) => write!(f, "{}", integer),
-            Self::Sum(summand1, summand2) => write!(f, "{} + {}", summand1, summand2),
-            Self::Difference(minuend, subtrahend) => write!(f, "{} - {}", minuend, subtrahend),
-            Self::Product(factor1, factor2) => write!(f, "{} * {}", factor1, factor2),
-            Self::Quotient(dividend, divisor) => write!(f, "{} / {}", dividend, divisor),
+            Self::Sum(summand1, summand2) => write!(f, "{} + {}", group(summand1), group(summand2)),
+            Self::Difference(minuend, subtrahend) => {
+                write!(f, "{} - {}", group(minuend), group(subtrahend))
+            }
+            Self::Product(factor1, factor2) => write!(f, "{} * {}", group(factor1), group(factor2)),
+            Self::Quotient(dividend, divisor) => {
+                write!(f, "{} / {}", group(dividend), group(divisor))
+            }
             Self::Boolean => write!(f, "{}", BOOLEAN_KEYWORD),
             Self::True => write!(f, "{}", TRUE_KEYWORD),
             Self::False => write!(f, "{}", FALSE_KEYWORD),
@@ -93,5 +107,28 @@ impl<'a> Display for Variant<'a> {
                 condition, then_branch, else_branch
             ),
         }
+    }
+}
+
+// Convert a term to a string with surrounding parentheses, except for simple terms that cause no
+// parsing ambiguities in any context.
+fn group<'a>(term: &Term<'a>) -> String {
+    match term.variant {
+        Variant::Type
+        | Variant::Variable(_, _)
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => format!("{}", term),
+        Variant::Lambda(_, _, _)
+        | Variant::Pi(_, _, _)
+        | Variant::Application(_, _)
+        | Variant::Let(_, _)
+        | Variant::Sum(_, _)
+        | Variant::Difference(_, _)
+        | Variant::Product(_, _)
+        | Variant::Quotient(_, _)
+        | Variant::If(_, _, _) => format!("({})", term),
     }
 }
