@@ -1,6 +1,6 @@
 use crate::{
     parser::PLACEHOLDER_VARIABLE,
-    token::{INTEGER_KEYWORD, TYPE_KEYWORD},
+    token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
 };
 use num_bigint::BigInt;
 use std::{
@@ -19,46 +19,26 @@ pub struct Term<'a> {
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
-    // This is the type of all types, including itself.
     Type,
-
-    // A variable is a placeholder bound by a lambda, pi type, or let. The integer is the De Bruijn
-    // index for the variable.
     Variable(&'a str, usize),
-
-    // A lambda, or dependent function, is a computable function.
     Lambda(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // Pi types, or dependent function types, are the types ascribed to lambdas.
     Pi(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // An application is the act of applying a lambda to an argument.
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // A let is a vector of local variable definitions with an optional type annotations.
     #[allow(clippy::type_complexity)]
     Let(
         Vec<(&'a str, Option<Rc<Term<'a>>>, Rc<Term<'a>>)>,
         Rc<Term<'a>>,
     ),
-
-    // This is the type of integers.
     Integer,
-
-    // An integer supports arbitrary-precision arithmetic.
     IntegerLiteral(BigInt),
-
-    // A sum of two summands.
     Sum(Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // A difference of a minuend and a subtrahend.
     Difference(Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // A product of two factors.
     Product(Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // A quotient of a dividend and a divisor.
     Quotient(Rc<Term<'a>>, Rc<Term<'a>>),
+    Boolean,
+    True,
+    False,
+    If(Rc<Term<'a>>, Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
 impl<'a> Display for Term<'a> {
@@ -104,18 +84,14 @@ impl<'a> Display for Variant<'a> {
             Self::Difference(minuend, subtrahend) => write!(f, "{} - {}", minuend, subtrahend),
             Self::Product(factor1, factor2) => write!(f, "{} * {}", factor1, factor2),
             Self::Quotient(dividend, divisor) => write!(f, "{} / {}", dividend, divisor),
+            Self::Boolean => write!(f, "{}", BOOLEAN_KEYWORD),
+            Self::True => write!(f, "{}", TRUE_KEYWORD),
+            Self::False => write!(f, "{}", FALSE_KEYWORD),
+            Self::If(condition, then_branch, else_branch) => write!(
+                f,
+                "if {} then {} else {}",
+                condition, then_branch, else_branch
+            ),
         }
     }
 }
-
-// Construct the type of all types once here rather than constructing it many times later.
-pub const TYPE_TERM: Term = Term {
-    source_range: None,
-    variant: Variant::Type,
-};
-
-// Construct the type of integers once here rather than constructing it many times later.
-pub const INTEGER_TERM: Term = Term {
-    source_range: None,
-    variant: Variant::Integer,
-};

@@ -6,8 +6,8 @@
 #   and Applications (TLCA ’95). Springer-Verlag, Berlin, Heidelberg, 266–278.
 
 # The cast of characters in our story
-false = (p : type) -> p
-negate = (phi : type) => phi -> false
+exfalso = (p : type) -> p
+negate = (phi : type) => phi -> exfalso
 power = (S : type) => S -> type
 universe = (X : type) -> ((power (power X) -> X) -> power (power X))
 tau =

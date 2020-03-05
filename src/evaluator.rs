@@ -5,8 +5,8 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient,
-            Sum, Type, Variable,
+            Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
+            Product, Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -32,10 +32,19 @@ pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Result<Rc<Term<'a>>, Error> {
 
 // This function implements a call-by-value operational semantics by performing a "small step".
 // Call this repeatedly to evaluate a term.
+#[allow(clippy::cognitive_complexity)]
 #[allow(clippy::too_many_lines)]
 pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
     match &term.variant {
-        Type | Lambda(_, _, _) | Pi(_, _, _) | Variable(_, _) | Integer | IntegerLiteral(_) => None,
+        Type
+        | Lambda(_, _, _)
+        | Pi(_, _, _)
+        | Variable(_, _)
+        | Integer
+        | IntegerLiteral(_)
+        | Boolean
+        | True
+        | False => None,
         Application(applicand, argument) => {
             // Try to step the applicand.
             if let Some(stepped_applicand) = step(applicand) {
@@ -338,6 +347,53 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 None
             }
         }
+        If(condition, then_branch, else_branch) => {
+            // Try to step the condition.
+            if let Some(stepped_condition) = step(condition) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: If(stepped_condition, then_branch.clone(), else_branch.clone()),
+                }));
+            };
+
+            // Ensure the condition is a value.
+            if !is_value(condition) {
+                return None;
+            }
+
+            // Try to step the then branch.
+            if let Some(stepped_then_branch) = step(then_branch) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: If(condition.clone(), stepped_then_branch, else_branch.clone()),
+                }));
+            };
+
+            // Ensure the then branch is a value.
+            if !is_value(then_branch) {
+                return None;
+            }
+
+            // Try to step the else branch.
+            if let Some(stepped_else_branch) = step(else_branch) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: If(condition.clone(), then_branch.clone(), stepped_else_branch),
+                }));
+            };
+
+            // Ensure the else branch is a value.
+            if !is_value(else_branch) {
+                return None;
+            }
+
+            // Pattern match on the condition.
+            match &condition.variant {
+                True => Some(then_branch.clone()),
+                False => Some(else_branch.clone()),
+                _ => None,
+            }
+        }
     }
 }
 
@@ -345,14 +401,22 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 // not considered a value.
 pub fn is_value<'a>(term: &Term<'a>) -> bool {
     match term.variant {
-        Type | Lambda(_, _, _) | Pi(_, _, _) | Integer | IntegerLiteral(_) => true,
+        Type
+        | Lambda(_, _, _)
+        | Pi(_, _, _)
+        | Integer
+        | IntegerLiteral(_)
+        | Boolean
+        | True
+        | False => true,
         Variable(_, _)
         | Application(_, _)
         | Let(_, _)
         | Sum(_, _)
         | Difference(_, _)
         | Product(_, _)
-        | Quotient(_, _) => false,
+        | Quotient(_, _)
+        | If(_, _, _) => false,
     }
 }
 
@@ -363,7 +427,10 @@ mod tests {
         parser::parse,
         term::{
             Term,
-            Variant::{Application, Integer, IntegerLiteral, Lambda, Pi, Type, Variable},
+            Variant::{
+                Application, Boolean, False, Integer, IntegerLiteral, Lambda, Pi, True, Type,
+                Variable,
+            },
         },
         tokenizer::tokenize,
     };
@@ -630,6 +697,81 @@ mod tests {
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_boolean() {
+        let source = "boolean";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: Some((0, 7)),
+                variant: Boolean,
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_true() {
+        let source = "true";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: Some((0, 4)),
+                variant: True,
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_false() {
+        let source = "false";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: Some((0, 5)),
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_if_true() {
+        let source = "if true then 3 else 4";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: Some((13, 14)),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_if_false() {
+        let source = "if false then 3 else 4";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: Some((21, 22)),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&4).unwrap()),
             },
         );
     }

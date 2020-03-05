@@ -1,11 +1,15 @@
 use num_bigint::BigInt;
 use std::fmt::{Display, Formatter, Result};
 
-// This keyword is for the type of all types, including itself.
-pub const TYPE_KEYWORD: &str = "type";
-
-// This keyword is for the type of integers.
+// Keywords
+pub const BOOLEAN_KEYWORD: &str = "boolean";
+pub const ELSE_KEYWORD: &str = "else";
+pub const FALSE_KEYWORD: &str = "false";
+pub const IF_KEYWORD: &str = "if";
 pub const INTEGER_KEYWORD: &str = "integer";
+pub const THEN_KEYWORD: &str = "then";
+pub const TRUE_KEYWORD: &str = "true";
+pub const TYPE_KEYWORD: &str = "type";
 
 // The first step of compilation is to split the source into a stream of tokens. This struct
 // represents a single token.
@@ -20,9 +24,13 @@ pub struct Token<'a> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
     Asterisk,
+    Boolean,
     Colon,
+    Else,
     Equals,
+    False,
     Identifier(&'a str),
+    If,
     Integer,
     IntegerLiteral(BigInt),
     LeftParen,
@@ -31,8 +39,10 @@ pub enum Variant<'a> {
     RightParen,
     Slash,
     Terminator(TerminatorType),
+    Then,
     ThickArrow,
     ThinArrow,
+    True,
     Type,
 }
 
@@ -54,9 +64,13 @@ impl<'a> Display for Variant<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
             Self::Asterisk => write!(f, "*"),
+            Self::Boolean => write!(f, "{}", BOOLEAN_KEYWORD),
             Self::Colon => write!(f, ":"),
+            Self::Else => write!(f, "{}", ELSE_KEYWORD),
             Self::Equals => write!(f, "="),
+            Self::False => write!(f, "{}", FALSE_KEYWORD),
             Self::Identifier(name) => write!(f, "{}", name),
+            Self::If => write!(f, "{}", IF_KEYWORD),
             Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
             Self::IntegerLiteral(integer) => write!(f, "{}", integer),
             Self::LeftParen => write!(f, "("),
@@ -66,8 +80,10 @@ impl<'a> Display for Variant<'a> {
             Self::Slash => write!(f, "/"),
             Self::Terminator(TerminatorType::LineBreak) => write!(f, "\\n"),
             Self::Terminator(TerminatorType::Semicolon) => write!(f, ";"),
+            Self::Then => write!(f, "{}", THEN_KEYWORD),
             Self::ThickArrow => write!(f, "=>"),
             Self::ThinArrow => write!(f, "->"),
+            Self::True => write!(f, "{}", TRUE_KEYWORD),
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
         }
     }

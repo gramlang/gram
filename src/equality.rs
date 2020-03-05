@@ -3,8 +3,8 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient,
-            Sum, Type, Variable,
+            Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
+            Product, Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -13,7 +13,9 @@ use std::rc::Rc;
 // Check if two terms are equal up to alpha conversion. Type annotations are not checked.
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     match (&term1.variant, &term2.variant) {
-        (Type, Type) | (Integer, Integer) => true,
+        (Type, Type) | (Integer, Integer) | (Boolean, Boolean) | (True, True) | (False, False) => {
+            true
+        }
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
         (Lambda(_, _, body1), Lambda(_, _, body2)) => syntactically_equal(&**body1, &**body2),
         (Pi(_, domain1, codomain1), Pi(_, domain2, codomain2)) => {
@@ -57,6 +59,14 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
             syntactically_equal(&**dividend1, &**dividend2)
                 && syntactically_equal(&**divisor1, &**divisor2)
         }
+        (
+            If(condition1, then_branch1, else_branch1),
+            If(condition2, then_branch2, else_branch2),
+        ) => {
+            syntactically_equal(&**condition1, &**condition2)
+                && syntactically_equal(&**then_branch1, &**then_branch2)
+                && syntactically_equal(&**else_branch1, &**else_branch2)
+        }
         (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _), _)
@@ -78,7 +88,15 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
         | (Product(_, _), _)
         | (_, Product(_, _))
         | (Quotient(_, _), _)
-        | (_, Quotient(_, _)) => false,
+        | (_, Quotient(_, _))
+        | (Boolean, _)
+        | (_, Boolean)
+        | (True, _)
+        | (_, True)
+        | (False, _)
+        | (_, False)
+        | (If(_, _, _), _)
+        | (_, If(_, _, _)) => false,
     }
 }
 
@@ -99,7 +117,9 @@ pub fn definitionally_equal<'a>(
         &normalize_weak_head(term1, definitions_context).variant,
         &normalize_weak_head(term2, definitions_context).variant,
     ) {
-        (Type, Type) | (Integer, Integer) => true,
+        (Type, Type) | (Integer, Integer) | (Boolean, Boolean) | (True, True) | (False, False) => {
+            true
+        }
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
         (Lambda(_, _, body1), Lambda(_, _, body2)) => {
             // Temporarily add the variable to the context for the purpose of normalizing the body.
@@ -157,6 +177,22 @@ pub fn definitionally_equal<'a>(
             definitionally_equal(dividend1.clone(), dividend2.clone(), definitions_context)
                 && definitionally_equal(divisor1.clone(), divisor2.clone(), definitions_context)
         }
+        (
+            If(condition1, then_branch1, else_branch1),
+            If(condition2, then_branch2, else_branch2),
+        ) => {
+            definitionally_equal(condition1.clone(), condition2.clone(), definitions_context)
+                && definitionally_equal(
+                    then_branch1.clone(),
+                    then_branch2.clone(),
+                    definitions_context,
+                )
+                && definitionally_equal(
+                    else_branch1.clone(),
+                    else_branch2.clone(),
+                    definitions_context,
+                )
+        }
         (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _), _)
@@ -176,7 +212,15 @@ pub fn definitionally_equal<'a>(
         | (Product(_, _), _)
         | (_, Product(_, _))
         | (Quotient(_, _), _)
-        | (_, Quotient(_, _)) => false,
+        | (_, Quotient(_, _))
+        | (Boolean, _)
+        | (_, Boolean)
+        | (True, _)
+        | (_, True)
+        | (False, _)
+        | (_, False)
+        | (If(_, _, _), _)
+        | (_, If(_, _, _)) => false,
         (Let(_, _), _) | (_, Let(_, _)) => {
             // [ref:let_not_in_weak_head_normal_form]
             panic!("Encountered a let after conversion to weak head normal form.")
@@ -644,6 +688,111 @@ mod tests {
     }
 
     #[test]
+    fn syntactically_equal_boolean() {
+        let context = [];
+
+        let source1 = "boolean";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "boolean";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_equal_true() {
+        let context = [];
+
+        let source1 = "true";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "true";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_equal_false() {
+        let context = [];
+
+        let source1 = "false";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "false";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_equal_if() {
+        let context = [];
+
+        let source1 = "if true then 1 else 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "if true then 1 else 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_if_condition() {
+        let context = [];
+
+        let source1 = "if true then 1 else 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "if false then 1 else 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_if_then_branch() {
+        let context = [];
+
+        let source1 = "if true then 1 else 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "if true then 3 else 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_if_else_branch() {
+        let context = [];
+
+        let source1 = "if true then 1 else 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "if true then 1 else 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
     fn definitionally_equal_type() {
         let parsing_context = [];
         let mut definitions_context = vec![];
@@ -1005,7 +1154,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_sum_summand1() {
+    fn definitionally_inequal_sum() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -1013,26 +1162,7 @@ mod tests {
         let tokens1 = tokenize(None, source1).unwrap();
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
-        let source2 = "3 + 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
-
-        assert_eq!(
-            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
-        );
-    }
-
-    #[test]
-    fn definitionally_inequal_sum_summand2() {
-        let parsing_context = [];
-        let mut definitions_context = vec![None, None];
-
-        let source1 = "1 + 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
-
-        let source2 = "1 + 3";
+        let source2 = "3 + 4";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
@@ -1062,7 +1192,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_difference_minuend() {
+    fn definitionally_inequal_difference() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -1071,25 +1201,6 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "3 - 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
-
-        assert_eq!(
-            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
-        );
-    }
-
-    #[test]
-    fn definitionally_inequal_difference_subtrahend() {
-        let parsing_context = [];
-        let mut definitions_context = vec![None, None];
-
-        let source1 = "1 - 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
-
-        let source2 = "1 - 3";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
@@ -1119,7 +1230,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_product_factor1() {
+    fn definitionally_inequal_product() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -1128,25 +1239,6 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "3 * 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
-
-        assert_eq!(
-            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
-        );
-    }
-
-    #[test]
-    fn definitionally_inequal_product_factor2() {
-        let parsing_context = [];
-        let mut definitions_context = vec![None, None];
-
-        let source1 = "1 * 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
-
-        let source2 = "1 * 3";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
@@ -1176,7 +1268,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_quotient_minuend() {
+    fn definitionally_inequal_quotient() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -1195,21 +1287,97 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_quotient_subtrahend() {
+    fn definitionally_equal_boolean() {
         let parsing_context = [];
-        let mut definitions_context = vec![None, None];
+        let mut definitions_context = vec![];
 
-        let source1 = "4 / 2";
+        let source1 = "boolean";
         let tokens1 = tokenize(None, source1).unwrap();
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
-        let source2 = "4 / 3";
+        let source2 = "boolean";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_true() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "true";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "true";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_false() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "false";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "false";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_if_true() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "if true then 1 + 2 else 3 + 4";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_if_false() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "if false then 1 + 2 else 3 + 4";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "7";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
         );
     }
 }
