@@ -24,6 +24,12 @@ pub fn tokenize<'a>(
         // Match on the first code point of the token.
         match c {
             // Match tokens corresponding to symbols.
+            '*' => {
+                tokens.push(Token {
+                    source_range: (i, i + 1),
+                    variant: Variant::Asterisk,
+                });
+            }
             ':' => {
                 tokens.push(Token {
                     source_range: (i, i + 1),
@@ -54,6 +60,12 @@ pub fn tokenize<'a>(
                     variant: Variant::RightParen,
                 });
             }
+            '/' => {
+                tokens.push(Token {
+                    source_range: (i, i + 1),
+                    variant: Variant::Slash,
+                });
+            }
             ';' => {
                 tokens.push(Token {
                     source_range: (i, i + 1),
@@ -64,11 +76,13 @@ pub fn tokenize<'a>(
                 // [tag:line_break] [tag:tokens_nonempty]
                 if !tokens.is_empty()
                     && match tokens.last().unwrap().variant /* [ref:tokens_nonempty] */ {
-                        Variant::Colon
+                        Variant::Asterisk
+                        | Variant::Colon
                         | Variant::Equals
                         | Variant::LeftParen
                         | Variant::Minus
                         | Variant::Plus
+                        | Variant::Slash
                         | Variant::Terminator(TerminatorType::LineBreak) /* [tag:no_consecutive_line_break_terminators] */
                         | Variant::ThickArrow
                         | Variant::ThinArrow => false,
@@ -198,11 +212,13 @@ pub fn tokenize<'a>(
         if token.variant == Variant::Terminator(TerminatorType::LineBreak) {
             if let Some(next_token) = tokens_iter.peek() {
                 if match next_token.variant {
-                    Variant::Colon
+                    Variant::Asterisk
+                    | Variant::Colon
                     | Variant::Equals
                     | Variant::Minus
                     | Variant::Plus
                     | Variant::RightParen
+                    | Variant::Slash
                     | Variant::ThickArrow
                     | Variant::ThinArrow => false,
                     Variant::Identifier(_)
@@ -250,6 +266,17 @@ mod tests {
     #[test]
     fn tokenize_comment() {
         assert_eq!(tokenize(None, "# Hello, World!").unwrap(), vec![]);
+    }
+
+    #[test]
+    fn tokenize_asterisk() {
+        assert_eq!(
+            tokenize(None, "*").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::Asterisk,
+            }],
+        );
     }
 
     #[test]
@@ -347,6 +374,17 @@ mod tests {
             vec![Token {
                 source_range: (0, 1),
                 variant: Variant::RightParen,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_slash() {
+        assert_eq!(
+            tokenize(None, "/").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::Slash,
             }],
         );
     }

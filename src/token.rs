@@ -19,6 +19,7 @@ pub struct Token<'a> {
 // [tag:tokens] [ref:bison_tokens]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
+    Asterisk,
     Colon,
     Equals,
     Identifier(&'a str),
@@ -28,6 +29,7 @@ pub enum Variant<'a> {
     Minus,
     Plus,
     RightParen,
+    Slash,
     Terminator(TerminatorType),
     ThickArrow,
     ThinArrow,
@@ -51,6 +53,7 @@ impl<'a> Display for Token<'a> {
 impl<'a> Display for Variant<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
+            Self::Asterisk => write!(f, "*"),
             Self::Colon => write!(f, ":"),
             Self::Equals => write!(f, "="),
             Self::Identifier(name) => write!(f, "{}", name),
@@ -60,6 +63,7 @@ impl<'a> Display for Variant<'a> {
             Self::Minus => write!(f, "-"),
             Self::Plus => write!(f, "+"),
             Self::RightParen => write!(f, ")"),
+            Self::Slash => write!(f, "/"),
             Self::Terminator(TerminatorType::LineBreak) => write!(f, "\\n"),
             Self::Terminator(TerminatorType::Semicolon) => write!(f, ";"),
             Self::ThickArrow => write!(f, "=>"),

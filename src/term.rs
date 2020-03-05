@@ -53,6 +53,12 @@ pub enum Variant<'a> {
 
     // A difference of a minuend and a subtrahend.
     Difference(Rc<Term<'a>>, Rc<Term<'a>>),
+
+    // A product of two factors.
+    Product(Rc<Term<'a>>, Rc<Term<'a>>),
+
+    // A quotient of a dividend and a divisor.
+    Quotient(Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
 impl<'a> Display for Term<'a> {
@@ -96,6 +102,8 @@ impl<'a> Display for Variant<'a> {
             Self::IntegerLiteral(integer) => write!(f, "{}", integer),
             Self::Sum(summand1, summand2) => write!(f, "{} + {}", summand1, summand2),
             Self::Difference(minuend, subtrahend) => write!(f, "{} - {}", minuend, subtrahend),
+            Self::Product(factor1, factor2) => write!(f, "{} * {}", factor1, factor2),
+            Self::Quotient(dividend, divisor) => write!(f, "{} / {}", dividend, divisor),
         }
     }
 }

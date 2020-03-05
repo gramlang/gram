@@ -3,7 +3,8 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient,
+            Sum, Type, Variable,
         },
     },
 };
@@ -48,6 +49,14 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
             syntactically_equal(&**minuend1, &**minuend2)
                 && syntactically_equal(&**subtrahend1, &**subtrahend2)
         }
+        (Product(factor11, factor12), Product(factor21, factor22)) => {
+            syntactically_equal(&**factor11, &**factor21)
+                && syntactically_equal(&**factor12, &**factor22)
+        }
+        (Quotient(dividend1, divisor1), Quotient(dividend2, divisor2)) => {
+            syntactically_equal(&**dividend1, &**dividend2)
+                && syntactically_equal(&**divisor1, &**divisor2)
+        }
         (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _), _)
@@ -65,7 +74,11 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
         | (Sum(_, _), _)
         | (_, Sum(_, _))
         | (Difference(_, _), _)
-        | (_, Difference(_, _)) => false,
+        | (_, Difference(_, _))
+        | (Product(_, _), _)
+        | (_, Product(_, _))
+        | (Quotient(_, _), _)
+        | (_, Quotient(_, _)) => false,
     }
 }
 
@@ -136,6 +149,14 @@ pub fn definitionally_equal<'a>(
                     definitions_context,
                 )
         }
+        (Product(factor11, factor12), Product(factor21, factor22)) => {
+            definitionally_equal(factor11.clone(), factor21.clone(), definitions_context)
+                && definitionally_equal(factor12.clone(), factor22.clone(), definitions_context)
+        }
+        (Quotient(dividend1, divisor1), Quotient(dividend2, divisor2)) => {
+            definitionally_equal(dividend1.clone(), dividend2.clone(), definitions_context)
+                && definitionally_equal(divisor1.clone(), divisor2.clone(), definitions_context)
+        }
         (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _), _)
@@ -151,7 +172,11 @@ pub fn definitionally_equal<'a>(
         | (Sum(_, _), _)
         | (_, Sum(_, _))
         | (Difference(_, _), _)
-        | (_, Difference(_, _)) => false,
+        | (_, Difference(_, _))
+        | (Product(_, _), _)
+        | (_, Product(_, _))
+        | (Quotient(_, _), _)
+        | (_, Quotient(_, _)) => false,
         (Let(_, _), _) | (_, Let(_, _)) => {
             // [ref:let_not_in_weak_head_normal_form]
             panic!("Encountered a let after conversion to weak head normal form.")
@@ -522,6 +547,96 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 - 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_product() {
+        let context = [];
+
+        let source1 = "2 * 3";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "2 * 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_product_factor1() {
+        let context = [];
+
+        let source1 = "1 * 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "3 * 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_product_factor2() {
+        let context = [];
+
+        let source1 = "1 * 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 * 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_quotient() {
+        let context = [];
+
+        let source1 = "1 / 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 / 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_quotient_minuend() {
+        let context = [];
+
+        let source1 = "1 / 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "3 / 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_quotient_subtrahend() {
+        let context = [];
+
+        let source1 = "4 / 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "4 / 3";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
@@ -975,6 +1090,120 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "1 - 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_product() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "2 * 3";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "6";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_product_factor1() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 * 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "3 * 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_product_factor2() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 * 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "1 * 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_quotient() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "3 / 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "1";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_quotient_minuend() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 / 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "3 / 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_quotient_subtrahend() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "4 / 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "4 / 3";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 

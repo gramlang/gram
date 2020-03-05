@@ -5,7 +5,8 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient,
+            Sum, Type, Variable,
         },
     },
 };
@@ -249,6 +250,94 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 None
             }
         }
+        Product(factor1, factor2) => {
+            // Try to step the left factor.
+            if let Some(stepped_factor1) = step(factor1) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(stepped_factor1, factor2.clone()),
+                }));
+            };
+
+            // Ensure the left factor is a value.
+            if !is_value(factor1) {
+                return None;
+            }
+
+            // Try to step the right factor.
+            if let Some(stepped_factor2) = step(factor2) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(factor1.clone(), stepped_factor2),
+                }));
+            };
+
+            // Ensure the right factor is a value.
+            if !is_value(factor2) {
+                return None;
+            }
+
+            // Check if the factors are integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&factor1.variant, &factor2.variant)
+            {
+                // We got integer literals. Perform multiplication and continue evaluating.
+                Some(Rc::new(Term {
+                    source_range: None,
+                    variant: IntegerLiteral(integer1 * integer2),
+                }))
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
+        }
+        Quotient(dividend, divisor) => {
+            // Try to step the dividend.
+            if let Some(stepped_dividend) = step(dividend) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Quotient(stepped_dividend, divisor.clone()),
+                }));
+            };
+
+            // Ensure the dividend is a value.
+            if !is_value(dividend) {
+                return None;
+            }
+
+            // Try to step the divisor.
+            if let Some(stepped_divisor) = step(divisor) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Quotient(dividend.clone(), stepped_divisor),
+                }));
+            };
+
+            // Ensure the divisor is a value.
+            if !is_value(divisor) {
+                return None;
+            }
+
+            // Check if the dividend and divisor are integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&dividend.variant, &divisor.variant)
+            {
+                // We got integer literals. Attempt to perform division.
+                if let Some(quotient) = integer1.checked_div(integer2) {
+                    // The division was successful.
+                    Some(Rc::new(Term {
+                        source_range: None,
+                        variant: IntegerLiteral(quotient),
+                    }))
+                } else {
+                    // Division by zero!
+                    None
+                }
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
+        }
     }
 }
 
@@ -257,7 +346,13 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 pub fn is_value<'a>(term: &Term<'a>) -> bool {
     match term.variant {
         Type | Lambda(_, _, _) | Pi(_, _, _) | Integer | IntegerLiteral(_) => true,
-        Variable(_, _) | Application(_, _) | Let(_, _) | Sum(_, _) | Difference(_, _) => false,
+        Variable(_, _)
+        | Application(_, _)
+        | Let(_, _)
+        | Sum(_, _)
+        | Difference(_, _)
+        | Product(_, _)
+        | Quotient(_, _) => false,
     }
 }
 
@@ -505,6 +600,36 @@ mod tests {
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_product() {
+        let source = "2 * 3";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&6).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_quotient() {
+        let source = "7 / 2";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
             },
         );
     }

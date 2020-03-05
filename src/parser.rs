@@ -97,6 +97,12 @@ enum Variant<'a> {
 
     // A difference of a minuend and a subtrahend.
     Difference(Rc<Term<'a>>, Rc<Term<'a>>),
+
+    // A product of two factors.
+    Product(Rc<Term<'a>>, Rc<Term<'a>>),
+
+    // A quotient of a dividend and a divisor.
+    Quotient(Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
 // For variables, we store the name of the variable and its source range. The source range allows
@@ -115,6 +121,14 @@ enum SumOrDifference {
     Difference,
 }
 
+// When reassociating products and quotients to be left-associative, this enum is used to record how
+// each term is used.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+enum ProductOrQuotient {
+    Product,
+    Quotient,
+}
+
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
 #[derive(Debug, Eq, Hash, PartialEq)]
 enum CacheType {
@@ -130,11 +144,14 @@ enum CacheType {
     IntegerLiteral,
     Sum,
     Difference,
+    Product,
+    Quotient,
     Group,
     Atom,
-    SimpleTerm,
+    SmallTerm,
     MediumTerm,
-    ComplexTerm,
+    LargeTerm,
+    HugeTerm,
 }
 
 // A cache key consists of a `CacheType` indicating which function is being memoized together
@@ -505,7 +522,10 @@ pub fn parse<'a>(
             // arguments from right to left.
             let reassociated_term = reassociate_sums_and_differences(
                 None,
-                reassociate_applications(None, Rc::new(term)),
+                reassociate_products_and_quotients(
+                    None,
+                    reassociate_applications(None, Rc::new(term)),
+                ),
             );
 
             // Construct a mutable context.
@@ -549,6 +569,7 @@ pub fn parse<'a>(
 }
 
 // Flip the associativity of applications from right to left.
+#[allow(clippy::too_many_lines)]
 fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -> Rc<Term<'a>> {
     // In every case except the application case, if we have a value for the accumulator, we want
     // to construct an application with the accumulator as the applicand and the reduced term as
@@ -640,6 +661,22 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
             variant: Variant::Difference(
                 reassociate_applications(None, minuend.clone()),
                 reassociate_applications(None, subtrahend.clone()),
+            ),
+        }),
+        Variant::Product(factor1, factor2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Product(
+                reassociate_applications(None, factor1.clone()),
+                reassociate_applications(None, factor2.clone()),
+            ),
+        }),
+        Variant::Quotient(dividend, divisor) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Quotient(
+                reassociate_applications(None, dividend.clone()),
+                reassociate_applications(None, divisor.clone()),
             ),
         }),
     };
@@ -805,6 +842,22 @@ fn reassociate_sums_and_differences<'a>(
                 )
             };
         }
+        Variant::Product(factor1, factor2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Product(
+                reassociate_sums_and_differences(None, factor1.clone()),
+                reassociate_sums_and_differences(None, factor2.clone()),
+            ),
+        }),
+        Variant::Quotient(dividend, divisor) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Quotient(
+                reassociate_sums_and_differences(None, dividend.clone()),
+                reassociate_sums_and_differences(None, divisor.clone()),
+            ),
+        }),
     };
 
     // We end up here as long as `term` isn't a sum or difference. If we have an accumulator,
@@ -816,6 +869,188 @@ fn reassociate_sums_and_differences<'a>(
             variant: match operator {
                 SumOrDifference::Sum => Variant::Sum(acc, reduced),
                 SumOrDifference::Difference => Variant::Difference(acc, reduced),
+            },
+        })
+    } else {
+        reduced
+    }
+}
+
+// Flip the associativity of products and quotients from right to left.
+#[allow(clippy::too_many_lines)]
+fn reassociate_products_and_quotients<'a>(
+    acc: Option<(Rc<Term<'a>>, ProductOrQuotient)>,
+    term: Rc<Term<'a>>,
+) -> Rc<Term<'a>> {
+    // In every case except the product and quotient cases, if we have a value for the accumulator,
+    // we want to construct a product or quotient with the accumulator as the left subterm and the
+    // reduced term as the right subterm. In the product and quotient cases, we build up the
+    // accumulator.
+    let reduced = match &term.variant {
+        Variant::Type | Variant::Variable(_) | Variant::Integer | Variant::IntegerLiteral(_) => {
+            term
+        }
+        Variant::Lambda(variable, domain, body) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Lambda(
+                *variable,
+                reassociate_products_and_quotients(None, domain.clone()),
+                reassociate_products_and_quotients(None, body.clone()),
+            ),
+        }),
+        Variant::Pi(variable, domain, codomain) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Pi(
+                *variable,
+                reassociate_products_and_quotients(None, domain.clone()),
+                reassociate_products_and_quotients(None, codomain.clone()),
+            ),
+        }),
+        Variant::Application(applicand, argument) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Application(
+                reassociate_products_and_quotients(None, applicand.clone()),
+                reassociate_products_and_quotients(None, argument.clone()),
+            ),
+        }),
+        Variant::Let(variable, annotation, definition, body) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Let(
+                *variable,
+                annotation
+                    .as_ref()
+                    .map(|annotation| reassociate_products_and_quotients(None, annotation.clone())),
+                reassociate_products_and_quotients(None, definition.clone()),
+                reassociate_products_and_quotients(None, body.clone()),
+            ),
+        }),
+        Variant::Sum(summand1, summand2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Sum(
+                reassociate_products_and_quotients(None, summand1.clone()),
+                reassociate_products_and_quotients(None, summand2.clone()),
+            ),
+        }),
+        Variant::Difference(minuend, subtrahend) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Difference(
+                reassociate_products_and_quotients(None, minuend.clone()),
+                reassociate_products_and_quotients(None, subtrahend.clone()),
+            ),
+        }),
+        Variant::Product(factor1, factor2) => {
+            return if factor2.group {
+                if let Some(acc) = acc {
+                    Rc::new(Term {
+                        source_range: (acc.0.source_range.0, factor2.source_range.1),
+                        group: true,
+                        variant: Variant::Product(
+                            reassociate_products_and_quotients(Some(acc), factor1.clone()),
+                            reassociate_products_and_quotients(None, factor2.clone()),
+                        ),
+                    })
+                } else {
+                    Rc::new(Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: Variant::Product(
+                            reassociate_products_and_quotients(None, factor1.clone()),
+                            reassociate_products_and_quotients(None, factor2.clone()),
+                        ),
+                    })
+                }
+            } else {
+                reassociate_products_and_quotients(
+                    Some((
+                        if let Some((acc, operator)) = acc {
+                            Rc::new(Term {
+                                source_range: (acc.source_range.0, factor1.source_range.1),
+                                group: true,
+                                variant: match operator {
+                                    ProductOrQuotient::Product => Variant::Product(
+                                        acc,
+                                        reassociate_products_and_quotients(None, factor1.clone()),
+                                    ),
+                                    ProductOrQuotient::Quotient => Variant::Quotient(
+                                        acc,
+                                        reassociate_products_and_quotients(None, factor1.clone()),
+                                    ),
+                                },
+                            })
+                        } else {
+                            reassociate_products_and_quotients(None, factor1.clone())
+                        },
+                        ProductOrQuotient::Product,
+                    )),
+                    factor2.clone(),
+                )
+            };
+        }
+        Variant::Quotient(dividend, divisor) => {
+            return if divisor.group {
+                if let Some(acc) = acc {
+                    Rc::new(Term {
+                        source_range: (acc.0.source_range.0, divisor.source_range.1),
+                        group: true,
+                        variant: Variant::Quotient(
+                            reassociate_products_and_quotients(Some(acc), dividend.clone()),
+                            reassociate_products_and_quotients(None, divisor.clone()),
+                        ),
+                    })
+                } else {
+                    Rc::new(Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: Variant::Quotient(
+                            reassociate_products_and_quotients(None, dividend.clone()),
+                            reassociate_products_and_quotients(None, divisor.clone()),
+                        ),
+                    })
+                }
+            } else {
+                reassociate_products_and_quotients(
+                    Some((
+                        if let Some((acc, operator)) = acc {
+                            Rc::new(Term {
+                                source_range: (acc.source_range.0, dividend.source_range.1),
+                                group: true,
+                                variant: match operator {
+                                    ProductOrQuotient::Product => Variant::Product(
+                                        acc,
+                                        reassociate_products_and_quotients(None, dividend.clone()),
+                                    ),
+                                    ProductOrQuotient::Quotient => Variant::Quotient(
+                                        acc,
+                                        reassociate_products_and_quotients(None, dividend.clone()),
+                                    ),
+                                },
+                            })
+                        } else {
+                            reassociate_products_and_quotients(None, dividend.clone())
+                        },
+                        ProductOrQuotient::Quotient,
+                    )),
+                    divisor.clone(),
+                )
+            };
+        }
+    };
+
+    // We end up here as long as `term` isn't a product or quotient. If we have an accumulator,
+    // construct a product or quotient as described above. Otherwise, just return the reduced term.
+    if let Some((acc, operator)) = acc {
+        Rc::new(Term {
+            source_range: (acc.source_range.0, reduced.source_range.1),
+            group: true,
+            variant: match operator {
+                ProductOrQuotient::Product => Variant::Product(acc, reduced),
+                ProductOrQuotient::Quotient => Variant::Quotient(acc, reduced),
             },
         })
     } else {
@@ -1147,6 +1382,50 @@ fn resolve_variables<'a>(
                 ),
             }
         }
+        Variant::Product(factor1, factor2) => {
+            // Just resolve variables in the factors.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::Product(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*factor1,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*factor2,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
+        Variant::Quotient(dividend, divisor) => {
+            // Just resolve variables in the dividend and divisor.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::Quotient(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*dividend,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*divisor,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
     })
 }
 
@@ -1247,12 +1526,12 @@ fn parse_term<'a, 'b>(
     // Try to parse a let.
     try_return!(cache, Term, start, parse_let(cache, tokens, start, error));
 
-    // Try to parse a complex term.
+    // Try to parse a huge term.
     try_return!(
         cache,
         Term,
         start,
-        parse_complex_term(cache, tokens, start, error)
+        parse_huge_term(cache, tokens, start, error)
     );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
@@ -1349,7 +1628,7 @@ fn parse_lambda<'a, 'b>(
         cache,
         Lambda,
         start,
-        parse_complex_term(cache, tokens, next, error)
+        parse_huge_term(cache, tokens, next, error)
     );
 
     // Consume the right parenthesis.
@@ -1408,7 +1687,7 @@ fn parse_pi<'a, 'b>(
         cache,
         Pi,
         start,
-        parse_complex_term(cache, tokens, next, error)
+        parse_huge_term(cache, tokens, next, error)
     );
 
     // Consume the right parenthesis.
@@ -1458,7 +1737,7 @@ fn parse_non_dependent_pi<'a, 'b>(
         cache,
         NonDependentPi,
         start,
-        parse_simple_term(cache, tokens, start, error),
+        parse_small_term(cache, tokens, start, error),
     );
 
     // Consume the arrow.
@@ -1524,14 +1803,19 @@ fn parse_application<'a, 'b>(
     cache_check!(cache, Application, start, error);
 
     // Parse the applicand.
-    let (applicand, next) = try_eval!(cache, Application, start, atom(cache, tokens, start, error));
+    let (applicand, next) = try_eval!(
+        cache,
+        Application,
+        start,
+        parse_atom(cache, tokens, start, error)
+    );
 
     // Parse the argument.
     let (argument, next) = try_eval!(
         cache,
         Application,
         start,
-        parse_simple_term(cache, tokens, next, error),
+        parse_small_term(cache, tokens, next, error),
     );
 
     // Construct and return the application.
@@ -1574,7 +1858,7 @@ fn parse_let<'a, 'b>(
                 cache,
                 Let,
                 start,
-                parse_simple_term(cache, tokens, next, error)
+                parse_small_term(cache, tokens, next, error)
             );
 
             // Package up the annotation in the right form.
@@ -1742,7 +2026,7 @@ fn parse_sum<'a, 'b>(
         cache,
         Sum,
         start,
-        parse_simple_term(cache, tokens, start, error),
+        parse_medium_term(cache, tokens, start, error),
     );
 
     // Consume the plus symbol.
@@ -1754,7 +2038,7 @@ fn parse_sum<'a, 'b>(
             cache,
             Sum,
             start,
-            parse_medium_term(cache, tokens, next, error),
+            parse_large_term(cache, tokens, next, error),
         )
     };
 
@@ -1789,7 +2073,7 @@ fn parse_difference<'a, 'b>(
         cache,
         Difference,
         start,
-        parse_simple_term(cache, tokens, start, error),
+        parse_medium_term(cache, tokens, start, error),
     );
 
     // Consume the plus symbol.
@@ -1801,7 +2085,7 @@ fn parse_difference<'a, 'b>(
             cache,
             Difference,
             start,
-            parse_medium_term(cache, tokens, next, error),
+            parse_large_term(cache, tokens, next, error),
         )
     };
 
@@ -1815,6 +2099,100 @@ fn parse_difference<'a, 'b>(
                 source_range: (minuend.source_range.0, subtrahend.source_range.1),
                 group: false,
                 variant: Variant::Difference(Rc::new(minuend), Rc::new(subtrahend)),
+            },
+            next
+        )),
+    )
+}
+
+// Parse a product.
+fn parse_product<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, Product, start, error);
+
+    // Parse the left factor.
+    let (factor1, next) = try_eval!(
+        cache,
+        Product,
+        start,
+        parse_small_term(cache, tokens, start, error),
+    );
+
+    // Consume the asterisk.
+    let next = consume_token!(cache, Product, start, tokens, Asterisk, next, error, Low);
+
+    // Parse the right factor.
+    let (factor2, next) = {
+        try_eval!(
+            cache,
+            Product,
+            start,
+            parse_medium_term(cache, tokens, next, error),
+        )
+    };
+
+    // Construct and return the product.
+    cache_return!(
+        cache,
+        Product,
+        start,
+        Some((
+            Term {
+                source_range: (factor1.source_range.0, factor2.source_range.1),
+                group: false,
+                variant: Variant::Product(Rc::new(factor1), Rc::new(factor2)),
+            },
+            next
+        )),
+    )
+}
+
+// Parse a quotient.
+fn parse_quotient<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, Quotient, start, error);
+
+    // Parse the dividend.
+    let (dividend, next) = try_eval!(
+        cache,
+        Quotient,
+        start,
+        parse_small_term(cache, tokens, start, error),
+    );
+
+    // Consume the slash.
+    let next = consume_token!(cache, Quotient, start, tokens, Slash, next, error, Low);
+
+    // Parse the divisor.
+    let (divisor, next) = {
+        try_eval!(
+            cache,
+            Quotient,
+            start,
+            parse_medium_term(cache, tokens, next, error),
+        )
+    };
+
+    // Construct and return the quotient.
+    cache_return!(
+        cache,
+        Quotient,
+        start,
+        Some((
+            Term {
+                source_range: (dividend.source_range.0, divisor.source_range.1),
+                group: false,
+                variant: Variant::Quotient(Rc::new(dividend), Rc::new(divisor)),
             },
             next
         )),
@@ -1864,7 +2242,7 @@ fn parse_group<'a, 'b>(
 }
 
 // Parse an applicand (the left part of an application).
-fn atom<'a, 'b>(
+fn parse_atom<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
     start: usize,
@@ -1911,33 +2289,38 @@ fn atom<'a, 'b>(
     cache_return!(cache, Atom, start, None)
 }
 
-// Parse a simple term.
-fn parse_simple_term<'a, 'b>(
+// Parse a small term.
+fn parse_small_term<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, SimpleTerm, start, error);
+    cache_check!(cache, SmallTerm, start, error);
 
     // Try to parse an application.
     try_return!(
         cache,
-        SimpleTerm,
+        SmallTerm,
         start,
         parse_application(cache, tokens, start, error),
     );
 
     // Try to parse an atom.
-    try_return!(cache, SimpleTerm, start, atom(cache, tokens, start, error));
+    try_return!(
+        cache,
+        SmallTerm,
+        start,
+        parse_atom(cache, tokens, start, error)
+    );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
     // confidence error, employ a generic error message.
     set_generic_error(tokens, start, error);
 
     // Return `None` since the parse failed.
-    cache_return!(cache, SimpleTerm, start, None)
+    cache_return!(cache, SmallTerm, start, None)
 }
 
 // Parse a medium term.
@@ -1950,28 +2333,28 @@ fn parse_medium_term<'a, 'b>(
     // Check the cache.
     cache_check!(cache, MediumTerm, start, error);
 
-    // Try to parse a sum.
+    // Try to parse a product.
     try_return!(
         cache,
         MediumTerm,
         start,
-        parse_sum(cache, tokens, start, error)
+        parse_product(cache, tokens, start, error)
     );
 
-    // Try to parse a difference.
+    // Try to parse a quotient.
     try_return!(
         cache,
         MediumTerm,
         start,
-        parse_difference(cache, tokens, start, error)
+        parse_quotient(cache, tokens, start, error)
     );
 
-    // Try to parse a simple term.
+    // Try to parse a small term.
     try_return!(
         cache,
         MediumTerm,
         start,
-        parse_simple_term(cache, tokens, start, error),
+        parse_small_term(cache, tokens, start, error),
     );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
@@ -1982,44 +2365,36 @@ fn parse_medium_term<'a, 'b>(
     cache_return!(cache, MediumTerm, start, None)
 }
 
-// Parse a complex term.
-fn parse_complex_term<'a, 'b>(
+// Parse a large term.
+fn parse_large_term<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
     tokens: &'b [Token<'a>],
     start: usize,
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, ComplexTerm, start, error);
+    cache_check!(cache, LargeTerm, start, error);
 
-    // Try to parse a non-dependent pi type.
+    // Try to parse a sum.
     try_return!(
         cache,
-        ComplexTerm,
+        LargeTerm,
         start,
-        parse_non_dependent_pi(cache, tokens, start, error),
+        parse_sum(cache, tokens, start, error)
     );
 
-    // Try to parse a lambda.
+    // Try to parse a difference.
     try_return!(
         cache,
-        ComplexTerm,
+        LargeTerm,
         start,
-        parse_lambda(cache, tokens, start, error),
-    );
-
-    // Try to parse a pi type.
-    try_return!(
-        cache,
-        ComplexTerm,
-        start,
-        parse_pi(cache, tokens, start, error)
+        parse_difference(cache, tokens, start, error)
     );
 
     // Try to parse a medium term.
     try_return!(
         cache,
-        ComplexTerm,
+        LargeTerm,
         start,
         parse_medium_term(cache, tokens, start, error),
     );
@@ -2029,7 +2404,57 @@ fn parse_complex_term<'a, 'b>(
     set_generic_error(tokens, start, error);
 
     // Return `None` since the parse failed.
-    cache_return!(cache, ComplexTerm, start, None)
+    cache_return!(cache, LargeTerm, start, None)
+}
+
+// Parse a huge term.
+fn parse_huge_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, HugeTerm, start, error);
+
+    // Try to parse a non-dependent pi type.
+    try_return!(
+        cache,
+        HugeTerm,
+        start,
+        parse_non_dependent_pi(cache, tokens, start, error),
+    );
+
+    // Try to parse a lambda.
+    try_return!(
+        cache,
+        HugeTerm,
+        start,
+        parse_lambda(cache, tokens, start, error),
+    );
+
+    // Try to parse a pi type.
+    try_return!(
+        cache,
+        HugeTerm,
+        start,
+        parse_pi(cache, tokens, start, error)
+    );
+
+    // Try to parse a large term.
+    try_return!(
+        cache,
+        HugeTerm,
+        start,
+        parse_large_term(cache, tokens, start, error),
+    );
+
+    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
+    // confidence error, employ a generic error message.
+    set_generic_error(tokens, start, error);
+
+    // Return `None` since the parse failed.
+    cache_return!(cache, HugeTerm, start, None)
 }
 
 #[cfg(test)]
@@ -2039,7 +2464,10 @@ mod tests {
         parser::parse,
         term::{
             Term,
-            Variant::{Application, Integer, IntegerLiteral, Lambda, Let, Pi, Type, Variable},
+            Variant::{
+                Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product,
+                Quotient, Sum, Type, Variable,
+            },
         },
         tokenizer::tokenize,
     };
@@ -2480,6 +2908,157 @@ mod tests {
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_sum() {
+        let source = "1 + 2";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 5)),
+                variant: Sum(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((4, 5)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_difference() {
+        let source = "1 - 2";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 5)),
+                variant: Difference(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((4, 5)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_product() {
+        let source = "2 * 3";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 5)),
+                variant: Product(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((4, 5)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_quotient() {
+        let source = "7 / 2";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 5)),
+                variant: Quotient(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&7).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((4, 5)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_arithmetic() {
+        let source = "1 + 2 * (3 - 4 / 5)";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 19)),
+                variant: Sum(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((4, 19)),
+                        variant: Product(
+                            Rc::new(Term {
+                                source_range: Some((4, 5)),
+                                variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                            }),
+                            Rc::new(Term {
+                                source_range: Some((8, 19)),
+                                variant: Difference(
+                                    Rc::new(Term {
+                                        source_range: Some((9, 10)),
+                                        variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+                                    }),
+                                    Rc::new(Term {
+                                        source_range: Some((13, 18)),
+                                        variant: Quotient(
+                                            Rc::new(Term {
+                                                source_range: Some((13, 14)),
+                                                variant: IntegerLiteral(
+                                                    ToBigInt::to_bigint(&4).unwrap(),
+                                                ),
+                                            }),
+                                            Rc::new(Term {
+                                                source_range: Some((17, 18)),
+                                                variant: IntegerLiteral(
+                                                    ToBigInt::to_bigint(&5).unwrap(),
+                                                ),
+                                            }),
+                                        ),
+                                    }),
+                                ),
+                            }),
+                        ),
+                    }),
+                ),
             },
         );
     }

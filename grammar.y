@@ -20,6 +20,7 @@
 
 /* [tag:bison_tokens] [ref:tokens] */
 
+%token ASTERISK
 %token COLON
 %token EQUALS
 %token IDENTIFIER
@@ -29,6 +30,7 @@
 %token MINUS
 %token PLUS
 %token RIGHT_PAREN
+%token SLASH
 %token TERMINATOR
 %token THICK_ARROW
 %token THIN_ARROW
@@ -38,38 +40,44 @@
 
 /* [tag:bison_grammar] [ref:grammar] */
 
-term: let | complex_term;
+term: let | huge_term;
 
 type: TYPE;
 
 variable: IDENTIFIER;
 
-lambda: LEFT_PAREN IDENTIFIER COLON complex_term RIGHT_PAREN THICK_ARROW term;
+lambda: LEFT_PAREN IDENTIFIER COLON huge_term RIGHT_PAREN THICK_ARROW term;
 
-pi: LEFT_PAREN IDENTIFIER COLON complex_term RIGHT_PAREN THIN_ARROW term;
+pi: LEFT_PAREN IDENTIFIER COLON huge_term RIGHT_PAREN THIN_ARROW term;
 
-non_dependent_pi: simple_term THIN_ARROW term;
+non_dependent_pi: small_term THIN_ARROW term;
 
-application: atom simple_term;
+application: atom small_term;
 
 let: IDENTIFIER let_annotation EQUALS term TERMINATOR term;
 
-let_annotation: %empty | COLON simple_term;
+let_annotation: %empty | COLON small_term;
 
 integer: INTEGER;
 
 integer_literal: INTEGER_LITERAL;
 
+sum: medium_term PLUS large_term;
+
+difference: medium_term MINUS large_term;
+
+product: small_term ASTERISK medium_term;
+
+quotient: small_term SLASH medium_term;
+
 group: LEFT_PAREN term RIGHT_PAREN;
 
 atom: type | variable | integer | integer_literal | group;
 
-simple_term: application | atom;
+small_term: application | atom;
 
-sum: simple_term PLUS medium_term;
+medium_term: product | quotient | small_term;
 
-difference: simple_term MINUS medium_term;
+large_term: sum | difference | medium_term;
 
-medium_term: sum | difference | simple_term;
-
-complex_term: non_dependent_pi | lambda | pi | medium_term;
+huge_term: non_dependent_pi | lambda | pi | large_term;
