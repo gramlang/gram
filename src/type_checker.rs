@@ -7,8 +7,9 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
-            Product, Quotient, Sum, True, Type, Variable,
+            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product,
+            Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -800,6 +801,92 @@ pub fn type_check<'a>(
 
             // Return the type of integers.
             Rc::new(INTEGER_TERM)
+        }
+        LessThan(term1, term2)
+        | LessThanOrEqualTo(term1, term2)
+        | EqualTo(term1, term2)
+        | GreaterThan(term1, term2)
+        | GreaterThanOrEqualTo(term1, term2) => {
+            // Infer the type of the left term.
+            let term1_type = type_check(
+                source_path,
+                source_contents,
+                &**term1,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Check that the type of the left term is the type of integers.
+            if !definitionally_equal(
+                term1_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
+                return Err(if let Some(source_range) = term1.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            term1_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Summand {} has type {} when {} was expected.",
+                            term1.to_string().code_str(),
+                            term1_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Infer the type of the right term.
+            let term2_type = type_check(
+                source_path,
+                source_contents,
+                &**term2,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Check that the type of the right term is the type of integers.
+            if !definitionally_equal(
+                term2_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
+                return Err(if let Some(source_range) = term2.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            term2_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Factor {} has type {} when {} was expected.",
+                            term2.to_string().code_str(),
+                            term2_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Return the type of Booleans.
+            Rc::new(BOOLEAN_TERM)
         }
         If(condition, then_branch, else_branch) => {
             // Infer the type of the condition.

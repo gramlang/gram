@@ -76,10 +76,15 @@ pub fn tokenize<'a>(
                     && match tokens.last().unwrap().variant /* [ref:tokens_nonempty] */ {
                         Variant::Asterisk
                         | Variant::Colon
+                        | Variant::DoubleEquals
                         | Variant::Else
                         | Variant::Equals
+                        | Variant::GreaterThan
+                        | Variant::GreaterThanOrEqualTo
                         | Variant::If
                         | Variant::LeftParen
+                        | Variant::LessThan
+                        | Variant::LessThanOrEqualTo
                         | Variant::Minus
                         | Variant::Plus
                         | Variant::Slash
@@ -105,7 +110,7 @@ pub fn tokenize<'a>(
                 }
             }
             '-' => {
-                if iter.peek() == Some(&(i + 1, '>')) {
+                if let Some(&(_, '>')) = iter.peek() {
                     iter.next();
                     tokens.push(Token {
                         source_range: (i, i + 2),
@@ -118,17 +123,53 @@ pub fn tokenize<'a>(
                     });
                 }
             }
-            '=' => {
-                if iter.peek() == Some(&(i + 1, '>')) {
+            '<' => {
+                if let Some(&(_, '=')) = iter.peek() {
+                    iter.next();
+                    tokens.push(Token {
+                        source_range: (i, i + 2),
+                        variant: Variant::LessThanOrEqualTo,
+                    });
+                } else {
+                    tokens.push(Token {
+                        source_range: (i, i + 1),
+                        variant: Variant::LessThan,
+                    });
+                }
+            }
+            '=' => match iter.peek() {
+                Some(&(_, '=')) => {
+                    iter.next();
+                    tokens.push(Token {
+                        source_range: (i, i + 2),
+                        variant: Variant::DoubleEquals,
+                    });
+                }
+                Some(&(_, '>')) => {
                     iter.next();
                     tokens.push(Token {
                         source_range: (i, i + 2),
                         variant: Variant::ThickArrow,
                     });
-                } else {
+                }
+                _ => {
                     tokens.push(Token {
                         source_range: (i, i + 1),
                         variant: Variant::Equals,
+                    });
+                }
+            },
+            '>' => {
+                if let Some(&(_, '=')) = iter.peek() {
+                    iter.next();
+                    tokens.push(Token {
+                        source_range: (i, i + 2),
+                        variant: Variant::GreaterThanOrEqualTo,
+                    });
+                } else {
+                    tokens.push(Token {
+                        source_range: (i, i + 1),
+                        variant: Variant::GreaterThan,
                     });
                 }
             }
@@ -255,8 +296,13 @@ pub fn tokenize<'a>(
                 if match next_token.variant {
                     Variant::Asterisk
                     | Variant::Colon
+                    | Variant::DoubleEquals
                     | Variant::Else
                     | Variant::Equals
+                    | Variant::GreaterThan
+                    | Variant::GreaterThanOrEqualTo
+                    | Variant::LessThan
+                    | Variant::LessThanOrEqualTo
                     | Variant::Minus
                     | Variant::Plus
                     | Variant::RightParen
@@ -352,6 +398,17 @@ mod tests {
     }
 
     #[test]
+    fn tokenize_double_equals() {
+        assert_eq!(
+            tokenize(None, "==").unwrap(),
+            vec![Token {
+                source_range: (0, 2),
+                variant: Variant::DoubleEquals,
+            }],
+        );
+    }
+
+    #[test]
     fn tokenize_else() {
         assert_eq!(
             tokenize(None, ELSE_KEYWORD).unwrap(),
@@ -380,6 +437,28 @@ mod tests {
             vec![Token {
                 source_range: (0, FALSE_KEYWORD.len()),
                 variant: Variant::False,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_greater_than() {
+        assert_eq!(
+            tokenize(None, ">").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::GreaterThan,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_greater_than_or_equal() {
+        assert_eq!(
+            tokenize(None, ">=").unwrap(),
+            vec![Token {
+                source_range: (0, 2),
+                variant: Variant::GreaterThanOrEqualTo,
             }],
         );
     }
@@ -435,6 +514,28 @@ mod tests {
             vec![Token {
                 source_range: (0, 1),
                 variant: Variant::LeftParen,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_less_than() {
+        assert_eq!(
+            tokenize(None, "<").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::LessThan,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_less_than_or_equal() {
+        assert_eq!(
+            tokenize(None, "<=").unwrap(),
+            vec![Token {
+                source_range: (0, 2),
+                variant: Variant::LessThanOrEqualTo,
             }],
         );
     }

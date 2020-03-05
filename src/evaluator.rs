@@ -5,8 +5,9 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
-            Product, Quotient, Sum, True, Type, Variable,
+            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product,
+            Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -347,6 +348,211 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 None
             }
         }
+        LessThan(term1, term2) => {
+            // Try to step the left term.
+            if let Some(stepped_term1) = step(term1) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(stepped_term1, term2.clone()),
+                }));
+            };
+
+            // Ensure the left term is a value.
+            if !is_value(term1) {
+                return None;
+            }
+
+            // Try to step the right term.
+            if let Some(stepped_term2) = step(term2) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(term1.clone(), stepped_term2),
+                }));
+            };
+
+            // Ensure the right term is a value.
+            if !is_value(term2) {
+                return None;
+            }
+
+            // Check if the terms are integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&term1.variant, &term2.variant)
+            {
+                // We got integer literals. Perform the comparison and continue evaluating.
+                Some(Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 < integer2 { True } else { False },
+                }))
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
+        }
+        LessThanOrEqualTo(term1, term2) => {
+            // Try to step the left term.
+            if let Some(stepped_term1) = step(term1) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(stepped_term1, term2.clone()),
+                }));
+            };
+
+            // Ensure the left term is a value.
+            if !is_value(term1) {
+                return None;
+            }
+
+            // Try to step the right term.
+            if let Some(stepped_term2) = step(term2) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(term1.clone(), stepped_term2),
+                }));
+            };
+
+            // Ensure the right term is a value.
+            if !is_value(term2) {
+                return None;
+            }
+
+            // Check if the terms are integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&term1.variant, &term2.variant)
+            {
+                // We got integer literals. Perform the comparison and continue evaluating.
+                Some(Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 <= integer2 { True } else { False },
+                }))
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
+        }
+        EqualTo(term1, term2) => {
+            // Try to step the left term.
+            if let Some(stepped_term1) = step(term1) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(stepped_term1, term2.clone()),
+                }));
+            };
+
+            // Ensure the left term is a value.
+            if !is_value(term1) {
+                return None;
+            }
+
+            // Try to step the right term.
+            if let Some(stepped_term2) = step(term2) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(term1.clone(), stepped_term2),
+                }));
+            };
+
+            // Ensure the right term is a value.
+            if !is_value(term2) {
+                return None;
+            }
+
+            // Check if the terms are integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&term1.variant, &term2.variant)
+            {
+                // We got integer literals. Perform the comparison and continue evaluating.
+                Some(Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 == integer2 { True } else { False },
+                }))
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
+        }
+        GreaterThan(term1, term2) => {
+            // Try to step the left term.
+            if let Some(stepped_term1) = step(term1) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(stepped_term1, term2.clone()),
+                }));
+            };
+
+            // Ensure the left term is a value.
+            if !is_value(term1) {
+                return None;
+            }
+
+            // Try to step the right term.
+            if let Some(stepped_term2) = step(term2) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(term1.clone(), stepped_term2),
+                }));
+            };
+
+            // Ensure the right term is a value.
+            if !is_value(term2) {
+                return None;
+            }
+
+            // Check if the terms are integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&term1.variant, &term2.variant)
+            {
+                // We got integer literals. Perform the comparison and continue evaluating.
+                Some(Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 > integer2 { True } else { False },
+                }))
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
+        }
+        GreaterThanOrEqualTo(term1, term2) => {
+            // Try to step the left term.
+            if let Some(stepped_term1) = step(term1) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(stepped_term1, term2.clone()),
+                }));
+            };
+
+            // Ensure the left term is a value.
+            if !is_value(term1) {
+                return None;
+            }
+
+            // Try to step the right term.
+            if let Some(stepped_term2) = step(term2) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Product(term1.clone(), stepped_term2),
+                }));
+            };
+
+            // Ensure the right term is a value.
+            if !is_value(term2) {
+                return None;
+            }
+
+            // Check if the terms are integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&term1.variant, &term2.variant)
+            {
+                // We got integer literals. Perform the comparison and continue evaluating.
+                Some(Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 >= integer2 { True } else { False },
+                }))
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
+        }
         If(condition, then_branch, else_branch) => {
             // Try to step the condition.
             if let Some(stepped_condition) = step(condition) {
@@ -358,32 +564,6 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Ensure the condition is a value.
             if !is_value(condition) {
-                return None;
-            }
-
-            // Try to step the then branch.
-            if let Some(stepped_then_branch) = step(then_branch) {
-                return Some(Rc::new(Term {
-                    source_range: None,
-                    variant: If(condition.clone(), stepped_then_branch, else_branch.clone()),
-                }));
-            };
-
-            // Ensure the then branch is a value.
-            if !is_value(then_branch) {
-                return None;
-            }
-
-            // Try to step the else branch.
-            if let Some(stepped_else_branch) = step(else_branch) {
-                return Some(Rc::new(Term {
-                    source_range: None,
-                    variant: If(condition.clone(), then_branch.clone(), stepped_else_branch),
-                }));
-            };
-
-            // Ensure the else branch is a value.
-            if !is_value(else_branch) {
                 return None;
             }
 
@@ -416,6 +596,11 @@ pub fn is_value<'a>(term: &Term<'a>) -> bool {
         | Difference(_, _)
         | Product(_, _)
         | Quotient(_, _)
+        | LessThan(_, _)
+        | LessThanOrEqualTo(_, _)
+        | EqualTo(_, _)
+        | GreaterThan(_, _)
+        | GreaterThanOrEqualTo(_, _)
         | If(_, _, _) => false,
     }
 }

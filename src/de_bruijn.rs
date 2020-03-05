@@ -1,8 +1,9 @@
 use crate::term::{
     Term,
     Variant::{
-        Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
-        Product, Quotient, Sum, True, Type, Variable,
+        Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo, If,
+        Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product, Quotient,
+        Sum, True, Type, Variable,
     },
 };
 use std::{cmp::Ordering, collections::HashSet, rc::Rc};
@@ -10,6 +11,7 @@ use std::{cmp::Ordering, collections::HashSet, rc::Rc};
 // Shifting refers to increasing the De Bruijn indices of free variables. A cutoff determines which
 // variables are considered free. This operation is used to lower a term into a nested scope while
 // preserving its meaning.
+#[allow(clippy::too_many_lines)]
 pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a>> {
     match &term.variant {
         Type | Integer | IntegerLiteral(_) | Boolean | True | False => term,
@@ -96,6 +98,41 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
             variant: Quotient(
                 shift(dividend.clone(), cutoff, amount),
                 shift(divisor.clone(), cutoff, amount),
+            ),
+        }),
+        LessThan(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: LessThan(
+                shift(term1.clone(), cutoff, amount),
+                shift(term2.clone(), cutoff, amount),
+            ),
+        }),
+        LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: LessThanOrEqualTo(
+                shift(term1.clone(), cutoff, amount),
+                shift(term2.clone(), cutoff, amount),
+            ),
+        }),
+        EqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: EqualTo(
+                shift(term1.clone(), cutoff, amount),
+                shift(term2.clone(), cutoff, amount),
+            ),
+        }),
+        GreaterThan(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: GreaterThan(
+                shift(term1.clone(), cutoff, amount),
+                shift(term2.clone(), cutoff, amount),
+            ),
+        }),
+        GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: GreaterThanOrEqualTo(
+                shift(term1.clone(), cutoff, amount),
+                shift(term2.clone(), cutoff, amount),
             ),
         }),
         If(condition, then_branch, else_branch) => Rc::new(Term {
@@ -212,6 +249,41 @@ pub fn open<'a>(
                 open(divisor.clone(), index_to_replace, term_to_insert),
             ),
         }),
+        LessThan(term1, term2) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: LessThan(
+                open(term1.clone(), index_to_replace, term_to_insert.clone()),
+                open(term2.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
+        LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: LessThanOrEqualTo(
+                open(term1.clone(), index_to_replace, term_to_insert.clone()),
+                open(term2.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
+        EqualTo(term1, term2) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: EqualTo(
+                open(term1.clone(), index_to_replace, term_to_insert.clone()),
+                open(term2.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
+        GreaterThan(term1, term2) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: GreaterThan(
+                open(term1.clone(), index_to_replace, term_to_insert.clone()),
+                open(term2.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
+        GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: GreaterThanOrEqualTo(
+                open(term1.clone(), index_to_replace, term_to_insert.clone()),
+                open(term2.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
         If(condition, then_branch, else_branch) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: If(
@@ -275,6 +347,14 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
         Quotient(dividend, divisor) => {
             free_variables(dividend, cutoff, variables);
             free_variables(divisor, cutoff, variables);
+        }
+        LessThan(term1, term2)
+        | LessThanOrEqualTo(term1, term2)
+        | EqualTo(term1, term2)
+        | GreaterThan(term1, term2)
+        | GreaterThanOrEqualTo(term1, term2) => {
+            free_variables(term1, cutoff, variables);
+            free_variables(term2, cutoff, variables);
         }
         If(condition, then_branch, else_branch) => {
             free_variables(condition, cutoff, variables);
