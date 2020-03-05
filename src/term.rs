@@ -95,7 +95,7 @@ impl<'a> Display for Variant<'a> {
             Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
             Self::IntegerLiteral(integer) => write!(f, "{}", integer),
             Self::Sum(summand1, summand2) => write!(f, "{} + {}", summand1, summand2),
-            Self::Difference(minuend, subtrahend) => write!(f, "{} + {}", minuend, subtrahend),
+            Self::Difference(minuend, subtrahend) => write!(f, "{} - {}", minuend, subtrahend),
         }
     }
 }
