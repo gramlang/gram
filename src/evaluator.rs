@@ -1,5 +1,6 @@
 use crate::{
     de_bruijn::{open, shift},
+    error::Error,
     format::CodeStr,
     term::{
         Term,
@@ -10,9 +11,8 @@ use crate::{
 };
 use std::rc::Rc;
 
-// This function evaluates a term using a call-by-value strategy. The term is assumed to be
-// well-typed in the empty context. Runtime type errors will result in panicking.
-pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Rc<Term<'a>> {
+// This function evaluates a term using a call-by-value strategy.
+pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Result<Rc<Term<'a>>, Error> {
     // Repeatedly perform small steps for as long as possible.
     while let Some(stepped_term) = step(&term) {
         term = stepped_term;
@@ -20,18 +20,17 @@ pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Rc<Term<'a>> {
 
     // Check if we got a value.
     if is_value(&*term) {
-        term
+        Ok(term)
     } else {
-        panic!(format!(
-            "Evaluation of {} is stuck!",
-            term.to_string().code_str(),
-        ))
+        Err(Error {
+            message: format!("Evaluation of {} is stuck!", term.to_string().code_str()),
+            reason: None,
+        })
     }
 }
 
 // This function implements a call-by-value operational semantics by performing a "small step".
-// Call this repeatedly to evaluate a term. The term is assumed to be well-typed in the empty
-// context. Runtime type errors will result in panicking.
+// Call this repeatedly to evaluate a term.
 #[allow(clippy::too_many_lines)]
 pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
     match &term.variant {
@@ -283,7 +282,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)),
+            *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: Some((0, 4)),
                 variant: Type,
@@ -299,7 +298,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &context[..]).unwrap();
 
-        evaluate(Rc::new(term));
+        evaluate(Rc::new(term)).unwrap();
     }
 
     #[test]
@@ -309,7 +308,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)),
+            *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: Some((0, 39)),
                 variant: Lambda(
@@ -363,7 +362,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)),
+            *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: Some((0, 39)),
                 variant: Pi(
@@ -417,7 +416,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)),
+            *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: Some((18, 22)),
                 variant: Type,
@@ -432,7 +431,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
-        evaluate(Rc::new(term));
+        evaluate(Rc::new(term)).unwrap();
     }
 
     #[test]
@@ -442,7 +441,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)),
+            *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: Some((46, 50)),
                 variant: Type,
@@ -457,7 +456,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)),
+            *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: Some((0, 7)),
                 variant: Integer,
@@ -472,7 +471,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)),
+            *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
@@ -487,7 +486,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)),
+            *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
@@ -502,7 +501,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)),
+            *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
