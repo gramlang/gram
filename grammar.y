@@ -21,9 +21,13 @@
 /* [tag:bison_tokens] [ref:tokens] */
 
 %token ASTERISK
+%token BOOLEAN
 %token COLON
+%token ELSE
 %token EQUALS
+%token FALSE
 %token IDENTIFIER
+%token IF
 %token INTEGER
 %token INTEGER_LITERAL
 %token LEFT_PAREN
@@ -32,8 +36,10 @@
 %token RIGHT_PAREN
 %token SLASH
 %token TERMINATOR
+%token THEN
 %token THICK_ARROW
 %token THIN_ARROW
+%token TRUE
 %token TYPE
 
 %%
@@ -62,6 +68,14 @@ integer: INTEGER;
 
 integer_literal: INTEGER_LITERAL;
 
+boolean: BOOLEAN;
+
+true: TRUE;
+
+false: FALSE;
+
+if: IF term THEN term ELSE term
+
 sum: medium_term PLUS large_term;
 
 difference: medium_term MINUS large_term;
@@ -72,7 +86,7 @@ quotient: small_term SLASH medium_term;
 
 group: LEFT_PAREN term RIGHT_PAREN;
 
-atom: type | variable | integer | integer_literal | group;
+atom: type | variable | integer | integer_literal | boolean | true | false | group;
 
 small_term: application | atom;
 
@@ -80,4 +94,4 @@ medium_term: product | quotient | small_term;
 
 large_term: sum | difference | medium_term;
 
-huge_term: non_dependent_pi | lambda | pi | large_term;
+huge_term: non_dependent_pi | lambda | pi | if | large_term;

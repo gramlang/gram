@@ -3,8 +3,8 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient,
-            Sum, Type, Variable,
+            Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
+            Product, Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -18,7 +18,14 @@ pub fn normalize_weak_head<'a>(
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
 ) -> Rc<Term<'a>> {
     match &term.variant {
-        Type | Lambda(_, _, _) | Pi(_, _, _) | Integer | IntegerLiteral(_) => {
+        Type
+        | Lambda(_, _, _)
+        | Pi(_, _, _)
+        | Integer
+        | IntegerLiteral(_)
+        | Boolean
+        | True
+        | False => {
             // These cases are already in beta normal form.
             term
         }
@@ -233,6 +240,24 @@ pub fn normalize_weak_head<'a>(
                 })
             }
         }
+        If(condition, then_branch, else_branch) => {
+            // Normalize the condition.
+            let normalized_condition = normalize_weak_head(condition.clone(), definitions_context);
+
+            // Pattern match on the condition.
+            match normalized_condition.variant {
+                True => normalize_weak_head(then_branch.clone(), definitions_context),
+                False => normalize_weak_head(else_branch.clone(), definitions_context),
+                _ => Rc::new(Term {
+                    source_range: None,
+                    variant: If(
+                        normalized_condition,
+                        then_branch.clone(),
+                        else_branch.clone(),
+                    ),
+                }),
+            }
+        }
     }
 }
 
@@ -243,7 +268,10 @@ mod tests {
         parser::parse,
         term::{
             Term,
-            Variant::{Application, Integer, IntegerLiteral, Lambda, Pi, Type, Variable},
+            Variant::{
+                Application, Boolean, False, Integer, IntegerLiteral, Lambda, Pi, True, Type,
+                Variable,
+            },
         },
         tokenizer::tokenize,
     };
@@ -628,6 +656,96 @@ mod tests {
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_boolean() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+        let source = "boolean";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: Some((0, 7)),
+                variant: Boolean,
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_true() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+        let source = "true";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: Some((0, 4)),
+                variant: True,
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_false() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+        let source = "false";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: Some((0, 5)),
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_if_true() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+        let source = "if true then 3 else 4";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: Some((13, 14)),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_if_false() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+        let source = "if false then 3 else 4";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: Some((21, 22)),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&4).unwrap()),
             },
         );
     }

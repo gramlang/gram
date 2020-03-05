@@ -7,14 +7,31 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient,
-            Sum, Type, Variable,
+            Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
+            Product, Quotient, Sum, True, Type, Variable,
         },
-        INTEGER_TERM, TYPE_TERM,
     },
 };
 use scopeguard::defer;
 use std::{cell::RefCell, path::Path, rc::Rc};
+
+// Construct the type of all types once here rather than constructing it many times later.
+pub const TYPE_TERM: Term = Term {
+    source_range: None,
+    variant: Type,
+};
+
+// Construct the type of integers once here rather than constructing it many times later.
+pub const INTEGER_TERM: Term = Term {
+    source_range: None,
+    variant: Integer,
+};
+
+// Construct the type of Booleans once here rather than constructing it many times later.
+pub const BOOLEAN_TERM: Term = Term {
+    source_range: None,
+    variant: Boolean,
+};
 
 // This is the top-level type checking function. Invariants:
 // - The two contexts have the same length.
@@ -28,7 +45,7 @@ pub fn type_check<'a>(
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
 ) -> Result<Rc<Term<'a>>, Error> {
     Ok(match &term.variant {
-        Type | Integer => Rc::new(TYPE_TERM),
+        Type | Integer | Boolean => Rc::new(TYPE_TERM),
         Variable(variable, index) => {
             // Check if we have a type for this variable.
             match &typing_context[typing_context.len() - 1 - *index] {
@@ -466,13 +483,12 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Reduce the type of the left summand to weak head normal form.
-            let summand1_type_whnf =
-                normalize_weak_head(summand1_type.clone(), definitions_context);
-
-            // Make sure the type of the left summand is the type of integers.
-            if let Integer = &summand1_type_whnf.variant {
-            } else {
+            // Check that the type of the left summand is the type of integers.
+            if !definitionally_equal(
+                summand1_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
                 return Err(if let Some(source_range) = summand1.source_range {
                     throw(
                         &format!(
@@ -506,13 +522,12 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Reduce the type of the right summand to weak head normal form.
-            let summand2_type_whnf =
-                normalize_weak_head(summand2_type.clone(), definitions_context);
-
-            // Make sure the type of the right summand is the type of integers.
-            if let Integer = &summand2_type_whnf.variant {
-            } else {
+            // Check that the type of the right summand is the type of integers.
+            if !definitionally_equal(
+                summand2_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
                 return Err(if let Some(source_range) = summand2.source_range {
                     throw(
                         &format!(
@@ -550,12 +565,12 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Reduce the type of the minuend to weak head normal form.
-            let minuend_type_whnf = normalize_weak_head(minuend_type.clone(), definitions_context);
-
-            // Make sure the type of the minuend is the type of integers.
-            if let Integer = &minuend_type_whnf.variant {
-            } else {
+            // Check that the type of the minuend is the type of integers.
+            if !definitionally_equal(
+                minuend_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
                 return Err(if let Some(source_range) = minuend.source_range {
                     throw(
                         &format!(
@@ -589,13 +604,12 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Reduce the type of the subtrahend to weak head normal form.
-            let subtrahend_type_whnf =
-                normalize_weak_head(subtrahend_type.clone(), definitions_context);
-
-            // Make sure the type of the subtrahend is the type of integers.
-            if let Integer = &subtrahend_type_whnf.variant {
-            } else {
+            // Check that the type of the subtrahend is the type of integers.
+            if !definitionally_equal(
+                subtrahend_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
                 return Err(if let Some(source_range) = subtrahend.source_range {
                     throw(
                         &format!(
@@ -633,12 +647,12 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Reduce the type of the left factor to weak head normal form.
-            let factor1_type_whnf = normalize_weak_head(factor1_type.clone(), definitions_context);
-
-            // Make sure the type of the left factor is the type of integers.
-            if let Integer = &factor1_type_whnf.variant {
-            } else {
+            // Check that the type of the left factor is the type of integers.
+            if !definitionally_equal(
+                factor1_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
                 return Err(if let Some(source_range) = factor1.source_range {
                     throw(
                         &format!(
@@ -672,12 +686,12 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Reduce the type of the right factor to weak head normal form.
-            let factor2_type_whnf = normalize_weak_head(factor2_type.clone(), definitions_context);
-
-            // Make sure the type of the right factor is the type of integers.
-            if let Integer = &factor2_type_whnf.variant {
-            } else {
+            // Check that the type of the right factor is the type of integers.
+            if !definitionally_equal(
+                factor2_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
                 return Err(if let Some(source_range) = factor2.source_range {
                     throw(
                         &format!(
@@ -705,7 +719,7 @@ pub fn type_check<'a>(
             // Return the type of integers.
             Rc::new(INTEGER_TERM)
         }
-        Quotient(dividend, subtrahend) => {
+        Quotient(dividend, divisor) => {
             // Infer the type of the dividend.
             let dividend_type = type_check(
                 source_path,
@@ -715,13 +729,12 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Reduce the type of the dividend to weak head normal form.
-            let dividend_type_whnf =
-                normalize_weak_head(dividend_type.clone(), definitions_context);
-
-            // Make sure the type of the dividend is the type of integers.
-            if let Integer = &dividend_type_whnf.variant {
-            } else {
+            // Check that the type of the dividend is the type of integers.
+            if !definitionally_equal(
+                dividend_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
                 return Err(if let Some(source_range) = dividend.source_range {
                     throw(
                         &format!(
@@ -736,7 +749,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Summand {} has type {} when {} was expected.",
+                            "Dividend {} has type {} when {} was expected.",
                             dividend.to_string().code_str(),
                             dividend_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
@@ -746,27 +759,26 @@ pub fn type_check<'a>(
                 });
             };
 
-            // Infer the type of the subtrahend.
-            let subtrahend_type = type_check(
+            // Infer the type of the divisor.
+            let divisor_type = type_check(
                 source_path,
                 source_contents,
-                &**subtrahend,
+                &**divisor,
                 typing_context,
                 definitions_context,
             )?;
 
-            // Reduce the type of the subtrahend to weak head normal form.
-            let subtrahend_type_whnf =
-                normalize_weak_head(subtrahend_type.clone(), definitions_context);
-
-            // Make sure the type of the subtrahend is the type of integers.
-            if let Integer = &subtrahend_type_whnf.variant {
-            } else {
-                return Err(if let Some(source_range) = subtrahend.source_range {
+            // Check that the type of the subtrahend is the type of integers.
+            if !definitionally_equal(
+                divisor_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
+                return Err(if let Some(source_range) = divisor.source_range {
                     throw(
                         &format!(
                             "This has type {} when {} was expected.",
-                            subtrahend_type.to_string().code_str(),
+                            divisor_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
                         source_path,
@@ -776,9 +788,9 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Dividend {} has type {} when {} was expected.",
-                            subtrahend.to_string().code_str(),
-                            subtrahend_type.to_string().code_str(),
+                            "Divisor {} has type {} when {} was expected.",
+                            divisor.to_string().code_str(),
+                            divisor_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
                         reason: None,
@@ -789,6 +801,100 @@ pub fn type_check<'a>(
             // Return the type of integers.
             Rc::new(INTEGER_TERM)
         }
+        If(condition, then_branch, else_branch) => {
+            // Infer the type of the condition.
+            let condition_type = type_check(
+                source_path,
+                source_contents,
+                &**condition,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Check that the type of the condition is the type of Booleans.
+            if !definitionally_equal(
+                condition_type.clone(),
+                Rc::new(BOOLEAN_TERM),
+                definitions_context,
+            ) {
+                return Err(if let Some(source_range) = condition.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            condition_type.to_string().code_str(),
+                            BOOLEAN_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Condition {} has type {} when {} was expected.",
+                            condition.to_string().code_str(),
+                            condition_type.to_string().code_str(),
+                            BOOLEAN_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Infer the type of the then branch.
+            let then_branch_type = type_check(
+                source_path,
+                source_contents,
+                &**then_branch,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Infer the type of the else branch.
+            let else_branch_type = type_check(
+                source_path,
+                source_contents,
+                &**else_branch,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Check that the types of the two branches are definitionally equal.
+            if !definitionally_equal(
+                then_branch_type.clone(),
+                else_branch_type.clone(),
+                definitions_context,
+            ) {
+                return Err(if let Some(source_range) = term.source_range {
+                    throw(
+                        &format!(
+                            "The two branches of this conditional don\u{2019}t match. The then \
+                                branch has type {}, but the else branch has type {}.",
+                            then_branch.to_string().code_str(),
+                            else_branch.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "The two branches of conditional {} don\u{2019}t match. The then \
+                                branch has type {}, but the else branch has type {}.",
+                            term.to_string().code_str(),
+                            then_branch.to_string().code_str(),
+                            else_branch.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Return the type of integers.
+            Rc::new(INTEGER_TERM)
+        }
+        True | False => Rc::new(BOOLEAN_TERM),
     })
 }
 
@@ -1176,6 +1282,81 @@ mod tests {
         let mut definitions_context = vec![];
         let term_source = "7 / 2";
         let type_source = "integer";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_boolean() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "boolean";
+        let type_source = "type";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_true() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "true";
+        let type_source = "boolean";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_false() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "false";
+        let type_source = "boolean";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();

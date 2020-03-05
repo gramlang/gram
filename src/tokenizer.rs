@@ -1,12 +1,16 @@
 use crate::{
     error::{throw, Error},
     format::CodeStr,
-    token::{TerminatorType, Token, Variant, INTEGER_KEYWORD, TYPE_KEYWORD},
+    token::{
+        TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD,
+        INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+    },
 };
 use num_bigint::BigInt;
 use std::path::Path;
 
 // Tokenize the contents of a source file.
+#[allow(clippy::cognitive_complexity)]
 #[allow(clippy::too_many_lines)]
 pub fn tokenize<'a>(
     source_path: Option<&'a Path>,
@@ -86,11 +90,17 @@ pub fn tokenize<'a>(
                         | Variant::Terminator(TerminatorType::LineBreak) /* [tag:no_consecutive_line_break_terminators] */
                         | Variant::ThickArrow
                         | Variant::ThinArrow => false,
-                        Variant::RightParen
+                        Variant::Boolean
+                        | Variant::Else
+                        | Variant::False
                         | Variant::Identifier(_)
+                        | Variant::If
                         | Variant::Integer
                         | Variant::IntegerLiteral(_)
+                        | Variant::RightParen
                         | Variant::Terminator(TerminatorType::Semicolon)
+                        | Variant::Then
+                        | Variant::True
                         | Variant::Type => true,
                     }
                 {
@@ -137,15 +147,45 @@ pub fn tokenize<'a>(
                     }
                 }
 
-                if &source_contents[i..end] == TYPE_KEYWORD {
+                if &source_contents[i..end] == BOOLEAN_KEYWORD {
                     tokens.push(Token {
                         source_range: (i, end),
-                        variant: Variant::Type,
+                        variant: Variant::Boolean,
+                    });
+                } else if &source_contents[i..end] == ELSE_KEYWORD {
+                    tokens.push(Token {
+                        source_range: (i, end),
+                        variant: Variant::Else,
+                    });
+                } else if &source_contents[i..end] == FALSE_KEYWORD {
+                    tokens.push(Token {
+                        source_range: (i, end),
+                        variant: Variant::False,
+                    });
+                } else if &source_contents[i..end] == IF_KEYWORD {
+                    tokens.push(Token {
+                        source_range: (i, end),
+                        variant: Variant::If,
                     });
                 } else if &source_contents[i..end] == INTEGER_KEYWORD {
                     tokens.push(Token {
                         source_range: (i, end),
                         variant: Variant::Integer,
+                    });
+                } else if &source_contents[i..end] == THEN_KEYWORD {
+                    tokens.push(Token {
+                        source_range: (i, end),
+                        variant: Variant::Then,
+                    });
+                } else if &source_contents[i..end] == TRUE_KEYWORD {
+                    tokens.push(Token {
+                        source_range: (i, end),
+                        variant: Variant::True,
+                    });
+                } else if &source_contents[i..end] == TYPE_KEYWORD {
+                    tokens.push(Token {
+                        source_range: (i, end),
+                        variant: Variant::Type,
                     });
                 } else {
                     tokens.push(Token {
@@ -221,11 +261,17 @@ pub fn tokenize<'a>(
                     | Variant::Slash
                     | Variant::ThickArrow
                     | Variant::ThinArrow => false,
-                    Variant::Identifier(_)
+                    Variant::Boolean
+                    | Variant::Else
+                    | Variant::False
+                    | Variant::Identifier(_)
+                    | Variant::If
                     | Variant::Integer
                     | Variant::IntegerLiteral(_)
                     | Variant::LeftParen
                     | Variant::Terminator(TerminatorType::Semicolon)
+                    | Variant::Then
+                    | Variant::True
                     | Variant::Type => true,
                     Variant::Terminator(TerminatorType::LineBreak) => {
                         // [ref:no_consecutive_line_break_terminators]
@@ -248,7 +294,10 @@ pub fn tokenize<'a>(
 mod tests {
     use crate::{
         assert_fails,
-        token::{TerminatorType, Token, Variant, INTEGER_KEYWORD, TYPE_KEYWORD},
+        token::{
+            TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
+            IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+        },
         tokenizer::tokenize,
     };
     use num_bigint::ToBigInt;
@@ -280,12 +329,34 @@ mod tests {
     }
 
     #[test]
+    fn tokenize_boolean() {
+        assert_eq!(
+            tokenize(None, BOOLEAN_KEYWORD).unwrap(),
+            vec![Token {
+                source_range: (0, BOOLEAN_KEYWORD.len()),
+                variant: Variant::Boolean,
+            }],
+        );
+    }
+
+    #[test]
     fn tokenize_colon() {
         assert_eq!(
             tokenize(None, ":").unwrap(),
             vec![Token {
                 source_range: (0, 1),
                 variant: Variant::Colon,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_else() {
+        assert_eq!(
+            tokenize(None, ELSE_KEYWORD).unwrap(),
+            vec![Token {
+                source_range: (0, ELSE_KEYWORD.len()),
+                variant: Variant::Else,
             }],
         );
     }
@@ -302,12 +373,34 @@ mod tests {
     }
 
     #[test]
+    fn tokenize_false() {
+        assert_eq!(
+            tokenize(None, FALSE_KEYWORD).unwrap(),
+            vec![Token {
+                source_range: (0, FALSE_KEYWORD.len()),
+                variant: Variant::False,
+            }],
+        );
+    }
+
+    #[test]
     fn tokenize_identifier() {
         assert_eq!(
             tokenize(None, "\u{5e78}\u{798f}").unwrap(),
             vec![Token {
                 source_range: (0, 6),
                 variant: Variant::Identifier("\u{5e78}\u{798f}"),
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_if() {
+        assert_eq!(
+            tokenize(None, IF_KEYWORD).unwrap(),
+            vec![Token {
+                source_range: (0, IF_KEYWORD.len()),
+                variant: Variant::If,
             }],
         );
     }
@@ -452,6 +545,17 @@ mod tests {
     }
 
     #[test]
+    fn tokenize_then() {
+        assert_eq!(
+            tokenize(None, THEN_KEYWORD).unwrap(),
+            vec![Token {
+                source_range: (0, THEN_KEYWORD.len()),
+                variant: Variant::Then,
+            }],
+        );
+    }
+
+    #[test]
     fn tokenize_thick_arrow() {
         assert_eq!(
             tokenize(None, "=>").unwrap(),
@@ -469,6 +573,17 @@ mod tests {
             vec![Token {
                 source_range: (0, 2),
                 variant: Variant::ThinArrow,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_true() {
+        assert_eq!(
+            tokenize(None, TRUE_KEYWORD).unwrap(),
+            vec![Token {
+                source_range: (0, TRUE_KEYWORD.len()),
+                variant: Variant::True,
             }],
         );
     }

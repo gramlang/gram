@@ -1,8 +1,8 @@
 use crate::term::{
     Term,
     Variant::{
-        Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient, Sum,
-        Type, Variable,
+        Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
+        Product, Quotient, Sum, True, Type, Variable,
     },
 };
 use std::{cmp::Ordering, collections::HashSet, rc::Rc};
@@ -12,7 +12,7 @@ use std::{cmp::Ordering, collections::HashSet, rc::Rc};
 // preserving its meaning.
 pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a>> {
     match &term.variant {
-        Type | Integer | IntegerLiteral(_) => term,
+        Type | Integer | IntegerLiteral(_) | Boolean | True | False => term,
         Variable(variable, index) => {
             if *index >= cutoff {
                 Rc::new(Term {
@@ -98,6 +98,14 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
                 shift(divisor.clone(), cutoff, amount),
             ),
         }),
+        If(condition, then_branch, else_branch) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: If(
+                shift(condition.clone(), cutoff, amount),
+                shift(then_branch.clone(), cutoff, amount),
+                shift(else_branch.clone(), cutoff, amount),
+            ),
+        }),
     }
 }
 
@@ -105,13 +113,14 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
 // of the variables corresponding to entries in the context appearing earlier than the one
 // corresponding to the variable being substituted. This operation is used to perform beta
 // reduction.
+#[allow(clippy::too_many_lines)]
 pub fn open<'a>(
     term_to_open: Rc<Term<'a>>,
     index_to_replace: usize,
     term_to_insert: Rc<Term<'a>>,
 ) -> Rc<Term<'a>> {
     match &term_to_open.variant {
-        Type | Integer | IntegerLiteral(_) => term_to_open,
+        Type | Integer | IntegerLiteral(_) | Boolean | True | False => term_to_open,
         Variable(variable, index) => match index.cmp(&index_to_replace) {
             Ordering::Greater => Rc::new(Term {
                 source_range: term_to_open.source_range,
@@ -203,6 +212,18 @@ pub fn open<'a>(
                 open(divisor.clone(), index_to_replace, term_to_insert),
             ),
         }),
+        If(condition, then_branch, else_branch) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: If(
+                open(condition.clone(), index_to_replace, term_to_insert.clone()),
+                open(
+                    then_branch.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                ),
+                open(else_branch.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
     }
 }
 
@@ -210,7 +231,7 @@ pub fn open<'a>(
 // This function includes free variables in type annotations.
 pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSet<usize>) {
     match &term.variant {
-        Type | Integer | IntegerLiteral(_) => {}
+        Type | Integer | IntegerLiteral(_) | Boolean | True | False => {}
         Variable(_, index) => {
             if *index >= cutoff {
                 variables.insert(*index - cutoff);
@@ -255,6 +276,11 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
             free_variables(dividend, cutoff, variables);
             free_variables(divisor, cutoff, variables);
         }
+        If(condition, then_branch, else_branch) => {
+            free_variables(condition, cutoff, variables);
+            free_variables(then_branch, cutoff, variables);
+            free_variables(else_branch, cutoff, variables);
+        }
     }
 }
 
@@ -265,11 +291,11 @@ mod tests {
         term::{
             Term,
             Variant::{
-                Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product,
-                Quotient, Sum, Type, Variable,
+                Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let,
+                Pi, Product, Quotient, Sum, True, Type, Variable,
             },
         },
-        token::{INTEGER_KEYWORD, TYPE_KEYWORD},
+        token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
     };
     use num_bigint::ToBigInt;
     use std::{collections::HashSet, rc::Rc};
@@ -690,6 +716,104 @@ mod tests {
                     Rc::new(Term {
                         source_range: Some((111, 112)),
                         variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_boolean() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                    variant: Boolean,
+                }),
+                0,
+                42,
+            ),
+            Term {
+                source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                variant: Boolean,
+            },
+        );
+    }
+
+    #[test]
+    fn shift_true() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((0, TRUE_KEYWORD.len())),
+                    variant: True,
+                }),
+                0,
+                42,
+            ),
+            Term {
+                source_range: Some((0, TRUE_KEYWORD.len())),
+                variant: True,
+            },
+        );
+    }
+
+    #[test]
+    fn shift_false() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((0, FALSE_KEYWORD.len())),
+                    variant: False,
+                }),
+                0,
+                42,
+            ),
+            Term {
+                source_range: Some((0, FALSE_KEYWORD.len())),
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
+    fn shift_if() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: If(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((121, 122)),
+                            variant: Variable("c", 2),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: If(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((121, 122)),
+                        variant: Variable("c", 44),
                     }),
                 ),
             },
@@ -1179,6 +1303,116 @@ mod tests {
     }
 
     #[test]
+    fn open_boolean() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                    variant: Boolean,
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("y", 0),
+                }),
+            ),
+            Term {
+                source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                variant: Boolean,
+            },
+        );
+    }
+
+    #[test]
+    fn open_true() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((0, TRUE_KEYWORD.len())),
+                    variant: True,
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("y", 0),
+                }),
+            ),
+            Term {
+                source_range: Some((0, TRUE_KEYWORD.len())),
+                variant: True,
+            },
+        );
+    }
+
+    #[test]
+    fn open_false() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((0, FALSE_KEYWORD.len())),
+                    variant: False,
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("y", 0),
+                }),
+            ),
+            Term {
+                source_range: Some((0, FALSE_KEYWORD.len())),
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
+    fn open_if() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: If(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((121, 122)),
+                            variant: Variable("c", 2),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: If(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((121, 122)),
+                        variant: Variable("c", 1),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
     fn free_variables_type() {
         let mut variables = HashSet::new();
 
@@ -1487,5 +1721,84 @@ mod tests {
 
         assert!(variables.contains(&5));
         assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_boolean() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                variant: Boolean,
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_true() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((0, TRUE_KEYWORD.len())),
+                variant: True,
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_false() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((0, FALSE_KEYWORD.len())),
+                variant: False,
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_if() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((97, 112)),
+                variant: If(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 16),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((121, 122)),
+                        variant: Variable("c", 17),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+        assert!(variables.contains(&7));
     }
 }

@@ -63,46 +63,27 @@ struct Term<'a> {
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug, Eq, PartialEq)]
 enum Variant<'a> {
-    // This is the type of all types, including itself.
     Type,
-
-    // A variable is a placeholder bound by a lambda, pi type, or let.
     Variable(SourceVariable<'a>),
-
-    // A lambda, or dependent function, is a computable function.
     Lambda(SourceVariable<'a>, Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // Pi types, or dependent function types, are the types ascribed to lambdas.
     Pi(SourceVariable<'a>, Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // An application is the act of applying a lambda to an argument.
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // A let is a local variable definition with an optional type annotation.
     Let(
         SourceVariable<'a>,
         Option<Rc<Term<'a>>>,
         Rc<Term<'a>>,
         Rc<Term<'a>>,
     ),
-
-    // This is the type of integers.
     Integer,
-
-    // An integer supports arbitrary-precision arithmetic.
     IntegerLiteral(BigInt),
-
-    // A sum of two summands.
     Sum(Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // A difference of a minuend and a subtrahend.
     Difference(Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // A product of two factors.
     Product(Rc<Term<'a>>, Rc<Term<'a>>),
-
-    // A quotient of a dividend and a divisor.
     Quotient(Rc<Term<'a>>, Rc<Term<'a>>),
+    Boolean,
+    True,
+    False,
+    If(Rc<Term<'a>>, Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
 // For variables, we store the name of the variable and its source range. The source range allows
@@ -146,6 +127,10 @@ enum CacheType {
     Difference,
     Product,
     Quotient,
+    Boolean,
+    True,
+    False,
+    If,
     Group,
     Atom,
     SmallTerm,
@@ -575,9 +560,13 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
     // to construct an application with the accumulator as the applicand and the reduced term as
     // the argument. In the application case, we build up the accumulator.
     let reduced = match &term.variant {
-        Variant::Type | Variant::Variable(_) | Variant::Integer | Variant::IntegerLiteral(_) => {
-            term
-        }
+        Variant::Type
+        | Variant::Variable(_)
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => term,
         Variant::Lambda(variable, domain, body) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
@@ -679,6 +668,15 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, divisor.clone()),
             ),
         }),
+        Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::If(
+                reassociate_applications(None, condition.clone()),
+                reassociate_applications(None, then_branch.clone()),
+                reassociate_applications(None, else_branch.clone()),
+            ),
+        }),
     };
 
     // We end up here as long as `term` isn't an application. If we have an accumulator, construct
@@ -705,9 +703,13 @@ fn reassociate_sums_and_differences<'a>(
     // reduced term as the right subterm. In the sum and difference cases, we build up the
     // accumulator.
     let reduced = match &term.variant {
-        Variant::Type | Variant::Variable(_) | Variant::Integer | Variant::IntegerLiteral(_) => {
-            term
-        }
+        Variant::Type
+        | Variant::Variable(_)
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => term,
         Variant::Lambda(variable, domain, body) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
@@ -858,6 +860,15 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, divisor.clone()),
             ),
         }),
+        Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::If(
+                reassociate_sums_and_differences(None, condition.clone()),
+                reassociate_sums_and_differences(None, then_branch.clone()),
+                reassociate_sums_and_differences(None, else_branch.clone()),
+            ),
+        }),
     };
 
     // We end up here as long as `term` isn't a sum or difference. If we have an accumulator,
@@ -887,9 +898,13 @@ fn reassociate_products_and_quotients<'a>(
     // reduced term as the right subterm. In the product and quotient cases, we build up the
     // accumulator.
     let reduced = match &term.variant {
-        Variant::Type | Variant::Variable(_) | Variant::Integer | Variant::IntegerLiteral(_) => {
-            term
-        }
+        Variant::Type
+        | Variant::Variable(_)
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => term,
         Variant::Lambda(variable, domain, body) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
@@ -1040,6 +1055,15 @@ fn reassociate_products_and_quotients<'a>(
                 )
             };
         }
+        Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::If(
+                reassociate_products_and_quotients(None, condition.clone()),
+                reassociate_products_and_quotients(None, then_branch.clone()),
+                reassociate_products_and_quotients(None, else_branch.clone()),
+            ),
+        }),
     };
 
     // We end up here as long as `term` isn't a product or quotient. If we have an accumulator,
@@ -1426,6 +1450,56 @@ fn resolve_variables<'a>(
                 ),
             }
         }
+        Variant::Boolean => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::Boolean,
+            }
+        }
+        Variant::True => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::True,
+            }
+        }
+        Variant::False => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::False,
+            }
+        }
+        Variant::If(condition, then_branch, else_branch) => {
+            // Just resolve variables in the condition and branches.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::If(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*condition,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*then_branch,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*else_branch,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
     })
 }
 
@@ -1555,7 +1629,7 @@ fn parse_type<'a, 'b>(
     // Consume the keyword.
     let next = consume_token!(cache, Type, start, tokens, Type, start, error, Low);
 
-    // Construct and return the variable.
+    // Construct and return the value.
     cache_return!(
         cache,
         Type,
@@ -2199,6 +2273,141 @@ fn parse_quotient<'a, 'b>(
     )
 }
 
+// Parse the type of Booleans.
+fn parse_boolean<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, Boolean, start, error);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, Boolean, start, tokens, Boolean, start, error, Low);
+
+    // Construct and return the value.
+    cache_return!(
+        cache,
+        Boolean,
+        start,
+        Some((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::Boolean,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse the logical true value.
+fn parse_true<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, True, start, error);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, True, start, tokens, True, start, error, Low);
+
+    // Construct and return the value.
+    cache_return!(
+        cache,
+        True,
+        start,
+        Some((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::True,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse the logical false value.
+fn parse_false<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, False, start, error);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, False, start, tokens, False, start, error, Low);
+
+    // Construct and return the value.
+    cache_return!(
+        cache,
+        False,
+        start,
+        Some((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::False,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse an if expression.
+fn parse_if<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, If, start, error);
+
+    // Consume the `if` keyword.
+    let next = consume_token!(cache, If, start, tokens, If, start, error, Low);
+
+    // Parse the conditional.
+    let (conditional, next) = try_eval!(cache, If, start, parse_term(cache, tokens, next, error));
+
+    // Consume the `then` keyword.
+    let next = consume_token!(cache, If, start, tokens, Then, next, error, Low);
+
+    // Parse the then branch.
+    let (then_branch, next) = try_eval!(cache, If, start, parse_term(cache, tokens, next, error));
+
+    // Consume the `else` keyword.
+    let next = consume_token!(cache, If, start, tokens, Else, next, error, Low);
+
+    // Parse the else branch.
+    let (else_branch, next) = try_eval!(cache, If, start, parse_term(cache, tokens, next, error));
+
+    // Construct and return the if expression.
+    cache_return!(
+        cache,
+        If,
+        start,
+        Some((
+            Term {
+                source_range: (tokens[start].source_range.0, else_branch.source_range.1),
+                group: false,
+                variant: Variant::If(
+                    Rc::new(conditional),
+                    Rc::new(then_branch),
+                    Rc::new(else_branch),
+                ),
+            },
+            next,
+        )),
+    )
+}
+
 // Parse a group.
 fn parse_group<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
@@ -2277,6 +2486,20 @@ fn parse_atom<'a, 'b>(
         start,
         parse_integer_literal(cache, tokens, start, error)
     );
+
+    // Try to parse the type of Booleans.
+    try_return!(
+        cache,
+        Atom,
+        start,
+        parse_boolean(cache, tokens, start, error)
+    );
+
+    // Try to parse the logical true value.
+    try_return!(cache, Atom, start, parse_true(cache, tokens, start, error));
+
+    // Try to parse the logical false value.
+    try_return!(cache, Atom, start, parse_false(cache, tokens, start, error));
 
     // Try to parse a group.
     try_return!(cache, Atom, start, parse_group(cache, tokens, start, error));
@@ -2441,6 +2664,14 @@ fn parse_huge_term<'a, 'b>(
         parse_pi(cache, tokens, start, error)
     );
 
+    // Try to parse an if expression.
+    try_return!(
+        cache,
+        HugeTerm,
+        start,
+        parse_if(cache, tokens, start, error)
+    );
+
     // Try to parse a large term.
     try_return!(
         cache,
@@ -2465,8 +2696,8 @@ mod tests {
         term::{
             Term,
             Variant::{
-                Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product,
-                Quotient, Sum, Type, Variable,
+                Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let,
+                Pi, Product, Quotient, Sum, True, Type, Variable,
             },
         },
         tokenizer::tokenize,
@@ -3057,6 +3288,79 @@ mod tests {
                                 ),
                             }),
                         ),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_boolean() {
+        let source = "boolean";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 7)),
+                variant: Boolean,
+            },
+        );
+    }
+
+    #[test]
+    fn parse_true() {
+        let source = "true";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 4)),
+                variant: True,
+            },
+        );
+    }
+
+    #[test]
+    fn parse_false() {
+        let source = "false";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 5)),
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
+    fn parse_if() {
+        let source = "if true then 0 else 1";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 21)),
+                variant: If(
+                    Rc::new(Term {
+                        source_range: Some((3, 7)),
+                        variant: True,
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((13, 14)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&0).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((20, 21)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                 ),
             },
