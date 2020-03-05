@@ -891,8 +891,8 @@ pub fn type_check<'a>(
                 });
             };
 
-            // Return the type of integers.
-            Rc::new(INTEGER_TERM)
+            // Return the type of the branches.
+            then_branch_type
         }
         True | False => Rc::new(BOOLEAN_TERM),
     })
