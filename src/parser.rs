@@ -1,12 +1,19 @@
 use crate::{
+    de_bruijn::free_variables,
     error::{throw, Error},
+    evaluator::is_value,
     format::CodeStr,
     term,
     token::{self, TerminatorType, Token},
 };
 use num_bigint::BigInt;
 use scopeguard::defer;
-use std::{cell::RefCell, cmp::max, collections::HashMap, path::Path, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::{HashMap, HashSet},
+    path::Path,
+    rc::Rc,
+};
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
 // linear-time parsing.
@@ -869,33 +876,20 @@ fn resolve_variables<'a>(
                 ));
             }
 
-            // Ensure that forward references make semantic sense.
-            let mut availability_cache = HashMap::new();
+            // Ensure forward references make semantic sense.
             for i in 0..resolved_definitions.len() {
-                // Calculate the availability of the definition.
-                availability_cache.entry(i).or_insert(0);
-                let availability = get_availability(
-                    &resolved_definitions,
-                    new_depth,
-                    &resolved_definitions[i].2,
-                    new_depth,
-                    i + 1,
-                    &mut availability_cache,
-                );
-                availability_cache.insert(i, availability);
+                if !is_value(&resolved_definitions[i].2) {
+                    let mut visited = HashSet::new();
 
-                // Check that the definition is available for the subsequent definition.
-                if availability > i + 1 {
-                    return Err(throw(
-                        &format!(
-                            "The definition of variable {} references variables which are not yet \
-                                available.",
-                            definitions[i].0.name.code_str(),
-                        ),
+                    check_references(
                         source_path,
                         source_contents,
-                        definitions[i].0.source_range,
-                    ));
+                        &resolved_definitions,
+                        new_depth,
+                        i,
+                        i,
+                        &mut visited,
+                    )?;
                 }
             }
 
@@ -903,7 +897,7 @@ fn resolve_variables<'a>(
             let mut guard = context_cell.borrow_mut();
             let (borrowed_context, _) = &mut (*guard);
 
-            // Construct the let.
+            // Resolve definitions in the body and construct the let.
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Let(
@@ -994,183 +988,73 @@ fn collect_definitions<'a>(
     }
 }
 
-// Definitions may be used out of order or in a mutually recursive way, subject to two
-// restrictions:
-//
-// 1. A definition is not available before its free variables are available.
-// 2. A definition is not available before it has been evaluated, unless it's already a value.
-//
-// This function returns the position of the first definition that may use the given definition.
-#[allow(clippy::too_many_lines)]
+// This function is used to ensure forward references in lets make semantic sense.
 #[allow(clippy::type_complexity)]
-fn get_availability<'a>(
+fn check_references<'a>(
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
     definitions: &[(&'a str, Option<Rc<term::Term<'a>>>, Rc<term::Term<'a>>)],
     definitions_depth: usize, // Assumes the definitions have already been added to the context
-    term: &Rc<term::Term<'a>>,
-    term_depth: usize,
-    min_position_if_not_value: usize,  // 0 is the first definition.
-    cache: &mut HashMap<usize, usize>, // Map from definition position to availability
-) -> usize {
-    match &term.variant {
-        term::Variant::Type
-        | term::Variant::Pi(_, _, _)
-        | term::Variant::Integer
-        | term::Variant::IntegerLiteral(_) => {
-            // These variants can be used by any definition since they are already fully evaluated.
-            0
-        }
-        term::Variant::Variable(_, index) => {
+    start_index: usize,       // [0, definitions.len())
+    current_index: usize,     // [0, definitions.len())
+    visited: &mut HashSet<usize>,
+) -> Result<(), Error> {
+    // Collect the free variables of the definition.
+    let mut variables = HashSet::new();
+    free_variables(&definitions[current_index].2, 0, &mut variables);
+
+    // For each free variable bound by the let, check the corresponding definition.
+    for variable in variables {
+        if variable < definitions.len() {
             // Compute this once rather than multiple times.
-            let variable_offset = term_depth - 1 - index;
+            let definition_index = definitions.len() - 1 - variable;
 
-            // Check if the variable points to one of the definitions.
-            if variable_offset >= definitions_depth - definitions.len()
-                && variable_offset < definitions_depth
-            {
-                // Compute this once rather than multiple times.
-                let definition_position = variable_offset - (definitions_depth - definitions.len());
-
-                // Check the cache.
-                if let Some(availability) = cache.get(&definition_position) {
-                    // We've already seen the definition of this variable. Return the result from
-                    // cache.
-                    *availability
-                } else {
-                    // Recurse on the definition of the variable.
-                    let availability = get_availability(
+            // Check if we've visited this definition before.
+            if visited.insert(definition_index) {
+                // If the definition is a value, recurse on it. Otherwise, ensure the definition
+                // will be evaluated before the original definition.
+                if is_value(&definitions[definition_index].2) {
+                    check_references(
+                        source_path,
+                        source_contents,
                         definitions,
                         definitions_depth,
-                        &definitions[definition_position].2,
-                        definitions_depth,
-                        definition_position + 1,
-                        cache,
+                        start_index,
+                        definition_index,
+                        visited,
+                    )?;
+                } else if definition_index >= start_index {
+                    return Err(
+                        if let Some(source_range) = definitions[start_index].2.source_range {
+                            throw(
+                                &format!(
+                                    "The definition of {} references {} (directly or indirectly), \
+                                        which will not be available in time during evaluation.",
+                                    definitions[start_index].0.code_str(),
+                                    definitions[definition_index].0.code_str(),
+                                ),
+                                source_path,
+                                source_contents,
+                                source_range,
+                            )
+                        } else {
+                            Error {
+                                message: format!(
+                                    "The definition of {} references {} (directly or indirectly), \
+                                        which will not be available in time during evaluation.",
+                                    definitions[start_index].0.code_str(),
+                                    definitions[definition_index].0.code_str(),
+                                ),
+                                reason: None,
+                            }
+                        },
                     );
-
-                    // Update the cache and return the result.
-                    cache.insert(definition_position, availability);
-                    availability
                 }
-            } else {
-                // The variable can be used by any definition.
-                0
             }
         }
-        term::Variant::Lambda(_, _, body) => {
-            // A lambdas does not need to be evaluated. Just check the availabilities of its free
-            // variables.
-            get_availability(
-                definitions,
-                definitions_depth,
-                body,
-                term_depth + 1,
-                0,
-                cache,
-            )
-        }
-        term::Variant::Application(applicand, argument) => {
-            // An application must be evaluated before it can be used.
-            max(
-                min_position_if_not_value,
-                max(
-                    get_availability(
-                        definitions,
-                        definitions_depth,
-                        applicand,
-                        term_depth,
-                        min_position_if_not_value,
-                        cache,
-                    ),
-                    get_availability(
-                        definitions,
-                        definitions_depth,
-                        argument,
-                        term_depth,
-                        min_position_if_not_value,
-                        cache,
-                    ),
-                ),
-            )
-        }
-        term::Variant::Let(nested_definitions, body) => {
-            // A let must be evaluated before it can be used.
-            max(
-                min_position_if_not_value,
-                max(
-                    nested_definitions
-                        .iter()
-                        .fold(0, |acc, (_, _, definition)| {
-                            max(
-                                acc,
-                                get_availability(
-                                    definitions,
-                                    definitions_depth,
-                                    definition,
-                                    term_depth + nested_definitions.len(),
-                                    min_position_if_not_value,
-                                    cache,
-                                ),
-                            )
-                        }),
-                    get_availability(
-                        definitions,
-                        definitions_depth,
-                        body,
-                        term_depth + nested_definitions.len(),
-                        min_position_if_not_value,
-                        cache,
-                    ),
-                ),
-            )
-        }
-        term::Variant::Sum(summand1, summand2) => {
-            // A sum must be evaluated before it can be used.
-            max(
-                min_position_if_not_value,
-                max(
-                    get_availability(
-                        definitions,
-                        definitions_depth,
-                        summand1,
-                        term_depth,
-                        min_position_if_not_value,
-                        cache,
-                    ),
-                    get_availability(
-                        definitions,
-                        definitions_depth,
-                        summand2,
-                        term_depth,
-                        min_position_if_not_value,
-                        cache,
-                    ),
-                ),
-            )
-        }
-        term::Variant::Difference(minuend, subtrahend) => {
-            // A difference must be evaluated before it can be used.
-            max(
-                min_position_if_not_value,
-                max(
-                    get_availability(
-                        definitions,
-                        definitions_depth,
-                        minuend,
-                        term_depth,
-                        min_position_if_not_value,
-                        cache,
-                    ),
-                    get_availability(
-                        definitions,
-                        definitions_depth,
-                        subtrahend,
-                        term_depth,
-                        min_position_if_not_value,
-                        cache,
-                    ),
-                ),
-            )
-        }
     }
+
+    Ok(())
 }
 
 // Parse a term.
