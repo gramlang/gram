@@ -3,7 +3,8 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient,
+            Sum, Type, Variable,
         },
     },
 };
@@ -171,7 +172,64 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Sum(normalized_minuend, normalized_subtrahend),
+                    variant: Difference(normalized_minuend, normalized_subtrahend),
+                })
+            }
+        }
+        Product(factor1, factor2) => {
+            // Normalize the left factor.
+            let normalized_factor1 = normalize_weak_head(factor1.clone(), definitions_context);
+
+            // Normalize the right factor.
+            let normalized_factor2 = normalize_weak_head(factor2.clone(), definitions_context);
+
+            // Check if the factors reduced to integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&normalized_factor1.variant, &normalized_factor2.variant)
+            {
+                // Perform multiplication.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: IntegerLiteral(integer1 * integer2),
+                })
+            } else {
+                // We didn't get integer literals. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Product(normalized_factor1, normalized_factor2),
+                })
+            }
+        }
+        Quotient(dividend, divisor) => {
+            // Normalize the dividend.
+            let normalized_dividend = normalize_weak_head(dividend.clone(), definitions_context);
+
+            // Normalize the divisor.
+            let normalized_divisor = normalize_weak_head(divisor.clone(), definitions_context);
+
+            // Check if the dividend and divisor reduced to integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&normalized_dividend.variant, &normalized_divisor.variant)
+            {
+                // Attempt to perform division.
+                if let Some(quotient) = integer1.checked_div(integer2) {
+                    // The division was successful.
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: IntegerLiteral(quotient),
+                    })
+                } else {
+                    // Division by zero!
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Quotient(normalized_dividend, normalized_divisor),
+                    })
+                }
+            } else {
+                // We didn't get integer literals. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Quotient(normalized_dividend, normalized_divisor),
                 })
             }
         }
@@ -534,6 +592,42 @@ mod tests {
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_product() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "2 * 3";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&6).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_quotient() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "7 / 2";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
             },
         );
     }

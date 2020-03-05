@@ -7,7 +7,8 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+            Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient,
+            Sum, Type, Variable,
         },
         INTEGER_TERM, TYPE_TERM,
     },
@@ -569,7 +570,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Summand {} has type {} when {} was expected.",
+                            "Minuend {} has type {} when {} was expected.",
                             minuend.to_string().code_str(),
                             minuend_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
@@ -609,7 +610,173 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
+                            "Subtrahend {} has type {} when {} was expected.",
+                            subtrahend.to_string().code_str(),
+                            subtrahend_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Return the type of integers.
+            Rc::new(INTEGER_TERM)
+        }
+        Product(factor1, factor2) => {
+            // Infer the type of the left factor.
+            let factor1_type = type_check(
+                source_path,
+                source_contents,
+                &**factor1,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Reduce the type of the left factor to weak head normal form.
+            let factor1_type_whnf = normalize_weak_head(factor1_type.clone(), definitions_context);
+
+            // Make sure the type of the left factor is the type of integers.
+            if let Integer = &factor1_type_whnf.variant {
+            } else {
+                return Err(if let Some(source_range) = factor1.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            factor1_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
                             "Summand {} has type {} when {} was expected.",
+                            factor1.to_string().code_str(),
+                            factor1_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Infer the type of the right factor.
+            let factor2_type = type_check(
+                source_path,
+                source_contents,
+                &**factor2,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Reduce the type of the right factor to weak head normal form.
+            let factor2_type_whnf = normalize_weak_head(factor2_type.clone(), definitions_context);
+
+            // Make sure the type of the right factor is the type of integers.
+            if let Integer = &factor2_type_whnf.variant {
+            } else {
+                return Err(if let Some(source_range) = factor2.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            factor2_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Factor {} has type {} when {} was expected.",
+                            factor2.to_string().code_str(),
+                            factor2_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Return the type of integers.
+            Rc::new(INTEGER_TERM)
+        }
+        Quotient(dividend, subtrahend) => {
+            // Infer the type of the dividend.
+            let dividend_type = type_check(
+                source_path,
+                source_contents,
+                &**dividend,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Reduce the type of the dividend to weak head normal form.
+            let dividend_type_whnf =
+                normalize_weak_head(dividend_type.clone(), definitions_context);
+
+            // Make sure the type of the dividend is the type of integers.
+            if let Integer = &dividend_type_whnf.variant {
+            } else {
+                return Err(if let Some(source_range) = dividend.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            dividend_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Summand {} has type {} when {} was expected.",
+                            dividend.to_string().code_str(),
+                            dividend_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Infer the type of the subtrahend.
+            let subtrahend_type = type_check(
+                source_path,
+                source_contents,
+                &**subtrahend,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Reduce the type of the subtrahend to weak head normal form.
+            let subtrahend_type_whnf =
+                normalize_weak_head(subtrahend_type.clone(), definitions_context);
+
+            // Make sure the type of the subtrahend is the type of integers.
+            if let Integer = &subtrahend_type_whnf.variant {
+            } else {
+                return Err(if let Some(source_range) = subtrahend.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            subtrahend_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "Dividend {} has type {} when {} was expected.",
                             subtrahend.to_string().code_str(),
                             subtrahend_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
@@ -958,6 +1125,56 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 - 2";
+        let type_source = "integer";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_product() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "2 * 3";
+        let type_source = "integer";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_quotient() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "7 / 2";
         let type_source = "integer";
 
         let term_tokens = tokenize(None, term_source).unwrap();

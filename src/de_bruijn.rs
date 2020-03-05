@@ -1,7 +1,8 @@
 use crate::term::{
     Term,
     Variant::{
-        Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type, Variable,
+        Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product, Quotient, Sum,
+        Type, Variable,
     },
 };
 use std::{cmp::Ordering, collections::HashSet, rc::Rc};
@@ -81,6 +82,20 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
             variant: Difference(
                 shift(minuend.clone(), cutoff, amount),
                 shift(subtrahend.clone(), cutoff, amount),
+            ),
+        }),
+        Product(factor1, factor2) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: Product(
+                shift(factor1.clone(), cutoff, amount),
+                shift(factor2.clone(), cutoff, amount),
+            ),
+        }),
+        Quotient(dividend, divisor) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: Quotient(
+                shift(dividend.clone(), cutoff, amount),
+                shift(divisor.clone(), cutoff, amount),
             ),
         }),
     }
@@ -174,6 +189,20 @@ pub fn open<'a>(
                 open(subtrahend.clone(), index_to_replace, term_to_insert),
             ),
         }),
+        Product(factor1, factor2) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: Product(
+                open(factor1.clone(), index_to_replace, term_to_insert.clone()),
+                open(factor2.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
+        Quotient(dividend, divisor) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: Quotient(
+                open(dividend.clone(), index_to_replace, term_to_insert.clone()),
+                open(divisor.clone(), index_to_replace, term_to_insert),
+            ),
+        }),
     }
 }
 
@@ -218,6 +247,14 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
             free_variables(minuend, cutoff, variables);
             free_variables(subtrahend, cutoff, variables);
         }
+        Product(factor1, factor2) => {
+            free_variables(factor1, cutoff, variables);
+            free_variables(factor2, cutoff, variables);
+        }
+        Quotient(dividend, divisor) => {
+            free_variables(dividend, cutoff, variables);
+            free_variables(divisor, cutoff, variables);
+        }
     }
 }
 
@@ -228,8 +265,8 @@ mod tests {
         term::{
             Term,
             Variant::{
-                Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Sum, Type,
-                Variable,
+                Application, Difference, Integer, IntegerLiteral, Lambda, Let, Pi, Product,
+                Quotient, Sum, Type, Variable,
             },
         },
         token::{INTEGER_KEYWORD, TYPE_KEYWORD},
@@ -574,6 +611,78 @@ mod tests {
             Term {
                 source_range: Some((97, 112)),
                 variant: Difference(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_product() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Product(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Product(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_quotient() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Quotient(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Quotient(
                     Rc::new(Term {
                         source_range: Some((102, 106)),
                         variant: Variable("a", 0),
@@ -992,6 +1101,84 @@ mod tests {
     }
 
     #[test]
+    fn open_product() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Product(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Product(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_quotient() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Quotient(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Quotient(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
     fn free_variables_type() {
         let mut variables = HashSet::new();
 
@@ -1232,6 +1419,58 @@ mod tests {
             &Term {
                 source_range: Some((97, 112)),
                 variant: Difference(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_product() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((97, 112)),
+                variant: Product(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_quotient() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((97, 112)),
+                variant: Quotient(
                     Rc::new(Term {
                         source_range: Some((102, 106)),
                         variant: Variable("b", 15),
