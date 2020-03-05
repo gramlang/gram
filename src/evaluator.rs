@@ -33,7 +33,7 @@ pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Rc<Term<'a>> {
 // Call this repeatedly to evaluate a term. The term is assumed to be well-typed in the empty
 // context. Runtime type errors will result in panicking.
 #[allow(clippy::too_many_lines)]
-fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
+pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
     match &term.variant {
         Type | Lambda(_, _, _) | Pi(_, _, _) | Variable(_, _) | Integer | IntegerLiteral(_) => None,
         Application(applicand, argument) => {
@@ -255,7 +255,7 @@ fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
 // This function returns whether a term is a value. Note that a neutral term (e.g., a variable) is
 // not considered a value.
-fn is_value<'a>(term: &Term<'a>) -> bool {
+pub fn is_value<'a>(term: &Term<'a>) -> bool {
     match term.variant {
         Type | Lambda(_, _, _) | Pi(_, _, _) | Integer | IntegerLiteral(_) => true,
         Variable(_, _) | Application(_, _) | Let(_, _) | Sum(_, _) | Difference(_, _) => false,
