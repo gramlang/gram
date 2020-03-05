@@ -3,10 +3,9 @@
   generated parser isn't used. Instead, we use the hand-written packrat parser in `src/parser.rs`
   for better control over error messages.
 
-  Application is right-associative in this grammar to avoid left-recursion, since packrat parsers
-  can't handle left-recursion. Note however that non-grouped applications are re-associated to the
-  left in a post-processing step, because left-associative application gives better ergonomics for
-  currying. See [ref:reassociate_applications] for details.
+  Some naturally left-associative binary operations such as application and subtraction are encoded
+  as right-associative in this grammar to avoid left-recursion, since packrat parsers can't handle
+  left-recursion. Such operations are reassociated to the left in a post-processing step.
 */
 
 /*

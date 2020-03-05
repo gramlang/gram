@@ -26,15 +26,15 @@ use std::{
 //      specified. Packrat parsers resolve ambiguities using the order of the alternatives in the
 //      grammar, but we'd prefer to have an unambiguous grammar in the first place.
 //
-// To address the ambiguity issue (2), we could start by making application left-associative. This
-// is the natural choice to make currying ergonomic. However, this reinforces the left-recursion
-// problem (1). To resolve this, we employ a trick: we parse applications as right-associative, but
-// then we reassociate them in a post-processing step to achieve the desired left-associativity
-// [tag:reassociate_applications]. For example, we parse `f x y` as `f [x y]`, then transform it
-// into `[f x] y`. We have to be careful not to reassociate applications in which the
-// associativity has already been specified by explicit grouping. For example, we should not
-// reassociate `f (x y)`. Thus, when parsing, we record whether a term was parsed as group
-// [tag:group_flag].
+// To address the ambiguity issue (2), we could encode the associativity of various constructs into
+// the grammar. This works well for right-associative operators, but for left-associative
+// operators it would exacerbate the left-recursion problem (1). To resolve this, we employ a
+// trick: we parse all binary operators as right-associative, but then we reassociate the relevant
+// constructs in a post-processing step to achieve the desired left-associativity. For example, we
+// parse `f x y` as `f [x y]`, then transform it into `[f x] y`. We have to be careful not to
+// reassociate operations in which the associativity has already been specified by explicit
+// grouping. For example, we should not reassociate `f (x y)`. Thus, when parsing, we record
+// whether a term was parsed as group [tag:group_flag].
 //
 // After resolving ambiguities, we end up with the grammar located in `grammar.y`. This grammar has
 // been verified to be unambiguous by Bison. [tag:grammar] [ref:bison_grammar]
@@ -105,6 +105,14 @@ enum Variant<'a> {
 pub struct SourceVariable<'a> {
     source_range: (usize, usize), // [start, end)
     name: &'a str,
+}
+
+// When reassociating sums and differences to be left-associative, this enum is used to record how
+// each term is used.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+enum SumOrDifference {
+    Sum,
+    Difference,
 }
 
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
@@ -495,7 +503,10 @@ pub fn parse<'a>(
         if next == tokens.len() {
             // We parsed everything. Flip the associativity of applications with non-grouped
             // arguments from right to left.
-            let reassociated_term = reassociate_applications(None, Rc::new(term));
+            let reassociated_term = reassociate_sums_and_differences(
+                None,
+                reassociate_applications(None, Rc::new(term)),
+            );
 
             // Construct a mutable context.
             let mut context: HashMap<&'a str, usize> = context
@@ -640,6 +651,172 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
             source_range: (acc.source_range.0, reduced.source_range.1),
             group: true,
             variant: Variant::Application(acc, reduced),
+        })
+    } else {
+        reduced
+    }
+}
+
+// Flip the associativity of sums and differences from right to left.
+#[allow(clippy::too_many_lines)]
+fn reassociate_sums_and_differences<'a>(
+    acc: Option<(Rc<Term<'a>>, SumOrDifference)>,
+    term: Rc<Term<'a>>,
+) -> Rc<Term<'a>> {
+    // In every case except the sum and difference cases, if we have a value for the accumulator,
+    // we want to construct a sum or difference with the accumulator as the left subterm and the
+    // reduced term as the right subterm. In the sum and difference cases, we build up the
+    // accumulator.
+    let reduced = match &term.variant {
+        Variant::Type | Variant::Variable(_) | Variant::Integer | Variant::IntegerLiteral(_) => {
+            term
+        }
+        Variant::Lambda(variable, domain, body) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Lambda(
+                *variable,
+                reassociate_sums_and_differences(None, domain.clone()),
+                reassociate_sums_and_differences(None, body.clone()),
+            ),
+        }),
+        Variant::Pi(variable, domain, codomain) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Pi(
+                *variable,
+                reassociate_sums_and_differences(None, domain.clone()),
+                reassociate_sums_and_differences(None, codomain.clone()),
+            ),
+        }),
+        Variant::Application(applicand, argument) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Application(
+                reassociate_sums_and_differences(None, applicand.clone()),
+                reassociate_sums_and_differences(None, argument.clone()),
+            ),
+        }),
+        Variant::Let(variable, annotation, definition, body) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Let(
+                *variable,
+                annotation
+                    .as_ref()
+                    .map(|annotation| reassociate_sums_and_differences(None, annotation.clone())),
+                reassociate_sums_and_differences(None, definition.clone()),
+                reassociate_sums_and_differences(None, body.clone()),
+            ),
+        }),
+        Variant::Sum(summand1, summand2) => {
+            return if summand2.group {
+                if let Some(acc) = acc {
+                    Rc::new(Term {
+                        source_range: (acc.0.source_range.0, summand2.source_range.1),
+                        group: true,
+                        variant: Variant::Sum(
+                            reassociate_sums_and_differences(Some(acc), summand1.clone()),
+                            reassociate_sums_and_differences(None, summand2.clone()),
+                        ),
+                    })
+                } else {
+                    Rc::new(Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: Variant::Sum(
+                            reassociate_sums_and_differences(None, summand1.clone()),
+                            reassociate_sums_and_differences(None, summand2.clone()),
+                        ),
+                    })
+                }
+            } else {
+                reassociate_sums_and_differences(
+                    Some((
+                        if let Some((acc, operator)) = acc {
+                            Rc::new(Term {
+                                source_range: (acc.source_range.0, summand1.source_range.1),
+                                group: true,
+                                variant: match operator {
+                                    SumOrDifference::Sum => Variant::Sum(
+                                        acc,
+                                        reassociate_sums_and_differences(None, summand1.clone()),
+                                    ),
+                                    SumOrDifference::Difference => Variant::Difference(
+                                        acc,
+                                        reassociate_sums_and_differences(None, summand1.clone()),
+                                    ),
+                                },
+                            })
+                        } else {
+                            reassociate_sums_and_differences(None, summand1.clone())
+                        },
+                        SumOrDifference::Sum,
+                    )),
+                    summand2.clone(),
+                )
+            };
+        }
+        Variant::Difference(minuend, subtrahend) => {
+            return if subtrahend.group {
+                if let Some(acc) = acc {
+                    Rc::new(Term {
+                        source_range: (acc.0.source_range.0, subtrahend.source_range.1),
+                        group: true,
+                        variant: Variant::Difference(
+                            reassociate_sums_and_differences(Some(acc), minuend.clone()),
+                            reassociate_sums_and_differences(None, subtrahend.clone()),
+                        ),
+                    })
+                } else {
+                    Rc::new(Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: Variant::Difference(
+                            reassociate_sums_and_differences(None, minuend.clone()),
+                            reassociate_sums_and_differences(None, subtrahend.clone()),
+                        ),
+                    })
+                }
+            } else {
+                reassociate_sums_and_differences(
+                    Some((
+                        if let Some((acc, operator)) = acc {
+                            Rc::new(Term {
+                                source_range: (acc.source_range.0, minuend.source_range.1),
+                                group: true,
+                                variant: match operator {
+                                    SumOrDifference::Sum => Variant::Sum(
+                                        acc,
+                                        reassociate_sums_and_differences(None, minuend.clone()),
+                                    ),
+                                    SumOrDifference::Difference => Variant::Difference(
+                                        acc,
+                                        reassociate_sums_and_differences(None, minuend.clone()),
+                                    ),
+                                },
+                            })
+                        } else {
+                            reassociate_sums_and_differences(None, minuend.clone())
+                        },
+                        SumOrDifference::Difference,
+                    )),
+                    subtrahend.clone(),
+                )
+            };
+        }
+    };
+
+    // We end up here as long as `term` isn't a sum or difference. If we have an accumulator,
+    // construct a sum or difference as described above. Otherwise, just return the reduced term.
+    if let Some((acc, operator)) = acc {
+        Rc::new(Term {
+            source_range: (acc.source_range.0, reduced.source_range.1),
+            group: true,
+            variant: match operator {
+                SumOrDifference::Sum => Variant::Sum(acc, reduced),
+                SumOrDifference::Difference => Variant::Difference(acc, reduced),
+            },
         })
     } else {
         reduced
