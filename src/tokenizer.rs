@@ -40,12 +40,6 @@ pub fn tokenize<'a>(
                     variant: Variant::Colon,
                 });
             }
-            '=' if iter.peek() != Some(&(i + 1, '>')) => {
-                tokens.push(Token {
-                    source_range: (i, i + 1),
-                    variant: Variant::Equals,
-                });
-            }
             '(' => {
                 tokens.push(Token {
                     source_range: (i, i + 1),
@@ -110,13 +104,6 @@ pub fn tokenize<'a>(
                     });
                 }
             }
-            '=' if iter.peek() == Some(&(i + 1, '>')) => {
-                iter.next();
-                tokens.push(Token {
-                    source_range: (i, i + 2),
-                    variant: Variant::ThickArrow,
-                });
-            }
             '-' => {
                 if iter.peek() == Some(&(i + 1, '>')) {
                     iter.next();
@@ -128,6 +115,20 @@ pub fn tokenize<'a>(
                     tokens.push(Token {
                         source_range: (i, i + 1),
                         variant: Variant::Minus,
+                    });
+                }
+            }
+            '=' => {
+                if iter.peek() == Some(&(i + 1, '>')) {
+                    iter.next();
+                    tokens.push(Token {
+                        source_range: (i, i + 2),
+                        variant: Variant::ThickArrow,
+                    });
+                } else {
+                    tokens.push(Token {
+                        source_range: (i, i + 1),
+                        variant: Variant::Equals,
                     });
                 }
             }
