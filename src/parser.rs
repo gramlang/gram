@@ -80,6 +80,11 @@ enum Variant<'a> {
     Difference(Rc<Term<'a>>, Rc<Term<'a>>),
     Product(Rc<Term<'a>>, Rc<Term<'a>>),
     Quotient(Rc<Term<'a>>, Rc<Term<'a>>),
+    LessThan(Rc<Term<'a>>, Rc<Term<'a>>),
+    LessThanOrEqualTo(Rc<Term<'a>>, Rc<Term<'a>>),
+    EqualTo(Rc<Term<'a>>, Rc<Term<'a>>),
+    GreaterThan(Rc<Term<'a>>, Rc<Term<'a>>),
+    GreaterThanOrEqualTo(Rc<Term<'a>>, Rc<Term<'a>>),
     Boolean,
     True,
     False,
@@ -127,6 +132,11 @@ enum CacheType {
     Difference,
     Product,
     Quotient,
+    LessThan,
+    LessThanOrEqualTo,
+    EqualTo,
+    GreaterThan,
+    GreaterThanOrEqualTo,
     Boolean,
     True,
     False,
@@ -137,6 +147,7 @@ enum CacheType {
     MediumTerm,
     LargeTerm,
     HugeTerm,
+    JumboTerm,
 }
 
 // A cache key consists of a `CacheType` indicating which function is being memoized together
@@ -668,6 +679,46 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, divisor.clone()),
             ),
         }),
+        Variant::LessThan(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThan(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThanOrEqualTo(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::EqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::EqualTo(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::GreaterThan(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThan(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThanOrEqualTo(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
         Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
@@ -858,6 +909,46 @@ fn reassociate_sums_and_differences<'a>(
             variant: Variant::Quotient(
                 reassociate_sums_and_differences(None, dividend.clone()),
                 reassociate_sums_and_differences(None, divisor.clone()),
+            ),
+        }),
+        Variant::LessThan(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThan(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThanOrEqualTo(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::EqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::EqualTo(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::GreaterThan(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThan(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThanOrEqualTo(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
             ),
         }),
         Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
@@ -1055,6 +1146,46 @@ fn reassociate_products_and_quotients<'a>(
                 )
             };
         }
+        Variant::LessThan(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThan(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThanOrEqualTo(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::EqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::EqualTo(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::GreaterThan(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThan(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
+        Variant::GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThanOrEqualTo(
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
+            ),
+        }),
         Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
@@ -1450,6 +1581,116 @@ fn resolve_variables<'a>(
                 ),
             }
         }
+        Variant::LessThan(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::LessThan(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term1,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term2,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
+        Variant::LessThanOrEqualTo(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::LessThanOrEqualTo(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term1,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term2,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
+        Variant::EqualTo(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::EqualTo(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term1,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term2,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
+        Variant::GreaterThan(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::GreaterThan(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term1,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term2,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
+        Variant::GreaterThanOrEqualTo(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range),
+                variant: term::Variant::GreaterThanOrEqualTo(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term1,
+                        depth,
+                        context,
+                    )?),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &*term2,
+                        depth,
+                        context,
+                    )?),
+                ),
+            }
+        }
         Variant::Boolean => {
             // There are no variables to resolve here.
             term::Term {
@@ -1600,12 +1841,12 @@ fn parse_term<'a, 'b>(
     // Try to parse a let.
     try_return!(cache, Term, start, parse_let(cache, tokens, start, error));
 
-    // Try to parse a huge term.
+    // Try to parse a jumbo term.
     try_return!(
         cache,
         Term,
         start,
-        parse_huge_term(cache, tokens, start, error)
+        parse_jumbo_term(cache, tokens, start, error)
     );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
@@ -1702,7 +1943,7 @@ fn parse_lambda<'a, 'b>(
         cache,
         Lambda,
         start,
-        parse_huge_term(cache, tokens, next, error)
+        parse_jumbo_term(cache, tokens, next, error)
     );
 
     // Consume the right parenthesis.
@@ -1761,7 +2002,7 @@ fn parse_pi<'a, 'b>(
         cache,
         Pi,
         start,
-        parse_huge_term(cache, tokens, next, error)
+        parse_jumbo_term(cache, tokens, next, error)
     );
 
     // Consume the right parenthesis.
@@ -2273,6 +2514,277 @@ fn parse_quotient<'a, 'b>(
     )
 }
 
+// Parse a less than comparison.
+fn parse_less_than<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, LessThan, start, error);
+
+    // Parse the left term.
+    let (term1, next) = try_eval!(
+        cache,
+        LessThan,
+        start,
+        parse_small_term(cache, tokens, start, error),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(cache, LessThan, start, tokens, LessThan, next, error, Low);
+
+    // Parse the right term.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            LessThan,
+            start,
+            parse_medium_term(cache, tokens, next, error),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        LessThan,
+        start,
+        Some((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::LessThan(Rc::new(term1), Rc::new(term2)),
+            },
+            next
+        )),
+    )
+}
+
+// Parse a less than or equal to comparison.
+fn parse_less_than_or_equal_to<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, LessThanOrEqualTo, start, error);
+
+    // Parse the left term.
+    let (term1, next) = try_eval!(
+        cache,
+        LessThanOrEqualTo,
+        start,
+        parse_small_term(cache, tokens, start, error),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(
+        cache,
+        LessThanOrEqualTo,
+        start,
+        tokens,
+        LessThanOrEqualTo,
+        next,
+        error,
+        Low
+    );
+
+    // Parse the right term.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            LessThanOrEqualTo,
+            start,
+            parse_medium_term(cache, tokens, next, error),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        LessThanOrEqualTo,
+        start,
+        Some((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::LessThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
+            },
+            next
+        )),
+    )
+}
+
+// Parse an equality comparison.
+fn parse_equal_to<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, EqualTo, start, error);
+
+    // Parse the left term.
+    let (term1, next) = try_eval!(
+        cache,
+        EqualTo,
+        start,
+        parse_small_term(cache, tokens, start, error),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(
+        cache,
+        EqualTo,
+        start,
+        tokens,
+        DoubleEquals,
+        next,
+        error,
+        Low
+    );
+
+    // Parse the right term.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            EqualTo,
+            start,
+            parse_medium_term(cache, tokens, next, error),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        EqualTo,
+        start,
+        Some((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::EqualTo(Rc::new(term1), Rc::new(term2)),
+            },
+            next
+        )),
+    )
+}
+
+// Parse a greater than comparison.
+fn parse_greater_than<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, GreaterThan, start, error);
+
+    // Parse the left term.
+    let (term1, next) = try_eval!(
+        cache,
+        GreaterThan,
+        start,
+        parse_small_term(cache, tokens, start, error),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(
+        cache,
+        GreaterThan,
+        start,
+        tokens,
+        GreaterThan,
+        next,
+        error,
+        Low
+    );
+
+    // Parse the right term.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            GreaterThan,
+            start,
+            parse_medium_term(cache, tokens, next, error),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        GreaterThan,
+        start,
+        Some((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::GreaterThan(Rc::new(term1), Rc::new(term2)),
+            },
+            next
+        )),
+    )
+}
+
+// Parse a greater than or equal to comparison.
+fn parse_greater_than_or_equal_to<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, GreaterThanOrEqualTo, start, error);
+
+    // Parse the left term.
+    let (term1, next) = try_eval!(
+        cache,
+        GreaterThanOrEqualTo,
+        start,
+        parse_small_term(cache, tokens, start, error),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(
+        cache,
+        GreaterThanOrEqualTo,
+        start,
+        tokens,
+        GreaterThanOrEqualTo,
+        next,
+        error,
+        Low
+    );
+
+    // Parse the right term.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            GreaterThanOrEqualTo,
+            start,
+            parse_medium_term(cache, tokens, next, error),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        GreaterThanOrEqualTo,
+        start,
+        Some((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::GreaterThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
+            },
+            next
+        )),
+    )
+}
+
 // Parse the type of Booleans.
 fn parse_boolean<'a, 'b>(
     cache: &mut Cache<'a, 'b>,
@@ -2640,36 +3152,44 @@ fn parse_huge_term<'a, 'b>(
     // Check the cache.
     cache_check!(cache, HugeTerm, start, error);
 
-    // Try to parse a non-dependent pi type.
+    // Try to parse a less than comparison.
     try_return!(
         cache,
         HugeTerm,
         start,
-        parse_non_dependent_pi(cache, tokens, start, error),
+        parse_less_than(cache, tokens, start, error)
     );
 
-    // Try to parse a lambda.
+    // Try to parse a less than or equal to comparison.
     try_return!(
         cache,
         HugeTerm,
         start,
-        parse_lambda(cache, tokens, start, error),
+        parse_less_than_or_equal_to(cache, tokens, start, error)
     );
 
-    // Try to parse a pi type.
+    // Try to parse an equality comparison.
     try_return!(
         cache,
         HugeTerm,
         start,
-        parse_pi(cache, tokens, start, error)
+        parse_equal_to(cache, tokens, start, error)
     );
 
-    // Try to parse an if expression.
+    // Try to parse a greater than comparison.
     try_return!(
         cache,
         HugeTerm,
         start,
-        parse_if(cache, tokens, start, error)
+        parse_greater_than(cache, tokens, start, error)
+    );
+
+    // Try to parse a greater than or equal to comparison.
+    try_return!(
+        cache,
+        HugeTerm,
+        start,
+        parse_greater_than_or_equal_to(cache, tokens, start, error)
     );
 
     // Try to parse a large term.
@@ -2686,6 +3206,64 @@ fn parse_huge_term<'a, 'b>(
 
     // Return `None` since the parse failed.
     cache_return!(cache, HugeTerm, start, None)
+}
+
+// Parse a jumbo term.
+fn parse_jumbo_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+    error: &mut ParseError<'a, 'b>,
+) -> CacheResult<'a, 'b> {
+    // Check the cache.
+    cache_check!(cache, JumboTerm, start, error);
+
+    // Try to parse a non-dependent pi type.
+    try_return!(
+        cache,
+        JumboTerm,
+        start,
+        parse_non_dependent_pi(cache, tokens, start, error),
+    );
+
+    // Try to parse a lambda.
+    try_return!(
+        cache,
+        JumboTerm,
+        start,
+        parse_lambda(cache, tokens, start, error),
+    );
+
+    // Try to parse a pi type.
+    try_return!(
+        cache,
+        JumboTerm,
+        start,
+        parse_pi(cache, tokens, start, error)
+    );
+
+    // Try to parse an if expression.
+    try_return!(
+        cache,
+        JumboTerm,
+        start,
+        parse_if(cache, tokens, start, error)
+    );
+
+    // Try to parse a jumbo term.
+    try_return!(
+        cache,
+        JumboTerm,
+        start,
+        parse_huge_term(cache, tokens, start, error),
+    );
+
+    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
+    // confidence error, employ a generic error message.
+    set_generic_error(tokens, start, error);
+
+    // Return `None` since the parse failed.
+    cache_return!(cache, JumboTerm, start, None)
 }
 
 #[cfg(test)]

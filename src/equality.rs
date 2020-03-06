@@ -3,14 +3,17 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
-            Product, Quotient, Sum, True, Type, Variable,
+            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product,
+            Quotient, Sum, True, Type, Variable,
         },
     },
 };
 use std::rc::Rc;
 
 // Check if two terms are equal up to alpha conversion. Type annotations are not checked.
+#[allow(clippy::similar_names)]
+#[allow(clippy::too_many_lines)]
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     match (&term1.variant, &term2.variant) {
         (Type, Type) | (Integer, Integer) | (Boolean, Boolean) | (True, True) | (False, False) => {
@@ -59,6 +62,13 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
             syntactically_equal(&**dividend1, &**dividend2)
                 && syntactically_equal(&**divisor1, &**divisor2)
         }
+        (LessThan(term11, term12), LessThan(term21, term22))
+        | (LessThanOrEqualTo(term11, term12), LessThanOrEqualTo(term21, term22))
+        | (EqualTo(term11, term12), EqualTo(term21, term22))
+        | (GreaterThan(term11, term12), GreaterThan(term21, term22))
+        | (GreaterThanOrEqualTo(term11, term12), GreaterThanOrEqualTo(term21, term22)) => {
+            syntactically_equal(&**term11, &**term21) && syntactically_equal(&**term12, &**term22)
+        }
         (
             If(condition1, then_branch1, else_branch1),
             If(condition2, then_branch2, else_branch2),
@@ -89,6 +99,16 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
         | (_, Product(_, _))
         | (Quotient(_, _), _)
         | (_, Quotient(_, _))
+        | (LessThan(_, _), _)
+        | (_, LessThan(_, _))
+        | (LessThanOrEqualTo(_, _), _)
+        | (_, LessThanOrEqualTo(_, _))
+        | (EqualTo(_, _), _)
+        | (_, EqualTo(_, _))
+        | (GreaterThan(_, _), _)
+        | (_, GreaterThan(_, _))
+        | (GreaterThanOrEqualTo(_, _), _)
+        | (_, GreaterThanOrEqualTo(_, _))
         | (Boolean, _)
         | (_, Boolean)
         | (True, _)
@@ -101,6 +121,8 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
 }
 
 // Check if two terms are convertible up to beta normalization. Type annotations are not checked.
+#[allow(clippy::similar_names)]
+#[allow(clippy::too_many_lines)]
 pub fn definitionally_equal<'a>(
     term1: Rc<Term<'a>>,
     term2: Rc<Term<'a>>,
@@ -177,6 +199,14 @@ pub fn definitionally_equal<'a>(
             definitionally_equal(dividend1.clone(), dividend2.clone(), definitions_context)
                 && definitionally_equal(divisor1.clone(), divisor2.clone(), definitions_context)
         }
+        (LessThan(term11, term12), LessThan(term21, term22))
+        | (LessThanOrEqualTo(term11, term12), LessThanOrEqualTo(term21, term22))
+        | (EqualTo(term11, term12), EqualTo(term21, term22))
+        | (GreaterThan(term11, term12), GreaterThan(term21, term22))
+        | (GreaterThanOrEqualTo(term11, term12), GreaterThanOrEqualTo(term21, term22)) => {
+            definitionally_equal(term11.clone(), term21.clone(), definitions_context)
+                && definitionally_equal(term12.clone(), term22.clone(), definitions_context)
+        }
         (
             If(condition1, then_branch1, else_branch1),
             If(condition2, then_branch2, else_branch2),
@@ -213,6 +243,16 @@ pub fn definitionally_equal<'a>(
         | (_, Product(_, _))
         | (Quotient(_, _), _)
         | (_, Quotient(_, _))
+        | (LessThan(_, _), _)
+        | (_, LessThan(_, _))
+        | (LessThanOrEqualTo(_, _), _)
+        | (_, LessThanOrEqualTo(_, _))
+        | (EqualTo(_, _), _)
+        | (_, EqualTo(_, _))
+        | (GreaterThan(_, _), _)
+        | (_, GreaterThan(_, _))
+        | (GreaterThanOrEqualTo(_, _), _)
+        | (_, GreaterThanOrEqualTo(_, _))
         | (Boolean, _)
         | (_, Boolean)
         | (True, _)

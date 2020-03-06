@@ -36,6 +36,11 @@ pub enum Variant<'a> {
     Difference(Rc<Term<'a>>, Rc<Term<'a>>),
     Product(Rc<Term<'a>>, Rc<Term<'a>>),
     Quotient(Rc<Term<'a>>, Rc<Term<'a>>),
+    LessThan(Rc<Term<'a>>, Rc<Term<'a>>),
+    LessThanOrEqualTo(Rc<Term<'a>>, Rc<Term<'a>>),
+    EqualTo(Rc<Term<'a>>, Rc<Term<'a>>),
+    GreaterThan(Rc<Term<'a>>, Rc<Term<'a>>),
+    GreaterThanOrEqualTo(Rc<Term<'a>>, Rc<Term<'a>>),
     Boolean,
     True,
     False,
@@ -98,6 +103,15 @@ impl<'a> Display for Variant<'a> {
             Self::Quotient(dividend, divisor) => {
                 write!(f, "{} / {}", group(dividend), group(divisor))
             }
+            Self::LessThan(term1, term2) => write!(f, "{} < {}", group(term1), group(term2)),
+            Self::LessThanOrEqualTo(term1, term2) => {
+                write!(f, "{} <= {}", group(term1), group(term2))
+            }
+            Self::EqualTo(term1, term2) => write!(f, "{} == {}", group(term1), group(term2)),
+            Self::GreaterThan(term1, term2) => write!(f, "{} > {}", group(term1), group(term2)),
+            Self::GreaterThanOrEqualTo(term1, term2) => {
+                write!(f, "{} >= {}", group(term1), group(term2))
+            }
             Self::Boolean => write!(f, "{}", BOOLEAN_KEYWORD),
             Self::True => write!(f, "{}", TRUE_KEYWORD),
             Self::False => write!(f, "{}", FALSE_KEYWORD),
@@ -129,6 +143,11 @@ fn group<'a>(term: &Term<'a>) -> String {
         | Variant::Difference(_, _)
         | Variant::Product(_, _)
         | Variant::Quotient(_, _)
+        | Variant::LessThan(_, _)
+        | Variant::LessThanOrEqualTo(_, _)
+        | Variant::EqualTo(_, _)
+        | Variant::GreaterThan(_, _)
+        | Variant::GreaterThanOrEqualTo(_, _)
         | Variant::If(_, _, _) => format!("({})", term),
     }
 }

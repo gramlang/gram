@@ -3,8 +3,9 @@ use crate::{
     term::{
         Term,
         Variant::{
-            Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let, Pi,
-            Product, Quotient, Sum, True, Type, Variable,
+            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product,
+            Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -237,6 +238,126 @@ pub fn normalize_weak_head<'a>(
                 Rc::new(Term {
                     source_range: None,
                     variant: Quotient(normalized_dividend, normalized_divisor),
+                })
+            }
+        }
+        LessThan(term1, term2) => {
+            // Normalize the left term.
+            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+
+            // Normalize the right term.
+            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+
+            // Check if the terms reduced to integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&normalized_term1.variant, &normalized_term2.variant)
+            {
+                // Perform the comparison.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 < integer2 { True } else { False },
+                })
+            } else {
+                // We didn't get integer literals. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Product(normalized_term1, normalized_term2),
+                })
+            }
+        }
+        LessThanOrEqualTo(term1, term2) => {
+            // Normalize the left term.
+            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+
+            // Normalize the right term.
+            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+
+            // Check if the terms reduced to integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&normalized_term1.variant, &normalized_term2.variant)
+            {
+                // Perform the comparison.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 <= integer2 { True } else { False },
+                })
+            } else {
+                // We didn't get integer literals. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Product(normalized_term1, normalized_term2),
+                })
+            }
+        }
+        EqualTo(term1, term2) => {
+            // Normalize the left term.
+            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+
+            // Normalize the right term.
+            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+
+            // Check if the terms reduced to integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&normalized_term1.variant, &normalized_term2.variant)
+            {
+                // Perform the comparison.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 == integer2 { True } else { False },
+                })
+            } else {
+                // We didn't get integer literals. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Product(normalized_term1, normalized_term2),
+                })
+            }
+        }
+        GreaterThan(term1, term2) => {
+            // Normalize the left term.
+            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+
+            // Normalize the right term.
+            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+
+            // Check if the terms reduced to integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&normalized_term1.variant, &normalized_term2.variant)
+            {
+                // Perform the comparison.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 > integer2 { True } else { False },
+                })
+            } else {
+                // We didn't get integer literals. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Product(normalized_term1, normalized_term2),
+                })
+            }
+        }
+        GreaterThanOrEqualTo(term1, term2) => {
+            // Normalize the left term.
+            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+
+            // Normalize the right term.
+            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+
+            // Check if the terms reduced to integer literals.
+            if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
+                (&normalized_term1.variant, &normalized_term2.variant)
+            {
+                // Perform the comparison.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: if integer1 >= integer2 { True } else { False },
+                })
+            } else {
+                // We didn't get integer literals. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Product(normalized_term1, normalized_term2),
                 })
             }
         }
