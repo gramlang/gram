@@ -107,23 +107,21 @@ fn run(source_path: &Path) -> Result<(), Error> {
 
     // Parse the term.
     let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
-    println!("# Original term:\n\n{}\n", term.to_string().code_str());
 
     // Type check the term.
     let mut typing_context = vec![];
     let mut definitions_context = vec![];
-    let term_type = type_check(
+    let _ = type_check(
         Some(source_path),
         &source_contents,
         &term,
         &mut typing_context,
         &mut definitions_context,
     )?;
-    println!("# Type:\n\n{}\n", term_type.to_string().code_str());
 
     // Evaluate the term.
     let value = evaluate(Rc::new(term))?;
-    println!("# Value:\n\n{}", value.to_string().code_str());
+    println!("{}", value.to_string().code_str());
 
     // If we made it this far, nothing went wrong.
     Ok(())
