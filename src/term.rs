@@ -97,14 +97,10 @@ impl<'a> Display for Variant<'a> {
             }
             Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
             Self::IntegerLiteral(integer) => write!(f, "{}", integer),
-            Self::Sum(summand1, summand2) => write!(f, "{} + {}", group(summand1), group(summand2)),
-            Self::Difference(minuend, subtrahend) => {
-                write!(f, "{} - {}", group(minuend), group(subtrahend))
-            }
-            Self::Product(factor1, factor2) => write!(f, "{} * {}", group(factor1), group(factor2)),
-            Self::Quotient(dividend, divisor) => {
-                write!(f, "{} / {}", group(dividend), group(divisor))
-            }
+            Self::Sum(term1, term2) => write!(f, "{} + {}", group(term1), group(term2)),
+            Self::Difference(term1, term2) => write!(f, "{} - {}", group(term1), group(term2)),
+            Self::Product(term1, term2) => write!(f, "{} * {}", group(term1), group(term2)),
+            Self::Quotient(term1, term2) => write!(f, "{} / {}", group(term1), group(term2)),
             Self::LessThan(term1, term2) => write!(f, "{} < {}", group(term1), group(term2)),
             Self::LessThanOrEqualTo(term1, term2) => {
                 write!(f, "{} <= {}", group(term1), group(term2))

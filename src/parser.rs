@@ -651,36 +651,36 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, body.clone()),
             ),
         }),
-        Variant::Sum(summand1, summand2) => Rc::new(Term {
+        Variant::Sum(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Sum(
-                reassociate_applications(None, summand1.clone()),
-                reassociate_applications(None, summand2.clone()),
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
             ),
         }),
-        Variant::Difference(minuend, subtrahend) => Rc::new(Term {
+        Variant::Difference(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Difference(
-                reassociate_applications(None, minuend.clone()),
-                reassociate_applications(None, subtrahend.clone()),
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
             ),
         }),
-        Variant::Product(factor1, factor2) => Rc::new(Term {
+        Variant::Product(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Product(
-                reassociate_applications(None, factor1.clone()),
-                reassociate_applications(None, factor2.clone()),
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
             ),
         }),
-        Variant::Quotient(dividend, divisor) => Rc::new(Term {
+        Variant::Quotient(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Quotient(
-                reassociate_applications(None, dividend.clone()),
-                reassociate_applications(None, divisor.clone()),
+                reassociate_applications(None, term1.clone()),
+                reassociate_applications(None, term2.clone()),
             ),
         }),
         Variant::LessThan(term1, term2) => Rc::new(Term {
@@ -803,15 +803,15 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, body.clone()),
             ),
         }),
-        Variant::Sum(summand1, summand2) => {
-            return if summand2.group {
+        Variant::Sum(term1, term2) => {
+            return if term2.group {
                 if let Some(acc) = acc {
                     Rc::new(Term {
-                        source_range: (acc.0.source_range.0, summand2.source_range.1),
+                        source_range: (acc.0.source_range.0, term2.source_range.1),
                         group: true,
                         variant: Variant::Sum(
-                            reassociate_sums_and_differences(Some(acc), summand1.clone()),
-                            reassociate_sums_and_differences(None, summand2.clone()),
+                            reassociate_sums_and_differences(Some(acc), term1.clone()),
+                            reassociate_sums_and_differences(None, term2.clone()),
                         ),
                     })
                 } else {
@@ -819,8 +819,8 @@ fn reassociate_sums_and_differences<'a>(
                         source_range: term.source_range,
                         group: term.group,
                         variant: Variant::Sum(
-                            reassociate_sums_and_differences(None, summand1.clone()),
-                            reassociate_sums_and_differences(None, summand2.clone()),
+                            reassociate_sums_and_differences(None, term1.clone()),
+                            reassociate_sums_and_differences(None, term2.clone()),
                         ),
                     })
                 }
@@ -829,37 +829,37 @@ fn reassociate_sums_and_differences<'a>(
                     Some((
                         if let Some((acc, operator)) = acc {
                             Rc::new(Term {
-                                source_range: (acc.source_range.0, summand1.source_range.1),
+                                source_range: (acc.source_range.0, term1.source_range.1),
                                 group: true,
                                 variant: match operator {
                                     SumOrDifference::Sum => Variant::Sum(
                                         acc,
-                                        reassociate_sums_and_differences(None, summand1.clone()),
+                                        reassociate_sums_and_differences(None, term1.clone()),
                                     ),
                                     SumOrDifference::Difference => Variant::Difference(
                                         acc,
-                                        reassociate_sums_and_differences(None, summand1.clone()),
+                                        reassociate_sums_and_differences(None, term1.clone()),
                                     ),
                                 },
                             })
                         } else {
-                            reassociate_sums_and_differences(None, summand1.clone())
+                            reassociate_sums_and_differences(None, term1.clone())
                         },
                         SumOrDifference::Sum,
                     )),
-                    summand2.clone(),
+                    term2.clone(),
                 )
             };
         }
-        Variant::Difference(minuend, subtrahend) => {
-            return if subtrahend.group {
+        Variant::Difference(term1, term2) => {
+            return if term2.group {
                 if let Some(acc) = acc {
                     Rc::new(Term {
-                        source_range: (acc.0.source_range.0, subtrahend.source_range.1),
+                        source_range: (acc.0.source_range.0, term2.source_range.1),
                         group: true,
                         variant: Variant::Difference(
-                            reassociate_sums_and_differences(Some(acc), minuend.clone()),
-                            reassociate_sums_and_differences(None, subtrahend.clone()),
+                            reassociate_sums_and_differences(Some(acc), term1.clone()),
+                            reassociate_sums_and_differences(None, term2.clone()),
                         ),
                     })
                 } else {
@@ -867,8 +867,8 @@ fn reassociate_sums_and_differences<'a>(
                         source_range: term.source_range,
                         group: term.group,
                         variant: Variant::Difference(
-                            reassociate_sums_and_differences(None, minuend.clone()),
-                            reassociate_sums_and_differences(None, subtrahend.clone()),
+                            reassociate_sums_and_differences(None, term1.clone()),
+                            reassociate_sums_and_differences(None, term2.clone()),
                         ),
                     })
                 }
@@ -877,42 +877,42 @@ fn reassociate_sums_and_differences<'a>(
                     Some((
                         if let Some((acc, operator)) = acc {
                             Rc::new(Term {
-                                source_range: (acc.source_range.0, minuend.source_range.1),
+                                source_range: (acc.source_range.0, term1.source_range.1),
                                 group: true,
                                 variant: match operator {
                                     SumOrDifference::Sum => Variant::Sum(
                                         acc,
-                                        reassociate_sums_and_differences(None, minuend.clone()),
+                                        reassociate_sums_and_differences(None, term1.clone()),
                                     ),
                                     SumOrDifference::Difference => Variant::Difference(
                                         acc,
-                                        reassociate_sums_and_differences(None, minuend.clone()),
+                                        reassociate_sums_and_differences(None, term1.clone()),
                                     ),
                                 },
                             })
                         } else {
-                            reassociate_sums_and_differences(None, minuend.clone())
+                            reassociate_sums_and_differences(None, term1.clone())
                         },
                         SumOrDifference::Difference,
                     )),
-                    subtrahend.clone(),
+                    term2.clone(),
                 )
             };
         }
-        Variant::Product(factor1, factor2) => Rc::new(Term {
+        Variant::Product(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Product(
-                reassociate_sums_and_differences(None, factor1.clone()),
-                reassociate_sums_and_differences(None, factor2.clone()),
+                reassociate_sums_and_differences(None, term1.clone()),
+                reassociate_sums_and_differences(None, term2.clone()),
             ),
         }),
-        Variant::Quotient(dividend, divisor) => Rc::new(Term {
+        Variant::Quotient(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Quotient(
-                reassociate_sums_and_differences(None, dividend.clone()),
-                reassociate_sums_and_differences(None, divisor.clone()),
+                reassociate_sums_and_differences(None, term1.clone()),
+                reassociate_sums_and_differences(None, term2.clone()),
             ),
         }),
         Variant::LessThan(term1, term2) => Rc::new(Term {
@@ -1038,31 +1038,31 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, body.clone()),
             ),
         }),
-        Variant::Sum(summand1, summand2) => Rc::new(Term {
+        Variant::Sum(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Sum(
-                reassociate_products_and_quotients(None, summand1.clone()),
-                reassociate_products_and_quotients(None, summand2.clone()),
+                reassociate_products_and_quotients(None, term1.clone()),
+                reassociate_products_and_quotients(None, term2.clone()),
             ),
         }),
-        Variant::Difference(minuend, subtrahend) => Rc::new(Term {
+        Variant::Difference(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Difference(
-                reassociate_products_and_quotients(None, minuend.clone()),
-                reassociate_products_and_quotients(None, subtrahend.clone()),
+                reassociate_products_and_quotients(None, term1.clone()),
+                reassociate_products_and_quotients(None, term2.clone()),
             ),
         }),
-        Variant::Product(factor1, factor2) => {
-            return if factor2.group {
+        Variant::Product(term1, term2) => {
+            return if term2.group {
                 if let Some(acc) = acc {
                     Rc::new(Term {
-                        source_range: (acc.0.source_range.0, factor2.source_range.1),
+                        source_range: (acc.0.source_range.0, term2.source_range.1),
                         group: true,
                         variant: Variant::Product(
-                            reassociate_products_and_quotients(Some(acc), factor1.clone()),
-                            reassociate_products_and_quotients(None, factor2.clone()),
+                            reassociate_products_and_quotients(Some(acc), term1.clone()),
+                            reassociate_products_and_quotients(None, term2.clone()),
                         ),
                     })
                 } else {
@@ -1070,8 +1070,8 @@ fn reassociate_products_and_quotients<'a>(
                         source_range: term.source_range,
                         group: term.group,
                         variant: Variant::Product(
-                            reassociate_products_and_quotients(None, factor1.clone()),
-                            reassociate_products_and_quotients(None, factor2.clone()),
+                            reassociate_products_and_quotients(None, term1.clone()),
+                            reassociate_products_and_quotients(None, term2.clone()),
                         ),
                     })
                 }
@@ -1080,37 +1080,37 @@ fn reassociate_products_and_quotients<'a>(
                     Some((
                         if let Some((acc, operator)) = acc {
                             Rc::new(Term {
-                                source_range: (acc.source_range.0, factor1.source_range.1),
+                                source_range: (acc.source_range.0, term1.source_range.1),
                                 group: true,
                                 variant: match operator {
                                     ProductOrQuotient::Product => Variant::Product(
                                         acc,
-                                        reassociate_products_and_quotients(None, factor1.clone()),
+                                        reassociate_products_and_quotients(None, term1.clone()),
                                     ),
                                     ProductOrQuotient::Quotient => Variant::Quotient(
                                         acc,
-                                        reassociate_products_and_quotients(None, factor1.clone()),
+                                        reassociate_products_and_quotients(None, term1.clone()),
                                     ),
                                 },
                             })
                         } else {
-                            reassociate_products_and_quotients(None, factor1.clone())
+                            reassociate_products_and_quotients(None, term1.clone())
                         },
                         ProductOrQuotient::Product,
                     )),
-                    factor2.clone(),
+                    term2.clone(),
                 )
             };
         }
-        Variant::Quotient(dividend, divisor) => {
-            return if divisor.group {
+        Variant::Quotient(term1, term2) => {
+            return if term2.group {
                 if let Some(acc) = acc {
                     Rc::new(Term {
-                        source_range: (acc.0.source_range.0, divisor.source_range.1),
+                        source_range: (acc.0.source_range.0, term2.source_range.1),
                         group: true,
                         variant: Variant::Quotient(
-                            reassociate_products_and_quotients(Some(acc), dividend.clone()),
-                            reassociate_products_and_quotients(None, divisor.clone()),
+                            reassociate_products_and_quotients(Some(acc), term1.clone()),
+                            reassociate_products_and_quotients(None, term2.clone()),
                         ),
                     })
                 } else {
@@ -1118,8 +1118,8 @@ fn reassociate_products_and_quotients<'a>(
                         source_range: term.source_range,
                         group: term.group,
                         variant: Variant::Quotient(
-                            reassociate_products_and_quotients(None, dividend.clone()),
-                            reassociate_products_and_quotients(None, divisor.clone()),
+                            reassociate_products_and_quotients(None, term1.clone()),
+                            reassociate_products_and_quotients(None, term2.clone()),
                         ),
                     })
                 }
@@ -1128,25 +1128,25 @@ fn reassociate_products_and_quotients<'a>(
                     Some((
                         if let Some((acc, operator)) = acc {
                             Rc::new(Term {
-                                source_range: (acc.source_range.0, dividend.source_range.1),
+                                source_range: (acc.source_range.0, term1.source_range.1),
                                 group: true,
                                 variant: match operator {
                                     ProductOrQuotient::Product => Variant::Product(
                                         acc,
-                                        reassociate_products_and_quotients(None, dividend.clone()),
+                                        reassociate_products_and_quotients(None, term1.clone()),
                                     ),
                                     ProductOrQuotient::Quotient => Variant::Quotient(
                                         acc,
-                                        reassociate_products_and_quotients(None, dividend.clone()),
+                                        reassociate_products_and_quotients(None, term1.clone()),
                                     ),
                                 },
                             })
                         } else {
-                            reassociate_products_and_quotients(None, dividend.clone())
+                            reassociate_products_and_quotients(None, term1.clone())
                         },
                         ProductOrQuotient::Quotient,
                     )),
-                    divisor.clone(),
+                    term2.clone(),
                 )
             };
         }
@@ -1497,88 +1497,88 @@ fn resolve_variables<'a>(
                 variant: term::Variant::IntegerLiteral(integer.clone()),
             }
         }
-        Variant::Sum(summand1, summand2) => {
-            // Just resolve variables in the summands.
+        Variant::Sum(term1, term2) => {
+            // Just resolve variables in the subterms.
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Sum(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*summand1,
+                        &*term1,
                         depth,
                         context,
                     )?),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*summand2,
+                        &*term2,
                         depth,
                         context,
                     )?),
                 ),
             }
         }
-        Variant::Difference(minuend, subtrahend) => {
-            // Just resolve variables in the minuend and subtrahend.
+        Variant::Difference(term1, term2) => {
+            // Just resolve variables in the subterms.
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Difference(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*minuend,
+                        &*term1,
                         depth,
                         context,
                     )?),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*subtrahend,
+                        &*term2,
                         depth,
                         context,
                     )?),
                 ),
             }
         }
-        Variant::Product(factor1, factor2) => {
-            // Just resolve variables in the factors.
+        Variant::Product(term1, term2) => {
+            // Just resolve variables in the subterms.
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Product(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*factor1,
+                        &*term1,
                         depth,
                         context,
                     )?),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*factor2,
+                        &*term2,
                         depth,
                         context,
                     )?),
                 ),
             }
         }
-        Variant::Quotient(dividend, divisor) => {
-            // Just resolve variables in the dividend and divisor.
+        Variant::Quotient(term1, term2) => {
+            // Just resolve variables in the subterms.
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Quotient(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*dividend,
+                        &*term1,
                         depth,
                         context,
                     )?),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*divisor,
+                        &*term2,
                         depth,
                         context,
                     )?),
@@ -2340,19 +2340,19 @@ fn parse_sum<'a, 'b>(
     // Check the cache.
     cache_check!(cache, Sum, start, error);
 
-    // Parse the left summand.
-    let (summand1, next) = try_eval!(
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
         cache,
         Sum,
         start,
         parse_medium_term(cache, tokens, start, error),
     );
 
-    // Consume the plus symbol.
+    // Consume the operator.
     let next = consume_token!(cache, Sum, start, tokens, Plus, next, error, Low);
 
-    // Parse the right summand.
-    let (summand2, next) = {
+    // Parse the right subterm.
+    let (term2, next) = {
         try_eval!(
             cache,
             Sum,
@@ -2368,9 +2368,9 @@ fn parse_sum<'a, 'b>(
         start,
         Some((
             Term {
-                source_range: (summand1.source_range.0, summand2.source_range.1),
+                source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
-                variant: Variant::Sum(Rc::new(summand1), Rc::new(summand2)),
+                variant: Variant::Sum(Rc::new(term1), Rc::new(term2)),
             },
             next,
         )),
@@ -2387,19 +2387,19 @@ fn parse_difference<'a, 'b>(
     // Check the cache.
     cache_check!(cache, Difference, start, error);
 
-    // Parse the minuend.
-    let (minuend, next) = try_eval!(
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
         cache,
         Difference,
         start,
         parse_medium_term(cache, tokens, start, error),
     );
 
-    // Consume the plus symbol.
+    // Consume the operator.
     let next = consume_token!(cache, Difference, start, tokens, Minus, next, error, Low);
 
-    // Parse the subtrahend.
-    let (subtrahend, next) = {
+    // Parse the right subterm.
+    let (term2, next) = {
         try_eval!(
             cache,
             Difference,
@@ -2415,9 +2415,9 @@ fn parse_difference<'a, 'b>(
         start,
         Some((
             Term {
-                source_range: (minuend.source_range.0, subtrahend.source_range.1),
+                source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
-                variant: Variant::Difference(Rc::new(minuend), Rc::new(subtrahend)),
+                variant: Variant::Difference(Rc::new(term1), Rc::new(term2)),
             },
             next,
         )),
@@ -2434,19 +2434,19 @@ fn parse_product<'a, 'b>(
     // Check the cache.
     cache_check!(cache, Product, start, error);
 
-    // Parse the left factor.
-    let (factor1, next) = try_eval!(
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
         cache,
         Product,
         start,
         parse_small_term(cache, tokens, start, error),
     );
 
-    // Consume the asterisk.
+    // Consume the operator.
     let next = consume_token!(cache, Product, start, tokens, Asterisk, next, error, Low);
 
-    // Parse the right factor.
-    let (factor2, next) = {
+    // Parse the right subterm.
+    let (term2, next) = {
         try_eval!(
             cache,
             Product,
@@ -2462,9 +2462,9 @@ fn parse_product<'a, 'b>(
         start,
         Some((
             Term {
-                source_range: (factor1.source_range.0, factor2.source_range.1),
+                source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
-                variant: Variant::Product(Rc::new(factor1), Rc::new(factor2)),
+                variant: Variant::Product(Rc::new(term1), Rc::new(term2)),
             },
             next,
         )),
@@ -2481,19 +2481,19 @@ fn parse_quotient<'a, 'b>(
     // Check the cache.
     cache_check!(cache, Quotient, start, error);
 
-    // Parse the dividend.
-    let (dividend, next) = try_eval!(
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
         cache,
         Quotient,
         start,
         parse_small_term(cache, tokens, start, error),
     );
 
-    // Consume the slash.
+    // Consume the operator.
     let next = consume_token!(cache, Quotient, start, tokens, Slash, next, error, Low);
 
-    // Parse the divisor.
-    let (divisor, next) = {
+    // Parse the right subterm.
+    let (term2, next) = {
         try_eval!(
             cache,
             Quotient,
@@ -2509,9 +2509,9 @@ fn parse_quotient<'a, 'b>(
         start,
         Some((
             Term {
-                source_range: (dividend.source_range.0, divisor.source_range.1),
+                source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
-                variant: Variant::Quotient(Rc::new(dividend), Rc::new(divisor)),
+                variant: Variant::Quotient(Rc::new(term1), Rc::new(term2)),
             },
             next,
         )),
@@ -2528,7 +2528,7 @@ fn parse_less_than<'a, 'b>(
     // Check the cache.
     cache_check!(cache, LessThan, start, error);
 
-    // Parse the left term.
+    // Parse the left subterm.
     let (term1, next) = try_eval!(
         cache,
         LessThan,
@@ -2539,7 +2539,7 @@ fn parse_less_than<'a, 'b>(
     // Consume the comparison operator.
     let next = consume_token!(cache, LessThan, start, tokens, LessThan, next, error, Low);
 
-    // Parse the right term.
+    // Parse the right subterm.
     let (term2, next) = {
         try_eval!(
             cache,
@@ -2575,7 +2575,7 @@ fn parse_less_than_or_equal_to<'a, 'b>(
     // Check the cache.
     cache_check!(cache, LessThanOrEqualTo, start, error);
 
-    // Parse the left term.
+    // Parse the left subterm.
     let (term1, next) = try_eval!(
         cache,
         LessThanOrEqualTo,
@@ -2595,7 +2595,7 @@ fn parse_less_than_or_equal_to<'a, 'b>(
         Low,
     );
 
-    // Parse the right term.
+    // Parse the right subterm.
     let (term2, next) = {
         try_eval!(
             cache,
@@ -2631,7 +2631,7 @@ fn parse_equal_to<'a, 'b>(
     // Check the cache.
     cache_check!(cache, EqualTo, start, error);
 
-    // Parse the left term.
+    // Parse the left subterm.
     let (term1, next) = try_eval!(
         cache,
         EqualTo,
@@ -2651,7 +2651,7 @@ fn parse_equal_to<'a, 'b>(
         Low,
     );
 
-    // Parse the right term.
+    // Parse the right subterm.
     let (term2, next) = {
         try_eval!(
             cache,
@@ -2687,7 +2687,7 @@ fn parse_greater_than<'a, 'b>(
     // Check the cache.
     cache_check!(cache, GreaterThan, start, error);
 
-    // Parse the left term.
+    // Parse the left subterm.
     let (term1, next) = try_eval!(
         cache,
         GreaterThan,
@@ -2707,7 +2707,7 @@ fn parse_greater_than<'a, 'b>(
         Low,
     );
 
-    // Parse the right term.
+    // Parse the right subterm.
     let (term2, next) = {
         try_eval!(
             cache,
@@ -2743,7 +2743,7 @@ fn parse_greater_than_or_equal_to<'a, 'b>(
     // Check the cache.
     cache_check!(cache, GreaterThanOrEqualTo, start, error);
 
-    // Parse the left term.
+    // Parse the left subterm.
     let (term1, next) = try_eval!(
         cache,
         GreaterThanOrEqualTo,
@@ -2763,7 +2763,7 @@ fn parse_greater_than_or_equal_to<'a, 'b>(
         Low,
     );
 
-    // Parse the right term.
+    // Parse the right subterm.
     let (term2, next) = {
         try_eval!(
             cache,

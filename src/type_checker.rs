@@ -474,27 +474,30 @@ pub fn type_check<'a>(
             })
         }
         IntegerLiteral(_) => Rc::new(INTEGER_TERM),
-        Sum(summand1, summand2) => {
-            // Infer the type of the left summand.
-            let summand1_type = type_check(
+        Sum(term1, term2)
+        | Difference(term1, term2)
+        | Product(term1, term2)
+        | Quotient(term1, term2) => {
+            // Infer the type of the left subterm.
+            let term1_type = type_check(
                 source_path,
                 source_contents,
-                &**summand1,
+                &**term1,
                 typing_context,
                 definitions_context,
             )?;
 
-            // Check that the type of the left summand is the type of integers.
+            // Check that the type of the left subterm is the type of integers.
             if !definitionally_equal(
-                summand1_type.clone(),
+                term1_type.clone(),
                 Rc::new(INTEGER_TERM),
                 definitions_context,
             ) {
-                return Err(if let Some(source_range) = summand1.source_range {
+                return Err(if let Some(source_range) = term1.source_range {
                     throw(
                         &format!(
                             "This has type {} when {} was expected.",
-                            summand1_type.to_string().code_str(),
+                            term1_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
                         source_path,
@@ -504,9 +507,9 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Summand {} has type {} when {} was expected.",
-                            summand1.to_string().code_str(),
-                            summand1_type.to_string().code_str(),
+                            "{} has type {} when {} was expected.",
+                            term1.to_string().code_str(),
+                            term1_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
                         reason: None,
@@ -514,26 +517,26 @@ pub fn type_check<'a>(
                 });
             };
 
-            // Infer the type of the right summand.
-            let summand2_type = type_check(
+            // Infer the type of the right subterm.
+            let term2_type = type_check(
                 source_path,
                 source_contents,
-                &**summand2,
+                &**term2,
                 typing_context,
                 definitions_context,
             )?;
 
-            // Check that the type of the right summand is the type of integers.
+            // Check that the type of the right subterm is the type of integers.
             if !definitionally_equal(
-                summand2_type.clone(),
+                term2_type.clone(),
                 Rc::new(INTEGER_TERM),
                 definitions_context,
             ) {
-                return Err(if let Some(source_range) = summand2.source_range {
+                return Err(if let Some(source_range) = term2.source_range {
                     throw(
                         &format!(
                             "This has type {} when {} was expected.",
-                            summand2_type.to_string().code_str(),
+                            term2_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
                         source_path,
@@ -543,255 +546,9 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Summand {} has type {} when {} was expected.",
-                            summand2.to_string().code_str(),
-                            summand2_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
-            };
-
-            // Return the type of integers.
-            Rc::new(INTEGER_TERM)
-        }
-        Difference(minuend, subtrahend) => {
-            // Infer the type of the minuend.
-            let minuend_type = type_check(
-                source_path,
-                source_contents,
-                &**minuend,
-                typing_context,
-                definitions_context,
-            )?;
-
-            // Check that the type of the minuend is the type of integers.
-            if !definitionally_equal(
-                minuend_type.clone(),
-                Rc::new(INTEGER_TERM),
-                definitions_context,
-            ) {
-                return Err(if let Some(source_range) = minuend.source_range {
-                    throw(
-                        &format!(
-                            "This has type {} when {} was expected.",
-                            minuend_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "Minuend {} has type {} when {} was expected.",
-                            minuend.to_string().code_str(),
-                            minuend_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
-            };
-
-            // Infer the type of the subtrahend.
-            let subtrahend_type = type_check(
-                source_path,
-                source_contents,
-                &**subtrahend,
-                typing_context,
-                definitions_context,
-            )?;
-
-            // Check that the type of the subtrahend is the type of integers.
-            if !definitionally_equal(
-                subtrahend_type.clone(),
-                Rc::new(INTEGER_TERM),
-                definitions_context,
-            ) {
-                return Err(if let Some(source_range) = subtrahend.source_range {
-                    throw(
-                        &format!(
-                            "This has type {} when {} was expected.",
-                            subtrahend_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "Subtrahend {} has type {} when {} was expected.",
-                            subtrahend.to_string().code_str(),
-                            subtrahend_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
-            };
-
-            // Return the type of integers.
-            Rc::new(INTEGER_TERM)
-        }
-        Product(factor1, factor2) => {
-            // Infer the type of the left factor.
-            let factor1_type = type_check(
-                source_path,
-                source_contents,
-                &**factor1,
-                typing_context,
-                definitions_context,
-            )?;
-
-            // Check that the type of the left factor is the type of integers.
-            if !definitionally_equal(
-                factor1_type.clone(),
-                Rc::new(INTEGER_TERM),
-                definitions_context,
-            ) {
-                return Err(if let Some(source_range) = factor1.source_range {
-                    throw(
-                        &format!(
-                            "This has type {} when {} was expected.",
-                            factor1_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "Summand {} has type {} when {} was expected.",
-                            factor1.to_string().code_str(),
-                            factor1_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
-            };
-
-            // Infer the type of the right factor.
-            let factor2_type = type_check(
-                source_path,
-                source_contents,
-                &**factor2,
-                typing_context,
-                definitions_context,
-            )?;
-
-            // Check that the type of the right factor is the type of integers.
-            if !definitionally_equal(
-                factor2_type.clone(),
-                Rc::new(INTEGER_TERM),
-                definitions_context,
-            ) {
-                return Err(if let Some(source_range) = factor2.source_range {
-                    throw(
-                        &format!(
-                            "This has type {} when {} was expected.",
-                            factor2_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "Factor {} has type {} when {} was expected.",
-                            factor2.to_string().code_str(),
-                            factor2_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
-            };
-
-            // Return the type of integers.
-            Rc::new(INTEGER_TERM)
-        }
-        Quotient(dividend, divisor) => {
-            // Infer the type of the dividend.
-            let dividend_type = type_check(
-                source_path,
-                source_contents,
-                &**dividend,
-                typing_context,
-                definitions_context,
-            )?;
-
-            // Check that the type of the dividend is the type of integers.
-            if !definitionally_equal(
-                dividend_type.clone(),
-                Rc::new(INTEGER_TERM),
-                definitions_context,
-            ) {
-                return Err(if let Some(source_range) = dividend.source_range {
-                    throw(
-                        &format!(
-                            "This has type {} when {} was expected.",
-                            dividend_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "Dividend {} has type {} when {} was expected.",
-                            dividend.to_string().code_str(),
-                            dividend_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
-            };
-
-            // Infer the type of the divisor.
-            let divisor_type = type_check(
-                source_path,
-                source_contents,
-                &**divisor,
-                typing_context,
-                definitions_context,
-            )?;
-
-            // Check that the type of the subtrahend is the type of integers.
-            if !definitionally_equal(
-                divisor_type.clone(),
-                Rc::new(INTEGER_TERM),
-                definitions_context,
-            ) {
-                return Err(if let Some(source_range) = divisor.source_range {
-                    throw(
-                        &format!(
-                            "This has type {} when {} was expected.",
-                            divisor_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "Divisor {} has type {} when {} was expected.",
-                            divisor.to_string().code_str(),
-                            divisor_type.to_string().code_str(),
+                            "{} has type {} when {} was expected.",
+                            term2.to_string().code_str(),
+                            term2_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
                         reason: None,
@@ -807,7 +564,7 @@ pub fn type_check<'a>(
         | EqualTo(term1, term2)
         | GreaterThan(term1, term2)
         | GreaterThanOrEqualTo(term1, term2) => {
-            // Infer the type of the left term.
+            // Infer the type of the left subterm.
             let term1_type = type_check(
                 source_path,
                 source_contents,
@@ -816,7 +573,7 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Check that the type of the left term is the type of integers.
+            // Check that the type of the left subterm is the type of integers.
             if !definitionally_equal(
                 term1_type.clone(),
                 Rc::new(INTEGER_TERM),
@@ -846,7 +603,7 @@ pub fn type_check<'a>(
                 });
             };
 
-            // Infer the type of the right term.
+            // Infer the type of the right subterm.
             let term2_type = type_check(
                 source_path,
                 source_contents,
@@ -855,7 +612,7 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Check that the type of the right term is the type of integers.
+            // Check that the type of the right subterm is the type of integers.
             if !definitionally_equal(
                 term2_type.clone(),
                 Rc::new(INTEGER_TERM),
