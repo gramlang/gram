@@ -72,32 +72,32 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
                 ),
             })
         }
-        Sum(summand1, summand2) => Rc::new(Term {
+        Sum(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             variant: Sum(
-                shift(summand1.clone(), cutoff, amount),
-                shift(summand2.clone(), cutoff, amount),
+                shift(term1.clone(), cutoff, amount),
+                shift(term2.clone(), cutoff, amount),
             ),
         }),
-        Difference(minuend, subtrahend) => Rc::new(Term {
+        Difference(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             variant: Difference(
-                shift(minuend.clone(), cutoff, amount),
-                shift(subtrahend.clone(), cutoff, amount),
+                shift(term1.clone(), cutoff, amount),
+                shift(term2.clone(), cutoff, amount),
             ),
         }),
-        Product(factor1, factor2) => Rc::new(Term {
+        Product(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             variant: Product(
-                shift(factor1.clone(), cutoff, amount),
-                shift(factor2.clone(), cutoff, amount),
+                shift(term1.clone(), cutoff, amount),
+                shift(term2.clone(), cutoff, amount),
             ),
         }),
-        Quotient(dividend, divisor) => Rc::new(Term {
+        Quotient(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             variant: Quotient(
-                shift(dividend.clone(), cutoff, amount),
-                shift(divisor.clone(), cutoff, amount),
+                shift(term1.clone(), cutoff, amount),
+                shift(term2.clone(), cutoff, amount),
             ),
         }),
         LessThan(term1, term2) => Rc::new(Term {
@@ -221,32 +221,32 @@ pub fn open<'a>(
                 ),
             })
         }
-        Sum(summand1, summand2) => Rc::new(Term {
+        Sum(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Sum(
-                open(summand1.clone(), index_to_replace, term_to_insert.clone()),
-                open(summand2.clone(), index_to_replace, term_to_insert),
+                open(term1.clone(), index_to_replace, term_to_insert.clone()),
+                open(term2.clone(), index_to_replace, term_to_insert),
             ),
         }),
-        Difference(minuend, subtrahend) => Rc::new(Term {
+        Difference(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Difference(
-                open(minuend.clone(), index_to_replace, term_to_insert.clone()),
-                open(subtrahend.clone(), index_to_replace, term_to_insert),
+                open(term1.clone(), index_to_replace, term_to_insert.clone()),
+                open(term2.clone(), index_to_replace, term_to_insert),
             ),
         }),
-        Product(factor1, factor2) => Rc::new(Term {
+        Product(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Product(
-                open(factor1.clone(), index_to_replace, term_to_insert.clone()),
-                open(factor2.clone(), index_to_replace, term_to_insert),
+                open(term1.clone(), index_to_replace, term_to_insert.clone()),
+                open(term2.clone(), index_to_replace, term_to_insert),
             ),
         }),
-        Quotient(dividend, divisor) => Rc::new(Term {
+        Quotient(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Quotient(
-                open(dividend.clone(), index_to_replace, term_to_insert.clone()),
-                open(divisor.clone(), index_to_replace, term_to_insert),
+                open(term1.clone(), index_to_replace, term_to_insert.clone()),
+                open(term2.clone(), index_to_replace, term_to_insert),
             ),
         }),
         LessThan(term1, term2) => Rc::new(Term {
@@ -332,23 +332,11 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
 
             free_variables(body, cutoff + definitions.len(), variables);
         }
-        Sum(summand1, summand2) => {
-            free_variables(summand1, cutoff, variables);
-            free_variables(summand2, cutoff, variables);
-        }
-        Difference(minuend, subtrahend) => {
-            free_variables(minuend, cutoff, variables);
-            free_variables(subtrahend, cutoff, variables);
-        }
-        Product(factor1, factor2) => {
-            free_variables(factor1, cutoff, variables);
-            free_variables(factor2, cutoff, variables);
-        }
-        Quotient(dividend, divisor) => {
-            free_variables(dividend, cutoff, variables);
-            free_variables(divisor, cutoff, variables);
-        }
-        LessThan(term1, term2)
+        Sum(term1, term2)
+        | Difference(term1, term2)
+        | Product(term1, term2)
+        | Quotient(term1, term2)
+        | LessThan(term1, term2)
         | LessThanOrEqualTo(term1, term2)
         | EqualTo(term1, term2)
         | GreaterThan(term1, term2)

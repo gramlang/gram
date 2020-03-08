@@ -46,28 +46,16 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
                 && syntactically_equal(&**body1, &**body2)
         }
         (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
-        (Sum(summand11, summand12), Sum(summand21, summand22)) => {
-            syntactically_equal(&**summand11, &**summand21)
-                && syntactically_equal(&**summand12, &**summand22)
-        }
-        (Difference(minuend1, subtrahend1), Difference(minuend2, subtrahend2)) => {
-            syntactically_equal(&**minuend1, &**minuend2)
-                && syntactically_equal(&**subtrahend1, &**subtrahend2)
-        }
-        (Product(factor11, factor12), Product(factor21, factor22)) => {
-            syntactically_equal(&**factor11, &**factor21)
-                && syntactically_equal(&**factor12, &**factor22)
-        }
-        (Quotient(dividend1, divisor1), Quotient(dividend2, divisor2)) => {
-            syntactically_equal(&**dividend1, &**dividend2)
-                && syntactically_equal(&**divisor1, &**divisor2)
-        }
-        (LessThan(term11, term12), LessThan(term21, term22))
-        | (LessThanOrEqualTo(term11, term12), LessThanOrEqualTo(term21, term22))
-        | (EqualTo(term11, term12), EqualTo(term21, term22))
-        | (GreaterThan(term11, term12), GreaterThan(term21, term22))
-        | (GreaterThanOrEqualTo(term11, term12), GreaterThanOrEqualTo(term21, term22)) => {
-            syntactically_equal(&**term11, &**term21) && syntactically_equal(&**term12, &**term22)
+        (Sum(term11, term21), Sum(term12, term22))
+        | (Difference(term11, term21), Difference(term12, term22))
+        | (Product(term11, term21), Product(term12, term22))
+        | (Quotient(term11, term21), Quotient(term12, term22))
+        | (LessThan(term11, term21), LessThan(term12, term22))
+        | (LessThanOrEqualTo(term11, term21), LessThanOrEqualTo(term12, term22))
+        | (EqualTo(term11, term21), EqualTo(term12, term22))
+        | (GreaterThan(term11, term21), GreaterThan(term12, term22))
+        | (GreaterThanOrEqualTo(term11, term21), GreaterThanOrEqualTo(term12, term22)) => {
+            syntactically_equal(&**term11, &**term12) && syntactically_equal(&**term21, &**term22)
         }
         (
             If(condition1, then_branch1, else_branch1),
@@ -179,33 +167,17 @@ pub fn definitionally_equal<'a>(
                 && definitionally_equal(argument1.clone(), argument2.clone(), definitions_context)
         }
         (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
-        (Sum(summand11, summand12), Sum(summand21, summand22)) => {
-            definitionally_equal(summand11.clone(), summand21.clone(), definitions_context)
-                && definitionally_equal(summand12.clone(), summand22.clone(), definitions_context)
-        }
-        (Difference(minuend1, subtrahend1), Difference(minuend2, subtrahend2)) => {
-            definitionally_equal(minuend1.clone(), minuend2.clone(), definitions_context)
-                && definitionally_equal(
-                    subtrahend1.clone(),
-                    subtrahend2.clone(),
-                    definitions_context,
-                )
-        }
-        (Product(factor11, factor12), Product(factor21, factor22)) => {
-            definitionally_equal(factor11.clone(), factor21.clone(), definitions_context)
-                && definitionally_equal(factor12.clone(), factor22.clone(), definitions_context)
-        }
-        (Quotient(dividend1, divisor1), Quotient(dividend2, divisor2)) => {
-            definitionally_equal(dividend1.clone(), dividend2.clone(), definitions_context)
-                && definitionally_equal(divisor1.clone(), divisor2.clone(), definitions_context)
-        }
-        (LessThan(term11, term12), LessThan(term21, term22))
-        | (LessThanOrEqualTo(term11, term12), LessThanOrEqualTo(term21, term22))
-        | (EqualTo(term11, term12), EqualTo(term21, term22))
-        | (GreaterThan(term11, term12), GreaterThan(term21, term22))
-        | (GreaterThanOrEqualTo(term11, term12), GreaterThanOrEqualTo(term21, term22)) => {
-            definitionally_equal(term11.clone(), term21.clone(), definitions_context)
-                && definitionally_equal(term12.clone(), term22.clone(), definitions_context)
+        (Sum(term11, term21), Sum(term12, term22))
+        | (Difference(term11, term21), Difference(term12, term22))
+        | (Product(term11, term21), Product(term12, term22))
+        | (Quotient(term11, term21), Quotient(term12, term22))
+        | (LessThan(term11, term21), LessThan(term12, term22))
+        | (LessThanOrEqualTo(term11, term21), LessThanOrEqualTo(term12, term22))
+        | (EqualTo(term11, term21), EqualTo(term12, term22))
+        | (GreaterThan(term11, term21), GreaterThan(term12, term22))
+        | (GreaterThanOrEqualTo(term11, term21), GreaterThanOrEqualTo(term12, term22)) => {
+            definitionally_equal(term11.clone(), term12.clone(), definitions_context)
+                && definitionally_equal(term21.clone(), term22.clone(), definitions_context)
         }
         (
             If(condition1, then_branch1, else_branch1),
@@ -563,7 +535,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_sum_summand1() {
+    fn syntactically_inequal_sum_term1() {
         let context = [];
 
         let source1 = "1 + 2";
@@ -578,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_sum_summand2() {
+    fn syntactically_inequal_sum_term2() {
         let context = [];
 
         let source1 = "1 + 2";
@@ -608,7 +580,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_difference_minuend() {
+    fn syntactically_inequal_difference_term1() {
         let context = [];
 
         let source1 = "1 - 2";
@@ -623,7 +595,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_difference_subtrahend() {
+    fn syntactically_inequal_difference_term2() {
         let context = [];
 
         let source1 = "1 - 2";
@@ -653,7 +625,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_product_factor1() {
+    fn syntactically_inequal_product_term1() {
         let context = [];
 
         let source1 = "1 * 2";
@@ -668,7 +640,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_product_factor2() {
+    fn syntactically_inequal_product_term2() {
         let context = [];
 
         let source1 = "1 * 2";
@@ -698,7 +670,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_quotient_minuend() {
+    fn syntactically_inequal_quotient_term1() {
         let context = [];
 
         let source1 = "1 / 2";
@@ -713,7 +685,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_quotient_subtrahend() {
+    fn syntactically_inequal_quotient_term2() {
         let context = [];
 
         let source1 = "4 / 2";

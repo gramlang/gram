@@ -178,36 +178,36 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             // Return the substituted body.
             Some(substituted_body)
         }
-        Sum(summand1, summand2) => {
-            // Try to step the left summand.
-            if let Some(stepped_summand1) = step(summand1) {
+        Sum(term1, term2) => {
+            // Try to step the left subterm.
+            if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Sum(stepped_summand1, summand2.clone()),
+                    variant: Sum(stepped_term1, term2.clone()),
                 }));
             };
 
-            // Ensure the left summand is a value.
-            if !is_value(summand1) {
+            // Ensure the left subterm is a value.
+            if !is_value(term1) {
                 return None;
             }
 
-            // Try to step the right summand.
-            if let Some(stepped_summand2) = step(summand2) {
+            // Try to step the right subterm.
+            if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Sum(summand1.clone(), stepped_summand2),
+                    variant: Sum(term1.clone(), stepped_term2),
                 }));
             };
 
-            // Ensure the right summand is a value.
-            if !is_value(summand2) {
+            // Ensure the right subterm is a value.
+            if !is_value(term2) {
                 return None;
             }
 
-            // Check if the summands are integer literals.
+            // Check if the subterms are integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
-                (&summand1.variant, &summand2.variant)
+                (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform addition and continue evaluating.
                 Some(Rc::new(Term {
@@ -219,36 +219,36 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 None
             }
         }
-        Difference(minuend, subtrahend) => {
-            // Try to step the minuend.
-            if let Some(stepped_minuend) = step(minuend) {
+        Difference(term1, term2) => {
+            // Try to step the left subterm.
+            if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Difference(stepped_minuend, subtrahend.clone()),
+                    variant: Sum(stepped_term1, term2.clone()),
                 }));
             };
 
-            // Ensure the minuend is a value.
-            if !is_value(minuend) {
+            // Ensure the left subterm is a value.
+            if !is_value(term1) {
                 return None;
             }
 
-            // Try to step the subtrahend.
-            if let Some(stepped_subtrahend) = step(subtrahend) {
+            // Try to step the right subterm.
+            if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Difference(minuend.clone(), stepped_subtrahend),
+                    variant: Sum(term1.clone(), stepped_term2),
                 }));
             };
 
-            // Ensure the subtrahend is a value.
-            if !is_value(subtrahend) {
+            // Ensure the right subterm is a value.
+            if !is_value(term2) {
                 return None;
             }
 
-            // Check if the minuend and subtrahend are integer literals.
+            // Check if the subterms are integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
-                (&minuend.variant, &subtrahend.variant)
+                (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform subtraction and continue evaluating.
                 Some(Rc::new(Term {
@@ -260,36 +260,36 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 None
             }
         }
-        Product(factor1, factor2) => {
-            // Try to step the left factor.
-            if let Some(stepped_factor1) = step(factor1) {
+        Product(term1, term2) => {
+            // Try to step the left subterm.
+            if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(stepped_factor1, factor2.clone()),
+                    variant: Sum(stepped_term1, term2.clone()),
                 }));
             };
 
-            // Ensure the left factor is a value.
-            if !is_value(factor1) {
+            // Ensure the left subterm is a value.
+            if !is_value(term1) {
                 return None;
             }
 
-            // Try to step the right factor.
-            if let Some(stepped_factor2) = step(factor2) {
+            // Try to step the right subterm.
+            if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(factor1.clone(), stepped_factor2),
+                    variant: Sum(term1.clone(), stepped_term2),
                 }));
             };
 
-            // Ensure the right factor is a value.
-            if !is_value(factor2) {
+            // Ensure the right subterm is a value.
+            if !is_value(term2) {
                 return None;
             }
 
-            // Check if the factors are integer literals.
+            // Check if the subterms are integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
-                (&factor1.variant, &factor2.variant)
+                (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform multiplication and continue evaluating.
                 Some(Rc::new(Term {
@@ -301,36 +301,36 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 None
             }
         }
-        Quotient(dividend, divisor) => {
-            // Try to step the dividend.
-            if let Some(stepped_dividend) = step(dividend) {
+        Quotient(term1, term2) => {
+            // Try to step the left subterm.
+            if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Quotient(stepped_dividend, divisor.clone()),
+                    variant: Sum(stepped_term1, term2.clone()),
                 }));
             };
 
-            // Ensure the dividend is a value.
-            if !is_value(dividend) {
+            // Ensure the left subterm is a value.
+            if !is_value(term1) {
                 return None;
             }
 
-            // Try to step the divisor.
-            if let Some(stepped_divisor) = step(divisor) {
+            // Try to step the right subterm.
+            if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Quotient(dividend.clone(), stepped_divisor),
+                    variant: Sum(term1.clone(), stepped_term2),
                 }));
             };
 
-            // Ensure the divisor is a value.
-            if !is_value(divisor) {
+            // Ensure the right subterm is a value.
+            if !is_value(term2) {
                 return None;
             }
 
-            // Check if the dividend and divisor are integer literals.
+            // Check if the subterms are integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
-                (&dividend.variant, &divisor.variant)
+                (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Attempt to perform division.
                 if let Some(quotient) = integer1.checked_div(integer2) {
@@ -349,7 +349,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             }
         }
         LessThan(term1, term2) => {
-            // Try to step the left term.
+            // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -357,12 +357,12 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the left term is a value.
+            // Ensure the left subterm is a value.
             if !is_value(term1) {
                 return None;
             }
 
-            // Try to step the right term.
+            // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -370,7 +370,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the right term is a value.
+            // Ensure the right subterm is a value.
             if !is_value(term2) {
                 return None;
             }
@@ -390,7 +390,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             }
         }
         LessThanOrEqualTo(term1, term2) => {
-            // Try to step the left term.
+            // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -398,12 +398,12 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the left term is a value.
+            // Ensure the left subterm is a value.
             if !is_value(term1) {
                 return None;
             }
 
-            // Try to step the right term.
+            // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -411,7 +411,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the right term is a value.
+            // Ensure the right subterm is a value.
             if !is_value(term2) {
                 return None;
             }
@@ -431,7 +431,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             }
         }
         EqualTo(term1, term2) => {
-            // Try to step the left term.
+            // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -439,12 +439,12 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the left term is a value.
+            // Ensure the left subterm is a value.
             if !is_value(term1) {
                 return None;
             }
 
-            // Try to step the right term.
+            // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -452,7 +452,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the right term is a value.
+            // Ensure the right subterm is a value.
             if !is_value(term2) {
                 return None;
             }
@@ -472,7 +472,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             }
         }
         GreaterThan(term1, term2) => {
-            // Try to step the left term.
+            // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -480,12 +480,12 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the left term is a value.
+            // Ensure the left subterm is a value.
             if !is_value(term1) {
                 return None;
             }
 
-            // Try to step the right term.
+            // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -493,7 +493,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the right term is a value.
+            // Ensure the right subterm is a value.
             if !is_value(term2) {
                 return None;
             }
@@ -513,7 +513,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             }
         }
         GreaterThanOrEqualTo(term1, term2) => {
-            // Try to step the left term.
+            // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -521,12 +521,12 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the left term is a value.
+            // Ensure the left subterm is a value.
             if !is_value(term1) {
                 return None;
             }
 
-            // Try to step the right term.
+            // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
@@ -534,7 +534,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 }));
             };
 
-            // Ensure the right term is a value.
+            // Ensure the right subterm is a value.
             if !is_value(term2) {
                 return None;
             }

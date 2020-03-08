@@ -135,16 +135,16 @@ pub fn normalize_weak_head<'a>(
             // Normalize the body [tag:let_not_in_weak_head_normal_form].
             normalize_weak_head(substituted_body, definitions_context)
         }
-        Sum(summand1, summand2) => {
-            // Normalize the left summand.
-            let normalized_summand1 = normalize_weak_head(summand1.clone(), definitions_context);
+        Sum(term1, term2) => {
+            // Normalize the left subterm.
+            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
 
-            // Normalize the right summand.
-            let normalized_summand2 = normalize_weak_head(summand2.clone(), definitions_context);
+            // Normalize the right subterm.
+            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
-            // Check if the summands reduced to integer literals.
+            // Check if the subterm reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
-                (&normalized_summand1.variant, &normalized_summand2.variant)
+                (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform addition.
                 Rc::new(Term {
@@ -155,21 +155,20 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Sum(normalized_summand1, normalized_summand2),
+                    variant: Sum(normalized_term1, normalized_term2),
                 })
             }
         }
-        Difference(minuend, subtrahend) => {
-            // Normalize the minuend.
-            let normalized_minuend = normalize_weak_head(minuend.clone(), definitions_context);
+        Difference(term1, term2) => {
+            // Normalize the left subterm.
+            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
 
-            // Normalize the subtrahend.
-            let normalized_subtrahend =
-                normalize_weak_head(subtrahend.clone(), definitions_context);
+            // Normalize the right subterm.
+            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
-            // Check if the minuend and subtrahend reduced to integer literals.
+            // Check if the subterm reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
-                (&normalized_minuend.variant, &normalized_subtrahend.variant)
+                (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform subtraction.
                 Rc::new(Term {
@@ -180,20 +179,20 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Difference(normalized_minuend, normalized_subtrahend),
+                    variant: Difference(normalized_term1, normalized_term2),
                 })
             }
         }
-        Product(factor1, factor2) => {
-            // Normalize the left factor.
-            let normalized_factor1 = normalize_weak_head(factor1.clone(), definitions_context);
+        Product(term1, term2) => {
+            // Normalize the left subterm.
+            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
 
-            // Normalize the right factor.
-            let normalized_factor2 = normalize_weak_head(factor2.clone(), definitions_context);
+            // Normalize the right subterm.
+            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
-            // Check if the factors reduced to integer literals.
+            // Check if the subterm reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
-                (&normalized_factor1.variant, &normalized_factor2.variant)
+                (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform multiplication.
                 Rc::new(Term {
@@ -204,20 +203,20 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Product(normalized_factor1, normalized_factor2),
+                    variant: Product(normalized_term1, normalized_term2),
                 })
             }
         }
-        Quotient(dividend, divisor) => {
-            // Normalize the dividend.
-            let normalized_dividend = normalize_weak_head(dividend.clone(), definitions_context);
+        Quotient(term1, term2) => {
+            // Normalize the left subterm.
+            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
 
-            // Normalize the divisor.
-            let normalized_divisor = normalize_weak_head(divisor.clone(), definitions_context);
+            // Normalize the right subterm.
+            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
-            // Check if the dividend and divisor reduced to integer literals.
+            // Check if the subterm reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
-                (&normalized_dividend.variant, &normalized_divisor.variant)
+                (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Attempt to perform division.
                 if let Some(quotient) = integer1.checked_div(integer2) {
@@ -230,22 +229,22 @@ pub fn normalize_weak_head<'a>(
                     // Division by zero!
                     Rc::new(Term {
                         source_range: None,
-                        variant: Quotient(normalized_dividend, normalized_divisor),
+                        variant: Quotient(normalized_term1, normalized_term2),
                     })
                 }
             } else {
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Quotient(normalized_dividend, normalized_divisor),
+                    variant: Quotient(normalized_term1, normalized_term2),
                 })
             }
         }
         LessThan(term1, term2) => {
-            // Normalize the left term.
+            // Normalize the left subterm.
             let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
 
-            // Normalize the right term.
+            // Normalize the right subterm.
             let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
             // Check if the terms reduced to integer literals.
@@ -266,10 +265,10 @@ pub fn normalize_weak_head<'a>(
             }
         }
         LessThanOrEqualTo(term1, term2) => {
-            // Normalize the left term.
+            // Normalize the left subterm.
             let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
 
-            // Normalize the right term.
+            // Normalize the right subterm.
             let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
             // Check if the terms reduced to integer literals.
@@ -290,10 +289,10 @@ pub fn normalize_weak_head<'a>(
             }
         }
         EqualTo(term1, term2) => {
-            // Normalize the left term.
+            // Normalize the left subterm.
             let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
 
-            // Normalize the right term.
+            // Normalize the right subterm.
             let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
             // Check if the terms reduced to integer literals.
@@ -314,10 +313,10 @@ pub fn normalize_weak_head<'a>(
             }
         }
         GreaterThan(term1, term2) => {
-            // Normalize the left term.
+            // Normalize the left subterm.
             let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
 
-            // Normalize the right term.
+            // Normalize the right subterm.
             let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
             // Check if the terms reduced to integer literals.
@@ -338,10 +337,10 @@ pub fn normalize_weak_head<'a>(
             }
         }
         GreaterThanOrEqualTo(term1, term2) => {
-            // Normalize the left term.
+            // Normalize the left subterm.
             let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
 
-            // Normalize the right term.
+            // Normalize the right subterm.
             let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
             // Check if the terms reduced to integer literals.
