@@ -42,29 +42,27 @@ We are fortunate to have good tooling around enforcing a consistent style throug
 
 ### Trailing commas
 
-At the time of this writing, `cargo fmt` cannot enforce a convention regarding trailing commas.
-
-**Rule:** Always use trailing commas for sequences spanning multiple lines, such as in the following example:
-
-```rust
-foo(
-    bar,
-    baz,
-    qux,
-);
-```
-
-**Rule:** Do not use trailing commas for sequences spanning only a single line. For example:
-
-```rust
-foo(bar, baz, qux);
-```
+The linter enforces that items in multi-line sequences (e.g., function arguments and macro arguments) have trailing commas.
 
 **Rule:** Macros should be written to accept trailing commas as follows:
 
 ```rust
 macro_rules! my_macro {
     ($foo:expr, $bar:expr, $baz:expr $(,)?) => {{
+        ...
+    }};
+}
+```
+
+When the arguments in the definition of the macro span multiple lines, you will need a comment with a trailing comma to satisfy the linter as follows:
+
+```rust
+macro_rules! my_macro {
+    (
+        $foo:expr,
+        $bar:expr,
+        $baz:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
+    ) => {{
         ...
     }};
 }

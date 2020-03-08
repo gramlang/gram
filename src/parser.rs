@@ -55,8 +55,10 @@ pub const PLACEHOLDER_VARIABLE: &str = "_";
 // - It has source ranges for variables.
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Term<'a> {
-    source_range: (usize, usize), // [start, end)
-    group: bool,                  // For an explanation of this field, see [ref:group_flag].
+    // Inclusive on the left and exclusive on the right
+    source_range: (usize, usize),
+
+    group: bool, // For an explanation of this field, see [ref:group_flag].
     variant: Variant<'a>,
 }
 
@@ -95,7 +97,9 @@ enum Variant<'a> {
 // us to report nice errors when there are multiple variables with the same name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SourceVariable<'a> {
-    source_range: (usize, usize), // [start, end)
+    // Inclusive on the left and exclusive on the right
+    source_range: (usize, usize),
+
     name: &'a str,
 }
 
@@ -254,7 +258,7 @@ macro_rules! consume_token {
         $variant:ident,
         $next:expr,
         $error:ident,
-        $confidence:ident $(,)?
+        $confidence:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -327,7 +331,7 @@ macro_rules! consume_terminator {
         $tokens:expr,
         $next:expr,
         $error:ident,
-        $confidence:ident $(,)?
+        $confidence:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -403,7 +407,7 @@ macro_rules! consume_identifier {
         $tokens:expr,
         $next:expr,
         $error:ident,
-        $confidence:ident $(,)?
+        $confidence:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -1846,7 +1850,7 @@ fn parse_term<'a, 'b>(
         cache,
         Term,
         start,
-        parse_jumbo_term(cache, tokens, start, error)
+        parse_jumbo_term(cache, tokens, start, error),
     );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
@@ -1943,7 +1947,7 @@ fn parse_lambda<'a, 'b>(
         cache,
         Lambda,
         start,
-        parse_jumbo_term(cache, tokens, next, error)
+        parse_jumbo_term(cache, tokens, next, error),
     );
 
     // Consume the right parenthesis.
@@ -2002,7 +2006,7 @@ fn parse_pi<'a, 'b>(
         cache,
         Pi,
         start,
-        parse_jumbo_term(cache, tokens, next, error)
+        parse_jumbo_term(cache, tokens, next, error),
     );
 
     // Consume the right parenthesis.
@@ -2102,7 +2106,7 @@ fn parse_non_dependent_pi<'a, 'b>(
                     Rc::new(codomain),
                 ),
             },
-            next
+            next,
         )),
     )
 }
@@ -2122,7 +2126,7 @@ fn parse_application<'a, 'b>(
         cache,
         Application,
         start,
-        parse_atom(cache, tokens, start, error)
+        parse_atom(cache, tokens, start, error),
     );
 
     // Parse the argument.
@@ -2173,7 +2177,7 @@ fn parse_let<'a, 'b>(
                 cache,
                 Let,
                 start,
-                parse_small_term(cache, tokens, next, error)
+                parse_small_term(cache, tokens, next, error),
             );
 
             // Package up the annotation in the right form.
@@ -2368,7 +2372,7 @@ fn parse_sum<'a, 'b>(
                 group: false,
                 variant: Variant::Sum(Rc::new(summand1), Rc::new(summand2)),
             },
-            next
+            next,
         )),
     )
 }
@@ -2415,7 +2419,7 @@ fn parse_difference<'a, 'b>(
                 group: false,
                 variant: Variant::Difference(Rc::new(minuend), Rc::new(subtrahend)),
             },
-            next
+            next,
         )),
     )
 }
@@ -2462,7 +2466,7 @@ fn parse_product<'a, 'b>(
                 group: false,
                 variant: Variant::Product(Rc::new(factor1), Rc::new(factor2)),
             },
-            next
+            next,
         )),
     )
 }
@@ -2509,7 +2513,7 @@ fn parse_quotient<'a, 'b>(
                 group: false,
                 variant: Variant::Quotient(Rc::new(dividend), Rc::new(divisor)),
             },
-            next
+            next,
         )),
     )
 }
@@ -2556,7 +2560,7 @@ fn parse_less_than<'a, 'b>(
                 group: false,
                 variant: Variant::LessThan(Rc::new(term1), Rc::new(term2)),
             },
-            next
+            next,
         )),
     )
 }
@@ -2588,7 +2592,7 @@ fn parse_less_than_or_equal_to<'a, 'b>(
         LessThanOrEqualTo,
         next,
         error,
-        Low
+        Low,
     );
 
     // Parse the right term.
@@ -2612,7 +2616,7 @@ fn parse_less_than_or_equal_to<'a, 'b>(
                 group: false,
                 variant: Variant::LessThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
             },
-            next
+            next,
         )),
     )
 }
@@ -2644,7 +2648,7 @@ fn parse_equal_to<'a, 'b>(
         DoubleEquals,
         next,
         error,
-        Low
+        Low,
     );
 
     // Parse the right term.
@@ -2668,7 +2672,7 @@ fn parse_equal_to<'a, 'b>(
                 group: false,
                 variant: Variant::EqualTo(Rc::new(term1), Rc::new(term2)),
             },
-            next
+            next,
         )),
     )
 }
@@ -2700,7 +2704,7 @@ fn parse_greater_than<'a, 'b>(
         GreaterThan,
         next,
         error,
-        Low
+        Low,
     );
 
     // Parse the right term.
@@ -2724,7 +2728,7 @@ fn parse_greater_than<'a, 'b>(
                 group: false,
                 variant: Variant::GreaterThan(Rc::new(term1), Rc::new(term2)),
             },
-            next
+            next,
         )),
     )
 }
@@ -2756,7 +2760,7 @@ fn parse_greater_than_or_equal_to<'a, 'b>(
         GreaterThanOrEqualTo,
         next,
         error,
-        Low
+        Low,
     );
 
     // Parse the right term.
@@ -2780,7 +2784,7 @@ fn parse_greater_than_or_equal_to<'a, 'b>(
                 group: false,
                 variant: Variant::GreaterThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
             },
-            next
+            next,
         )),
     )
 }
@@ -2952,13 +2956,13 @@ fn parse_group<'a, 'b>(
                 // parentheses but not both.
                 source_range: (
                     tokens[start].source_range.0,
-                    tokens[next - 1].source_range.1
+                    tokens[next - 1].source_range.1,
                 ),
                 group: true,
                 variant: term.variant,
             },
             next,
-        ))
+        )),
     )
 }
 
@@ -2988,7 +2992,7 @@ fn parse_atom<'a, 'b>(
         cache,
         Term,
         start,
-        parse_integer(cache, tokens, start, error)
+        parse_integer(cache, tokens, start, error),
     );
 
     // Try to parse an integer literal.
@@ -2996,7 +3000,7 @@ fn parse_atom<'a, 'b>(
         cache,
         Term,
         start,
-        parse_integer_literal(cache, tokens, start, error)
+        parse_integer_literal(cache, tokens, start, error),
     );
 
     // Try to parse the type of Booleans.
@@ -3004,7 +3008,7 @@ fn parse_atom<'a, 'b>(
         cache,
         Atom,
         start,
-        parse_boolean(cache, tokens, start, error)
+        parse_boolean(cache, tokens, start, error),
     );
 
     // Try to parse the logical true value.
@@ -3047,7 +3051,7 @@ fn parse_small_term<'a, 'b>(
         cache,
         SmallTerm,
         start,
-        parse_atom(cache, tokens, start, error)
+        parse_atom(cache, tokens, start, error),
     );
 
     // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
@@ -3073,7 +3077,7 @@ fn parse_medium_term<'a, 'b>(
         cache,
         MediumTerm,
         start,
-        parse_product(cache, tokens, start, error)
+        parse_product(cache, tokens, start, error),
     );
 
     // Try to parse a quotient.
@@ -3081,7 +3085,7 @@ fn parse_medium_term<'a, 'b>(
         cache,
         MediumTerm,
         start,
-        parse_quotient(cache, tokens, start, error)
+        parse_quotient(cache, tokens, start, error),
     );
 
     // Try to parse a small term.
@@ -3115,7 +3119,7 @@ fn parse_large_term<'a, 'b>(
         cache,
         LargeTerm,
         start,
-        parse_sum(cache, tokens, start, error)
+        parse_sum(cache, tokens, start, error),
     );
 
     // Try to parse a difference.
@@ -3123,7 +3127,7 @@ fn parse_large_term<'a, 'b>(
         cache,
         LargeTerm,
         start,
-        parse_difference(cache, tokens, start, error)
+        parse_difference(cache, tokens, start, error),
     );
 
     // Try to parse a medium term.
@@ -3157,7 +3161,7 @@ fn parse_huge_term<'a, 'b>(
         cache,
         HugeTerm,
         start,
-        parse_less_than(cache, tokens, start, error)
+        parse_less_than(cache, tokens, start, error),
     );
 
     // Try to parse a less than or equal to comparison.
@@ -3165,7 +3169,7 @@ fn parse_huge_term<'a, 'b>(
         cache,
         HugeTerm,
         start,
-        parse_less_than_or_equal_to(cache, tokens, start, error)
+        parse_less_than_or_equal_to(cache, tokens, start, error),
     );
 
     // Try to parse an equality comparison.
@@ -3173,7 +3177,7 @@ fn parse_huge_term<'a, 'b>(
         cache,
         HugeTerm,
         start,
-        parse_equal_to(cache, tokens, start, error)
+        parse_equal_to(cache, tokens, start, error),
     );
 
     // Try to parse a greater than comparison.
@@ -3181,7 +3185,7 @@ fn parse_huge_term<'a, 'b>(
         cache,
         HugeTerm,
         start,
-        parse_greater_than(cache, tokens, start, error)
+        parse_greater_than(cache, tokens, start, error),
     );
 
     // Try to parse a greater than or equal to comparison.
@@ -3189,7 +3193,7 @@ fn parse_huge_term<'a, 'b>(
         cache,
         HugeTerm,
         start,
-        parse_greater_than_or_equal_to(cache, tokens, start, error)
+        parse_greater_than_or_equal_to(cache, tokens, start, error),
     );
 
     // Try to parse a large term.
@@ -3239,7 +3243,7 @@ fn parse_jumbo_term<'a, 'b>(
         cache,
         JumboTerm,
         start,
-        parse_pi(cache, tokens, start, error)
+        parse_pi(cache, tokens, start, error),
     );
 
     // Try to parse an if expression.
@@ -3247,7 +3251,7 @@ fn parse_jumbo_term<'a, 'b>(
         cache,
         JumboTerm,
         start,
-        parse_if(cache, tokens, start, error)
+        parse_if(cache, tokens, start, error),
     );
 
     // Try to parse a jumbo term.
@@ -3370,7 +3374,7 @@ mod tests {
 
         assert_fails!(
             parse(None, source, &tokens[..], &context[..]),
-            "already exists"
+            "already exists",
         );
     }
 
@@ -3685,7 +3689,7 @@ mod tests {
                     Rc::new(Term {
                         source_range: Some((45, 46)),
                         variant: Variable("x", 1),
-                    })
+                    }),
                 ),
             },
         );

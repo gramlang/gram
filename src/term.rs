@@ -13,7 +13,9 @@ use std::{
 // an AST.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Term<'a> {
-    pub source_range: Option<(usize, usize)>, // [start, end)
+    // Inclusive on the left and exclusive on the right
+    pub source_range: Option<(usize, usize)>,
+
     pub variant: Variant<'a>,
 }
 
@@ -118,7 +120,7 @@ impl<'a> Display for Variant<'a> {
             Self::If(condition, then_branch, else_branch) => write!(
                 f,
                 "if {} then {} else {}",
-                condition, then_branch, else_branch
+                condition, then_branch, else_branch,
             ),
         }
     }

@@ -847,7 +847,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -866,7 +866,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -885,7 +885,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -904,7 +904,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -923,7 +923,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -942,7 +942,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -961,7 +961,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -980,7 +980,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -999,7 +999,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1018,7 +1018,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1037,7 +1037,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1056,7 +1056,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1075,7 +1075,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1094,7 +1094,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1113,7 +1113,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1132,7 +1132,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1151,7 +1151,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1170,7 +1170,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1189,7 +1189,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1208,7 +1208,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1227,7 +1227,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1246,7 +1246,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1265,7 +1265,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1284,7 +1284,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1303,7 +1303,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1322,7 +1322,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false
+            false,
         );
     }
 
@@ -1341,7 +1341,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1360,7 +1360,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1379,7 +1379,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1398,7 +1398,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 
@@ -1417,7 +1417,7 @@ mod tests {
 
         assert_eq!(
             definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true
+            true,
         );
     }
 }

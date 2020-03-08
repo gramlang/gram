@@ -178,7 +178,8 @@ fn entry() -> Result<(), Error> {
                         .subcommand_matches(RUN_SUBCOMMAND)
                         .unwrap() // [ref:run_subcommand]
                         .value_of(RUN_SUBCOMMAND_PATH_OPTION)
-                        .unwrap(), // [ref:run_subcommand_shell_required]
+                        // [ref:run_subcommand_shell_required]
+                        .unwrap(),
                 );
 
                 // Run the program.
@@ -192,7 +193,8 @@ fn entry() -> Result<(), Error> {
                         .subcommand_matches(SHELL_COMPLETION_SUBCOMMAND)
                         .unwrap() // [ref:shell_completion_subcommand]
                         .value_of(SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION)
-                        .unwrap(), // [ref:shell_completion_subcommand_shell_required]
+                        // [ref:shell_completion_subcommand_shell_required]
+                        .unwrap(),
                 )?;
             }
 
