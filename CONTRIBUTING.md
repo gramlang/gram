@@ -2,7 +2,7 @@
 
 Thank you for your interest in contributing to Gram! You can contribute by filing [issues](https://github.com/gramlang/gram/issues) and submitting [pull requests](https://github.com/gramlang/gram/pulls). Please observe our [code of conduct](https://github.com/gramlang/gram/blob/master/CODE_OF_CONDUCT.md).
 
-If you submit a pull request, please ensure your change passes the continuous integration (CI) checks on [Travis CI](https://travis-ci.org/gramlang/gram). This will be apparent from the required status check(s) in the pull request.
+If you submit a pull request, please ensure your change passes the [GitHub Actions](https://github.com/gramlang/gram/actions) CI checks. This will be apparent from the required status check(s) in the pull request.
 
 ## Rust style guide
 
