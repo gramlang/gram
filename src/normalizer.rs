@@ -781,6 +781,96 @@ mod tests {
     }
 
     #[test]
+    fn normalize_weak_head_less_than() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "1 < 2";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: True,
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_less_than_or_equal_to() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "1 <= 2";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: True,
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_equal_to() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "1 == 2";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_greater_than() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "1 >= 2";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_greater_than_or_equal_to() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "1 >= 2";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
     fn normalize_weak_head_boolean() {
         let parsing_context = [];
         let mut definitions_context = vec![];

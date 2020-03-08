@@ -359,8 +359,9 @@ mod tests {
         term::{
             Term,
             Variant::{
-                Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let,
-                Pi, Product, Quotient, Sum, True, Type, Variable,
+                Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                LessThanOrEqualTo, Let, Pi, Product, Quotient, Sum, True, Type, Variable,
             },
         },
         token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
@@ -777,6 +778,186 @@ mod tests {
             Term {
                 source_range: Some((97, 112)),
                 variant: Quotient(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_less_than() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: LessThan(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: LessThan(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_less_than_or_equal_to() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: LessThanOrEqualTo(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: LessThanOrEqualTo(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_equal_to() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: EqualTo(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: EqualTo(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_greater_than() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: GreaterThan(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: GreaterThan(
+                    Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 43),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_greater_than_or_equal_to() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: GreaterThanOrEqualTo(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                1,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: GreaterThanOrEqualTo(
                     Rc::new(Term {
                         source_range: Some((102, 106)),
                         variant: Variable("a", 0),
@@ -1357,6 +1538,201 @@ mod tests {
             Term {
                 source_range: Some((97, 112)),
                 variant: Quotient(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_less_than() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: LessThan(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: LessThan(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_less_than_or_equal_to() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: LessThanOrEqualTo(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: LessThanOrEqualTo(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_equal_to() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: EqualTo(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: EqualTo(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_greater_than() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: GreaterThan(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: GreaterThan(
+                    Rc::new(Term {
+                        source_range: Some((3, 4)),
+                        variant: Variable("x", 4),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((111, 112)),
+                        variant: Variable("b", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn open_greater_than_or_equal_to() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: GreaterThanOrEqualTo(
+                        Rc::new(Term {
+                            source_range: Some((102, 106)),
+                            variant: Variable("a", 0),
+                        }),
+                        Rc::new(Term {
+                            source_range: Some((111, 112)),
+                            variant: Variable("b", 1),
+                        }),
+                    ),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("x", 4),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: GreaterThanOrEqualTo(
                     Rc::new(Term {
                         source_range: Some((3, 4)),
                         variant: Variable("x", 4),

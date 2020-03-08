@@ -1145,6 +1145,131 @@ mod tests {
     }
 
     #[test]
+    fn type_check_less_than() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "1 < 2";
+        let type_source = "bool";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_less_than_or_equal_to() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "1 <= 2";
+        let type_source = "bool";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_equal_to() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "1 == 2";
+        let type_source = "bool";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_greater_than() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "1 > 2";
+        let type_source = "bool";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_greater_than_or_equal_to() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "1 >= 2";
+        let type_source = "bool";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
     fn type_check_boolean() {
         let parsing_context = [];
         let mut typing_context = vec![];
