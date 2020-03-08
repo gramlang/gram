@@ -1,11 +1,11 @@
-image: ubuntu:18.04
+image: ubuntu:19.10
 default: check
 tasks:
   install_packages:
     command: |
       set -euo pipefail
       apt-get update
-      apt-get install --yes bison build-essential curl shellcheck
+      apt-get install --yes bison build-essential curl ripgrep shellcheck
 
   install_tagref:
     dependencies:
@@ -28,7 +28,7 @@ tasks:
     command: |
       set -euo pipefail
       curl https://sh.rustup.rs -sSf |
-        sh -s -- -y --default-toolchain 1.41.0
+        sh -s -- -y --default-toolchain 1.41.1
       . $HOME/.cargo/env
       rustup component add clippy
       rustup component add rustfmt
@@ -88,18 +88,41 @@ tasks:
       - .ignore # Used by `tagref`
       - grammar.y # Checked by `bison` for shift/reduce and reduce/reduce conflicts
       - install.sh # Linted by ShellCheck
+      - release.sh # Linted by ShellCheck
     user: user
     command: |
       set -euo pipefail
       . $HOME/.cargo/env
+
+      # Lint Rust files.
       cargo clippy --all-targets --all-features -- \
         --deny warnings --deny clippy::all --deny clippy::pedantic
+
+      # Check code formatting.
       cargo fmt --all -- --check
+
+      # Check references.
       tagref
-      shellcheck install.sh
+
+      # Lint shell files.
+      shellcheck install.sh release.sh
+
+      # Check that the grammar is unambiguous.
       bison --verbose --report=itemset --report=lookahead --warnings=all -Werror grammar.y || \
         (cat grammar.output && false)
       rm grammar.output grammar.tab.c
+
+      # Enforce trailing commas in multi-line sequences.
+      if rg --multiline --type rust '[^,]\n(\s*)\)'; then
+        echo "There are multi-line sequences without trailing commas." >&2
+        exit 1
+      fi
+
+      # Forbid trailing commas in single-line sequences.
+      if rg --type rust '[^(],\s*\)'; then
+        echo "There are single-line sequences with trailing commas." >&2
+        exit 1
+      fi
 
   run:
     dependencies:

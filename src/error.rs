@@ -36,7 +36,9 @@ pub fn throw(
     message: &str,
     source_path: Option<&Path>,
     source_contents: &str,
-    source_range: (usize, usize), // [start, end)
+
+    // Inclusive on the left and exclusive on the right
+    source_range: (usize, usize),
 ) -> Error {
     {
         // Remember the relevant lines and the position of the start of the next line.
@@ -184,7 +186,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error in `foo.g`: An error occurred.".to_owned()
+            "Error in `foo.g`: An error occurred.".to_owned(),
         );
     }
 
@@ -196,7 +198,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n1 | foo".to_owned()
+            "Error: An error occurred.\n\n1 | foo".to_owned(),
         );
     }
 
@@ -213,7 +215,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error in `foo.g`: An error occurred.\n\n1 | foo".to_owned()
+            "Error in `foo.g`: An error occurred.\n\n1 | foo".to_owned(),
         );
     }
 
@@ -225,7 +227,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n1 | foo\n2 | bar\n3 | baz".to_owned()
+            "Error: An error occurred.\n\n1 | foo\n2 | bar\n3 | baz".to_owned(),
         );
     }
 
@@ -237,7 +239,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n2 | bar\n3 | baz".to_owned()
+            "Error: An error occurred.\n\n2 | bar\n3 | baz".to_owned(),
         );
     }
 
@@ -254,7 +256,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n 9 | foo\n10 | bar\n11 | baz".to_owned()
+            "Error: An error occurred.\n\n 9 | foo\n10 | bar\n11 | baz".to_owned(),
         );
     }
 

@@ -1205,7 +1205,7 @@ mod tests {
                 term_source,
                 &term_term,
                 &mut typing_context,
-                &mut definitions_context
+                &mut definitions_context,
             ),
             "has type `b` when `a` was expected",
         );
