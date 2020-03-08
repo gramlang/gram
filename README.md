@@ -1,5 +1,7 @@
 # The Gram Programming Language
 
+[![Build status](https://github.com/gramlang/gram/workflows/Continuous%20integration/badge.svg?branch=master)](https://github.com/gramlang/gram/actions?query=branch%3Amaster)
+
 [Gram](https://www.gram.org) is a programming language for distributed systems.
 
 ## Installation
