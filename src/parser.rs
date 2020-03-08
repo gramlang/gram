@@ -3278,8 +3278,9 @@ mod tests {
         term::{
             Term,
             Variant::{
-                Application, Boolean, Difference, False, If, Integer, IntegerLiteral, Lambda, Let,
-                Pi, Product, Quotient, Sum, True, Type, Variable,
+                Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                LessThanOrEqualTo, Let, Pi, Product, Quotient, Sum, True, Type, Variable,
             },
         },
         tokenizer::tokenize,
@@ -3870,6 +3871,126 @@ mod tests {
                                 ),
                             }),
                         ),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_less_than() {
+        let source = "1 < 2";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 5)),
+                variant: LessThan(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((4, 5)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_less_than_or_equal_to() {
+        let source = "1 <= 2";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 6)),
+                variant: LessThanOrEqualTo(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((5, 6)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_equal_to() {
+        let source = "1 == 2";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 6)),
+                variant: EqualTo(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((5, 6)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_greater_than() {
+        let source = "1 > 2";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 5)),
+                variant: GreaterThan(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((4, 5)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_greater_than_or_equal_to() {
+        let source = "1 >= 2";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 6)),
+                variant: GreaterThanOrEqualTo(
+                    Rc::new(Term {
+                        source_range: Some((0, 1)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((5, 6)),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                 ),
             },

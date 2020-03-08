@@ -887,6 +887,81 @@ mod tests {
     }
 
     #[test]
+    fn evaluate_less_than() {
+        let source = "1 < 2";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: None,
+                variant: True,
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_less_than_or_equal_to() {
+        let source = "1 <= 2";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: None,
+                variant: True,
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_equal_to() {
+        let source = "1 == 2";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: None,
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_greater_than() {
+        let source = "1 > 2";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: None,
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_greater_than_or_equal_to() {
+        let source = "1 >= 2";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: None,
+                variant: False,
+            },
+        );
+    }
+
+    #[test]
     fn evaluate_boolean() {
         let source = "bool";
         let tokens = tokenize(None, source).unwrap();

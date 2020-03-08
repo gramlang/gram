@@ -700,6 +700,231 @@ mod tests {
     }
 
     #[test]
+    fn syntactically_equal_less_than() {
+        let context = [];
+
+        let source1 = "2 < 3";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "2 < 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_less_than_term1() {
+        let context = [];
+
+        let source1 = "1 < 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "3 < 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_less_than_term2() {
+        let context = [];
+
+        let source1 = "1 < 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 < 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_less_than_or_equal_to() {
+        let context = [];
+
+        let source1 = "2 <= 3";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "2 <= 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_less_than_or_equal_to_term1() {
+        let context = [];
+
+        let source1 = "1 <= 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "3 <= 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_less_than_or_equal_to_term2() {
+        let context = [];
+
+        let source1 = "1 <= 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 <= 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_equal_to() {
+        let context = [];
+
+        let source1 = "2 == 3";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "2 == 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_equal_to_term1() {
+        let context = [];
+
+        let source1 = "1 == 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "3 == 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_equal_to_term2() {
+        let context = [];
+
+        let source1 = "1 == 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 == 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_greater_than() {
+        let context = [];
+
+        let source1 = "2 > 3";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "2 > 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_greater_than_term1() {
+        let context = [];
+
+        let source1 = "1 > 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "3 > 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_greater_than_term2() {
+        let context = [];
+
+        let source1 = "1 > 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 > 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_greater_than_or_equal_to() {
+        let context = [];
+
+        let source1 = "2 >= 3";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "2 >= 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_greater_than_or_equal_to_term1() {
+        let context = [];
+
+        let source1 = "1 >= 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "3 >= 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_inequal_greater_than_or_equal_to_term2() {
+        let context = [];
+
+        let source1 = "1 >= 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "1 >= 3";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
     fn syntactically_equal_boolean() {
         let context = [];
 
@@ -1289,6 +1514,196 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "3 / 2";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false,
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_less_than() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "3 < 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "false";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true,
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_less_than() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 < 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "false";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false,
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_less_than_or_equal_to() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "3 <= 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "false";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true,
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_less_than_or_equal_to() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 <= 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "false";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false,
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_equal_to() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "3 == 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "false";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true,
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_equal_to() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 == 1";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "false";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false,
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_greater_than() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "3 > 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "true";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true,
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_greater_than() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 > 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "true";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false,
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_greater_than_or_equal_to() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "3 >= 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "true";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true,
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_greater_than_or_equal_to() {
+        let parsing_context = [];
+        let mut definitions_context = vec![None, None];
+
+        let source1 = "1 >= 2";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "true";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
