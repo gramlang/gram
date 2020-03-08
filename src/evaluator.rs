@@ -224,7 +224,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Sum(stepped_term1, term2.clone()),
+                    variant: Difference(stepped_term1, term2.clone()),
                 }));
             };
 
@@ -237,7 +237,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Sum(term1.clone(), stepped_term2),
+                    variant: Difference(term1.clone(), stepped_term2),
                 }));
             };
 
@@ -265,7 +265,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Sum(stepped_term1, term2.clone()),
+                    variant: Product(stepped_term1, term2.clone()),
                 }));
             };
 
@@ -278,7 +278,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Sum(term1.clone(), stepped_term2),
+                    variant: Product(term1.clone(), stepped_term2),
                 }));
             };
 
@@ -306,7 +306,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Sum(stepped_term1, term2.clone()),
+                    variant: Quotient(stepped_term1, term2.clone()),
                 }));
             };
 
@@ -319,7 +319,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Sum(term1.clone(), stepped_term2),
+                    variant: Quotient(term1.clone(), stepped_term2),
                 }));
             };
 
@@ -353,7 +353,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(stepped_term1, term2.clone()),
+                    variant: LessThan(stepped_term1, term2.clone()),
                 }));
             };
 
@@ -366,7 +366,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(term1.clone(), stepped_term2),
+                    variant: LessThan(term1.clone(), stepped_term2),
                 }));
             };
 
@@ -394,7 +394,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(stepped_term1, term2.clone()),
+                    variant: LessThanOrEqualTo(stepped_term1, term2.clone()),
                 }));
             };
 
@@ -407,7 +407,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(term1.clone(), stepped_term2),
+                    variant: LessThanOrEqualTo(term1.clone(), stepped_term2),
                 }));
             };
 
@@ -435,7 +435,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(stepped_term1, term2.clone()),
+                    variant: EqualTo(stepped_term1, term2.clone()),
                 }));
             };
 
@@ -448,7 +448,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(term1.clone(), stepped_term2),
+                    variant: EqualTo(term1.clone(), stepped_term2),
                 }));
             };
 
@@ -476,7 +476,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(stepped_term1, term2.clone()),
+                    variant: GreaterThan(stepped_term1, term2.clone()),
                 }));
             };
 
@@ -489,7 +489,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(term1.clone(), stepped_term2),
+                    variant: GreaterThan(term1.clone(), stepped_term2),
                 }));
             };
 
@@ -517,7 +517,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term1) = step(term1) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(stepped_term1, term2.clone()),
+                    variant: GreaterThanOrEqualTo(stepped_term1, term2.clone()),
                 }));
             };
 
@@ -530,7 +530,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             if let Some(stepped_term2) = step(term2) {
                 return Some(Rc::new(Term {
                     source_range: None,
-                    variant: Product(term1.clone(), stepped_term2),
+                    variant: GreaterThanOrEqualTo(term1.clone(), stepped_term2),
                 }));
             };
 
@@ -1032,6 +1032,28 @@ mod tests {
             Term {
                 source_range: Some((21, 22)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&4).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn evaluate_factorial() {
+        let source = "
+            factorial : (int -> int) = (x : int) =>
+              if x == 0
+              then 1
+              else x * factorial (x - 1)
+
+            factorial 12
+        ";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&479_001_600).unwrap()),
             },
         );
     }
