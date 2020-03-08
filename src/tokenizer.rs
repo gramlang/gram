@@ -88,7 +88,8 @@ pub fn tokenize<'a>(
                         | Variant::Minus
                         | Variant::Plus
                         | Variant::Slash
-                        | Variant::Terminator(TerminatorType::LineBreak) /* [tag:no_consecutive_line_break_terminators] */
+                        /* [tag:no_consecutive_line_break_terminators] */
+                        | Variant::Terminator(TerminatorType::LineBreak)
                         | Variant::Then
                         | Variant::ThickArrow
                         | Variant::ThinArrow => false,

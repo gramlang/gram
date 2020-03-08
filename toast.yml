@@ -112,6 +112,12 @@ tasks:
         (cat grammar.output && false)
       rm grammar.output grammar.tab.c
 
+      # Enforce that lines span no more than 100 columns.
+      if rg --type rust '.{101}'; then
+        echo "There are lines spanning more than 100 columns." >&2
+        exit 1
+      fi
+
       # Enforce trailing commas in multi-line sequences.
       if rg --multiline --type rust '[^,]\n(\s*)\)'; then
         echo "There are multi-line sequences without trailing commas." >&2
