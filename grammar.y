@@ -113,6 +113,12 @@ large_term: negation | medium_term;
 
 huge_term: sum | difference | large_term;
 
-giant_term: less_than | less_than_or_equal_to | equal_to | greater_than | greater_than_or_equal_to;
+giant_term:
+  less_than |
+  less_than_or_equal_to |
+  equal_to |
+  greater_than |
+  greater_than_or_equal_to |
+  huge_term;
 
 jumbo_term: non_dependent_pi | lambda | pi | if | giant_term;
