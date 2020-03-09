@@ -34,6 +34,7 @@ pub enum Variant<'a> {
     ),
     Integer,
     IntegerLiteral(BigInt),
+    Negation(Rc<Term<'a>>),
     Sum(Rc<Term<'a>>, Rc<Term<'a>>),
     Difference(Rc<Term<'a>>, Rc<Term<'a>>),
     Product(Rc<Term<'a>>, Rc<Term<'a>>),
@@ -97,6 +98,7 @@ impl<'a> Display for Variant<'a> {
             }
             Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
             Self::IntegerLiteral(integer) => write!(f, "{}", integer),
+            Self::Negation(subterm) => write!(f, "-{}", group(subterm)),
             Self::Sum(term1, term2) => write!(f, "{} + {}", group(term1), group(term2)),
             Self::Difference(term1, term2) => write!(f, "{} - {}", group(term1), group(term2)),
             Self::Product(term1, term2) => write!(f, "{} * {}", group(term1), group(term2)),
@@ -137,6 +139,7 @@ fn group<'a>(term: &Term<'a>) -> String {
         | Variant::Pi(_, _, _)
         | Variant::Application(_, _)
         | Variant::Let(_, _)
+        | Variant::Negation(_)
         | Variant::Sum(_, _)
         | Variant::Difference(_, _)
         | Variant::Product(_, _)

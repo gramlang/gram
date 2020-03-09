@@ -2,8 +2,8 @@ use crate::term::{
     Term,
     Variant::{
         Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo, If,
-        Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product, Quotient,
-        Sum, True, Type, Variable,
+        Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi, Product,
+        Quotient, Sum, True, Type, Variable,
     },
 };
 use std::{cmp::Ordering, collections::HashSet, rc::Rc};
@@ -72,6 +72,10 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
                 ),
             })
         }
+        Negation(subterm) => Rc::new(Term {
+            source_range: term.source_range,
+            variant: Negation(shift(subterm.clone(), cutoff, amount)),
+        }),
         Sum(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
             variant: Sum(
@@ -221,6 +225,14 @@ pub fn open<'a>(
                 ),
             })
         }
+        Negation(subterm) => Rc::new(Term {
+            source_range: term_to_open.source_range,
+            variant: Negation(open(
+                subterm.clone(),
+                index_to_replace,
+                term_to_insert.clone(),
+            )),
+        }),
         Sum(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Sum(
@@ -332,6 +344,7 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
 
             free_variables(body, cutoff + definitions.len(), variables);
         }
+        Negation(subterm) => free_variables(subterm, cutoff, variables),
         Sum(term1, term2)
         | Difference(term1, term2)
         | Product(term1, term2)
@@ -361,7 +374,7 @@ mod tests {
             Variant::{
                 Application, Boolean, Difference, EqualTo, False, GreaterThan,
                 GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
-                LessThanOrEqualTo, Let, Pi, Product, Quotient, Sum, True, Type, Variable,
+                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Variable,
             },
         },
         token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
@@ -643,6 +656,30 @@ mod tests {
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_negation() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Negation(Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    })),
+                }),
+                0,
+                42,
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Negation(Rc::new(Term {
+                    source_range: Some((102, 106)),
+                    variant: Variable("a", 42),
+                })),
             },
         );
     }
@@ -1396,6 +1433,33 @@ mod tests {
     }
 
     #[test]
+    fn open_negation() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: Some((97, 112)),
+                    variant: Negation(Rc::new(Term {
+                        source_range: Some((102, 106)),
+                        variant: Variable("a", 0),
+                    })),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("y", 0),
+                }),
+            ),
+            Term {
+                source_range: Some((97, 112)),
+                variant: Negation(Rc::new(Term {
+                    source_range: Some((3, 4)),
+                    variant: Variable("y", 0),
+                })),
+            },
+        );
+    }
+
+    #[test]
     fn open_sum() {
         assert_eq!(
             *open(
@@ -2061,6 +2125,25 @@ mod tests {
         );
 
         assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_negation() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: Some((97, 112)),
+                variant: Negation(Rc::new(Term {
+                    source_range: Some((102, 106)),
+                    variant: Variable("b", 15),
+                })),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
     }
 
     #[test]

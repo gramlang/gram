@@ -6,8 +6,8 @@ use crate::{
         Term,
         Variant::{
             Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
-            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product,
-            Quotient, Sum, True, Type, Variable,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
+            Product, Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -177,6 +177,32 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Return the substituted body.
             Some(substituted_body)
+        }
+        Negation(subterm) => {
+            // Try to step the subterm.
+            if let Some(stepped_subterm) = step(subterm) {
+                return Some(Rc::new(Term {
+                    source_range: None,
+                    variant: Negation(stepped_subterm),
+                }));
+            };
+
+            // Ensure the subterm is a value.
+            if !is_value(subterm) {
+                return None;
+            }
+
+            // Check if the subterm is an integer literal.
+            if let IntegerLiteral(integer) = &subterm.variant {
+                // We got an integer literals. Perform negation and continue evaluating.
+                Some(Rc::new(Term {
+                    source_range: None,
+                    variant: IntegerLiteral(-integer),
+                }))
+            } else {
+                // We didn't get integer literals. We're stuck!
+                None
+            }
         }
         Sum(term1, term2) => {
             // Try to step the left subterm.
@@ -592,6 +618,7 @@ pub fn is_value<'a>(term: &Term<'a>) -> bool {
         Variable(_, _)
         | Application(_, _)
         | Let(_, _)
+        | Negation(_)
         | Sum(_, _)
         | Difference(_, _)
         | Product(_, _)
@@ -827,6 +854,21 @@ mod tests {
     }
 
     #[test]
+    fn evaluate_negation() {
+        let source = "-42";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &[]).unwrap();
+
+        assert_eq!(
+            *evaluate(Rc::new(term)).unwrap(),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&-42).unwrap()),
+            },
+        );
+    }
+
+    #[test]
     fn evaluate_sum() {
         let source = "1 + 2";
         let tokens = tokenize(None, source).unwrap();
@@ -1044,7 +1086,7 @@ mod tests {
               then 1
               else x * factorial (x - 1)
 
-            factorial 12
+            factorial 5
         ";
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &[]).unwrap();
@@ -1053,7 +1095,7 @@ mod tests {
             *evaluate(Rc::new(term)).unwrap(),
             Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&479_001_600).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&120).unwrap()),
             },
         );
     }

@@ -8,8 +8,8 @@ use crate::{
         Term,
         Variant::{
             Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
-            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product,
-            Quotient, Sum, True, Type, Variable,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
+            Product, Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -474,6 +474,49 @@ pub fn type_check<'a>(
             })
         }
         IntegerLiteral(_) => Rc::new(INTEGER_TERM),
+        Negation(subterm) => {
+            // Infer the type of the subterm.
+            let subterm_type = type_check(
+                source_path,
+                source_contents,
+                &**subterm,
+                typing_context,
+                definitions_context,
+            )?;
+
+            // Check that the type of the subterm is the type of integers.
+            if !definitionally_equal(
+                subterm_type.clone(),
+                Rc::new(INTEGER_TERM),
+                definitions_context,
+            ) {
+                return Err(if let Some(source_range) = subterm.source_range {
+                    throw(
+                        &format!(
+                            "This has type {} when {} was expected.",
+                            subterm_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        source_path,
+                        source_contents,
+                        source_range,
+                    )
+                } else {
+                    Error {
+                        message: format!(
+                            "{} has type {} when {} was expected.",
+                            subterm.to_string().code_str(),
+                            subterm_type.to_string().code_str(),
+                            INTEGER_TERM.to_string().code_str(),
+                        ),
+                        reason: None,
+                    }
+                });
+            };
+
+            // Return the type of integers.
+            Rc::new(INTEGER_TERM)
+        }
         Sum(term1, term2)
         | Difference(term1, term2)
         | Product(term1, term2)
@@ -1045,6 +1088,81 @@ mod tests {
     }
 
     #[test]
+    fn type_check_integer() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "int";
+        let type_source = "type";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_integer_literal() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "42";
+        let type_source = "int";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_negation() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "-42";
+        let type_source = "int";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
     fn type_check_sum() {
         let parsing_context = [];
         let mut typing_context = vec![];
@@ -1326,6 +1444,31 @@ mod tests {
         let mut definitions_context = vec![];
         let term_source = "false";
         let type_source = "bool";
+
+        let term_tokens = tokenize(None, term_source).unwrap();
+        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_type_term = type_check(
+            None,
+            term_source,
+            &term_term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let type_tokens = tokenize(None, type_source).unwrap();
+        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+    }
+
+    #[test]
+    fn type_check_if() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+        let term_source = "if true then 3 else 4";
+        let type_source = "int";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();

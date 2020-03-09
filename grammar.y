@@ -73,6 +73,26 @@ integer: INTEGER;
 
 integer_literal: INTEGER_LITERAL;
 
+negation: MINUS large_term;
+
+sum: large_term PLUS huge_term;
+
+difference: large_term MINUS huge_term;
+
+product: small_term ASTERISK large_term;
+
+quotient: small_term SLASH large_term;
+
+less_than: huge_term LESS_THAN huge_term;
+
+less_than_or_equal_to: huge_term LESS_THAN_OR_EQUAL huge_term;
+
+equal_to: huge_term DOUBLE_EQUALS huge_term;
+
+greater_than: huge_term GREATER_THAN huge_term;
+
+greater_than_or_equal_to: huge_term GREATER_THAN_OR_EQUAL huge_term;
+
 boolean: BOOLEAN;
 
 true: TRUE;
@@ -80,24 +100,6 @@ true: TRUE;
 false: FALSE;
 
 if: IF term THEN term ELSE term
-
-sum: medium_term PLUS large_term;
-
-difference: medium_term MINUS large_term;
-
-product: small_term ASTERISK medium_term;
-
-quotient: small_term SLASH medium_term;
-
-less_than: large_term LESS_THAN large_term;
-
-less_than_or_equal_to: large_term LESS_THAN_OR_EQUAL large_term;
-
-equal_to: large_term DOUBLE_EQUALS large_term;
-
-greater_than: large_term GREATER_THAN large_term;
-
-greater_than_or_equal_to: large_term GREATER_THAN_OR_EQUAL large_term;
 
 group: LEFT_PAREN term RIGHT_PAREN;
 
@@ -107,8 +109,10 @@ small_term: application | atom;
 
 medium_term: product | quotient | small_term;
 
-large_term: sum | difference | medium_term;
+large_term: negation | medium_term;
 
-huge_term: less_than | less_than_or_equal_to | equal_to | greater_than | greater_than_or_equal_to;
+huge_term: sum | difference | large_term;
 
-jumbo_term: non_dependent_pi | lambda | pi | if | huge_term;
+giant_term: less_than | less_than_or_equal_to | equal_to | greater_than | greater_than_or_equal_to;
+
+jumbo_term: non_dependent_pi | lambda | pi | if | giant_term;
