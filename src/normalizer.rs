@@ -4,8 +4,8 @@ use crate::{
         Term,
         Variant::{
             Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
-            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product,
-            Quotient, Sum, True, Type, Variable,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
+            Product, Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -135,6 +135,25 @@ pub fn normalize_weak_head<'a>(
             // Normalize the body [tag:let_not_in_weak_head_normal_form].
             normalize_weak_head(substituted_body, definitions_context)
         }
+        Negation(subterm) => {
+            // Normalize the subterm.
+            let normalized_subterm = normalize_weak_head(subterm.clone(), definitions_context);
+
+            // Check if the subterm reduced to an integer literal.
+            if let IntegerLiteral(integer) = &normalized_subterm.variant {
+                // Perform negation.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: IntegerLiteral(-integer),
+                })
+            } else {
+                // We didn't get an integer literal. We're done here.
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Negation(normalized_subterm),
+                })
+            }
+        }
         Sum(term1, term2) => {
             // Normalize the left subterm.
             let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
@@ -142,7 +161,7 @@ pub fn normalize_weak_head<'a>(
             // Normalize the right subterm.
             let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
-            // Check if the subterm reduced to integer literals.
+            // Check if the subterms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
@@ -166,7 +185,7 @@ pub fn normalize_weak_head<'a>(
             // Normalize the right subterm.
             let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
-            // Check if the subterm reduced to integer literals.
+            // Check if the subterms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
@@ -190,7 +209,7 @@ pub fn normalize_weak_head<'a>(
             // Normalize the right subterm.
             let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
-            // Check if the subterm reduced to integer literals.
+            // Check if the subterms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
@@ -214,7 +233,7 @@ pub fn normalize_weak_head<'a>(
             // Normalize the right subterm.
             let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
 
-            // Check if the subterm reduced to integer literals.
+            // Check if the subterms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
@@ -704,6 +723,24 @@ mod tests {
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+            },
+        );
+    }
+
+    #[test]
+    fn normalize_weak_head_negation() {
+        let parsing_context = [""];
+        let mut definitions_context = vec![];
+        let source = "-42";
+
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&-42).unwrap()),
             },
         );
     }

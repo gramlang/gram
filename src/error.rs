@@ -87,7 +87,7 @@ pub fn throw(
             lines.push(((i + 1).to_string(), colored_line));
         }
 
-        // Compute the width of the string representation of the largest relevant line number.
+        // Compute the width of the string representation of the hugest relevant line number.
         let gutter_width = lines
             .iter()
             .fold(0_usize, |acc, (line_number, _)| max(acc, line_number.len()));

@@ -4,8 +4,8 @@ use crate::{
         Term,
         Variant::{
             Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
-            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Pi, Product,
-            Quotient, Sum, True, Type, Variable,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
+            Product, Quotient, Sum, True, Type, Variable,
         },
     },
 };
@@ -46,6 +46,7 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
                 && syntactically_equal(&**body1, &**body2)
         }
         (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
+        (Negation(subterm1), Negation(subterm2)) => syntactically_equal(&**subterm1, &**subterm2),
         (Sum(term11, term21), Sum(term12, term22))
         | (Difference(term11, term21), Difference(term12, term22))
         | (Product(term11, term21), Product(term12, term22))
@@ -79,6 +80,8 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
         | (_, Integer)
         | (IntegerLiteral(_), _)
         | (_, IntegerLiteral(_))
+        | (Negation(_), _)
+        | (_, Negation(_))
         | (Sum(_, _), _)
         | (_, Sum(_, _))
         | (Difference(_, _), _)
@@ -167,6 +170,9 @@ pub fn definitionally_equal<'a>(
                 && definitionally_equal(argument1.clone(), argument2.clone(), definitions_context)
         }
         (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
+        (Negation(subterm1), Negation(subterm2)) => {
+            definitionally_equal(subterm1.clone(), subterm2.clone(), definitions_context)
+        }
         (Sum(term11, term21), Sum(term12, term22))
         | (Difference(term11, term21), Difference(term12, term22))
         | (Product(term11, term21), Product(term12, term22))
@@ -207,6 +213,8 @@ pub fn definitionally_equal<'a>(
         | (_, Integer)
         | (IntegerLiteral(_), _)
         | (_, IntegerLiteral(_))
+        | (Negation(_), _)
+        | (_, Negation(_))
         | (Sum(_, _), _)
         | (_, Sum(_, _))
         | (Difference(_, _), _)
@@ -505,7 +513,7 @@ mod tests {
     }
 
     #[test]
-    fn syntactically_inequal_integer() {
+    fn syntactically_inequal_integer_literal() {
         let context = [];
 
         let source1 = "42";
@@ -513,6 +521,36 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "43";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
+
+    #[test]
+    fn syntactically_equal_negation() {
+        let context = [];
+
+        let source1 = "-42";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "-42";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), true);
+    }
+
+    #[test]
+    fn syntactically_inequal_negation() {
+        let context = [];
+
+        let source1 = "-42";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "-43";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
@@ -1362,6 +1400,44 @@ mod tests {
         let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
 
         let source2 = "43";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            false,
+        );
+    }
+
+    #[test]
+    fn definitionally_equal_negation() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "-42";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "-42";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            definitionally_equal(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true,
+        );
+    }
+
+    #[test]
+    fn definitionally_inequal_negation() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "-42";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "-43";
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
