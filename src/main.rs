@@ -24,7 +24,7 @@ use clap::{
     AppSettings::{ArgRequiredElseHelp, ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
     Arg, Shell, SubCommand,
 };
-use std::{fs::read_to_string, io::stdout, path::Path, process::exit, rc::Rc};
+use std::{fs::read_to_string, io::stdout, path::Path, process::exit, rc::Rc, thread};
 
 // The program version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -38,6 +38,9 @@ const SHELL_COMPLETION_SUBCOMMAND: &str = "shell-completion";
 const SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION: &str = "shell-completion-shell";
 const RUN_SUBCOMMAND: &str = "run";
 const RUN_SUBCOMMAND_PATH_OPTION: &str = "run-path";
+
+// The stack size in bytes.
+const STACK_SIZE: usize = 16 * 1024 * 1024; // 16 mebibytes (MiB)
 
 // Set up the command-line interface.
 fn cli<'a, 'b>() -> App<'a, 'b> {
@@ -214,9 +217,23 @@ fn entry() -> Result<(), Error> {
 
 // Let the fun begin!
 fn main() {
-    // Jump to the entrypoint and report any resulting errors.
-    if let Err(e) = entry() {
-        eprintln!("{}", e);
-        exit(1);
-    }
+    // Run everything in a new thread with a big stack.
+    thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(|| {
+            // Jump to the entrypoint and report any resulting errors.
+            if let Err(e) = entry() {
+                eprintln!("{}", e);
+                exit(1);
+            }
+        })
+        .unwrap_or_else(|e| {
+            eprintln!("Error spawning thread: {:?}", e);
+            exit(1);
+        })
+        .join()
+        .unwrap_or_else(|e| {
+            eprintln!("Error joining thread: {:?}", e);
+            exit(1);
+        });
 }
