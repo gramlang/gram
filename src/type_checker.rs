@@ -66,7 +66,7 @@ pub fn type_check<'a>(
                     } else {
                         Error {
                             message: format!(
-                                "Unknown type for variable {} You can fix this error by \
+                                "Unknown type for variable {}. You can fix this error by \
                                     annotating the variable where it\u{2019}s introduced.",
                                 (*variable).to_string().code_str(),
                             ),
