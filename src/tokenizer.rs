@@ -8,6 +8,7 @@ use crate::{
 };
 use num_bigint::BigInt;
 use std::path::Path;
+use unicode_segmentation::GraphemeCursor;
 
 // Tokenize the contents of a source file.
 #[allow(clippy::cognitive_complexity)]
@@ -275,14 +276,28 @@ pub fn tokenize<'a>(
 
             // If we made it this far, the input contains something unexpected.
             _ => {
+                // We are going to attempt to compute the problematic grapheme cluster. Note that we
+                // might already be in the middle of a grapheme cluster, in which case this logic
+                // will compute the remainder of it. To start, we create a cursor that represents
+                // the current position within the source.
+                let mut cursor = GraphemeCursor::new(i, source_contents.len(), true);
+
+                // Now we find the next grapheme cluster boundary. The first `unwrap` is
+                // justified because the docs indicate the only two errors that can be returned are
+                // `GraphemeIncomplete::PreContext` and `GraphemeIncomplete::NextChunk`, but the
+                // docs also state that these two conditions are impossible since the chunk we
+                // provide is the whole source string. The second `unwrap` is justified because we
+                // only get `None` in the case where we're at the end of the string, and we know
+                // we're not at the end of the string since otherwise we would have exited the loop
+                // already.
+                let end = cursor.next_boundary(source_contents, 0).unwrap().unwrap();
+
+                // Now that we've computed the grapheme cluster, construct and return the error.
                 return Err(throw(
-                    &format!(
-                        "Unexpected symbol {}.",
-                        &source_contents[i..i + c.len_utf8()].code_str(),
-                    ),
+                    &format!("Unexpected symbol {}.", &source_contents[i..end].code_str()),
                     source_path,
                     source_contents,
-                    (i, i + c.len_utf8()),
+                    (i, end),
                 ));
             }
         }
