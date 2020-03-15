@@ -320,7 +320,7 @@ pub fn type_check<'a>(
             }
 
             // Construct and return the codomain specialized to the argument.
-            open(codomain.clone(), 0, argument.clone())
+            open(codomain.clone(), 0, argument.clone(), 0)
         }
         Let(definitions, body) => {
             // When the function returns, remove the variables from the context that we are
@@ -470,6 +470,7 @@ pub fn type_check<'a>(
                             }),
                         ),
                     }),
+                    0,
                 )
             })
         }

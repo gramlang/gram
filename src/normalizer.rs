@@ -54,7 +54,10 @@ pub fn normalize_weak_head<'a>(
             // Check if the applicand reduced to a lambda.
             if let Lambda(_, _, body) = &normalized_applicand.variant {
                 // Perform beta reduction and normalize the result.
-                normalize_weak_head(open(body.clone(), 0, argument.clone()), definitions_context)
+                normalize_weak_head(
+                    open(body.clone(), 0, argument.clone(), 0),
+                    definitions_context,
+                )
             } else {
                 // We didn't get a lambda. We're done here.
                 Rc::new(Term {
@@ -65,75 +68,65 @@ pub fn normalize_weak_head<'a>(
         }
         Let(definitions, body) => {
             // Substitute the definitions into the body.
-            let mut substituted_definitions = definitions.clone();
-            let mut substituted_body = body.clone();
+            let mut definitions = definitions.clone();
+            let mut body = body.clone();
             for i in 0..definitions.len() {
                 // Compute these once rather than multiple times.
                 let i_index = definitions.len() - 1 - i;
                 let i_index_plus_one = i_index + 1;
+                let (variable, annotation, definition) = &definitions[i];
 
-                // Unfold each remaining definition and substitute it in.
-                for j in i..definitions.len() {
-                    // Compute this once rather than multiple times.
-                    let j_index = definitions.len() - 1 - j;
+                // Compute this once rather than multiple times.
+                let body_for_unfolding = Rc::new(Term {
+                    source_range: None,
+                    variant: Variable(variable, 0),
+                });
 
-                    // Unfold the definition.
-                    let unfolded_definition = Rc::new(Term {
+                // Unfold the definition.
+                let unfolded_definition = open(
+                    definition.clone(),
+                    i_index,
+                    Rc::new(Term {
                         source_range: None,
                         variant: Let(
-                            substituted_definitions[i..]
-                                .iter()
-                                .map(|(variable, annotation, definition)| {
-                                    (
-                                        *variable,
-                                        annotation.as_ref().map(|annotation| {
-                                            shift(
-                                                annotation.clone(),
-                                                definitions.len(),
-                                                i_index_plus_one,
-                                            )
-                                        }),
-                                        shift(
-                                            definition.clone(),
-                                            definitions.len(),
-                                            i_index_plus_one,
-                                        ),
+                            vec![(
+                                variable,
+                                annotation.as_ref().map(|annotation| {
+                                    open(
+                                        shift(annotation.clone(), 0, 1),
+                                        i_index_plus_one,
+                                        body_for_unfolding.clone(),
+                                        0,
                                     )
-                                })
-                                .collect(),
-                            Rc::new(Term {
-                                source_range: None,
-                                variant: Variable(substituted_definitions[j].0, 0),
-                            }),
+                                }),
+                                open(
+                                    shift(definition.clone(), 0, 1),
+                                    i_index_plus_one,
+                                    body_for_unfolding.clone(),
+                                    0,
+                                ),
+                            )],
+                            body_for_unfolding,
                         ),
+                    }),
+                    0,
+                );
+
+                // Substitute the unfolded definition in subsequent annotations and definitions.
+                for (_, annotation, definition) in definitions.iter_mut().skip(i) {
+                    *annotation = annotation.as_ref().map(|annotation| {
+                        open(annotation.clone(), i_index, unfolded_definition.clone(), 0)
                     });
 
-                    // Substitute the unfolded definition.
-                    substituted_definitions[i].2 = open(
-                        substituted_definitions[i].2.clone(),
-                        j_index,
-                        unfolded_definition,
-                    );
+                    *definition = open(definition.clone(), i_index, unfolded_definition.clone(), 0);
                 }
 
-                // Remember this for later.
-                let substituted_definition = substituted_definitions[i].2.clone();
-
-                // Substitute the value in subsequent definitions.
-                for definition in substituted_definitions.iter_mut().skip(i + 1) {
-                    definition.2 = open(
-                        definition.2.clone(),
-                        i_index,
-                        substituted_definition.clone(),
-                    );
-                }
-
-                // Substitute the value in the body.
-                substituted_body = open(substituted_body.clone(), i_index, substituted_definition);
+                // Substitute the unfolded definition in the body.
+                body = open(body.clone(), i_index, unfolded_definition, 0);
             }
 
             // Normalize the body [tag:let_not_in_weak_head_normal_form].
-            normalize_weak_head(substituted_body, definitions_context)
+            normalize_weak_head(body, definitions_context)
         }
         Negation(subterm) => {
             // Normalize the subterm.
