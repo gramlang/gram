@@ -141,7 +141,7 @@ tasks:
       . $HOME/.cargo/env
       for file in examples/*.g; do
         echo "Running $file..."
-        if [ "$file" = 'examples/girard.g' ]; then
+        if [ "$file" = 'examples/girard_paradox.g' ]; then
           if timeout 5 cargo run -- "$file"; then
             echo 'This example was supposed to time out.' >&2
             exit 1
