@@ -76,30 +76,30 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             // Check if the applicand is a lambda.
             if let Lambda(_, _, body) = &applicand.variant {
                 // We got a lambda. Perform beta reduction and continue evaluating.
-                Some(open(body.clone(), 0, argument.clone()))
+                Some(open(body.clone(), 0, argument.clone(), 0))
             } else {
                 // We didn't get a lambda. We're stuck!
                 None
             }
         }
         Let(definitions, body) => {
-            // Try to step one of the definitions.
-            let mut substituted_definitions = definitions.clone();
-            let mut substituted_body = body.clone();
-            for i in 0..definitions.len() {
+            // If there are definitions, step the first one and substitute it into the subsequent
+            // definitions and body. Otherwise, just return the body.
+            if let Some((variable, annotation, definition)) = definitions.first() {
                 // Compute this once rather than multiple times.
-                let i_index = definitions.len() - 1 - i;
+                let index = definitions.len() - 1;
+                let index_plus_one = index + 1;
 
                 // Try to step the definition.
-                if let Some(stepped_definition) = step(&substituted_definitions[i].2) {
+                if let Some(stepped_definition) = step(definition) {
                     return Some(Rc::new(Term {
                         source_range: None,
                         variant: Let(
                             definitions
                                 .iter()
                                 .enumerate()
-                                .map(|(j, (variable, annotation, definition))| {
-                                    if i == j {
+                                .map(|(i, (variable, annotation, definition))| {
+                                    if i == 0 {
                                         (*variable, annotation.clone(), stepped_definition.clone())
                                     } else {
                                         (*variable, annotation.clone(), definition.clone())
@@ -111,72 +111,74 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                     }));
                 };
 
-                // Here is the fully stepped definition. Note that it may have free variables
-                // referencing itself or subsequent definitions.
-                let definition = substituted_definitions[i].2.clone();
-
                 // Ensure the definition is a value.
-                if !is_value(&definition) {
+                if !is_value(definition) {
                     return None;
                 }
 
                 // Compute this once rather than multiple times.
                 let body_for_unfolding = Rc::new(Term {
                     source_range: None,
-                    variant: Variable(substituted_definitions[i].0, 0),
+                    variant: Variable(variable, 0),
                 });
 
                 // Unfold the definition.
                 let unfolded_definition = open(
                     definition.clone(),
-                    i_index,
+                    index,
                     Rc::new(Term {
                         source_range: None,
                         variant: Let(
                             vec![(
-                                substituted_definitions[i].0,
-                                substituted_definitions[i].1.as_ref().map(|annotation| {
+                                variable,
+                                annotation.as_ref().map(|annotation| {
                                     open(
                                         shift(annotation.clone(), 0, 1),
-                                        i_index + 1,
+                                        index_plus_one,
                                         body_for_unfolding.clone(),
+                                        0,
                                     )
                                 }),
                                 open(
-                                    shift(definition, 0, 1),
-                                    i_index + 1,
+                                    shift(definition.clone(), 0, 1),
+                                    index_plus_one,
                                     body_for_unfolding.clone(),
+                                    0,
                                 ),
                             )],
                             body_for_unfolding,
                         ),
                     }),
+                    0,
                 );
 
-                // Substitute the value in subsequent definitions.
-                for definition in substituted_definitions.iter_mut().skip(i + 1) {
-                    definition.2 = open(definition.2.clone(), i_index, unfolded_definition.clone());
-                }
+                // Substitute the unfolded definition in subsequent annotations and definitions.
+                let substituted_definitions = definitions
+                    .iter()
+                    .skip(1)
+                    .map(|(variable, annotation, definition)| {
+                        (
+                            *variable,
+                            annotation.as_ref().map(|annotation| {
+                                open(annotation.clone(), index, unfolded_definition.clone(), 0)
+                            }),
+                            open(definition.clone(), index, unfolded_definition.clone(), 0),
+                        )
+                    })
+                    .collect();
 
-                // Substitute the value in the body.
-                substituted_body = open(substituted_body.clone(), i_index, unfolded_definition);
-            }
+                // Substitute the unfolded definition in the body.
+                let substituted_body = open(body.clone(), index, unfolded_definition, 0);
 
-            // Try to step the body.
-            if let Some(stepped_body) = step(&substituted_body) {
-                return Some(Rc::new(Term {
+                // Return a let with the substituted definitions and body.
+                Some(Rc::new(Term {
                     source_range: None,
-                    variant: Let(substituted_definitions, stepped_body.clone()),
-                }));
-            };
-
-            // Ensure the body is a value.
-            if !is_value(&substituted_body) {
-                return None;
+                    variant: Let(substituted_definitions, substituted_body),
+                }))
+            } else {
+                // There are no definitions. Return the body.
+                Some(body.clone())
             }
-
-            // Return the substituted body.
-            Some(substituted_body)
         }
         Negation(subterm) => {
             // Try to step the subterm.

@@ -152,13 +152,15 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
 
 // Opening is the act of replacing a free variable by a term and decrementing the De Bruijn indices
 // of the variables corresponding to entries in the context appearing earlier than the one
-// corresponding to the variable being substituted. This operation is used to perform beta
-// reduction.
+// corresponding to the variable being substituted. This function can also shift the term to insert
+// by a given amount, though the shift will usually be zero in the outermost call. This operation is
+// used to perform beta reduction.
 #[allow(clippy::too_many_lines)]
 pub fn open<'a>(
     term_to_open: Rc<Term<'a>>,
     index_to_replace: usize,
     term_to_insert: Rc<Term<'a>>,
+    shift_amount: usize,
 ) -> Rc<Term<'a>> {
     match &term_to_open.variant {
         Type | Integer | IntegerLiteral(_) | Boolean | True | False => term_to_open,
@@ -168,34 +170,65 @@ pub fn open<'a>(
                 variant: Variable(variable, index - 1),
             }),
             Ordering::Less => term_to_open,
-            Ordering::Equal => shift(term_to_insert, 0, index_to_replace),
+            Ordering::Equal => shift(term_to_insert, 0, shift_amount),
         },
         Lambda(variable, domain, body) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Lambda(
                 variable,
-                open(domain.clone(), index_to_replace, term_to_insert.clone()),
-                open(body.clone(), index_to_replace + 1, term_to_insert),
+                open(
+                    domain.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    body.clone(),
+                    index_to_replace + 1,
+                    term_to_insert,
+                    shift_amount + 1,
+                ),
             ),
         }),
         Pi(variable, domain, codomain) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Pi(
                 variable,
-                open(domain.clone(), index_to_replace, term_to_insert.clone()),
-                open(codomain.clone(), index_to_replace + 1, term_to_insert),
+                open(
+                    domain.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    codomain.clone(),
+                    index_to_replace + 1,
+                    term_to_insert,
+                    shift_amount + 1,
+                ),
             ),
         }),
         Application(applicand, argument) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Application(
-                open(applicand.clone(), index_to_replace, term_to_insert.clone()),
-                open(argument.clone(), index_to_replace, term_to_insert),
+                open(
+                    applicand.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    argument.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         Let(definitions, body) => {
-            // Compute this once rather than multiple times.
+            // Compute these once rather than multiple times.
             let new_index_to_replace = index_to_replace + definitions.len();
+            let new_shift_amount = shift_amount + definitions.len();
 
             // Open definitions, annotations, and the body at the new index to replace.
             Rc::new(Term {
@@ -211,17 +244,24 @@ pub fn open<'a>(
                                         annotation.clone(),
                                         new_index_to_replace,
                                         term_to_insert.clone(),
+                                        new_shift_amount,
                                     )
                                 }),
                                 open(
                                     definition.clone(),
                                     new_index_to_replace,
                                     term_to_insert.clone(),
+                                    new_shift_amount,
                                 ),
                             )
                         })
                         .collect(),
-                    open(body.clone(), new_index_to_replace, term_to_insert),
+                    open(
+                        body.clone(),
+                        new_index_to_replace,
+                        term_to_insert,
+                        new_shift_amount,
+                    ),
                 ),
             })
         }
@@ -231,81 +271,183 @@ pub fn open<'a>(
                 subterm.clone(),
                 index_to_replace,
                 term_to_insert.clone(),
+                shift_amount,
             )),
         }),
         Sum(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Sum(
-                open(term1.clone(), index_to_replace, term_to_insert.clone()),
-                open(term2.clone(), index_to_replace, term_to_insert),
+                open(
+                    term1.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    term2.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         Difference(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Difference(
-                open(term1.clone(), index_to_replace, term_to_insert.clone()),
-                open(term2.clone(), index_to_replace, term_to_insert),
+                open(
+                    term1.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    term2.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         Product(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Product(
-                open(term1.clone(), index_to_replace, term_to_insert.clone()),
-                open(term2.clone(), index_to_replace, term_to_insert),
+                open(
+                    term1.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    term2.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         Quotient(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: Quotient(
-                open(term1.clone(), index_to_replace, term_to_insert.clone()),
-                open(term2.clone(), index_to_replace, term_to_insert),
+                open(
+                    term1.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    term2.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         LessThan(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: LessThan(
-                open(term1.clone(), index_to_replace, term_to_insert.clone()),
-                open(term2.clone(), index_to_replace, term_to_insert),
+                open(
+                    term1.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    term2.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         LessThanOrEqualTo(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: LessThanOrEqualTo(
-                open(term1.clone(), index_to_replace, term_to_insert.clone()),
-                open(term2.clone(), index_to_replace, term_to_insert),
+                open(
+                    term1.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    term2.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         EqualTo(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: EqualTo(
-                open(term1.clone(), index_to_replace, term_to_insert.clone()),
-                open(term2.clone(), index_to_replace, term_to_insert),
+                open(
+                    term1.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    term2.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         GreaterThan(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: GreaterThan(
-                open(term1.clone(), index_to_replace, term_to_insert.clone()),
-                open(term2.clone(), index_to_replace, term_to_insert),
+                open(
+                    term1.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    term2.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: GreaterThanOrEqualTo(
-                open(term1.clone(), index_to_replace, term_to_insert.clone()),
-                open(term2.clone(), index_to_replace, term_to_insert),
+                open(
+                    term1.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
+                open(
+                    term2.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
         If(condition, then_branch, else_branch) => Rc::new(Term {
             source_range: term_to_open.source_range,
             variant: If(
-                open(condition.clone(), index_to_replace, term_to_insert.clone()),
+                open(
+                    condition.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
                 open(
                     then_branch.clone(),
                     index_to_replace,
                     term_to_insert.clone(),
+                    shift_amount,
                 ),
-                open(else_branch.clone(), index_to_replace, term_to_insert),
+                open(
+                    else_branch.clone(),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                ),
             ),
         }),
     }
@@ -1119,6 +1261,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((0, TYPE_KEYWORD.len())),
@@ -1140,6 +1283,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((3, 4)),
@@ -1161,6 +1305,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((0, 1)),
@@ -1182,6 +1327,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((0, 1)),
@@ -1213,6 +1359,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1254,6 +1401,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1294,6 +1442,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1353,6 +1502,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((0, 29)),
@@ -1403,6 +1553,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((0, INTEGER_KEYWORD.len())),
@@ -1424,6 +1575,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((0, 2)),
@@ -1448,6 +1600,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1481,6 +1634,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1520,6 +1674,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1559,6 +1714,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1598,6 +1754,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1637,6 +1794,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1676,6 +1834,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1715,6 +1874,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1754,6 +1914,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1793,6 +1954,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
@@ -1823,6 +1985,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((0, BOOLEAN_KEYWORD.len())),
@@ -1844,6 +2007,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((0, TRUE_KEYWORD.len())),
@@ -1865,6 +2029,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("y", 0),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((0, FALSE_KEYWORD.len())),
@@ -1899,6 +2064,7 @@ mod tests {
                     source_range: Some((3, 4)),
                     variant: Variable("x", 4),
                 }),
+                0,
             ),
             Term {
                 source_range: Some((97, 112)),
