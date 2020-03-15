@@ -90,22 +90,14 @@ pub fn type_check<'a>(
             if !definitionally_equal(domain_type.clone(), Rc::new(TYPE_TERM), definitions_context) {
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
-                        &format!(
-                            "This domain has type {} when {} was expected.",
-                            domain_type.to_string().code_str(),
-                            TYPE_TERM.to_string().code_str(),
-                        ),
+                        "This is not a type.",
                         source_path,
                         source_contents,
                         source_range,
                     )
                 } else {
                     Error {
-                        message: format!(
-                            "Found domain of type {} when {} was expected.",
-                            domain_type.to_string().code_str(),
-                            TYPE_TERM.to_string().code_str(),
-                        ),
+                        message: format!("{} is not a type.", domain.to_string().code_str()),
                         reason: None,
                     }
                 });
@@ -152,22 +144,14 @@ pub fn type_check<'a>(
             if !definitionally_equal(domain_type.clone(), Rc::new(TYPE_TERM), definitions_context) {
                 return Err(if let Some(source_range) = domain.source_range {
                     throw(
-                        &format!(
-                            "This domain has type {} when {} was expected.",
-                            domain_type.to_string().code_str(),
-                            TYPE_TERM.to_string().code_str(),
-                        ),
+                        "This is not a type.",
                         source_path,
                         source_contents,
                         source_range,
                     )
                 } else {
                     Error {
-                        message: format!(
-                            "Found domain of type {} when {} was expected.",
-                            domain_type.to_string().code_str(),
-                            TYPE_TERM.to_string().code_str(),
-                        ),
+                        message: format!("{} is not a type.", domain.to_string().code_str()),
                         reason: None,
                     }
                 });
@@ -220,22 +204,14 @@ pub fn type_check<'a>(
                 // Throw a type error.
                 return Err(if let Some(source_range) = codomain.source_range {
                     throw(
-                        &format!(
-                            "This codomain has type {} when {} was expected.",
-                            codomain_type.to_string().code_str(),
-                            TYPE_TERM.to_string().code_str(),
-                        ),
+                        "This is not a type.",
                         source_path,
                         source_contents,
                         source_range,
                     )
                 } else {
                     Error {
-                        message: format!(
-                            "Found codomain of type {} when {} was expected.",
-                            codomain_type.to_string().code_str(),
-                            TYPE_TERM.to_string().code_str(),
-                        ),
+                        message: format!("{} is not a type.", codomain.to_string().code_str()),
                         reason: None,
                     }
                 });
@@ -265,7 +241,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = applicand.source_range {
                     throw(
                         &format!(
-                            "This has type {} when a pi type was expected.",
+                            "This has type {} when a function was expected.",
                             applicand_type.to_string().code_str(),
                         ),
                         source_path,
@@ -275,7 +251,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Applicand {} has type {} when a pi type was expected.",
+                            "Applicand {} has type {} when a function was expected.",
                             applicand.to_string().code_str(),
                             applicand_type.to_string().code_str(),
                         ),
@@ -298,7 +274,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = argument.source_range {
                     throw(
                         &format!(
-                            "This has type {} when {} was expected.",
+                            "This has type {}, but it should have type {}.",
                             argument_type.to_string().code_str(),
                             domain.to_string().code_str(),
                         ),
@@ -309,7 +285,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Argument {} has type {} when {} was expected.",
+                            "Argument {} has type {}, but it should have type {}.",
                             argument.to_string().code_str(),
                             argument_type.to_string().code_str(),
                             domain.to_string().code_str(),
@@ -494,7 +470,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = subterm.source_range {
                     throw(
                         &format!(
-                            "This has type {} when {} was expected.",
+                            "This has type {}, but it should have type {}.",
                             subterm_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
@@ -505,7 +481,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "{} has type {} when {} was expected.",
+                            "{} has type {}, but it should have type {}.",
                             subterm.to_string().code_str(),
                             subterm_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
@@ -540,7 +516,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = term1.source_range {
                     throw(
                         &format!(
-                            "This has type {} when {} was expected.",
+                            "This has type {}, but it should have type {}.",
                             term1_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
@@ -551,7 +527,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "{} has type {} when {} was expected.",
+                            "{} has type {}, but it should have type {}.",
                             term1.to_string().code_str(),
                             term1_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
@@ -579,7 +555,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = term2.source_range {
                     throw(
                         &format!(
-                            "This has type {} when {} was expected.",
+                            "This has type {}, but it should have type {}.",
                             term2_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
@@ -590,7 +566,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "{} has type {} when {} was expected.",
+                            "{} has type {}, but it should have type {}.",
                             term2.to_string().code_str(),
                             term2_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
@@ -626,7 +602,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = term1.source_range {
                     throw(
                         &format!(
-                            "This has type {} when {} was expected.",
+                            "This has type {}, but it should have type {}.",
                             term1_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
@@ -637,7 +613,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Summand {} has type {} when {} was expected.",
+                            "{} has type {}, but it should have type {}.",
                             term1.to_string().code_str(),
                             term1_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
@@ -665,7 +641,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = term2.source_range {
                     throw(
                         &format!(
-                            "This has type {} when {} was expected.",
+                            "This has type {}, but it should have type {}.",
                             term2_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
                         ),
@@ -676,7 +652,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Factor {} has type {} when {} was expected.",
+                            "{} has type {}, but it should have type {}.",
                             term2.to_string().code_str(),
                             term2_type.to_string().code_str(),
                             INTEGER_TERM.to_string().code_str(),
@@ -708,7 +684,7 @@ pub fn type_check<'a>(
                 return Err(if let Some(source_range) = condition.source_range {
                     throw(
                         &format!(
-                            "This has type {} when {} was expected.",
+                            "This has type {}, but it should have type {}.",
                             condition_type.to_string().code_str(),
                             BOOLEAN_TERM.to_string().code_str(),
                         ),
@@ -719,7 +695,7 @@ pub fn type_check<'a>(
                 } else {
                     Error {
                         message: format!(
-                            "Condition {} has type {} when {} was expected.",
+                            "{} has type {}, but it should have type {}.",
                             condition.to_string().code_str(),
                             condition_type.to_string().code_str(),
                             BOOLEAN_TERM.to_string().code_str(),
@@ -1008,7 +984,7 @@ mod tests {
                 &mut typing_context,
                 &mut definitions_context,
             ),
-            "has type `b` when `a` was expected",
+            "has type `b`, but it should have type `a`",
         );
     }
 
