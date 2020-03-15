@@ -55,24 +55,16 @@ pub fn type_check<'a>(
                     shift(variable_type.clone(), 0, *index + 1 - offset)
                 }
                 None => {
-                    return Err(if let Some(source_range) = term.source_range {
-                        throw(
-                            "Unknown type for this variable. You can fix this error by annotating \
+                    return Err(throw(
+                        &format!(
+                            "Unknown type for variable {}. You can fix this error by annotating \
                                 the variable where it\u{2019}s introduced.",
-                            source_path,
-                            source_contents,
-                            source_range,
-                        )
-                    } else {
-                        Error {
-                            message: format!(
-                                "Unknown type for variable {}. You can fix this error by \
-                                    annotating the variable where it\u{2019}s introduced.",
-                                (*variable).to_string().code_str(),
-                            ),
-                            reason: None,
-                        }
-                    });
+                            (*variable).to_string().code_str(),
+                        ),
+                        source_path,
+                        term.source_range
+                            .map(|source_range| (source_contents, source_range)),
+                    ));
                 }
             }
         }
@@ -88,19 +80,13 @@ pub fn type_check<'a>(
 
             // Check that the type of the domain is the type of all types.
             if !definitionally_equal(domain_type.clone(), Rc::new(TYPE_TERM), definitions_context) {
-                return Err(if let Some(source_range) = domain.source_range {
-                    throw(
-                        "This is not a type.",
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!("{} is not a type.", domain.to_string().code_str()),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!("{} is not a type.", domain.to_string().code_str()),
+                    source_path,
+                    domain
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             }
 
             // Temporarily add the variable's type to the context for the purpose of inferring
@@ -142,19 +128,13 @@ pub fn type_check<'a>(
 
             // Check that the type of the domain is the type of all types.
             if !definitionally_equal(domain_type.clone(), Rc::new(TYPE_TERM), definitions_context) {
-                return Err(if let Some(source_range) = domain.source_range {
-                    throw(
-                        "This is not a type.",
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!("{} is not a type.", domain.to_string().code_str()),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!("{} is not a type.", domain.to_string().code_str()),
+                    source_path,
+                    domain
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             }
 
             // Temporarily add the variable's type to the context for the purpose of inferring
@@ -202,19 +182,13 @@ pub fn type_check<'a>(
                 typing_context.pop();
 
                 // Throw a type error.
-                return Err(if let Some(source_range) = codomain.source_range {
-                    throw(
-                        "This is not a type.",
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!("{} is not a type.", codomain.to_string().code_str()),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!("{} is not a type.", codomain.to_string().code_str()),
+                    source_path,
+                    codomain
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             }
 
             // The type of a pi type is the type of all types.
@@ -238,26 +212,17 @@ pub fn type_check<'a>(
             let (domain, codomain) = if let Pi(_, domain, codomain) = &applicand_type_whnf.variant {
                 (domain, codomain)
             } else {
-                return Err(if let Some(source_range) = applicand.source_range {
-                    throw(
-                        &format!(
-                            "This has type {} when a function was expected.",
-                            applicand_type.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "Applicand {} has type {} when a function was expected.",
-                            applicand.to_string().code_str(),
-                            applicand_type.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!(
+                        "Applicand {} has type {} when a function was expected.",
+                        applicand.to_string().code_str(),
+                        applicand_type.to_string().code_str(),
+                    ),
+                    source_path,
+                    applicand
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             };
 
             // Infer the type of the argument.
@@ -271,28 +236,18 @@ pub fn type_check<'a>(
 
             // Check that the argument type equals the domain.
             if !definitionally_equal(argument_type.clone(), domain.clone(), definitions_context) {
-                return Err(if let Some(source_range) = argument.source_range {
-                    throw(
-                        &format!(
-                            "This has type {}, but it should have type {}.",
-                            argument_type.to_string().code_str(),
-                            domain.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "Argument {} has type {}, but it should have type {}.",
-                            argument.to_string().code_str(),
-                            argument_type.to_string().code_str(),
-                            domain.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!(
+                        "Argument {} has type {}, but it should have type {}.",
+                        argument.to_string().code_str(),
+                        argument_type.to_string().code_str(),
+                        domain.to_string().code_str(),
+                    ),
+                    source_path,
+                    argument
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             }
 
             // Construct and return the codomain specialized to the argument.
@@ -361,28 +316,18 @@ pub fn type_check<'a>(
                         annotation.clone(),
                         borrowed_definitions_context,
                     ) {
-                        return Err(if let Some(source_range) = definition.source_range {
-                            throw(
-                                &format!(
-                                    "This has type {} but it was annotated as {}.",
-                                    definition_type.to_string().code_str(),
-                                    annotation.to_string().code_str(),
-                                ),
-                                source_path,
-                                source_contents,
-                                source_range,
-                            )
-                        } else {
-                            Error {
-                                message: format!(
-                                    "Definition {} has type {} but it was annotated as {}.",
-                                    definition.to_string().code_str(),
-                                    definition_type.to_string().code_str(),
-                                    annotation.to_string().code_str(),
-                                ),
-                                reason: None,
-                            }
-                        });
+                        return Err(throw(
+                            &format!(
+                                "Definition {} has type {} but it was annotated as {}.",
+                                definition.to_string().code_str(),
+                                definition_type.to_string().code_str(),
+                                annotation.to_string().code_str(),
+                            ),
+                            source_path,
+                            definition
+                                .source_range
+                                .map(|source_range| (source_contents, source_range)),
+                        ));
                     }
                 } else {
                     // Update the type in the context.
@@ -467,28 +412,18 @@ pub fn type_check<'a>(
                 Rc::new(INTEGER_TERM),
                 definitions_context,
             ) {
-                return Err(if let Some(source_range) = subterm.source_range {
-                    throw(
-                        &format!(
-                            "This has type {}, but it should have type {}.",
-                            subterm_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "{} has type {}, but it should have type {}.",
-                            subterm.to_string().code_str(),
-                            subterm_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!(
+                        "{} has type {}, but it should have type {}.",
+                        subterm.to_string().code_str(),
+                        subterm_type.to_string().code_str(),
+                        INTEGER_TERM.to_string().code_str(),
+                    ),
+                    source_path,
+                    subterm
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             };
 
             // Return the type of integers.
@@ -513,28 +448,18 @@ pub fn type_check<'a>(
                 Rc::new(INTEGER_TERM),
                 definitions_context,
             ) {
-                return Err(if let Some(source_range) = term1.source_range {
-                    throw(
-                        &format!(
-                            "This has type {}, but it should have type {}.",
-                            term1_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "{} has type {}, but it should have type {}.",
-                            term1.to_string().code_str(),
-                            term1_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!(
+                        "{} has type {}, but it should have type {}.",
+                        term1.to_string().code_str(),
+                        term1_type.to_string().code_str(),
+                        INTEGER_TERM.to_string().code_str(),
+                    ),
+                    source_path,
+                    term1
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             };
 
             // Infer the type of the right subterm.
@@ -552,28 +477,18 @@ pub fn type_check<'a>(
                 Rc::new(INTEGER_TERM),
                 definitions_context,
             ) {
-                return Err(if let Some(source_range) = term2.source_range {
-                    throw(
-                        &format!(
-                            "This has type {}, but it should have type {}.",
-                            term2_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "{} has type {}, but it should have type {}.",
-                            term2.to_string().code_str(),
-                            term2_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!(
+                        "{} has type {}, but it should have type {}.",
+                        term2.to_string().code_str(),
+                        term2_type.to_string().code_str(),
+                        INTEGER_TERM.to_string().code_str(),
+                    ),
+                    source_path,
+                    term2
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             };
 
             // Return the type of integers.
@@ -599,28 +514,18 @@ pub fn type_check<'a>(
                 Rc::new(INTEGER_TERM),
                 definitions_context,
             ) {
-                return Err(if let Some(source_range) = term1.source_range {
-                    throw(
-                        &format!(
-                            "This has type {}, but it should have type {}.",
-                            term1_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "{} has type {}, but it should have type {}.",
-                            term1.to_string().code_str(),
-                            term1_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!(
+                        "{} has type {}, but it should have type {}.",
+                        term1.to_string().code_str(),
+                        term1_type.to_string().code_str(),
+                        INTEGER_TERM.to_string().code_str(),
+                    ),
+                    source_path,
+                    term1
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             };
 
             // Infer the type of the right subterm.
@@ -638,28 +543,18 @@ pub fn type_check<'a>(
                 Rc::new(INTEGER_TERM),
                 definitions_context,
             ) {
-                return Err(if let Some(source_range) = term2.source_range {
-                    throw(
-                        &format!(
-                            "This has type {}, but it should have type {}.",
-                            term2_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "{} has type {}, but it should have type {}.",
-                            term2.to_string().code_str(),
-                            term2_type.to_string().code_str(),
-                            INTEGER_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!(
+                        "{} has type {}, but it should have type {}.",
+                        term2.to_string().code_str(),
+                        term2_type.to_string().code_str(),
+                        INTEGER_TERM.to_string().code_str(),
+                    ),
+                    source_path,
+                    term2
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             };
 
             // Return the type of Booleans.
@@ -681,28 +576,18 @@ pub fn type_check<'a>(
                 Rc::new(BOOLEAN_TERM),
                 definitions_context,
             ) {
-                return Err(if let Some(source_range) = condition.source_range {
-                    throw(
-                        &format!(
-                            "This has type {}, but it should have type {}.",
-                            condition_type.to_string().code_str(),
-                            BOOLEAN_TERM.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "{} has type {}, but it should have type {}.",
-                            condition.to_string().code_str(),
-                            condition_type.to_string().code_str(),
-                            BOOLEAN_TERM.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
+                return Err(throw(
+                    &format!(
+                        "{} has type {}, but it should have type {}.",
+                        condition.to_string().code_str(),
+                        condition_type.to_string().code_str(),
+                        BOOLEAN_TERM.to_string().code_str(),
+                    ),
+                    source_path,
+                    condition
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             };
 
             // Infer the type of the then branch.
@@ -729,30 +614,18 @@ pub fn type_check<'a>(
                 else_branch_type.clone(),
                 definitions_context,
             ) {
-                return Err(if let Some(source_range) = term.source_range {
-                    throw(
-                        &format!(
-                            "The two branches of this conditional don\u{2019}t match. The then \
+                return Err(throw(
+                    &format!(
+                        "The two branches of conditional {} don\u{2019}t match. The then \
                                 branch has type {}, but the else branch has type {}.",
-                            then_branch.to_string().code_str(),
-                            else_branch.to_string().code_str(),
-                        ),
-                        source_path,
-                        source_contents,
-                        source_range,
-                    )
-                } else {
-                    Error {
-                        message: format!(
-                            "The two branches of conditional {} don\u{2019}t match. The then \
-                                branch has type {}, but the else branch has type {}.",
-                            term.to_string().code_str(),
-                            then_branch.to_string().code_str(),
-                            else_branch.to_string().code_str(),
-                        ),
-                        reason: None,
-                    }
-                });
+                        term.to_string().code_str(),
+                        then_branch.to_string().code_str(),
+                        else_branch.to_string().code_str(),
+                    ),
+                    source_path,
+                    term.source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
             };
 
             // Return the type of the branches.
