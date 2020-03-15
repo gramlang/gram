@@ -31,84 +31,87 @@ impl error::Error for Error {
     }
 }
 
-// This function constructs an `Error` that occurs at a specific location in a source file.
+// This function constructs an `Error` that may occur at a specific location in a source file.
 pub fn throw(
     message: &str,
     source_path: Option<&Path>,
-    source_contents: &str,
 
     // Inclusive on the left and exclusive on the right
-    source_range: (usize, usize),
+    source_range: Option<(&str, (usize, usize))>,
 ) -> Error {
     {
-        // Remember the relevant lines and the position of the start of the next line.
-        let mut lines = vec![];
-        let mut pos = 0_usize;
+        // If we have a source range, fetch the relevant lines from the source.
+        let listing = if let Some((source_contents, source_range)) = source_range {
+            // Remember the relevant lines and the position of the start of the next line.
+            let mut lines = vec![];
+            let mut pos = 0_usize;
 
-        // Find the relevant lines.
-        for (i, line) in source_contents.split('\n').enumerate() {
-            // Record the start of the line before we advance the cursor.
-            let line_start = pos;
+            // Find the relevant lines.
+            for (i, line) in source_contents.split('\n').enumerate() {
+                // Record the start of the line before we advance the cursor.
+                let line_start = pos;
 
-            // Move the cursor to the start of the next line.
-            pos += line.len() + 1;
+                // Move the cursor to the start of the next line.
+                pos += line.len() + 1;
 
-            // If the start of the line is past the end of the range, we're done.
-            if line_start >= source_range.1 {
-                break;
-            }
+                // If the start of the line is past the end of the range, we're done.
+                if line_start >= source_range.1 {
+                    break;
+                }
 
-            // If the start of the next line is before the start of the range, we haven't reached
-            // the lines of interest yet.
-            if pos <= source_range.0 {
-                continue;
-            }
+                // If the start of the next line is before the start of the range, we haven't
+                // reached the lines of interest yet.
+                if pos <= source_range.0 {
+                    continue;
+                }
 
-            // Highlight the relevant part of the line.
-            let trimmed_line = line.trim_end();
-            let (section_start, section_end) = if source_range.0 > line_start {
-                (
-                    min(source_range.0 - line_start, trimmed_line.len()),
-                    min(source_range.1 - line_start, trimmed_line.len()),
-                )
-            } else {
-                (0, min(source_range.1 - line_start, trimmed_line.len()))
-            };
-            let colored_line = format!(
-                "{}{}{}",
-                &trimmed_line[..section_start],
-                &trimmed_line[section_start..section_end].red(),
-                &trimmed_line[section_end..],
-            );
-
-            // Record the line number and the line contents. We trim the end of the line to
-            // remove any carriage return that might have been present before the line feed (as
-            // well as any other whitespace).
-            lines.push(((i + 1).to_string(), colored_line));
-        }
-
-        // Compute the width of the string representation of the hugest relevant line number.
-        let gutter_width = lines
-            .iter()
-            .fold(0_usize, |acc, (line_number, _)| max(acc, line_number.len()));
-
-        // Render the code listing with line numbers.
-        let listing = lines
-            .iter()
-            .map(|(line_number, line)| {
-                format!(
-                    "{} {}",
-                    format!(
-                        "{} |",
-                        line_number.pad(gutter_width, ' ', Alignment::Right, false),
+                // Highlight the relevant part of the line.
+                let trimmed_line = line.trim_end();
+                let (section_start, section_end) = if source_range.0 > line_start {
+                    (
+                        min(source_range.0 - line_start, trimmed_line.len()),
+                        min(source_range.1 - line_start, trimmed_line.len()),
                     )
-                    .blue()
-                    .bold(),
-                    line,
-                )
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
+                } else {
+                    (0, min(source_range.1 - line_start, trimmed_line.len()))
+                };
+                let colored_line = format!(
+                    "{}{}{}",
+                    &trimmed_line[..section_start],
+                    &trimmed_line[section_start..section_end].red(),
+                    &trimmed_line[section_end..],
+                );
+
+                // Record the line number and the line contents. We trim the end of the line to
+                // remove any carriage return that might have been present before the line feed (as
+                // well as any other whitespace).
+                lines.push(((i + 1).to_string(), colored_line));
+            }
+
+            // Compute the width of the string representation of the hugest relevant line number.
+            let gutter_width = lines
+                .iter()
+                .fold(0_usize, |acc, (line_number, _)| max(acc, line_number.len()));
+
+            // Render the code listing with line numbers.
+            lines
+                .iter()
+                .map(|(line_number, line)| {
+                    format!(
+                        "{} {}",
+                        format!(
+                            "{} |",
+                            line_number.pad(gutter_width, ' ', Alignment::Right, false),
+                        )
+                        .blue()
+                        .bold(),
+                        line,
+                    )
+                })
+                .collect::<Vec<_>>()
+        } else {
+            vec![]
+        };
 
         // Now we have everything we need to construct the error.
         Error {
@@ -124,13 +127,13 @@ pub fn throw(
                         "Error in {}: {}\n\n{}",
                         path.to_string_lossy().code_str(),
                         message,
-                        listing,
+                        listing.join("\n"),
                     )
                 }
             } else if listing.is_empty() {
                 format!("Error: {}", message)
             } else {
-                format!("Error: {}\n\n{}", message, listing)
+                format!("Error: {}\n\n{}", message, listing.join("\n"))
             },
             reason: None,
         }
@@ -170,19 +173,44 @@ mod tests {
     use std::path::Path;
 
     #[test]
+    fn throw_no_path_missing_range() {
+        colored::control::set_override(false);
+
+        let error = throw("An error occurred.", None, None);
+
+        assert_eq!(error.message, "Error: An error occurred.".to_owned());
+    }
+
+    #[test]
     fn throw_no_path_empty_range() {
         colored::control::set_override(false);
 
-        let error = throw("An error occurred.", None, "", (0, 0));
+        let error = throw("An error occurred.", None, Some(("", (0, 0))));
 
         assert_eq!(error.message, "Error: An error occurred.".to_owned());
+    }
+
+    #[test]
+    fn throw_with_path_missing_range() {
+        colored::control::set_override(false);
+
+        let error = throw("An error occurred.", Some(Path::new("foo.g")), None);
+
+        assert_eq!(
+            error.message,
+            "Error in `foo.g`: An error occurred.".to_owned(),
+        );
     }
 
     #[test]
     fn throw_with_path_empty_range() {
         colored::control::set_override(false);
 
-        let error = throw("An error occurred.", Some(Path::new("foo.g")), "", (0, 0));
+        let error = throw(
+            "An error occurred.",
+            Some(Path::new("foo.g")),
+            Some(("", (0, 0))),
+        );
 
         assert_eq!(
             error.message,
@@ -194,7 +222,7 @@ mod tests {
     fn throw_no_path_single_line_full_range() {
         colored::control::set_override(false);
 
-        let error = throw("An error occurred.", None, "foo", (0, 3));
+        let error = throw("An error occurred.", None, Some(("foo", (0, 3))));
 
         assert_eq!(
             error.message,
@@ -209,8 +237,7 @@ mod tests {
         let error = throw(
             "An error occurred.",
             Some(Path::new("foo.g")),
-            "foo",
-            (0, 3),
+            Some(("foo", (0, 3))),
         );
 
         assert_eq!(
@@ -223,7 +250,7 @@ mod tests {
     fn throw_no_path_multiple_lines_full_range() {
         colored::control::set_override(false);
 
-        let error = throw("An error occurred.", None, "foo\nbar\nbaz", (0, 11));
+        let error = throw("An error occurred.", None, Some(("foo\nbar\nbaz", (0, 11))));
 
         assert_eq!(
             error.message,
@@ -235,7 +262,11 @@ mod tests {
     fn throw_no_path_multiple_lines_partial_range() {
         colored::control::set_override(false);
 
-        let error = throw("An error occurred.", None, "foo\nbar\nbaz\nqux", (5, 11));
+        let error = throw(
+            "An error occurred.",
+            None,
+            Some(("foo\nbar\nbaz\nqux", (5, 11))),
+        );
 
         assert_eq!(
             error.message,
@@ -250,8 +281,10 @@ mod tests {
         let error = throw(
             "An error occurred.",
             None,
-            "foo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux",
-            (33, 42),
+            Some((
+                "foo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux",
+                (33, 42),
+            )),
         );
 
         assert_eq!(

@@ -296,8 +296,7 @@ pub fn tokenize<'a>(
                 return Err(throw(
                     &format!("Unexpected symbol {}.", &source_contents[i..end].code_str()),
                     source_path,
-                    source_contents,
-                    (i, end),
+                    Some((source_contents, (i, end))),
                 ));
             }
         }

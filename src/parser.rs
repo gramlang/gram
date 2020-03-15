@@ -282,8 +282,7 @@ macro_rules! consume_token {
                                 tokens[next - 1].to_string().code_str(),
                             ),
                             source_path,
-                            source_contents,
-                            tokens[next - 1].source_range,
+                            Some((source_contents, tokens[next - 1].source_range)),
                         )
                     }) as ErrorFactory),
                     next,
@@ -309,8 +308,7 @@ macro_rules! consume_token {
                                 tokens[next].to_string().code_str(),
                             ),
                             source_path,
-                            source_contents,
-                            tokens[next].source_range,
+                            Some((source_contents, tokens[next].source_range)),
                         )
                     }) as ErrorFactory),
                     next,
@@ -357,8 +355,7 @@ macro_rules! consume_terminator {
                                 tokens[next - 1].to_string().code_str(),
                             ),
                             source_path,
-                            source_contents,
-                            tokens[next - 1].source_range,
+                            Some((source_contents, tokens[next - 1].source_range)),
                         )
                     }) as ErrorFactory),
                     next,
@@ -386,8 +383,7 @@ macro_rules! consume_terminator {
                                 tokens[next].to_string().code_str(),
                             ),
                             source_path,
-                            source_contents,
-                            tokens[next].source_range,
+                            Some((source_contents, tokens[next].source_range)),
                         )
                     }) as ErrorFactory),
                     next,
@@ -430,8 +426,7 @@ macro_rules! consume_identifier {
                                 tokens[next - 1].to_string().code_str(),
                             ),
                             source_path,
-                            source_contents,
-                            tokens[next - 1].source_range,
+                            Some((source_contents, tokens[next - 1].source_range)),
                         )
                     }) as ErrorFactory),
                     next,
@@ -456,8 +451,7 @@ macro_rules! consume_identifier {
                                 tokens[next].to_string().code_str(),
                             ),
                             source_path,
-                            source_contents,
-                            tokens[next].source_range,
+                            Some((source_contents, tokens[next].source_range)),
                         )
                     }) as ErrorFactory),
                     next,
@@ -484,15 +478,16 @@ fn set_generic_error<'a, 'b>(
                 throw(
                     "Unexpected end of file.",
                     source_path,
-                    source_contents,
-                    tokens.last().map_or((0, 0), |token| token.source_range),
+                    Some((
+                        source_contents,
+                        tokens.last().map_or((0, 0), |token| token.source_range),
+                    )),
                 )
             } else {
                 throw(
                     &format!("Unexpected {}.", tokens[start].to_string().code_str()),
                     source_path,
-                    source_contents,
-                    tokens[start].source_range,
+                    Some((source_contents, tokens[start].source_range)),
                 )
             }
         }) as ErrorFactory);
@@ -1260,8 +1255,7 @@ fn resolve_variables<'a>(
                 return Err(throw(
                     &format!("Variable {} not in scope.", variable.name.code_str()),
                     source_path,
-                    source_contents,
-                    variable.source_range,
+                    Some((source_contents, variable.source_range)),
                 ));
             };
 
@@ -1284,8 +1278,7 @@ fn resolve_variables<'a>(
                     return Err(throw(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        source_contents,
-                        variable.source_range,
+                        Some((source_contents, variable.source_range)),
                     ));
                 }
 
@@ -1328,8 +1321,7 @@ fn resolve_variables<'a>(
                     return Err(throw(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        source_contents,
-                        variable.source_range,
+                        Some((source_contents, variable.source_range)),
                     ));
                 }
 
@@ -1415,8 +1407,7 @@ fn resolve_variables<'a>(
                                 inner_variable.name.code_str(),
                             ),
                             source_path,
-                            source_contents,
-                            inner_variable.source_range,
+                            Some((source_contents, inner_variable.source_range)),
                         ));
                     }
 
@@ -1830,31 +1821,19 @@ fn check_references<'a>(
                         visited,
                     )?;
                 } else if definition_index >= start_index {
-                    return Err(
-                        if let Some(source_range) = definitions[start_index].2.source_range {
-                            throw(
-                                &format!(
-                                    "The definition of {} references {} (directly or indirectly), \
-                                        which will not be available in time during evaluation.",
-                                    definitions[start_index].0.code_str(),
-                                    definitions[definition_index].0.code_str(),
-                                ),
-                                source_path,
-                                source_contents,
-                                source_range,
-                            )
-                        } else {
-                            Error {
-                                message: format!(
-                                    "The definition of {} references {} (directly or indirectly), \
-                                        which will not be available in time during evaluation.",
-                                    definitions[start_index].0.code_str(),
-                                    definitions[definition_index].0.code_str(),
-                                ),
-                                reason: None,
-                            }
-                        },
-                    );
+                    return Err(throw(
+                        &format!(
+                            "The definition of {} references {} (directly or indirectly), \
+                                    which will not be available in time during evaluation.",
+                            definitions[start_index].0.code_str(),
+                            definitions[definition_index].0.code_str(),
+                        ),
+                        source_path,
+                        definitions[start_index]
+                            .2
+                            .source_range
+                            .map(|source_range| (source_contents, source_range)),
+                    ));
                 }
             }
         }
@@ -2308,8 +2287,7 @@ fn parse_integer_literal<'a, 'b>(
                             tokens[start - 1].to_string().code_str(),
                         ),
                         source_path,
-                        source_contents,
-                        tokens[start - 1].source_range,
+                        Some((source_contents, tokens[start - 1].source_range)),
                     )
                 }) as ErrorFactory),
                 start,
@@ -2333,8 +2311,7 @@ fn parse_integer_literal<'a, 'b>(
                             tokens[start].to_string().code_str(),
                         ),
                         source_path,
-                        source_contents,
-                        tokens[start].source_range,
+                        Some((source_contents, tokens[start].source_range)),
                     )
                 }) as ErrorFactory),
                 start,
