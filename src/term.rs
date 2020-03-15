@@ -86,7 +86,13 @@ impl<'a> Display for Variant<'a> {
                 for (variable, annotation, definition) in definitions {
                     match annotation {
                         Some(annotation) => {
-                            write!(f, "{} : {} = {}; ", variable, annotation, group(definition))?;
+                            write!(
+                                f,
+                                "{} : {} = {}; ",
+                                variable,
+                                group(annotation),
+                                group(definition),
+                            )?;
                         }
                         None => {
                             write!(f, "{} = {}; ", variable, definition)?;
