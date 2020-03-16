@@ -57,8 +57,8 @@ pub fn type_check<'a>(
                 None => {
                     return Err(throw(
                         &format!(
-                            "Unknown type for variable {}. You can fix this error by annotating \
-                                the variable where it\u{2019}s introduced.",
+                            "Unknown type for {}. You can fix this error by annotating the \
+                                variable where it\u{2019}s introduced.",
                             (*variable).to_string().code_str(),
                         ),
                         source_path,
@@ -214,7 +214,7 @@ pub fn type_check<'a>(
             } else {
                 return Err(throw(
                     &format!(
-                        "Applicand {} has type {} when a function was expected.",
+                        "{} has type {} when a function was expected.",
                         applicand.to_string().code_str(),
                         applicand_type.to_string().code_str(),
                     ),
@@ -238,7 +238,7 @@ pub fn type_check<'a>(
             if !definitionally_equal(argument_type.clone(), domain.clone(), definitions_context) {
                 return Err(throw(
                     &format!(
-                        "Argument {} has type {}, but it should have type {}.",
+                        "{} has type {}, but it should have type {}.",
                         argument.to_string().code_str(),
                         argument_type.to_string().code_str(),
                         domain.to_string().code_str(),
@@ -318,7 +318,7 @@ pub fn type_check<'a>(
                     ) {
                         return Err(throw(
                             &format!(
-                                "Definition {} has type {} but it was annotated as {}.",
+                                "{} has type {} but it was annotated as {}.",
                                 definition.to_string().code_str(),
                                 definition_type.to_string().code_str(),
                                 annotation.to_string().code_str(),

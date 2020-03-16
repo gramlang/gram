@@ -52,67 +52,36 @@
 /* [tag:bison_grammar] [ref:grammar] */
 
 term: let | jumbo_term;
-
 type: TYPE;
-
 variable: IDENTIFIER;
-
 lambda: LEFT_PAREN IDENTIFIER COLON jumbo_term RIGHT_PAREN THICK_ARROW term;
-
 pi: LEFT_PAREN IDENTIFIER COLON jumbo_term RIGHT_PAREN THIN_ARROW term;
-
 non_dependent_pi: small_term THIN_ARROW term;
-
 application: atom small_term;
-
 let: IDENTIFIER let_annotation EQUALS term TERMINATOR term;
-
 let_annotation: %empty | COLON small_term;
-
 integer: INTEGER;
-
 integer_literal: INTEGER_LITERAL;
-
 negation: MINUS large_term;
-
 sum: large_term PLUS huge_term;
-
 difference: large_term MINUS huge_term;
-
 product: small_term ASTERISK large_term;
-
 quotient: small_term SLASH large_term;
-
 less_than: huge_term LESS_THAN huge_term;
-
 less_than_or_equal_to: huge_term LESS_THAN_OR_EQUAL huge_term;
-
 equal_to: huge_term DOUBLE_EQUALS huge_term;
-
 greater_than: huge_term GREATER_THAN huge_term;
-
 greater_than_or_equal_to: huge_term GREATER_THAN_OR_EQUAL huge_term;
-
 boolean: BOOLEAN;
-
 true: TRUE;
-
 false: FALSE;
-
 if: IF term THEN term ELSE term
-
 group: LEFT_PAREN term RIGHT_PAREN;
-
 atom: type | variable | integer | integer_literal | boolean | true | false | group;
-
 small_term: application | atom;
-
 medium_term: product | quotient | small_term;
-
 large_term: negation | medium_term;
-
 huge_term: sum | difference | large_term;
-
 giant_term:
   less_than |
   less_than_or_equal_to |
@@ -120,5 +89,4 @@ giant_term:
   greater_than |
   greater_than_or_equal_to |
   huge_term;
-
 jumbo_term: non_dependent_pi | lambda | pi | if | giant_term;

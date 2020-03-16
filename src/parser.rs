@@ -166,20 +166,11 @@ type CacheKey = (CacheType, usize);
 // `Error`, which may contain a long string message.
 type ErrorFactory<'a, 'b> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
 
-// An `ErrorConfidenceLevel` describes how likely an error is to be the correct error to show to the
-// user.
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
-enum ErrorConfidenceLevel {
-    Low,
-    High,
-}
-
-// An `ParseError` is a triple containing:
-// 1. An `ErrorFactory`, if there is a more useful error message than the default one.
+// An `ParseError` is a pair containing:
+// 1. An `ErrorFactory` that can be used to produce an error message.
 // 2. The position of the token that caused the error. This position will be used to rank errors
 //    and choose the "best" one.
-// 3. An ErrorConfidenceLevel`. This will be used to rank errors with equal positions.
-type ParseError<'a, 'b> = (Option<ErrorFactory<'a, 'b>>, usize, ErrorConfidenceLevel);
+type ParseError<'a, 'b> = (ErrorFactory<'a, 'b>, usize);
 
 // The result of a cache lookup is a pair consisting of the term that was parsed and the position
 // of the next unconsumed token, if the parse was successful. Otherwise, the result is `None`.
@@ -191,14 +182,20 @@ type Cache<'a, 'b> = HashMap<CacheKey, CacheResult<'a, 'b>>;
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
 // return early on cache hit.
 macro_rules! cache_check {
-    ($cache:ident, $type:ident, $start:expr, $error:ident $(,)?) => {{
+    ($cache:ident, $type:ident, $start:expr, $tokens:expr, $error:ident $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let start = $start;
+        let tokens = $tokens;
 
         // Do the cache lookup.
         if let Some(result) = $cache.get(&(CacheType::$type, start)) {
             return (*result).clone();
+        }
+
+        // Start with a generic error message in case we don't get a better one.
+        if start > $error.1 {
+            *$error = generic_error(tokens, start);
         }
     }};
 }
@@ -260,8 +257,7 @@ macro_rules! consume_token {
         $tokens:expr,
         $variant:ident,
         $next:expr,
-        $error:ident,
-        $confidence:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $error:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -271,10 +267,9 @@ macro_rules! consume_token {
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
-            if next > $error.1 || (next == $error.1 && ErrorConfidenceLevel::$confidence > $error.2)
-            {
+            if next > $error.1 {
                 *$error = (
-                    Some(Rc::new(move |source_path, source_contents| {
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} after {}.",
@@ -284,9 +279,8 @@ macro_rules! consume_token {
                             source_path,
                             Some((source_contents, tokens[next - 1].source_range)),
                         )
-                    }) as ErrorFactory),
+                    }) as ErrorFactory,
                     next,
-                    ErrorConfidenceLevel::$confidence,
                 );
             }
 
@@ -297,10 +291,9 @@ macro_rules! consume_token {
         if let token::Variant::$variant = tokens[next].variant {
             next + 1
         } else {
-            if next > $error.1 || (next == $error.1 && ErrorConfidenceLevel::$confidence > $error.2)
-            {
+            if next > $error.1 {
                 *$error = (
-                    Some(Rc::new(move |source_path, source_contents| {
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} but encountered {}.",
@@ -310,9 +303,8 @@ macro_rules! consume_token {
                             source_path,
                             Some((source_contents, tokens[next].source_range)),
                         )
-                    }) as ErrorFactory),
+                    }) as ErrorFactory,
                     next,
-                    ErrorConfidenceLevel::$confidence,
                 );
             }
 
@@ -331,8 +323,7 @@ macro_rules! consume_terminator {
         $start:expr,
         $tokens:expr,
         $next:expr,
-        $error:ident,
-        $confidence:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $error:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -342,10 +333,9 @@ macro_rules! consume_terminator {
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
-            if next > $error.1 || (next == $error.1 && ErrorConfidenceLevel::$confidence > $error.2)
-            {
+            if next > $error.1 {
                 *$error = (
-                    Some(Rc::new(move |source_path, source_contents| {
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} after {}.",
@@ -357,9 +347,8 @@ macro_rules! consume_terminator {
                             source_path,
                             Some((source_contents, tokens[next - 1].source_range)),
                         )
-                    }) as ErrorFactory),
+                    }) as ErrorFactory,
                     next,
-                    ErrorConfidenceLevel::$confidence,
                 );
             }
 
@@ -370,10 +359,9 @@ macro_rules! consume_terminator {
         if let token::Variant::Terminator(_) = tokens[next].variant {
             next + 1
         } else {
-            if next > $error.1 || (next == $error.1 && ErrorConfidenceLevel::$confidence > $error.2)
-            {
+            if next > $error.1 {
                 *$error = (
-                    Some(Rc::new(move |source_path, source_contents| {
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} but encountered {}.",
@@ -385,9 +373,8 @@ macro_rules! consume_terminator {
                             source_path,
                             Some((source_contents, tokens[next].source_range)),
                         )
-                    }) as ErrorFactory),
+                    }) as ErrorFactory,
                     next,
-                    ErrorConfidenceLevel::$confidence,
                 );
             }
 
@@ -405,8 +392,7 @@ macro_rules! consume_identifier {
         $start:expr,
         $tokens:expr,
         $next:expr,
-        $error:ident,
-        $confidence:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $error:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -416,10 +402,9 @@ macro_rules! consume_identifier {
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
-            if next > $error.1 || (next == $error.1 && ErrorConfidenceLevel::$confidence > $error.2)
-            {
+            if next > $error.1 {
                 *$error = (
-                    Some(Rc::new(move |source_path, source_contents| {
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected an identifier after {}.",
@@ -428,9 +413,8 @@ macro_rules! consume_identifier {
                             source_path,
                             Some((source_contents, tokens[next - 1].source_range)),
                         )
-                    }) as ErrorFactory),
+                    }) as ErrorFactory,
                     next,
-                    ErrorConfidenceLevel::$confidence,
                 );
             }
 
@@ -441,10 +425,9 @@ macro_rules! consume_identifier {
         if let token::Variant::Identifier(identifier) = tokens[next].variant {
             (identifier, next + 1)
         } else {
-            if next > $error.1 || (next == $error.1 && ErrorConfidenceLevel::$confidence > $error.2)
-            {
+            if next > $error.1 {
                 *$error = (
-                    Some(Rc::new(move |source_path, source_contents| {
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected an identifier but encountered {}.",
@@ -453,9 +436,8 @@ macro_rules! consume_identifier {
                             source_path,
                             Some((source_contents, tokens[next].source_range)),
                         )
-                    }) as ErrorFactory),
+                    }) as ErrorFactory,
                     next,
-                    ErrorConfidenceLevel::$confidence,
                 );
             }
 
@@ -464,17 +446,14 @@ macro_rules! consume_identifier {
     }};
 }
 
-// When an attempt to parse several alternatives fails, none of the errors returned from those
-// failed parses are relevant. Instead, we use this function to set a generic error.
-fn set_generic_error<'a, 'b>(
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) {
-    if error.1 == start && error.2 == ErrorConfidenceLevel::Low {
-        // Check if there are any tokens to complain about.
-        error.0 = Some(Rc::new(move |source_path, source_contents| {
-            if start == tokens.len() {
+// This function computes a generic error that just complains about a particular token or the end of
+// the source file.
+fn generic_error<'a, 'b>(tokens: &'b [Token<'a>], position: usize) -> ParseError<'a, 'b> {
+    (
+        Rc::new(move |source_path, source_contents| {
+            if tokens.is_empty() {
+                throw("Empty file.", source_path, Some((source_contents, (0, 0))))
+            } else if position == tokens.len() {
                 throw(
                     "Unexpected end of file.",
                     source_path,
@@ -485,13 +464,14 @@ fn set_generic_error<'a, 'b>(
                 )
             } else {
                 throw(
-                    &format!("Unexpected {}.", tokens[start].to_string().code_str()),
+                    &format!("Unexpected {}.", tokens[position].to_string().code_str()),
                     source_path,
-                    Some((source_contents, tokens[start].source_range)),
+                    Some((source_contents, tokens[position].source_range)),
                 )
             }
-        }) as ErrorFactory);
-    }
+        }) as ErrorFactory,
+        position,
+    )
 }
 
 // This is the top-level parsing function. All the parsed terms are guaranteed to have a non-`None`
@@ -507,13 +487,13 @@ pub fn parse<'a>(
     let mut cache = Cache::new();
 
     // Construct a default error in case none of the tokens can be parsed.
-    let mut error: ParseError = (None, 0, ErrorConfidenceLevel::Low);
+    let mut error = generic_error(tokens, 0);
 
     // Parse the term.
     let result = parse_term(&mut cache, tokens, 0, &mut error);
 
     // Check if we managed to parse something.
-    let first_unparsed_token = if let Some((term, next)) = result {
+    if let Some((term, next)) = result {
         // We parsed something, but did we parse everything?
         if next == tokens.len() {
             // We parsed everything. Flip the associativity of applications with non-grouped
@@ -542,28 +522,16 @@ pub fn parse<'a>(
                 &mut context,
             )?);
         } else {
-            // We didn't parse all the tokens. Remember which one we stopped at.
-            next
+            // We didn't parse all the tokens. Set a generic error message if we don't already have
+            // a better one.
+            if next > error.1 {
+                error = generic_error(tokens, next);
+            }
         }
-    } else {
-        // The parse failed. Remember which token caused the parse to fail.
-        error.1
-    };
-
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, first_unparsed_token, &mut error);
-
-    // If we made it this far, something went wrong. See if we have an error factory.
-    if let (Some(factory), _, _) = error {
-        // We have one. Use it to generate the error.
-        Err(factory(source_path, source_contents))
-    } else {
-        panic!(format!(
-            "Apparently {} didn't provide an error factory.",
-            "set_generic_error".code_str(),
-        ));
     }
+
+    // If we made it this far, something went wrong. Apply the error factory.
+    Err(error.0(source_path, source_contents))
 }
 
 // Flip the associativity of applications from right to left.
@@ -1850,7 +1818,7 @@ fn parse_term<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Term, start, error);
+    cache_check!(cache, Term, start, tokens, error);
 
     // Try to parse a let.
     try_return!(cache, Term, start, parse_let(cache, tokens, start, error));
@@ -1862,10 +1830,6 @@ fn parse_term<'a, 'b>(
         start,
         parse_jumbo_term(cache, tokens, start, error),
     );
-
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, start, error);
 
     // Return `None` since the parse failed.
     cache_return!(cache, Term, start, None)
@@ -1879,10 +1843,10 @@ fn parse_type<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Type, start, error);
+    cache_check!(cache, Type, start, tokens, error);
 
     // Consume the keyword.
-    let next = consume_token!(cache, Type, start, tokens, Type, start, error, Low);
+    let next = consume_token!(cache, Type, start, tokens, Type, start, error);
 
     // Construct and return the value.
     cache_return!(
@@ -1908,10 +1872,10 @@ fn parse_variable<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Variable, start, error);
+    cache_check!(cache, Variable, start, tokens, error);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Variable, start, tokens, start, error, Low);
+    let (variable, next) = consume_identifier!(cache, Variable, start, tokens, start, error);
 
     // Construct and return the variable.
     cache_return!(
@@ -1940,17 +1904,16 @@ fn parse_lambda<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Lambda, start, error);
+    cache_check!(cache, Lambda, start, tokens, error);
 
     // Consume the left parenthesis.
-    let variable_pos = consume_token!(cache, Lambda, start, tokens, LeftParen, start, error, Low);
+    let variable_pos = consume_token!(cache, Lambda, start, tokens, LeftParen, start, error);
 
     // Consume the variable.
-    let (variable, next) =
-        consume_identifier!(cache, Lambda, start, tokens, variable_pos, error, Low);
+    let (variable, next) = consume_identifier!(cache, Lambda, start, tokens, variable_pos, error);
 
     // Consume the colon.
-    let next = consume_token!(cache, Lambda, start, tokens, Colon, next, error, Low);
+    let next = consume_token!(cache, Lambda, start, tokens, Colon, next, error);
 
     // Parse the domain.
     let (domain, next) = try_eval!(
@@ -1961,10 +1924,10 @@ fn parse_lambda<'a, 'b>(
     );
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, Lambda, start, tokens, RightParen, next, error, Low);
+    let next = consume_token!(cache, Lambda, start, tokens, RightParen, next, error);
 
     // Consume the arrow.
-    let next = consume_token!(cache, Lambda, start, tokens, ThickArrow, next, error, Low);
+    let next = consume_token!(cache, Lambda, start, tokens, ThickArrow, next, error);
 
     // Parse the body.
     let (body, next) = try_eval!(cache, Lambda, start, parse_term(cache, tokens, next, error));
@@ -2000,16 +1963,16 @@ fn parse_pi<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Pi, start, error);
+    cache_check!(cache, Pi, start, tokens, error);
 
     // Consume the left parenthesis.
-    let variable_pos = consume_token!(cache, Pi, start, tokens, LeftParen, start, error, Low);
+    let variable_pos = consume_token!(cache, Pi, start, tokens, LeftParen, start, error);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Pi, start, tokens, variable_pos, error, Low);
+    let (variable, next) = consume_identifier!(cache, Pi, start, tokens, variable_pos, error);
 
     // Consume the colon.
-    let next = consume_token!(cache, Pi, start, tokens, Colon, next, error, Low);
+    let next = consume_token!(cache, Pi, start, tokens, Colon, next, error);
 
     // Parse the domain.
     let (domain, next) = try_eval!(
@@ -2020,10 +1983,10 @@ fn parse_pi<'a, 'b>(
     );
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, Pi, start, tokens, RightParen, next, error, Low);
+    let next = consume_token!(cache, Pi, start, tokens, RightParen, next, error);
 
     // Consume the arrow.
-    let next = consume_token!(cache, Pi, start, tokens, ThinArrow, next, error, Low);
+    let next = consume_token!(cache, Pi, start, tokens, ThinArrow, next, error);
 
     // Parse the codomain.
     let (codomain, next) = try_eval!(cache, Pi, start, parse_term(cache, tokens, next, error));
@@ -2059,7 +2022,7 @@ fn parse_non_dependent_pi<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, NonDependentPi, start, error);
+    cache_check!(cache, NonDependentPi, start, tokens, error);
 
     // Parse the domain.
     let (domain, next) = try_eval!(
@@ -2070,16 +2033,7 @@ fn parse_non_dependent_pi<'a, 'b>(
     );
 
     // Consume the arrow.
-    let next = consume_token!(
-        cache,
-        NonDependentPi,
-        start,
-        tokens,
-        ThinArrow,
-        next,
-        error,
-        Low,
-    );
+    let next = consume_token!(cache, NonDependentPi, start, tokens, ThinArrow, next, error);
 
     // Parse the codomain.
     let (codomain, next) = {
@@ -2129,7 +2083,7 @@ fn parse_application<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Application, start, error);
+    cache_check!(cache, Application, start, tokens, error);
 
     // Parse the applicand.
     let (applicand, next) = try_eval!(
@@ -2171,16 +2125,16 @@ fn parse_let<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Let, start, error);
+    cache_check!(cache, Let, start, tokens, error);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, Let, start, tokens, start, error, Low);
+    let (variable, next) = consume_identifier!(cache, Let, start, tokens, start, error);
 
     // Parse the annotation, if there is one.
     let (annotation, next) = if next < tokens.len() {
         if let token::Variant::Colon = tokens[next].variant {
             // Consume the colon.
-            let next = consume_token!(cache, Let, start, tokens, Colon, next, error, Low);
+            let next = consume_token!(cache, Let, start, tokens, Colon, next, error);
 
             // Parse the annotation.
             let (annotation, next) = try_eval!(
@@ -2202,13 +2156,13 @@ fn parse_let<'a, 'b>(
     };
 
     // Consume the equals sign.
-    let next = consume_token!(cache, Let, start, tokens, Equals, next, error, Low);
+    let next = consume_token!(cache, Let, start, tokens, Equals, next, error);
 
     // Parse the definition.
     let (definition, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
 
     // Consume the terminator.
-    let next = consume_terminator!(cache, Let, start, tokens, next, error, High);
+    let next = consume_terminator!(cache, Let, start, tokens, next, error);
 
     // Parse the body.
     let (body, next) = try_eval!(cache, Let, start, parse_term(cache, tokens, next, error));
@@ -2245,10 +2199,10 @@ fn parse_integer<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Integer, start, error);
+    cache_check!(cache, Integer, start, tokens, error);
 
     // Consume the keyword.
-    let next = consume_token!(cache, Integer, start, tokens, Integer, start, error, Low);
+    let next = consume_token!(cache, Integer, start, tokens, Integer, start, error);
 
     // Construct and return the variable.
     cache_return!(
@@ -2274,13 +2228,13 @@ fn parse_integer_literal<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, IntegerLiteral, start, error);
+    cache_check!(cache, IntegerLiteral, start, tokens, error);
 
     // Fail if there are no more tokens to parse.
     if start == tokens.len() {
-        if start > error.1 || (start == error.1 && ErrorConfidenceLevel::Low > error.2) {
+        if start > error.1 {
             *error = (
-                Some(Rc::new(move |source_path, source_contents| {
+                Rc::new(move |source_path, source_contents| {
                     throw(
                         &format!(
                             "Expected an integer literal after {}.",
@@ -2289,9 +2243,8 @@ fn parse_integer_literal<'a, 'b>(
                         source_path,
                         Some((source_contents, tokens[start - 1].source_range)),
                     )
-                }) as ErrorFactory),
+                }) as ErrorFactory,
                 start,
-                ErrorConfidenceLevel::Low,
             );
         }
 
@@ -2302,9 +2255,9 @@ fn parse_integer_literal<'a, 'b>(
     let (next, integer) = if let token::Variant::IntegerLiteral(integer) = &tokens[start].variant {
         (start + 1, integer.clone())
     } else {
-        if start > error.1 || (start == error.1 && ErrorConfidenceLevel::Low > error.2) {
+        if start > error.1 {
             *error = (
-                Some(Rc::new(move |source_path, source_contents| {
+                Rc::new(move |source_path, source_contents| {
                     throw(
                         &format!(
                             "Expected an integer literal but encountered {}.",
@@ -2313,9 +2266,8 @@ fn parse_integer_literal<'a, 'b>(
                         source_path,
                         Some((source_contents, tokens[start].source_range)),
                     )
-                }) as ErrorFactory),
+                }) as ErrorFactory,
                 start,
-                ErrorConfidenceLevel::Low,
             );
         }
 
@@ -2346,10 +2298,10 @@ fn parse_negation<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Negation, start, error);
+    cache_check!(cache, Negation, start, tokens, error);
 
     // Consume the operator.
-    let next = consume_token!(cache, Negation, start, tokens, Minus, start, error, Low);
+    let next = consume_token!(cache, Negation, start, tokens, Minus, start, error);
 
     // Parse the subterm.
     let (subterm, next) = {
@@ -2385,7 +2337,7 @@ fn parse_sum<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Sum, start, error);
+    cache_check!(cache, Sum, start, tokens, error);
 
     // Parse the left subterm.
     let (term1, next) = try_eval!(
@@ -2396,7 +2348,7 @@ fn parse_sum<'a, 'b>(
     );
 
     // Consume the operator.
-    let next = consume_token!(cache, Sum, start, tokens, Plus, next, error, Low);
+    let next = consume_token!(cache, Sum, start, tokens, Plus, next, error);
 
     // Parse the right subterm.
     let (term2, next) = {
@@ -2432,7 +2384,7 @@ fn parse_difference<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Difference, start, error);
+    cache_check!(cache, Difference, start, tokens, error);
 
     // Parse the left subterm.
     let (term1, next) = try_eval!(
@@ -2443,7 +2395,7 @@ fn parse_difference<'a, 'b>(
     );
 
     // Consume the operator.
-    let next = consume_token!(cache, Difference, start, tokens, Minus, next, error, Low);
+    let next = consume_token!(cache, Difference, start, tokens, Minus, next, error);
 
     // Parse the right subterm.
     let (term2, next) = {
@@ -2479,7 +2431,7 @@ fn parse_product<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Product, start, error);
+    cache_check!(cache, Product, start, tokens, error);
 
     // Parse the left subterm.
     let (term1, next) = try_eval!(
@@ -2490,7 +2442,7 @@ fn parse_product<'a, 'b>(
     );
 
     // Consume the operator.
-    let next = consume_token!(cache, Product, start, tokens, Asterisk, next, error, Low);
+    let next = consume_token!(cache, Product, start, tokens, Asterisk, next, error);
 
     // Parse the right subterm.
     let (term2, next) = {
@@ -2526,7 +2478,7 @@ fn parse_quotient<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Quotient, start, error);
+    cache_check!(cache, Quotient, start, tokens, error);
 
     // Parse the left subterm.
     let (term1, next) = try_eval!(
@@ -2537,7 +2489,7 @@ fn parse_quotient<'a, 'b>(
     );
 
     // Consume the operator.
-    let next = consume_token!(cache, Quotient, start, tokens, Slash, next, error, Low);
+    let next = consume_token!(cache, Quotient, start, tokens, Slash, next, error);
 
     // Parse the right subterm.
     let (term2, next) = {
@@ -2573,7 +2525,7 @@ fn parse_less_than<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, LessThan, start, error);
+    cache_check!(cache, LessThan, start, tokens, error);
 
     // Parse the left subterm.
     let (term1, next) = try_eval!(
@@ -2584,7 +2536,7 @@ fn parse_less_than<'a, 'b>(
     );
 
     // Consume the comparison operator.
-    let next = consume_token!(cache, LessThan, start, tokens, LessThan, next, error, Low);
+    let next = consume_token!(cache, LessThan, start, tokens, LessThan, next, error);
 
     // Parse the right subterm.
     let (term2, next) = {
@@ -2620,7 +2572,7 @@ fn parse_less_than_or_equal_to<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, LessThanOrEqualTo, start, error);
+    cache_check!(cache, LessThanOrEqualTo, start, tokens, error);
 
     // Parse the left subterm.
     let (term1, next) = try_eval!(
@@ -2639,7 +2591,6 @@ fn parse_less_than_or_equal_to<'a, 'b>(
         LessThanOrEqualTo,
         next,
         error,
-        Low,
     );
 
     // Parse the right subterm.
@@ -2676,7 +2627,7 @@ fn parse_equal_to<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, EqualTo, start, error);
+    cache_check!(cache, EqualTo, start, tokens, error);
 
     // Parse the left subterm.
     let (term1, next) = try_eval!(
@@ -2687,16 +2638,7 @@ fn parse_equal_to<'a, 'b>(
     );
 
     // Consume the comparison operator.
-    let next = consume_token!(
-        cache,
-        EqualTo,
-        start,
-        tokens,
-        DoubleEquals,
-        next,
-        error,
-        Low,
-    );
+    let next = consume_token!(cache, EqualTo, start, tokens, DoubleEquals, next, error);
 
     // Parse the right subterm.
     let (term2, next) = {
@@ -2732,7 +2674,7 @@ fn parse_greater_than<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, GreaterThan, start, error);
+    cache_check!(cache, GreaterThan, start, tokens, error);
 
     // Parse the left subterm.
     let (term1, next) = try_eval!(
@@ -2743,16 +2685,7 @@ fn parse_greater_than<'a, 'b>(
     );
 
     // Consume the comparison operator.
-    let next = consume_token!(
-        cache,
-        GreaterThan,
-        start,
-        tokens,
-        GreaterThan,
-        next,
-        error,
-        Low,
-    );
+    let next = consume_token!(cache, GreaterThan, start, tokens, GreaterThan, next, error);
 
     // Parse the right subterm.
     let (term2, next) = {
@@ -2788,7 +2721,7 @@ fn parse_greater_than_or_equal_to<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, GreaterThanOrEqualTo, start, error);
+    cache_check!(cache, GreaterThanOrEqualTo, start, tokens, error);
 
     // Parse the left subterm.
     let (term1, next) = try_eval!(
@@ -2807,7 +2740,6 @@ fn parse_greater_than_or_equal_to<'a, 'b>(
         GreaterThanOrEqualTo,
         next,
         error,
-        Low,
     );
 
     // Parse the right subterm.
@@ -2844,10 +2776,10 @@ fn parse_boolean<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Boolean, start, error);
+    cache_check!(cache, Boolean, start, tokens, error);
 
     // Consume the keyword.
-    let next = consume_token!(cache, Boolean, start, tokens, Boolean, start, error, Low);
+    let next = consume_token!(cache, Boolean, start, tokens, Boolean, start, error);
 
     // Construct and return the value.
     cache_return!(
@@ -2873,10 +2805,10 @@ fn parse_true<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, True, start, error);
+    cache_check!(cache, True, start, tokens, error);
 
     // Consume the keyword.
-    let next = consume_token!(cache, True, start, tokens, True, start, error, Low);
+    let next = consume_token!(cache, True, start, tokens, True, start, error);
 
     // Construct and return the value.
     cache_return!(
@@ -2902,10 +2834,10 @@ fn parse_false<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, False, start, error);
+    cache_check!(cache, False, start, tokens, error);
 
     // Consume the keyword.
-    let next = consume_token!(cache, False, start, tokens, False, start, error, Low);
+    let next = consume_token!(cache, False, start, tokens, False, start, error);
 
     // Construct and return the value.
     cache_return!(
@@ -2931,22 +2863,22 @@ fn parse_if<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, If, start, error);
+    cache_check!(cache, If, start, tokens, error);
 
     // Consume the `if` keyword.
-    let next = consume_token!(cache, If, start, tokens, If, start, error, Low);
+    let next = consume_token!(cache, If, start, tokens, If, start, error);
 
     // Parse the conditional.
     let (conditional, next) = try_eval!(cache, If, start, parse_term(cache, tokens, next, error));
 
     // Consume the `then` keyword.
-    let next = consume_token!(cache, If, start, tokens, Then, next, error, Low);
+    let next = consume_token!(cache, If, start, tokens, Then, next, error);
 
     // Parse the then branch.
     let (then_branch, next) = try_eval!(cache, If, start, parse_term(cache, tokens, next, error));
 
     // Consume the `else` keyword.
-    let next = consume_token!(cache, If, start, tokens, Else, next, error, Low);
+    let next = consume_token!(cache, If, start, tokens, Else, next, error);
 
     // Parse the else branch.
     let (else_branch, next) = try_eval!(cache, If, start, parse_term(cache, tokens, next, error));
@@ -2979,16 +2911,16 @@ fn parse_group<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Group, start, error);
+    cache_check!(cache, Group, start, tokens, error);
 
     // Consume the left parenthesis.
-    let next = consume_token!(cache, Group, start, tokens, LeftParen, start, error, Low);
+    let next = consume_token!(cache, Group, start, tokens, LeftParen, start, error);
 
     // Parse the inner term.
     let (term, next) = try_eval!(cache, Group, start, parse_term(cache, tokens, next, error));
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, Group, start, tokens, RightParen, next, error, Low);
+    let next = consume_token!(cache, Group, start, tokens, RightParen, next, error);
 
     // If we made it this far, we successfully parsed the group. Return the inner term.
     cache_return!(
@@ -3021,7 +2953,7 @@ fn parse_atom<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, Atom, start, error);
+    cache_check!(cache, Atom, start, tokens, error);
 
     // Try to parse the type of all types.
     try_return!(cache, Atom, start, parse_type(cache, tokens, start, error));
@@ -3067,10 +2999,6 @@ fn parse_atom<'a, 'b>(
     // Try to parse a group.
     try_return!(cache, Atom, start, parse_group(cache, tokens, start, error));
 
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, start, error);
-
     // Return `None` since the parse failed.
     cache_return!(cache, Atom, start, None)
 }
@@ -3083,7 +3011,7 @@ fn parse_small_term<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, SmallTerm, start, error);
+    cache_check!(cache, SmallTerm, start, tokens, error);
 
     // Try to parse an application.
     try_return!(
@@ -3101,10 +3029,6 @@ fn parse_small_term<'a, 'b>(
         parse_atom(cache, tokens, start, error),
     );
 
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, start, error);
-
     // Return `None` since the parse failed.
     cache_return!(cache, SmallTerm, start, None)
 }
@@ -3117,7 +3041,7 @@ fn parse_medium_term<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, MediumTerm, start, error);
+    cache_check!(cache, MediumTerm, start, tokens, error);
 
     // Try to parse a product.
     try_return!(
@@ -3143,10 +3067,6 @@ fn parse_medium_term<'a, 'b>(
         parse_small_term(cache, tokens, start, error),
     );
 
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, start, error);
-
     // Return `None` since the parse failed.
     cache_return!(cache, MediumTerm, start, None)
 }
@@ -3159,7 +3079,7 @@ fn parse_large_term<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, LargeTerm, start, error);
+    cache_check!(cache, LargeTerm, start, tokens, error);
 
     // Try to parse a negation.
     try_return!(
@@ -3177,10 +3097,6 @@ fn parse_large_term<'a, 'b>(
         parse_medium_term(cache, tokens, start, error),
     );
 
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, start, error);
-
     // Return `None` since the parse failed.
     cache_return!(cache, LargeTerm, start, None)
 }
@@ -3193,7 +3109,7 @@ fn parse_huge_term<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, HugeTerm, start, error);
+    cache_check!(cache, HugeTerm, start, tokens, error);
 
     // Try to parse a sum.
     try_return!(
@@ -3219,10 +3135,6 @@ fn parse_huge_term<'a, 'b>(
         parse_large_term(cache, tokens, start, error),
     );
 
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, start, error);
-
     // Return `None` since the parse failed.
     cache_return!(cache, HugeTerm, start, None)
 }
@@ -3235,7 +3147,7 @@ fn parse_giant_term<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, GiantTerm, start, error);
+    cache_check!(cache, GiantTerm, start, tokens, error);
 
     // Try to parse a less than comparison.
     try_return!(
@@ -3285,10 +3197,6 @@ fn parse_giant_term<'a, 'b>(
         parse_huge_term(cache, tokens, start, error),
     );
 
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, start, error);
-
     // Return `None` since the parse failed.
     cache_return!(cache, GiantTerm, start, None)
 }
@@ -3301,7 +3209,7 @@ fn parse_jumbo_term<'a, 'b>(
     error: &mut ParseError<'a, 'b>,
 ) -> CacheResult<'a, 'b> {
     // Check the cache.
-    cache_check!(cache, JumboTerm, start, error);
+    cache_check!(cache, JumboTerm, start, tokens, error);
 
     // Try to parse a non-dependent pi type.
     try_return!(
@@ -3343,10 +3251,6 @@ fn parse_jumbo_term<'a, 'b>(
         parse_giant_term(cache, tokens, start, error),
     );
 
-    // If we made it this far, the parse failed. If none of the parse attempts resulted in a high-
-    // confidence error, employ a generic error message.
-    set_generic_error(tokens, start, error);
-
     // Return `None` since the parse failed.
     cache_return!(cache, JumboTerm, start, None)
 }
@@ -3375,10 +3279,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_fails!(
-            parse(None, source, &tokens[..], &context[..]),
-            "Unexpected end of file",
-        );
+        assert_fails!(parse(None, source, &tokens[..], &context[..]), "Empty file");
     }
 
     #[test]
