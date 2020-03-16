@@ -34,10 +34,12 @@ const BIN_NAME: &str = "gram";
 
 // Command-line option and subcommand names
 const PATH_OPTION: &str = "path";
-const SHELL_COMPLETION_SUBCOMMAND: &str = "shell-completion";
-const SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION: &str = "shell-completion-shell";
+const CHECK_SUBCOMMAND: &str = "check";
+const CHECK_SUBCOMMAND_PATH_OPTION: &str = "check-path";
 const RUN_SUBCOMMAND: &str = "run";
 const RUN_SUBCOMMAND_PATH_OPTION: &str = "run-path";
+const SHELL_COMPLETION_SUBCOMMAND: &str = "shell-completion";
+const SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION: &str = "shell-completion-shell";
 
 // The stack size in bytes.
 const STACK_SIZE: usize = 16 * 1024 * 1024; // 16 mebibytes (MiB)
@@ -64,6 +66,18 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                 .help("Sets the path of the program entrypoint")
                 .takes_value(true)
                 .number_of_values(1),
+        )
+        .subcommand(
+            SubCommand::with_name(CHECK_SUBCOMMAND)
+                .about("Checks a program")
+                .arg(
+                    Arg::with_name(CHECK_SUBCOMMAND_PATH_OPTION)
+                        .value_name("PATH")
+                        .help("Sets the path of the program entrypoint")
+                        .required(true) // [tag:check_subcommand_shell_required]
+                        .takes_value(true)
+                        .number_of_values(1),
+                ),
         )
         .subcommand(
             SubCommand::with_name(RUN_SUBCOMMAND)
@@ -95,6 +109,35 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                         .number_of_values(1),
                 ),
         )
+}
+
+// Check a program.
+fn check(source_path: &Path) -> Result<(), Error> {
+    // Read the source file.
+    let source_contents = read_to_string(source_path).map_err(lift(format!(
+        "Error when reading file {}.",
+        source_path.to_string_lossy().code_str(),
+    )))?;
+
+    // Tokenize the source file.
+    let tokens = tokenize(Some(source_path), &source_contents)?;
+
+    // Parse the term.
+    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
+
+    // Type check the term.
+    let mut typing_context = vec![];
+    let mut definitions_context = vec![];
+    let _ = type_check(
+        Some(source_path),
+        &source_contents,
+        &term,
+        &mut typing_context,
+        &mut definitions_context,
+    )?;
+
+    // If we made it this far, nothing went wrong.
+    Ok(())
 }
 
 // Run a program.
@@ -173,6 +216,22 @@ fn entry() -> Result<(), Error> {
     } else {
         // Decide what to do based on the subcommand.
         match matches.subcommand_name() {
+            // [tag:check_subcommand]
+            Some(subcommand) if subcommand == CHECK_SUBCOMMAND => {
+                // Determine the path to the source file.
+                let source_path = Path::new(
+                    matches
+                        .subcommand_matches(CHECK_SUBCOMMAND)
+                        .unwrap() // [ref:check_subcommand]
+                        .value_of(CHECK_SUBCOMMAND_PATH_OPTION)
+                        // [ref:check_subcommand_shell_required]
+                        .unwrap(),
+                );
+
+                // Check the program.
+                check(source_path)?;
+            }
+
             // [tag:run_subcommand]
             Some(subcommand) if subcommand == RUN_SUBCOMMAND => {
                 // Determine the path to the source file.
