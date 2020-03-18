@@ -164,7 +164,7 @@ type CacheKey = (Nonterminal, usize);
 // An `ErrorFactory` is a function which takes a source path and contents and produces an `Error`.
 // It's cheaper to generate a closure that produces the `Error` than to generate the actual
 // `Error`, which may contain a long string message.
-type ErrorFactory<'a, 'b> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
+type ErrorFactory<'a, 'b> = Box<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
 
 // An `ParseError` is a pair containing:
 // 1. An `ErrorFactory` that can be used to produce an error message.
@@ -274,7 +274,7 @@ macro_rules! consume_token {
         if next == tokens.len() {
             if next > $error.1 {
                 *$error = (
-                    Rc::new(move |source_path, source_contents| {
+                    Box::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} after {}.",
@@ -298,7 +298,7 @@ macro_rules! consume_token {
         } else {
             if next > $error.1 {
                 *$error = (
-                    Rc::new(move |source_path, source_contents| {
+                    Box::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} but encountered {}.",
@@ -341,7 +341,7 @@ macro_rules! consume_terminator {
         if next == tokens.len() {
             if next > $error.1 {
                 *$error = (
-                    Rc::new(move |source_path, source_contents| {
+                    Box::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} after {}.",
@@ -367,7 +367,7 @@ macro_rules! consume_terminator {
         } else {
             if next > $error.1 {
                 *$error = (
-                    Rc::new(move |source_path, source_contents| {
+                    Box::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} but encountered {}.",
@@ -411,7 +411,7 @@ macro_rules! consume_identifier {
         if next == tokens.len() {
             if next > $error.1 {
                 *$error = (
-                    Rc::new(move |source_path, source_contents| {
+                    Box::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected an identifier after {}.",
@@ -434,7 +434,7 @@ macro_rules! consume_identifier {
         } else {
             if next > $error.1 {
                 *$error = (
-                    Rc::new(move |source_path, source_contents| {
+                    Box::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected an identifier but encountered {}.",
@@ -457,7 +457,7 @@ macro_rules! consume_identifier {
 // the source file.
 fn generic_error<'a, 'b>(tokens: &'b [Token<'a>], position: usize) -> ParseError<'a, 'b> {
     (
-        Rc::new(move |source_path, source_contents| {
+        Box::new(move |source_path, source_contents| {
             if tokens.is_empty() {
                 throw("Empty file.", source_path, Some((source_contents, (0, 0))))
             } else if position == tokens.len() {
@@ -2298,7 +2298,7 @@ fn parse_integer_literal<'a, 'b>(
     if start == tokens.len() {
         if start > error.1 {
             *error = (
-                Rc::new(move |source_path, source_contents| {
+                Box::new(move |source_path, source_contents| {
                     throw(
                         &format!(
                             "Expected an integer literal after {}.",
@@ -2321,7 +2321,7 @@ fn parse_integer_literal<'a, 'b>(
     } else {
         if start > error.1 {
             *error = (
-                Rc::new(move |source_path, source_contents| {
+                Box::new(move |source_path, source_contents| {
                     throw(
                         &format!(
                             "Expected an integer literal but encountered {}.",
