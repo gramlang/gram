@@ -104,22 +104,6 @@ pub struct SourceVariable<'a> {
     name: &'a str,
 }
 
-// When reassociating sums and differences to be left-associative, this enum is used to record how
-// each term is used.
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
-enum SumOrDifference {
-    Sum,
-    Difference,
-}
-
-// When reassociating products and quotients to be left-associative, this enum is used to record how
-// each term is used.
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
-enum ProductOrQuotient {
-    Product,
-    Quotient,
-}
-
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 enum Nonterminal {
@@ -157,14 +141,15 @@ enum Nonterminal {
     JumboTerm,
 }
 
-// A cache key consists of a `Nonterminal` indicating which function is being memoized together with
-// a position in the input stream.
-type CacheKey = (Nonterminal, usize);
+// An `ParseSuccess` is a pair containing:
+// 1. The term that was parsed.
+// 2. The position of the next unconsumed token.
+type ParseSuccess<'a> = (Term<'a>, usize);
 
 // An `ErrorFactory` is a function which takes a source path and contents and produces an `Error`.
 // It's cheaper to generate a closure that produces the `Error` than to generate the actual
 // `Error`, which may contain a long string message.
-type ErrorFactory<'a, 'b> = Box<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
+type ErrorFactory<'a, 'b> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
 
 // An `ParseError` is a pair containing:
 // 1. An `ErrorFactory` that can be used to produce an error message.
@@ -172,32 +157,31 @@ type ErrorFactory<'a, 'b> = Box<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>
 //    and choose the "best" one.
 type ParseError<'a, 'b> = (ErrorFactory<'a, 'b>, usize);
 
-// The result of a cache lookup is a pair consisting of the term that was parsed and the position
-// of the next unconsumed token, if the parse was successful. Otherwise, the result is `None`.
-type CacheResult<'a, 'b> = Option<(Term<'a>, usize)>;
+// The result of a parse is either a `ParseSuccess` or a `ParseError`.
+type ParseResult<'a, 'b> = Result<ParseSuccess<'a>, ParseError<'a, 'b>>;
 
-// A cache is a map from cache key to result.
-type Cache<'a, 'b> = HashMap<CacheKey, CacheResult<'a, 'b>>;
+// A cache key consists of a `Nonterminal` indicating which function is being memoized together with
+// a position in the input stream.
+type CacheKey = (Nonterminal, usize);
+
+// A cache is a map from cache key to parse result.
+type Cache<'a, 'b> = HashMap<CacheKey, ParseResult<'a, 'b>>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
-// return early on cache hit.
+// return early on cache hit. It returns the nonterminal for use by subsequent macro invocations.
 macro_rules! cache_check {
-    ($cache:ident, $nonterminal:expr, $start:expr, $tokens:expr, $error:ident $(,)?) => {{
+    ($cache:ident, $nonterminal:ident, $start:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let nonterminal = $nonterminal;
         let start = $start;
-        let tokens = $tokens;
 
         // Do the cache lookup.
-        if let Some(result) = $cache.get(&(nonterminal, start)) {
-            return (*result).clone();
+        if let Some(result) = $cache.get(&(Nonterminal::$nonterminal, start)) {
+            return result.clone();
         }
 
-        // Start with a generic error message in case we don't get a better one.
-        if start > $error.1 {
-            *$error = generic_error(tokens, start);
-        }
+        // Return the nonterminal.
+        Nonterminal::$nonterminal
     }};
 }
 
@@ -217,17 +201,24 @@ macro_rules! cache_return {
     }};
 }
 
-// This macro will return early if `$value` isn't `None`.
+// This macro will return early if `$value` is a success. If $value` is a failure, this macro will
+// update the given error unless the given error is better.
 macro_rules! try_return {
-    ($cache:ident, $nonterminal:expr, $start:expr, $value:expr $(,)?) => {{
+    ($cache:ident, $nonterminal:expr, $start:expr, $error:ident, $value:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let nonterminal = $nonterminal;
         let start = $start;
         let value = $value;
 
-        // Record the match if one hasn't already been found.
-        if value.is_some() {
+        // Check if the value is an error.
+        if let Err(e) = value {
+            // We got a parse error. Update the given error if the new error is better.
+            if e.1 > $error.1 {
+                $error = e;
+            }
+        } else {
+            // We got a successful parse. Return early.
             cache_return!($cache, nonterminal, start, value)
         }
     }};
@@ -244,7 +235,7 @@ macro_rules! try_eval {
         let value = $value;
 
         // Extract the result or fail fast.
-        if let Some(result) = value {
+        if let Ok(result) = value {
             result
         } else {
             cache_return!($cache, nonterminal, start, value)
@@ -257,24 +248,24 @@ macro_rules! consume_token {
     (
         $cache:ident,
         $nonterminal:expr,
-        $start:expr,
         $tokens:expr,
-        $variant:ident,
+        $start:expr,
         $next:expr,
-        $error:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $error:ident,
+        $variant:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let nonterminal = $nonterminal;
-        let start = $start;
         let tokens = $tokens;
+        let start = $start;
         let next = $next;
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
             if next > $error.1 {
-                *$error = (
-                    Box::new(move |source_path, source_contents| {
+                $error = (
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} after {}.",
@@ -289,7 +280,7 @@ macro_rules! consume_token {
                 );
             }
 
-            cache_return!($cache, nonterminal, start, None)
+            cache_return!($cache, nonterminal, start, Err($error))
         }
 
         // Check if the token was the expected one.
@@ -297,8 +288,8 @@ macro_rules! consume_token {
             next + 1
         } else {
             if next > $error.1 {
-                *$error = (
-                    Box::new(move |source_path, source_contents| {
+                $error = (
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} but encountered {}.",
@@ -313,7 +304,7 @@ macro_rules! consume_token {
                 );
             }
 
-            cache_return!($cache, nonterminal, start, None)
+            cache_return!($cache, nonterminal, start, Err($error))
         }
     }};
 }
@@ -325,23 +316,23 @@ macro_rules! consume_terminator {
     (
         $cache:ident,
         $nonterminal:expr,
-        $start:expr,
         $tokens:expr,
+        $start:expr,
         $next:expr,
         $error:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let nonterminal = $nonterminal;
-        let start = $start;
         let tokens = $tokens;
+        let start = $start;
         let next = $next;
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
             if next > $error.1 {
-                *$error = (
-                    Box::new(move |source_path, source_contents| {
+                $error = (
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} after {}.",
@@ -358,7 +349,7 @@ macro_rules! consume_terminator {
                 );
             }
 
-            cache_return!($cache, nonterminal, start, None)
+            cache_return!($cache, nonterminal, start, Err($error))
         }
 
         // Check if the token was the expected one.
@@ -366,8 +357,8 @@ macro_rules! consume_terminator {
             next + 1
         } else {
             if next > $error.1 {
-                *$error = (
-                    Box::new(move |source_path, source_contents| {
+                $error = (
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected {} but encountered {}.",
@@ -384,7 +375,7 @@ macro_rules! consume_terminator {
                 );
             }
 
-            cache_return!($cache, nonterminal, start, None)
+            cache_return!($cache, nonterminal, start, Err($error))
         }
     }};
 }
@@ -395,23 +386,23 @@ macro_rules! consume_identifier {
     (
         $cache:ident,
         $nonterminal:expr,
-        $start:expr,
         $tokens:expr,
+        $start:expr,
         $next:expr,
         $error:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let nonterminal = $nonterminal;
-        let start = $start;
         let tokens = $tokens;
+        let start = $start;
         let next = $next;
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
             if next > $error.1 {
-                *$error = (
-                    Box::new(move |source_path, source_contents| {
+                $error = (
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected an identifier after {}.",
@@ -425,7 +416,7 @@ macro_rules! consume_identifier {
                 );
             }
 
-            cache_return!($cache, nonterminal, start, None)
+            cache_return!($cache, nonterminal, start, Err($error))
         }
 
         // Check if the token is actually an identifier.
@@ -433,8 +424,8 @@ macro_rules! consume_identifier {
             (identifier, next + 1)
         } else {
             if next > $error.1 {
-                *$error = (
-                    Box::new(move |source_path, source_contents| {
+                $error = (
+                    Rc::new(move |source_path, source_contents| {
                         throw(
                             &format!(
                                 "Expected an identifier but encountered {}.",
@@ -448,7 +439,7 @@ macro_rules! consume_identifier {
                 );
             }
 
-            cache_return!($cache, nonterminal, start, None)
+            cache_return!($cache, nonterminal, start, Err($error))
         }
     }};
 }
@@ -457,7 +448,7 @@ macro_rules! consume_identifier {
 // the source file.
 fn generic_error<'a, 'b>(tokens: &'b [Token<'a>], position: usize) -> ParseError<'a, 'b> {
     (
-        Box::new(move |source_path, source_contents| {
+        Rc::new(move |source_path, source_contents| {
             if tokens.is_empty() {
                 throw("Empty file.", source_path, Some((source_contents, (0, 0))))
             } else if position == tokens.len() {
@@ -481,6 +472,1558 @@ fn generic_error<'a, 'b>(tokens: &'b [Token<'a>], position: usize) -> ParseError
     )
 }
 
+// Parse a term.
+fn parse_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Term, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Try to parse a let.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_let(cache, tokens, start),
+    );
+
+    // Try to parse a jumbo term.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_jumbo_term(cache, tokens, start),
+    );
+
+    // Since none of the parses succeeded, return the error.
+    cache_return!(cache, nonterminal, start, Err(error))
+}
+
+// Parse the type of all types.
+fn parse_type<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Type, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, nonterminal, tokens, start, start, error, Type);
+
+    // Construct and return the value.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::Type,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a variable.
+fn parse_variable<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Variable, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the variable.
+    let (variable, next) = consume_identifier!(cache, nonterminal, tokens, start, start, error);
+
+    // Construct and return the variable.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::Variable(SourceVariable {
+                    source_range: tokens[start].source_range,
+                    name: variable
+                }),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a lambda.
+fn parse_lambda<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Lambda, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the left parenthesis.
+    let variable_pos = consume_token!(cache, nonterminal, tokens, start, start, error, LeftParen);
+
+    // Consume the variable.
+    let (variable, next) =
+        consume_identifier!(cache, nonterminal, tokens, start, variable_pos, error);
+
+    // Consume the colon.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Colon);
+
+    // Parse the domain.
+    let (domain, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_jumbo_term(cache, tokens, next),
+    );
+
+    // Consume the right parenthesis.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, RightParen);
+
+    // Consume the arrow.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, ThickArrow);
+
+    // Parse the body.
+    let (body, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+
+    // Construct and return the lambda.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (tokens[start].source_range.0, body.source_range.1),
+                group: false,
+                variant: Variant::Lambda(
+                    SourceVariable {
+                        source_range: tokens[variable_pos].source_range,
+                        name: variable,
+                    },
+                    Rc::new(domain),
+                    Rc::new(body),
+                ),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a pi type.
+fn parse_pi<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Pi, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the left parenthesis.
+    let variable_pos = consume_token!(cache, nonterminal, tokens, start, start, error, LeftParen);
+
+    // Consume the variable.
+    let (variable, next) =
+        consume_identifier!(cache, nonterminal, tokens, start, variable_pos, error);
+
+    // Consume the colon.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Colon);
+
+    // Parse the domain.
+    let (domain, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_jumbo_term(cache, tokens, next),
+    );
+
+    // Consume the right parenthesis.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, RightParen);
+
+    // Consume the arrow.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, ThinArrow);
+
+    // Parse the codomain.
+    let (codomain, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+
+    // Construct and return the pi type.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (tokens[start].source_range.0, codomain.source_range.1),
+                group: false,
+                variant: Variant::Pi(
+                    SourceVariable {
+                        source_range: tokens[variable_pos].source_range,
+                        name: variable,
+                    },
+                    Rc::new(domain),
+                    Rc::new(codomain),
+                ),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a non-dependent pi type.
+fn parse_non_dependent_pi<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, NonDependentPi, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the domain.
+    let (domain, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_small_term(cache, tokens, start),
+    );
+
+    // Consume the arrow.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, ThinArrow);
+
+    // Parse the codomain.
+    let (codomain, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+
+    // The source range for the implicit placeholder variable will be the empty range at this
+    // location.
+    let placeholder_variable_location = tokens[start].source_range.0;
+
+    // Construct and return the pi type.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (tokens[start].source_range.0, codomain.source_range.1),
+                group: false,
+                variant: Variant::Pi(
+                    SourceVariable {
+                        source_range: (
+                            placeholder_variable_location,
+                            placeholder_variable_location,
+                        ),
+                        name: PLACEHOLDER_VARIABLE,
+                    },
+                    Rc::new(domain),
+                    Rc::new(codomain),
+                ),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse an application.
+fn parse_application<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Application, start);
+
+    // Parse the applicand.
+    let (applicand, next) = try_eval!(cache, nonterminal, start, parse_atom(cache, tokens, start));
+
+    // Parse the argument.
+    let (argument, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_small_term(cache, tokens, next),
+    );
+
+    // Construct and return the application.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (applicand.source_range.0, argument.source_range.1),
+                group: false,
+                variant: Variant::Application(Rc::new(applicand), Rc::new(argument)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a let.
+fn parse_let<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Let, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the variable.
+    let (variable, next) = consume_identifier!(cache, nonterminal, tokens, start, start, error);
+
+    // Parse the annotation, if there is one.
+    let (annotation, next) = if next < tokens.len() {
+        if let token::Variant::Colon = tokens[next].variant {
+            // Consume the colon.
+            let next = consume_token!(cache, nonterminal, tokens, start, next, error, Colon);
+
+            // Parse the annotation.
+            let (annotation, next) = try_eval!(
+                cache,
+                nonterminal,
+                start,
+                parse_small_term(cache, tokens, next),
+            );
+
+            // Package up the annotation in the right form.
+            (Some(Rc::new(annotation)), next)
+        } else {
+            // There is no annotation.
+            (None, next)
+        }
+    } else {
+        // There is no annotation because we're at the end of the token stream.
+        (None, next)
+    };
+
+    // Consume the equals sign.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Equals);
+
+    // Parse the definition.
+    let (definition, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+
+    // Consume the terminator.
+    let next = consume_terminator!(cache, nonterminal, tokens, start, next, error);
+
+    // Parse the body.
+    let (body, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+
+    // Construct and return the let.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (tokens[start].source_range.0, body.source_range.1),
+                group: false,
+                variant: Variant::Let(
+                    SourceVariable {
+                        source_range: tokens[start].source_range,
+                        name: variable,
+                    },
+                    annotation,
+                    Rc::new(definition),
+                    Rc::new(body),
+                ),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse the type of integers.
+fn parse_integer<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Integer, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, nonterminal, tokens, start, start, error, Integer);
+
+    // Construct and return the variable.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::Integer,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse an integer literal.
+fn parse_integer_literal<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, IntegerLiteral, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Fail if there are no more tokens to parse.
+    if start == tokens.len() {
+        if start > error.1 {
+            error = (
+                Rc::new(move |source_path, source_contents| {
+                    throw(
+                        &format!(
+                            "Expected an integer literal after {}.",
+                            tokens[start - 1].to_string().code_str(),
+                        ),
+                        source_path,
+                        Some((source_contents, tokens[start - 1].source_range)),
+                    )
+                }) as ErrorFactory,
+                start,
+            );
+        }
+
+        cache_return!(cache, nonterminal, start, Err(error))
+    }
+
+    // Check if the token was the expected one.
+    let (next, integer) = if let token::Variant::IntegerLiteral(integer) = &tokens[start].variant {
+        (start + 1, integer.clone())
+    } else {
+        if start > error.1 {
+            error = (
+                Rc::new(move |source_path, source_contents| {
+                    throw(
+                        &format!(
+                            "Expected an integer literal but encountered {}.",
+                            tokens[start].to_string().code_str(),
+                        ),
+                        source_path,
+                        Some((source_contents, tokens[start].source_range)),
+                    )
+                }) as ErrorFactory,
+                start,
+            );
+        }
+
+        cache_return!(cache, nonterminal, start, Err(error))
+    };
+
+    // Construct and return the variable.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::IntegerLiteral(integer),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a negation.
+fn parse_negation<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Negation, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the operator.
+    let next = consume_token!(cache, nonterminal, tokens, start, start, error, Minus);
+
+    // Parse the subterm.
+    let (subterm, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_large_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the negation.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (tokens[start].source_range.0, subterm.source_range.1),
+                group: false,
+                variant: Variant::Negation(Rc::new(subterm)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a sum.
+fn parse_sum<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Sum, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_large_term(cache, tokens, start),
+    );
+
+    // Consume the operator.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Plus);
+
+    // Parse the right subterm.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_huge_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the sum.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::Sum(Rc::new(term1), Rc::new(term2)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a difference.
+fn parse_difference<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Difference, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_large_term(cache, tokens, start),
+    );
+
+    // Consume the operator.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Minus);
+
+    // Parse the right subterm.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_huge_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the sum.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::Difference(Rc::new(term1), Rc::new(term2)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a product.
+fn parse_product<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Product, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_small_term(cache, tokens, start),
+    );
+
+    // Consume the operator.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Asterisk);
+
+    // Parse the right subterm.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_large_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the product.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::Product(Rc::new(term1), Rc::new(term2)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a quotient.
+fn parse_quotient<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Quotient, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_small_term(cache, tokens, start),
+    );
+
+    // Consume the operator.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Slash);
+
+    // Parse the right subterm.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_large_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the quotient.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::Quotient(Rc::new(term1), Rc::new(term2)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a less than comparison.
+fn parse_less_than<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, LessThan, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_huge_term(cache, tokens, start),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, LessThan);
+
+    // Parse the right subterm.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_huge_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::LessThan(Rc::new(term1), Rc::new(term2)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a less than or equal to comparison.
+fn parse_less_than_or_equal_to<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, LessThanOrEqualTo, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_huge_term(cache, tokens, start),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(
+        cache,
+        nonterminal,
+        tokens,
+        start,
+        next,
+        error,
+        LessThanOrEqualTo,
+    );
+
+    // Parse the right subterm.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_huge_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::LessThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse an equality comparison.
+fn parse_equal_to<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, EqualTo, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_huge_term(cache, tokens, start),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, DoubleEquals);
+
+    // Parse the right subterm.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_huge_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::EqualTo(Rc::new(term1), Rc::new(term2)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a greater than comparison.
+fn parse_greater_than<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, GreaterThan, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_huge_term(cache, tokens, start),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, GreaterThan);
+
+    // Parse the right subterm.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_huge_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::GreaterThan(Rc::new(term1), Rc::new(term2)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a greater than or equal to comparison.
+fn parse_greater_than_or_equal_to<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, GreaterThanOrEqualTo, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Parse the left subterm.
+    let (term1, next) = try_eval!(
+        cache,
+        nonterminal,
+        start,
+        parse_huge_term(cache, tokens, start),
+    );
+
+    // Consume the comparison operator.
+    let next = consume_token!(
+        cache,
+        nonterminal,
+        tokens,
+        start,
+        next,
+        error,
+        GreaterThanOrEqualTo,
+    );
+
+    // Parse the right subterm.
+    let (term2, next) = {
+        try_eval!(
+            cache,
+            nonterminal,
+            start,
+            parse_huge_term(cache, tokens, next),
+        )
+    };
+
+    // Construct and return the comparison.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (term1.source_range.0, term2.source_range.1),
+                group: false,
+                variant: Variant::GreaterThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse the type of Booleans.
+fn parse_boolean<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Boolean, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, nonterminal, tokens, start, start, error, Boolean);
+
+    // Construct and return the value.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::Boolean,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse the logical true value.
+fn parse_true<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, True, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, nonterminal, tokens, start, start, error, True);
+
+    // Construct and return the value.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::True,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse the logical false value.
+fn parse_false<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, False, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the keyword.
+    let next = consume_token!(cache, nonterminal, tokens, start, start, error, False);
+
+    // Construct and return the value.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: tokens[start].source_range,
+                group: false,
+                variant: Variant::False,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse an if expression.
+fn parse_if<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, If, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the `if` keyword.
+    let next = consume_token!(cache, nonterminal, tokens, start, start, error, If);
+
+    // Parse the conditional.
+    let (conditional, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+
+    // Consume the `then` keyword.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Then);
+
+    // Parse the then branch.
+    let (then_branch, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+
+    // Consume the `else` keyword.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Else);
+
+    // Parse the else branch.
+    let (else_branch, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+
+    // Construct and return the if expression.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                source_range: (tokens[start].source_range.0, else_branch.source_range.1),
+                group: false,
+                variant: Variant::If(
+                    Rc::new(conditional),
+                    Rc::new(then_branch),
+                    Rc::new(else_branch),
+                ),
+            },
+            next,
+        )),
+    )
+}
+
+// Parse a group.
+fn parse_group<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Group, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Consume the left parenthesis.
+    let next = consume_token!(cache, nonterminal, tokens, start, start, error, LeftParen);
+
+    // Parse the inner term.
+    let (term, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+
+    // Consume the right parenthesis.
+    let next = consume_token!(cache, nonterminal, tokens, start, next, error, RightParen);
+
+    // If we made it this far, we successfully parsed the group. Return the inner term.
+    cache_return!(
+        cache,
+        nonterminal,
+        start,
+        Ok((
+            Term {
+                // It's important for this source range to include the parentheses, because parent
+                // nodes might use this source range for their own source ranges. We want to avoid
+                // a situation in which a parent node's source range includes one of these
+                // parentheses but not both.
+                source_range: (
+                    tokens[start].source_range.0,
+                    tokens[next - 1].source_range.1,
+                ),
+                group: true,
+                variant: term.variant,
+            },
+            next,
+        )),
+    )
+}
+
+// Parse an applicand (the left part of an application).
+fn parse_atom<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, Atom, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Try to parse the type of all types.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_type(cache, tokens, start),
+    );
+
+    // Try to parse a variable.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_variable(cache, tokens, start),
+    );
+
+    // Try to parse the type of integers.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_integer(cache, tokens, start),
+    );
+
+    // Try to parse an integer literal.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_integer_literal(cache, tokens, start),
+    );
+
+    // Try to parse the type of Booleans.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_boolean(cache, tokens, start),
+    );
+
+    // Try to parse the logical true value.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_true(cache, tokens, start),
+    );
+
+    // Try to parse the logical false value.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_false(cache, tokens, start),
+    );
+
+    // Try to parse a group.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_group(cache, tokens, start),
+    );
+
+    // Since none of the parses succeeded, return the error.
+    cache_return!(cache, nonterminal, start, Err(error))
+}
+
+// Parse a small term.
+fn parse_small_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, SmallTerm, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Try to parse an application.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_application(cache, tokens, start),
+    );
+
+    // Try to parse an atom.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_atom(cache, tokens, start),
+    );
+
+    // Since none of the parses succeeded, return the error.
+    cache_return!(cache, nonterminal, start, Err(error))
+}
+
+// Parse a medium term.
+fn parse_medium_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, MediumTerm, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Try to parse a product.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_product(cache, tokens, start),
+    );
+
+    // Try to parse a quotient.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_quotient(cache, tokens, start),
+    );
+
+    // Try to parse a small term.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_small_term(cache, tokens, start),
+    );
+
+    // Since none of the parses succeeded, return the error.
+    cache_return!(cache, nonterminal, start, Err(error))
+}
+
+// Parse a large term.
+fn parse_large_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, LargeTerm, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Try to parse a negation.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_negation(cache, tokens, start),
+    );
+
+    // Try to parse a medium term.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_medium_term(cache, tokens, start),
+    );
+
+    // Since none of the parses succeeded, return the error.
+    cache_return!(cache, nonterminal, start, Err(error))
+}
+
+// Parse a huge term.
+fn parse_huge_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, HugeTerm, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Try to parse a sum.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_sum(cache, tokens, start),
+    );
+
+    // Try to parse a difference.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_difference(cache, tokens, start),
+    );
+
+    // Try to parse a large term.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_large_term(cache, tokens, start),
+    );
+
+    // Since none of the parses succeeded, return the error.
+    cache_return!(cache, nonterminal, start, Err(error))
+}
+
+// Parse a giant term.
+fn parse_giant_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, GiantTerm, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Try to parse a less than comparison.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_less_than(cache, tokens, start),
+    );
+
+    // Try to parse a less than or equal to comparison.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_less_than_or_equal_to(cache, tokens, start),
+    );
+
+    // Try to parse an equality comparison.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_equal_to(cache, tokens, start),
+    );
+
+    // Try to parse a greater than comparison.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_greater_than(cache, tokens, start),
+    );
+
+    // Try to parse a greater than or equal to comparison.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_greater_than_or_equal_to(cache, tokens, start),
+    );
+
+    // Try to parse a huge term.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_huge_term(cache, tokens, start),
+    );
+
+    // Since none of the parses succeeded, return the error.
+    cache_return!(cache, nonterminal, start, Err(error))
+}
+
+// Parse a jumbo term.
+fn parse_jumbo_term<'a, 'b>(
+    cache: &mut Cache<'a, 'b>,
+    tokens: &'b [Token<'a>],
+    start: usize,
+) -> ParseResult<'a, 'b> {
+    // Check the cache.
+    let nonterminal = cache_check!(cache, JumboTerm, start);
+
+    // This is the error we'll be returning in case we don't get a better error.
+    let mut error = generic_error(tokens, start);
+
+    // Try to parse a non-dependent pi type.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_non_dependent_pi(cache, tokens, start),
+    );
+
+    // Try to parse a lambda.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_lambda(cache, tokens, start),
+    );
+
+    // Try to parse a pi type.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_pi(cache, tokens, start),
+    );
+
+    // Try to parse an if expression.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_if(cache, tokens, start),
+    );
+
+    // Try to parse a jumbo term.
+    try_return!(
+        cache,
+        nonterminal,
+        start,
+        error,
+        parse_giant_term(cache, tokens, start),
+    );
+
+    // Since none of the parses succeeded, return the error.
+    cache_return!(cache, nonterminal, start, Err(error))
+}
+
 // This is the top-level parsing function. All the parsed terms are guaranteed to have a non-`None`
 // `source_range`. The parser also guarantees that all variables are bound, except of course the
 // ones in the initial context. Variable shadowing is not allowed.
@@ -493,49 +2036,46 @@ pub fn parse<'a>(
     // Construct a hash table to memoize parsing results.
     let mut cache = Cache::new();
 
-    // Construct a default error in case none of the tokens can be parsed.
-    let mut error = generic_error(tokens, 0);
-
     // Parse the term.
-    let result = parse_term(&mut cache, tokens, 0, &mut error);
+    let result = parse_term(&mut cache, tokens, 0);
 
     // Check if we managed to parse something.
-    if let Some((term, next)) = result {
-        // We parsed something, but did we parse everything?
-        if next == tokens.len() {
-            // We parsed everything. Flip the associativity of applications with non-grouped
-            // arguments from right to left.
-            let reassociated_term = reassociate_sums_and_differences(
-                None,
-                reassociate_products_and_quotients(
+    let error = match result {
+        Ok((term, next)) => {
+            // We parsed something, but did we parse everything?
+            if next == tokens.len() {
+                // We parsed everything. Flip the associativity of applications with non-grouped
+                // arguments from right to left.
+                let reassociated_term = reassociate_sums_and_differences(
                     None,
-                    reassociate_applications(None, Rc::new(term)),
-                ),
-            );
+                    reassociate_products_and_quotients(
+                        None,
+                        reassociate_applications(None, Rc::new(term)),
+                    ),
+                );
 
-            // Construct a mutable context.
-            let mut context: HashMap<&'a str, usize> = context
-                .iter()
-                .enumerate()
-                .map(|(i, variable)| (*variable, i))
-                .collect();
+                // Construct a mutable context.
+                let mut context: HashMap<&'a str, usize> = context
+                    .iter()
+                    .enumerate()
+                    .map(|(i, variable)| (*variable, i))
+                    .collect();
 
-            // Resolve variables and return the term.
-            return Ok(resolve_variables(
-                source_path,
-                source_contents,
-                &*reassociated_term,
-                context.len(),
-                &mut context,
-            )?);
-        } else {
-            // We didn't parse all the tokens. Set a generic error message if we don't already have
-            // a better one.
-            if next > error.1 {
-                error = generic_error(tokens, next);
+                // Resolve variables and return the term.
+                return Ok(resolve_variables(
+                    source_path,
+                    source_contents,
+                    &*reassociated_term,
+                    context.len(),
+                    &mut context,
+                )?);
+            } else {
+                // We didn't parse all the tokens. Complain about the first unparsed token.
+                generic_error(tokens, next)
             }
         }
-    }
+        Err(error) => error,
+    };
 
     // If we made it this far, something went wrong. Apply the error factory.
     Err(error.0(source_path, source_contents))
@@ -723,6 +2263,14 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
     } else {
         reduced
     }
+}
+
+// When reassociating products and quotients to be left-associative, this enum is used to record how
+// each term is used.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+enum ProductOrQuotient {
+    Product,
+    Quotient,
 }
 
 // Flip the associativity of products and quotients from right to left.
@@ -963,6 +2511,14 @@ fn reassociate_products_and_quotients<'a>(
     } else {
         reduced
     }
+}
+
+// When reassociating sums and differences to be left-associative, this enum is used to record how
+// each term is used.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+enum SumOrDifference {
+    Sum,
+    Difference,
 }
 
 // Flip the associativity of sums and differences from right to left.
@@ -1815,1614 +3371,6 @@ fn check_references<'a>(
     }
 
     Ok(())
-}
-
-// Parse a term.
-fn parse_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Term;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Try to parse a let.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_let(cache, tokens, start, error),
-    );
-
-    // Try to parse a jumbo term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_jumbo_term(cache, tokens, start, error),
-    );
-
-    // Return `None` since the parse failed.
-    cache_return!(cache, nonterminal, start, None)
-}
-
-// Parse the type of all types.
-fn parse_type<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Type;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, start, tokens, Type, start, error);
-
-    // Construct and return the value.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: tokens[start].source_range,
-                group: false,
-                variant: Variant::Type,
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a variable.
-fn parse_variable<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Variable;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, nonterminal, start, tokens, start, error);
-
-    // Construct and return the variable.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: tokens[start].source_range,
-                group: false,
-                variant: Variant::Variable(SourceVariable {
-                    source_range: tokens[start].source_range,
-                    name: variable
-                }),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a lambda.
-fn parse_lambda<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Lambda;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the left parenthesis.
-    let variable_pos = consume_token!(cache, nonterminal, start, tokens, LeftParen, start, error);
-
-    // Consume the variable.
-    let (variable, next) =
-        consume_identifier!(cache, nonterminal, start, tokens, variable_pos, error);
-
-    // Consume the colon.
-    let next = consume_token!(cache, nonterminal, start, tokens, Colon, next, error);
-
-    // Parse the domain.
-    let (domain, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_jumbo_term(cache, tokens, next, error),
-    );
-
-    // Consume the right parenthesis.
-    let next = consume_token!(cache, nonterminal, start, tokens, RightParen, next, error);
-
-    // Consume the arrow.
-    let next = consume_token!(cache, nonterminal, start, tokens, ThickArrow, next, error);
-
-    // Parse the body.
-    let (body, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_term(cache, tokens, next, error),
-    );
-
-    // Construct and return the lambda.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (tokens[start].source_range.0, body.source_range.1),
-                group: false,
-                variant: Variant::Lambda(
-                    SourceVariable {
-                        source_range: tokens[variable_pos].source_range,
-                        name: variable,
-                    },
-                    Rc::new(domain),
-                    Rc::new(body),
-                ),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a pi type.
-fn parse_pi<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Pi;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the left parenthesis.
-    let variable_pos = consume_token!(cache, nonterminal, start, tokens, LeftParen, start, error);
-
-    // Consume the variable.
-    let (variable, next) =
-        consume_identifier!(cache, nonterminal, start, tokens, variable_pos, error);
-
-    // Consume the colon.
-    let next = consume_token!(cache, nonterminal, start, tokens, Colon, next, error);
-
-    // Parse the domain.
-    let (domain, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_jumbo_term(cache, tokens, next, error),
-    );
-
-    // Consume the right parenthesis.
-    let next = consume_token!(cache, nonterminal, start, tokens, RightParen, next, error);
-
-    // Consume the arrow.
-    let next = consume_token!(cache, nonterminal, start, tokens, ThinArrow, next, error);
-
-    // Parse the codomain.
-    let (codomain, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_term(cache, tokens, next, error),
-    );
-
-    // Construct and return the pi type.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (tokens[start].source_range.0, codomain.source_range.1),
-                group: false,
-                variant: Variant::Pi(
-                    SourceVariable {
-                        source_range: tokens[variable_pos].source_range,
-                        name: variable,
-                    },
-                    Rc::new(domain),
-                    Rc::new(codomain),
-                ),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a non-dependent pi type.
-fn parse_non_dependent_pi<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::NonDependentPi;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the domain.
-    let (domain, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_small_term(cache, tokens, start, error),
-    );
-
-    // Consume the arrow.
-    let next = consume_token!(cache, nonterminal, start, tokens, ThinArrow, next, error);
-
-    // Parse the codomain.
-    let (codomain, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_term(cache, tokens, next, error),
-        )
-    };
-
-    // The source range for the implicit placeholder variable will be the empty range at this
-    // location.
-    let placeholder_variable_location = tokens[start].source_range.0;
-
-    // Construct and return the pi type.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (tokens[start].source_range.0, codomain.source_range.1),
-                group: false,
-                variant: Variant::Pi(
-                    SourceVariable {
-                        source_range: (
-                            placeholder_variable_location,
-                            placeholder_variable_location,
-                        ),
-                        name: PLACEHOLDER_VARIABLE,
-                    },
-                    Rc::new(domain),
-                    Rc::new(codomain),
-                ),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse an application.
-fn parse_application<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Application;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the applicand.
-    let (applicand, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_atom(cache, tokens, start, error),
-    );
-
-    // Parse the argument.
-    let (argument, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_small_term(cache, tokens, next, error),
-    );
-
-    // Construct and return the application.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (applicand.source_range.0, argument.source_range.1),
-                group: false,
-                variant: Variant::Application(Rc::new(applicand), Rc::new(argument)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a let.
-fn parse_let<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Let;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, nonterminal, start, tokens, start, error);
-
-    // Parse the annotation, if there is one.
-    let (annotation, next) = if next < tokens.len() {
-        if let token::Variant::Colon = tokens[next].variant {
-            // Consume the colon.
-            let next = consume_token!(cache, nonterminal, start, tokens, Colon, next, error);
-
-            // Parse the annotation.
-            let (annotation, next) = try_eval!(
-                cache,
-                nonterminal,
-                start,
-                parse_small_term(cache, tokens, next, error),
-            );
-
-            // Package up the annotation in the right form.
-            (Some(Rc::new(annotation)), next)
-        } else {
-            // There is no annotation.
-            (None, next)
-        }
-    } else {
-        // There is no annotation because we're at the end of the token stream.
-        (None, next)
-    };
-
-    // Consume the equals sign.
-    let next = consume_token!(cache, nonterminal, start, tokens, Equals, next, error);
-
-    // Parse the definition.
-    let (definition, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_term(cache, tokens, next, error),
-    );
-
-    // Consume the terminator.
-    let next = consume_terminator!(cache, nonterminal, start, tokens, next, error);
-
-    // Parse the body.
-    let (body, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_term(cache, tokens, next, error),
-    );
-
-    // Construct and return the let.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (tokens[start].source_range.0, body.source_range.1),
-                group: false,
-                variant: Variant::Let(
-                    SourceVariable {
-                        source_range: tokens[start].source_range,
-                        name: variable,
-                    },
-                    annotation,
-                    Rc::new(definition),
-                    Rc::new(body),
-                ),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse the type of integers.
-fn parse_integer<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Integer;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, start, tokens, Integer, start, error);
-
-    // Construct and return the variable.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: tokens[start].source_range,
-                group: false,
-                variant: Variant::Integer,
-            },
-            next,
-        )),
-    )
-}
-
-// Parse an integer literal.
-fn parse_integer_literal<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::IntegerLiteral;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Fail if there are no more tokens to parse.
-    if start == tokens.len() {
-        if start > error.1 {
-            *error = (
-                Box::new(move |source_path, source_contents| {
-                    throw(
-                        &format!(
-                            "Expected an integer literal after {}.",
-                            tokens[start - 1].to_string().code_str(),
-                        ),
-                        source_path,
-                        Some((source_contents, tokens[start - 1].source_range)),
-                    )
-                }) as ErrorFactory,
-                start,
-            );
-        }
-
-        cache_return!(cache, nonterminal, start, None)
-    }
-
-    // Check if the token was the expected one.
-    let (next, integer) = if let token::Variant::IntegerLiteral(integer) = &tokens[start].variant {
-        (start + 1, integer.clone())
-    } else {
-        if start > error.1 {
-            *error = (
-                Box::new(move |source_path, source_contents| {
-                    throw(
-                        &format!(
-                            "Expected an integer literal but encountered {}.",
-                            tokens[start].to_string().code_str(),
-                        ),
-                        source_path,
-                        Some((source_contents, tokens[start].source_range)),
-                    )
-                }) as ErrorFactory,
-                start,
-            );
-        }
-
-        cache_return!(cache, nonterminal, start, None)
-    };
-
-    // Construct and return the variable.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: tokens[start].source_range,
-                group: false,
-                variant: Variant::IntegerLiteral(integer),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a negation.
-fn parse_negation<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Negation;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the operator.
-    let next = consume_token!(cache, nonterminal, start, tokens, Minus, start, error);
-
-    // Parse the subterm.
-    let (subterm, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_large_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the negation.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (tokens[start].source_range.0, subterm.source_range.1),
-                group: false,
-                variant: Variant::Negation(Rc::new(subterm)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a sum.
-fn parse_sum<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Sum;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_large_term(cache, tokens, start, error),
-    );
-
-    // Consume the operator.
-    let next = consume_token!(cache, nonterminal, start, tokens, Plus, next, error);
-
-    // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the sum.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
-                group: false,
-                variant: Variant::Sum(Rc::new(term1), Rc::new(term2)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a difference.
-fn parse_difference<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Difference;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_large_term(cache, tokens, start, error),
-    );
-
-    // Consume the operator.
-    let next = consume_token!(cache, nonterminal, start, tokens, Minus, next, error);
-
-    // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the sum.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
-                group: false,
-                variant: Variant::Difference(Rc::new(term1), Rc::new(term2)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a product.
-fn parse_product<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Product;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_small_term(cache, tokens, start, error),
-    );
-
-    // Consume the operator.
-    let next = consume_token!(cache, nonterminal, start, tokens, Asterisk, next, error);
-
-    // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_large_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the product.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
-                group: false,
-                variant: Variant::Product(Rc::new(term1), Rc::new(term2)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a quotient.
-fn parse_quotient<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Quotient;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_small_term(cache, tokens, start, error),
-    );
-
-    // Consume the operator.
-    let next = consume_token!(cache, nonterminal, start, tokens, Slash, next, error);
-
-    // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_large_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the quotient.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
-                group: false,
-                variant: Variant::Quotient(Rc::new(term1), Rc::new(term2)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a less than comparison.
-fn parse_less_than<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::LessThan;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start, error),
-    );
-
-    // Consume the comparison operator.
-    let next = consume_token!(cache, nonterminal, start, tokens, LessThan, next, error);
-
-    // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the comparison.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
-                group: false,
-                variant: Variant::LessThan(Rc::new(term1), Rc::new(term2)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a less than or equal to comparison.
-fn parse_less_than_or_equal_to<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::LessThanOrEqualTo;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start, error),
-    );
-
-    // Consume the comparison operator.
-    let next = consume_token!(
-        cache,
-        nonterminal,
-        start,
-        tokens,
-        LessThanOrEqualTo,
-        next,
-        error,
-    );
-
-    // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the comparison.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
-                group: false,
-                variant: Variant::LessThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse an equality comparison.
-fn parse_equal_to<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::EqualTo;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start, error),
-    );
-
-    // Consume the comparison operator.
-    let next = consume_token!(cache, nonterminal, start, tokens, DoubleEquals, next, error);
-
-    // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the comparison.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
-                group: false,
-                variant: Variant::EqualTo(Rc::new(term1), Rc::new(term2)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a greater than comparison.
-fn parse_greater_than<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::GreaterThan;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start, error),
-    );
-
-    // Consume the comparison operator.
-    let next = consume_token!(cache, nonterminal, start, tokens, GreaterThan, next, error);
-
-    // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the comparison.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
-                group: false,
-                variant: Variant::GreaterThan(Rc::new(term1), Rc::new(term2)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a greater than or equal to comparison.
-fn parse_greater_than_or_equal_to<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::GreaterThanOrEqualTo;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start, error),
-    );
-
-    // Consume the comparison operator.
-    let next = consume_token!(
-        cache,
-        nonterminal,
-        start,
-        tokens,
-        GreaterThanOrEqualTo,
-        next,
-        error,
-    );
-
-    // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next, error),
-        )
-    };
-
-    // Construct and return the comparison.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
-                group: false,
-                variant: Variant::GreaterThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse the type of Booleans.
-fn parse_boolean<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Boolean;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, start, tokens, Boolean, start, error);
-
-    // Construct and return the value.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: tokens[start].source_range,
-                group: false,
-                variant: Variant::Boolean,
-            },
-            next,
-        )),
-    )
-}
-
-// Parse the logical true value.
-fn parse_true<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::True;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, start, tokens, True, start, error);
-
-    // Construct and return the value.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: tokens[start].source_range,
-                group: false,
-                variant: Variant::True,
-            },
-            next,
-        )),
-    )
-}
-
-// Parse the logical false value.
-fn parse_false<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::False;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, start, tokens, False, start, error);
-
-    // Construct and return the value.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: tokens[start].source_range,
-                group: false,
-                variant: Variant::False,
-            },
-            next,
-        )),
-    )
-}
-
-// Parse an if expression.
-fn parse_if<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::If;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the `if` keyword.
-    let next = consume_token!(cache, nonterminal, start, tokens, If, start, error);
-
-    // Parse the conditional.
-    let (conditional, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_term(cache, tokens, next, error),
-    );
-
-    // Consume the `then` keyword.
-    let next = consume_token!(cache, nonterminal, start, tokens, Then, next, error);
-
-    // Parse the then branch.
-    let (then_branch, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_term(cache, tokens, next, error),
-    );
-
-    // Consume the `else` keyword.
-    let next = consume_token!(cache, nonterminal, start, tokens, Else, next, error);
-
-    // Parse the else branch.
-    let (else_branch, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_term(cache, tokens, next, error),
-    );
-
-    // Construct and return the if expression.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                source_range: (tokens[start].source_range.0, else_branch.source_range.1),
-                group: false,
-                variant: Variant::If(
-                    Rc::new(conditional),
-                    Rc::new(then_branch),
-                    Rc::new(else_branch),
-                ),
-            },
-            next,
-        )),
-    )
-}
-
-// Parse a group.
-fn parse_group<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Group;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Consume the left parenthesis.
-    let next = consume_token!(cache, nonterminal, start, tokens, LeftParen, start, error);
-
-    // Parse the inner term.
-    let (term, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_term(cache, tokens, next, error),
-    );
-
-    // Consume the right parenthesis.
-    let next = consume_token!(cache, nonterminal, start, tokens, RightParen, next, error);
-
-    // If we made it this far, we successfully parsed the group. Return the inner term.
-    cache_return!(
-        cache,
-        nonterminal,
-        start,
-        Some((
-            Term {
-                // It's important for this source range to include the parentheses, because parent
-                // nodes might use this source range for their own source ranges. We want to avoid
-                // a situation in which a parent node's source range includes one of these
-                // parentheses but not both.
-                source_range: (
-                    tokens[start].source_range.0,
-                    tokens[next - 1].source_range.1,
-                ),
-                group: true,
-                variant: term.variant,
-            },
-            next,
-        )),
-    )
-}
-
-// Parse an applicand (the left part of an application).
-fn parse_atom<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::Atom;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Try to parse the type of all types.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_type(cache, tokens, start, error),
-    );
-
-    // Try to parse a variable.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_variable(cache, tokens, start, error),
-    );
-
-    // Try to parse the type of integers.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_integer(cache, tokens, start, error),
-    );
-
-    // Try to parse an integer literal.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_integer_literal(cache, tokens, start, error),
-    );
-
-    // Try to parse the type of Booleans.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_boolean(cache, tokens, start, error),
-    );
-
-    // Try to parse the logical true value.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_true(cache, tokens, start, error),
-    );
-
-    // Try to parse the logical false value.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_false(cache, tokens, start, error),
-    );
-
-    // Try to parse a group.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_group(cache, tokens, start, error),
-    );
-
-    // Return `None` since the parse failed.
-    cache_return!(cache, nonterminal, start, None)
-}
-
-// Parse a small term.
-fn parse_small_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::SmallTerm;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Try to parse an application.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_application(cache, tokens, start, error),
-    );
-
-    // Try to parse an atom.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_atom(cache, tokens, start, error),
-    );
-
-    // Return `None` since the parse failed.
-    cache_return!(cache, nonterminal, start, None)
-}
-
-// Parse a medium term.
-fn parse_medium_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::MediumTerm;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Try to parse a product.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_product(cache, tokens, start, error),
-    );
-
-    // Try to parse a quotient.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_quotient(cache, tokens, start, error),
-    );
-
-    // Try to parse a small term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_small_term(cache, tokens, start, error),
-    );
-
-    // Return `None` since the parse failed.
-    cache_return!(cache, nonterminal, start, None)
-}
-
-// Parse a large term.
-fn parse_large_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::LargeTerm;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Try to parse a negation.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_negation(cache, tokens, start, error),
-    );
-
-    // Try to parse a medium term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_medium_term(cache, tokens, start, error),
-    );
-
-    // Return `None` since the parse failed.
-    cache_return!(cache, nonterminal, start, None)
-}
-
-// Parse a huge term.
-fn parse_huge_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::HugeTerm;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Try to parse a sum.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_sum(cache, tokens, start, error),
-    );
-
-    // Try to parse a difference.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_difference(cache, tokens, start, error),
-    );
-
-    // Try to parse a large term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_large_term(cache, tokens, start, error),
-    );
-
-    // Return `None` since the parse failed.
-    cache_return!(cache, nonterminal, start, None)
-}
-
-// Parse a giant term.
-fn parse_giant_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::GiantTerm;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Try to parse a less than comparison.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_less_than(cache, tokens, start, error),
-    );
-
-    // Try to parse a less than or equal to comparison.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_less_than_or_equal_to(cache, tokens, start, error),
-    );
-
-    // Try to parse an equality comparison.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_equal_to(cache, tokens, start, error),
-    );
-
-    // Try to parse a greater than comparison.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_greater_than(cache, tokens, start, error),
-    );
-
-    // Try to parse a greater than or equal to comparison.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_greater_than_or_equal_to(cache, tokens, start, error),
-    );
-
-    // Try to parse a huge term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start, error),
-    );
-
-    // Return `None` since the parse failed.
-    cache_return!(cache, nonterminal, start, None)
-}
-
-// Parse a jumbo term.
-fn parse_jumbo_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-    error: &mut ParseError<'a, 'b>,
-) -> CacheResult<'a, 'b> {
-    // This is part of the key for memoization.
-    let nonterminal = Nonterminal::JumboTerm;
-
-    // Check the cache.
-    cache_check!(cache, nonterminal, start, tokens, error);
-
-    // Try to parse a non-dependent pi type.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_non_dependent_pi(cache, tokens, start, error),
-    );
-
-    // Try to parse a lambda.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_lambda(cache, tokens, start, error),
-    );
-
-    // Try to parse a pi type.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_pi(cache, tokens, start, error),
-    );
-
-    // Try to parse an if expression.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_if(cache, tokens, start, error),
-    );
-
-    // Try to parse a jumbo term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        parse_giant_term(cache, tokens, start, error),
-    );
-
-    // Return `None` since the parse failed.
-    cache_return!(cache, nonterminal, start, None)
 }
 
 #[cfg(test)]
