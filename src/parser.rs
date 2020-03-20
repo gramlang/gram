@@ -149,23 +149,23 @@ type ParseSuccess<'a> = (Term<'a>, usize);
 // An `ErrorFactory` is a function which takes a source path and contents and produces an `Error`.
 // It's cheaper to generate a closure that produces the `Error` than to generate the actual
 // `Error`, which may contain a long string message.
-type ErrorFactory<'a, 'b> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'b>;
+type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
 
 // An `ParseError` is a pair containing:
 // 1. An `ErrorFactory` that can be used to produce an error message.
 // 2. The position of the token that caused the error. This position will be used to rank errors
 //    and choose the "best" one.
-type ParseError<'a, 'b> = (ErrorFactory<'a, 'b>, usize);
+type ParseError<'a> = (ErrorFactory<'a>, usize);
 
 // The result of a parse is either a `ParseSuccess` or a `ParseError`.
-type ParseResult<'a, 'b> = Result<ParseSuccess<'a>, ParseError<'a, 'b>>;
+type ParseResult<'a> = Result<ParseSuccess<'a>, ParseError<'a>>;
 
 // A cache key consists of a `Nonterminal` indicating which function is being memoized together with
 // a position in the input stream.
 type CacheKey = (Nonterminal, usize);
 
 // A cache is a map from cache key to parse result.
-type Cache<'a, 'b> = HashMap<CacheKey, ParseResult<'a, 'b>>;
+type Cache<'a> = HashMap<CacheKey, ParseResult<'a>>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
 // return early on cache hit. It returns the nonterminal for use by subsequent macro invocations.
@@ -446,7 +446,7 @@ macro_rules! consume_identifier {
 
 // This function computes a generic error that just complains about a particular token or the end of
 // the source file.
-fn generic_error<'a, 'b>(tokens: &'b [Token<'a>], position: usize) -> ParseError<'a, 'b> {
+fn generic_error<'a>(tokens: &'a [Token<'a>], position: usize) -> ParseError<'a> {
     (
         Rc::new(move |source_path, source_contents| {
             if tokens.is_empty() {
@@ -473,11 +473,7 @@ fn generic_error<'a, 'b>(tokens: &'b [Token<'a>], position: usize) -> ParseError
 }
 
 // Parse a term.
-fn parse_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-) -> ParseResult<'a, 'b> {
+fn parse_term<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Term, start);
 
@@ -507,11 +503,7 @@ fn parse_term<'a, 'b>(
 }
 
 // Parse the type of all types.
-fn parse_type<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-) -> ParseResult<'a, 'b> {
+fn parse_type<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Type, start);
 
@@ -538,11 +530,11 @@ fn parse_type<'a, 'b>(
 }
 
 // Parse a variable.
-fn parse_variable<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_variable<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Variable, start);
 
@@ -572,11 +564,11 @@ fn parse_variable<'a, 'b>(
 }
 
 // Parse a lambda.
-fn parse_lambda<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_lambda<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Lambda, start);
 
@@ -634,11 +626,7 @@ fn parse_lambda<'a, 'b>(
 }
 
 // Parse a pi type.
-fn parse_pi<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-) -> ParseResult<'a, 'b> {
+fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Pi, start);
 
@@ -696,11 +684,11 @@ fn parse_pi<'a, 'b>(
 }
 
 // Parse a non-dependent pi type.
-fn parse_non_dependent_pi<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_non_dependent_pi<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, NonDependentPi, start);
 
@@ -752,11 +740,11 @@ fn parse_non_dependent_pi<'a, 'b>(
 }
 
 // Parse an application.
-fn parse_application<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_application<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Application, start);
 
@@ -788,11 +776,7 @@ fn parse_application<'a, 'b>(
 }
 
 // Parse a let.
-fn parse_let<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-) -> ParseResult<'a, 'b> {
+fn parse_let<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Let, start);
 
@@ -864,11 +848,11 @@ fn parse_let<'a, 'b>(
 }
 
 // Parse the type of integers.
-fn parse_integer<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_integer<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Integer, start);
 
@@ -895,11 +879,11 @@ fn parse_integer<'a, 'b>(
 }
 
 // Parse an integer literal.
-fn parse_integer_literal<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_integer_literal<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, IntegerLiteral, start);
 
@@ -967,11 +951,11 @@ fn parse_integer_literal<'a, 'b>(
 }
 
 // Parse a negation.
-fn parse_negation<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_negation<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Negation, start);
 
@@ -1008,11 +992,7 @@ fn parse_negation<'a, 'b>(
 }
 
 // Parse a sum.
-fn parse_sum<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-) -> ParseResult<'a, 'b> {
+fn parse_sum<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Sum, start);
 
@@ -1057,11 +1037,11 @@ fn parse_sum<'a, 'b>(
 }
 
 // Parse a difference.
-fn parse_difference<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_difference<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Difference, start);
 
@@ -1106,11 +1086,11 @@ fn parse_difference<'a, 'b>(
 }
 
 // Parse a product.
-fn parse_product<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_product<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Product, start);
 
@@ -1155,11 +1135,11 @@ fn parse_product<'a, 'b>(
 }
 
 // Parse a quotient.
-fn parse_quotient<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_quotient<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Quotient, start);
 
@@ -1204,11 +1184,11 @@ fn parse_quotient<'a, 'b>(
 }
 
 // Parse a less than comparison.
-fn parse_less_than<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_less_than<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, LessThan, start);
 
@@ -1253,11 +1233,11 @@ fn parse_less_than<'a, 'b>(
 }
 
 // Parse a less than or equal to comparison.
-fn parse_less_than_or_equal_to<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_less_than_or_equal_to<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, LessThanOrEqualTo, start);
 
@@ -1310,11 +1290,11 @@ fn parse_less_than_or_equal_to<'a, 'b>(
 }
 
 // Parse an equality comparison.
-fn parse_equal_to<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_equal_to<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, EqualTo, start);
 
@@ -1359,11 +1339,11 @@ fn parse_equal_to<'a, 'b>(
 }
 
 // Parse a greater than comparison.
-fn parse_greater_than<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_greater_than<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, GreaterThan, start);
 
@@ -1408,11 +1388,11 @@ fn parse_greater_than<'a, 'b>(
 }
 
 // Parse a greater than or equal to comparison.
-fn parse_greater_than_or_equal_to<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_greater_than_or_equal_to<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, GreaterThanOrEqualTo, start);
 
@@ -1465,11 +1445,11 @@ fn parse_greater_than_or_equal_to<'a, 'b>(
 }
 
 // Parse the type of Booleans.
-fn parse_boolean<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_boolean<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Boolean, start);
 
@@ -1496,11 +1476,7 @@ fn parse_boolean<'a, 'b>(
 }
 
 // Parse the logical true value.
-fn parse_true<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-) -> ParseResult<'a, 'b> {
+fn parse_true<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, True, start);
 
@@ -1527,11 +1503,11 @@ fn parse_true<'a, 'b>(
 }
 
 // Parse the logical false value.
-fn parse_false<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_false<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, False, start);
 
@@ -1558,11 +1534,7 @@ fn parse_false<'a, 'b>(
 }
 
 // Parse an if expression.
-fn parse_if<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-) -> ParseResult<'a, 'b> {
+fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, If, start);
 
@@ -1608,11 +1580,11 @@ fn parse_if<'a, 'b>(
 }
 
 // Parse a group.
-fn parse_group<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_group<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Group, start);
 
@@ -1652,11 +1624,7 @@ fn parse_group<'a, 'b>(
 }
 
 // Parse an applicand (the left part of an application).
-fn parse_atom<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
-    start: usize,
-) -> ParseResult<'a, 'b> {
+fn parse_atom<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, Atom, start);
 
@@ -1740,11 +1708,11 @@ fn parse_atom<'a, 'b>(
 }
 
 // Parse a small term.
-fn parse_small_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_small_term<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, SmallTerm, start);
 
@@ -1774,11 +1742,11 @@ fn parse_small_term<'a, 'b>(
 }
 
 // Parse a medium term.
-fn parse_medium_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_medium_term<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, MediumTerm, start);
 
@@ -1817,11 +1785,11 @@ fn parse_medium_term<'a, 'b>(
 }
 
 // Parse a large term.
-fn parse_large_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_large_term<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, LargeTerm, start);
 
@@ -1851,11 +1819,11 @@ fn parse_large_term<'a, 'b>(
 }
 
 // Parse a huge term.
-fn parse_huge_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_huge_term<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, HugeTerm, start);
 
@@ -1894,11 +1862,11 @@ fn parse_huge_term<'a, 'b>(
 }
 
 // Parse a giant term.
-fn parse_giant_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_giant_term<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, GiantTerm, start);
 
@@ -1964,11 +1932,11 @@ fn parse_giant_term<'a, 'b>(
 }
 
 // Parse a jumbo term.
-fn parse_jumbo_term<'a, 'b>(
-    cache: &mut Cache<'a, 'b>,
-    tokens: &'b [Token<'a>],
+fn parse_jumbo_term<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a, 'b> {
+) -> ParseResult<'a> {
     // Check the cache.
     let nonterminal = cache_check!(cache, JumboTerm, start);
 
@@ -2030,7 +1998,7 @@ fn parse_jumbo_term<'a, 'b>(
 pub fn parse<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
-    tokens: &[Token<'a>],
+    tokens: &'a [Token<'a>],
     context: &[&'a str],
 ) -> Result<term::Term<'a>, Error> {
     // Construct a hash table to memoize parsing results.
