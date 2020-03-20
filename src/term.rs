@@ -13,9 +13,7 @@ use std::{
 // an AST.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Term<'a> {
-    // Inclusive on the left and exclusive on the right
-    pub source_range: Option<(usize, usize)>,
-
+    pub source_range: Option<(usize, usize)>, // Inclusive on the left and exclusive on the right
     pub variant: Variant<'a>,
 }
 

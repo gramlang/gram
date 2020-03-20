@@ -15,9 +15,7 @@ pub const TYPE_KEYWORD: &str = "type";
 // represents a single token.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Token<'a> {
-    // Inclusive on the left and exclusive on the right
-    pub source_range: (usize, usize),
-
+    pub source_range: (usize, usize), // Inclusive on the left and exclusive on the right
     pub variant: Variant<'a>,
 }
 

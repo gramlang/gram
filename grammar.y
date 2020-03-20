@@ -89,4 +89,4 @@ giant_term:
   greater_than |
   greater_than_or_equal_to |
   huge_term;
-jumbo_term: non_dependent_pi | lambda | pi | if | giant_term;
+jumbo_term: lambda | pi | non_dependent_pi | if | giant_term;
