@@ -3,13 +3,13 @@
   generated parser isn't used. Instead, we use the hand-written packrat parser in `src/parser.rs`
   for better control over error messages.
 
-  Some naturally left-associative binary operations such as application and subtraction are encoded
+  Traditionally left-associative binary operations such as application and subtraction are encoded
   as right-associative in this grammar to avoid left-recursion, since packrat parsers can't handle
-  left-recursion. Such operations are reassociated to the left in a post-processing step.
+  left-recursion. These operations are reassociated to the left in a post-processing step.
 */
 
 /*
-  Bison's default parsing algorithm is LALR(1), but more grammars are possible if we configure it
+  Bison's default parsing algorithm is LALR(1), but more grammars are accepted if we configure it
   to use an LR(1) algorithm instead. Since we aren't going to use the generated parser, the
   computational complexity of the algorithm doesn't matter. We choose IELR(1) over the canonical
   LR(1) algorithm because it results in fewer conflicts when the grammar isn't LR(1), which makes
@@ -49,7 +49,7 @@
 
 %%
 
-/* [tag:bison_grammar] [ref:grammar] */
+/* [tag:bison_grammar] [ref:ast] */
 
 term: let | jumbo_term;
 type: TYPE;
