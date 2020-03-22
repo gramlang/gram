@@ -4,7 +4,7 @@ use crate::{
     evaluator::is_value,
     format::CodeStr,
     term,
-    token::{self, Token},
+    token::{self, TerminatorType, Token},
 };
 use num_bigint::BigInt;
 use scopeguard::defer;
@@ -137,7 +137,7 @@ fn token_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRan
 }
 
 // This function computes an empty source range at the beginning of a token, or the empty range at
-// the end of the sourcr file in the case where the given position is at the end of the token
+// the end of the source file in the case where the given position is at the end of the token
 // stream.
 fn empty_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
     let range_start = (token_source_range(tokens, position).0).0;
@@ -259,25 +259,34 @@ macro_rules! try_eval {
 
 // This function computes a generic error factory that just complains about a particular token or
 // the end of the source file.
-fn generic_error_factory<'a>(tokens: &'a [Token<'a>], position: usize) -> ErrorFactory {
+fn error_factory<'a>(
+    tokens: &'a [Token<'a>],
+    position: usize,
+    expectation: &str,
+) -> ErrorFactory<'a> {
     let source_range = token_source_range(tokens, position);
+    let expectation = expectation.to_owned();
 
     Rc::new(move |source_path, source_contents| {
         if tokens.is_empty() {
             throw(
-                "Empty file.",
+                &format!("Expected {}, but the file is empty.", expectation),
                 source_path,
                 Some((source_contents, source_range.0)),
             )
         } else if position == tokens.len() {
             throw(
-                "Unexpected end of file.",
+                &format!("Expected {} at the end of the file.", expectation),
                 source_path,
                 Some((source_contents, source_range.0)),
             )
         } else {
             throw(
-                &format!("Unexpected {}.", tokens[position].to_string().code_str()),
+                &format!(
+                    "Expected {}, but encountered {}.",
+                    expectation,
+                    tokens[position].to_string().code_str(),
+                ),
                 source_path,
                 Some((source_contents, source_range.0)),
             )
@@ -287,11 +296,11 @@ fn generic_error_factory<'a>(tokens: &'a [Token<'a>], position: usize) -> ErrorF
 
 // This function computes a generic error that just complains about a particular token or the end of
 // the source file.
-fn generic_error_term<'a>(tokens: &'a [Token<'a>], position: usize) -> Term<'a> {
+fn error_term<'a>(tokens: &'a [Token<'a>], position: usize, expectation: &str) -> Term<'a> {
     Term {
         source_range: token_source_range(tokens, position),
         group: false,
-        variant: Variant::ParseError(generic_error_factory(tokens, position)),
+        variant: Variant::ParseError(error_factory(tokens, position, expectation)),
         errors: vec![],
     }
 }
@@ -304,24 +313,34 @@ macro_rules! consume_token0 {
         $cache_key:expr,
         $tokens:expr,
         $next:expr,
-        $variant:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $variant:ident,
+        $expectation:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let cache_key = $cache_key;
         let tokens = $tokens;
         let next = $next;
+        let expectation = $expectation;
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
-            cache_return!($cache, cache_key, (generic_error_term(tokens, next), next))
+            cache_return!(
+                $cache,
+                cache_key,
+                (error_term(tokens, next, expectation), next),
+            )
         }
 
         // Check if the token was the expected one.
         if let token::Variant::$variant = tokens[next].variant {
             next + 1
         } else {
-            cache_return!($cache, cache_key, (generic_error_term(tokens, next), next))
+            cache_return!(
+                $cache,
+                cache_key,
+                (error_term(tokens, next, expectation), next),
+            )
         }
     }};
 }
@@ -334,24 +353,34 @@ macro_rules! consume_token1 {
         $cache_key:expr,
         $tokens:expr,
         $next:expr,
-        $variant:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $variant:ident,
+        $expectation:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let cache_key = $cache_key;
         let tokens = $tokens;
         let next = $next;
+        let expectation = $expectation;
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
-            cache_return!($cache, cache_key, (generic_error_term(tokens, next), next))
+            cache_return!(
+                $cache,
+                cache_key,
+                (error_term(tokens, next, expectation), next),
+            )
         }
 
         // Check if the token was the expected one.
         if let token::Variant::$variant(argument) = &tokens[next].variant {
             (argument.clone(), next + 1)
         } else {
-            cache_return!($cache, cache_key, (generic_error_term(tokens, next), next))
+            cache_return!(
+                $cache,
+                cache_key,
+                (error_term(tokens, next, expectation), next),
+            )
         }
     }};
 }
@@ -366,31 +395,21 @@ macro_rules! expect_token0 {
         $tokens:expr,
         $next:expr,
         $errors:ident,
-        $variant:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $variant:ident,
+        $expectation:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let tokens = $tokens;
         let next = $next;
+        let expectation = $expectation;
 
         // Report an error if the next token is not the expected token.
         if next == tokens.len() {
-            $errors.push(Rc::new(move |source_path, source_contents| {
-                throw(
-                    "Unexpected end of file.",
-                    source_path,
-                    Some((source_contents, token_source_range(tokens, next).0)),
-                )
-            }) as ErrorFactory);
+            $errors.push(error_factory(tokens, next, expectation));
         } else if let token::Variant::$variant = tokens[next].variant {
         } else {
-            $errors.push(Rc::new(move |source_path, source_contents| {
-                throw(
-                    &format!("Unexpected {}.", tokens[next].to_string().code_str()),
-                    source_path,
-                    Some((source_contents, token_source_range(tokens, next).0)),
-                )
-            }) as ErrorFactory);
+            $errors.push(error_factory(tokens, next, expectation));
         }
 
         // Find the `then` keyword and skip past it.
@@ -430,31 +449,21 @@ macro_rules! expect_token1 {
         $tokens:expr,
         $next:expr,
         $errors:ident,
-        $variant:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $variant:ident,
+        $expectation:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let tokens = $tokens;
         let next = $next;
+        let expectation = $expectation;
 
         // Report an error if the next token is not the expected token.
         if next == tokens.len() {
-            $errors.push(Rc::new(move |source_path, source_contents| {
-                throw(
-                    "Unexpected end of file.",
-                    source_path,
-                    Some((source_contents, token_source_range(tokens, next).0)),
-                )
-            }) as ErrorFactory);
+            $errors.push(error_factory(tokens, next, expectation));
         } else if let token::Variant::$variant(_) = tokens[next].variant {
         } else {
-            $errors.push(Rc::new(move |source_path, source_contents| {
-                throw(
-                    &format!("Unexpected {}.", tokens[next].to_string().code_str()),
-                    source_path,
-                    Some((source_contents, token_source_range(tokens, next).0)),
-                )
-            }) as ErrorFactory);
+            $errors.push(error_factory(tokens, next, expectation));
         }
 
         // Find the `then` keyword and skip past it.
@@ -500,7 +509,11 @@ fn parse_term<'a>(
     try_return!(cache, cache_key, parse_jumbo_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
+    cache_return!(
+        cache,
+        cache_key,
+        (error_term(tokens, start, "an expression"), start),
+    )
 }
 
 // Parse the type of all types.
@@ -513,7 +526,14 @@ fn parse_type<'a>(
     let cache_key = cache_check!(cache, Type, start);
 
     // Consume the keyword.
-    let next = consume_token0!(cache, cache_key, tokens, start, Type);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        Type,
+        &format!("{}", token::Variant::Type.to_string().code_str()),
+    );
 
     // Construct and return the term.
     cache_return!(
@@ -542,7 +562,8 @@ fn parse_variable<'a>(
 
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, start);
-    let (variable, next) = consume_token1!(cache, cache_key, tokens, start, Identifier);
+    let (variable, next) =
+        consume_token1!(cache, cache_key, tokens, start, Identifier, "a variable");
 
     // Construct and return the term.
     cache_return!(
@@ -573,23 +594,52 @@ fn parse_lambda<'a>(
     let cache_key = cache_check!(cache, Lambda, start);
 
     // Consume the left parenthesis.
-    let next = consume_token0!(cache, cache_key, tokens, start, LeftParen);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        LeftParen,
+        &format!("{}", token::Variant::LeftParen.to_string().code_str()),
+    );
 
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, next);
-    let (variable, next) = consume_token1!(cache, cache_key, tokens, next, Identifier);
+    let (variable, next) =
+        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
 
     // Consume the colon.
-    let next = consume_token0!(cache, cache_key, tokens, next, Colon);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        Colon,
+        &format!("{}", token::Variant::Colon.to_string().code_str()),
+    );
 
     // Parse the domain.
     let (domain, next) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
-    let next = consume_token0!(cache, cache_key, tokens, next, RightParen);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        RightParen,
+        &format!("{}", token::Variant::RightParen.to_string().code_str()),
+    );
 
     // Consume the arrow.
-    let next = consume_token0!(cache, cache_key, tokens, next, ThickArrow);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        ThickArrow,
+        &format!("{}", token::Variant::ThickArrow.to_string().code_str()),
+    );
 
     // Parse the body.
     let (body, next) = parse_term(cache, tokens, next);
@@ -623,23 +673,52 @@ fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     let cache_key = cache_check!(cache, Pi, start);
 
     // Consume the left parenthesis.
-    let next = consume_token0!(cache, cache_key, tokens, start, LeftParen);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        LeftParen,
+        &format!("{}", token::Variant::LeftParen.to_string().code_str()),
+    );
 
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, next);
-    let (variable, next) = consume_token1!(cache, cache_key, tokens, next, Identifier);
+    let (variable, next) =
+        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
 
     // Consume the colon.
-    let next = consume_token0!(cache, cache_key, tokens, next, Colon);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        Colon,
+        &format!("{}", token::Variant::Colon.to_string().code_str()),
+    );
 
     // Parse the domain.
     let (domain, next) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
-    let next = consume_token0!(cache, cache_key, tokens, next, RightParen);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        RightParen,
+        &format!("{}", token::Variant::RightParen.to_string().code_str()),
+    );
 
     // Consume the arrow.
-    let next = consume_token0!(cache, cache_key, tokens, next, ThinArrow);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        ThinArrow,
+        &format!("{}", token::Variant::ThinArrow.to_string().code_str()),
+    );
 
     // Parse the codomain.
     let (codomain, next) = parse_term(cache, tokens, next);
@@ -680,7 +759,14 @@ fn parse_non_dependent_pi<'a>(
     let (domain, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the arrow.
-    let next = consume_token0!(cache, cache_key, tokens, next, ThinArrow);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        ThinArrow,
+        &format!("{}", token::Variant::ThinArrow.to_string().code_str()),
+    );
 
     // Parse the codomain.
     let (codomain, next) = parse_term(cache, tokens, next);
@@ -750,13 +836,21 @@ fn parse_let<'a>(
 
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, start);
-    let (variable, next) = consume_token1!(cache, cache_key, tokens, start, Identifier);
+    let (variable, next) =
+        consume_token1!(cache, cache_key, tokens, start, Identifier, "a variable");
 
     // Parse the annotation, if there is one.
     let (annotation, next) = if next < tokens.len() {
         if let token::Variant::Colon = tokens[next].variant {
             // Consume the colon.
-            let next = consume_token0!(cache, cache_key, tokens, next, Colon);
+            let next = consume_token0!(
+                cache,
+                cache_key,
+                tokens,
+                next,
+                Colon,
+                &format!("{}", token::Variant::Colon.to_string().code_str()),
+            );
 
             // Parse the annotation.
             let (annotation, next) =
@@ -774,7 +868,14 @@ fn parse_let<'a>(
     };
 
     // Consume the equals sign.
-    let next = consume_token0!(cache, cache_key, tokens, next, Equals);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        Equals,
+        &format!("{}", token::Variant::Equals.to_string().code_str()),
+    );
 
     // Parse the definition.
     let (definition, next) = parse_term(cache, tokens, next);
@@ -783,7 +884,21 @@ fn parse_let<'a>(
     let mut errors = vec![];
 
     // Consume the terminator.
-    let (terminator_type, next) = expect_token1!(tokens, next, errors, Terminator);
+    let (terminator_type, next) = expect_token1!(
+        tokens,
+        next,
+        errors,
+        Terminator,
+        &format!(
+            "{} or {}",
+            token::Variant::Terminator(TerminatorType::LineBreak)
+                .to_string()
+                .code_str(),
+            token::Variant::Terminator(TerminatorType::Semicolon)
+                .to_string()
+                .code_str(),
+        ),
+    );
 
     // Parse the body. But to avoid reporting redundant errors, we skip trying to parse the body if
     // we didn't find a terminator.
@@ -835,7 +950,14 @@ fn parse_integer<'a>(
     let cache_key = cache_check!(cache, Integer, start);
 
     // Consume the keyword.
-    let next = consume_token0!(cache, cache_key, tokens, start, Integer);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        Integer,
+        &format!("{}", token::Variant::Integer.to_string().code_str()),
+    );
 
     // Construct and return the term.
     cache_return!(
@@ -863,7 +985,14 @@ fn parse_integer_literal<'a>(
     let cache_key = cache_check!(cache, IntegerLiteral, start);
 
     // Consume the integer.
-    let (integer, next) = consume_token1!(cache, cache_key, tokens, start, IntegerLiteral);
+    let (integer, next) = consume_token1!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        IntegerLiteral,
+        "an integer literal",
+    );
 
     // Construct and return the term.
     cache_return!(
@@ -891,7 +1020,14 @@ fn parse_negation<'a>(
     let cache_key = cache_check!(cache, Negation, start);
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, start, Minus);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        Minus,
+        &format!("{}", token::Variant::Minus.to_string().code_str()),
+    );
 
     // Parse the subterm.
     let (subterm, next) = parse_large_term(cache, tokens, next);
@@ -925,7 +1061,14 @@ fn parse_sum<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, next, Plus);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        Plus,
+        &format!("{}", token::Variant::Plus.to_string().code_str()),
+    );
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -959,7 +1102,14 @@ fn parse_difference<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, next, Minus);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        Minus,
+        &format!("{}", token::Variant::Minus.to_string().code_str()),
+    );
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -993,7 +1143,14 @@ fn parse_product<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, next, Asterisk);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        Asterisk,
+        &format!("{}", token::Variant::Asterisk.to_string().code_str()),
+    );
 
     // Parse the right subterm.
     let (term2, next) = parse_large_term(cache, tokens, next);
@@ -1027,7 +1184,14 @@ fn parse_quotient<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, next, Slash);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        Slash,
+        &format!("{}", token::Variant::Slash.to_string().code_str()),
+    );
 
     // Parse the right subterm.
     let (term2, next) = parse_large_term(cache, tokens, next);
@@ -1061,7 +1225,14 @@ fn parse_less_than<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, next, LessThan);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        LessThan,
+        &format!("{}", token::Variant::LessThan.to_string().code_str()),
+    );
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -1095,7 +1266,17 @@ fn parse_less_than_or_equal_to<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, next, LessThanOrEqualTo);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        LessThanOrEqualTo,
+        &format!(
+            "{}",
+            token::Variant::LessThanOrEqualTo.to_string().code_str(),
+        ),
+    );
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -1129,7 +1310,14 @@ fn parse_equal_to<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, next, DoubleEquals);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        DoubleEquals,
+        &format!("{}", token::Variant::DoubleEquals.to_string().code_str()),
+    );
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -1163,7 +1351,14 @@ fn parse_greater_than<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, next, GreaterThan);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        GreaterThan,
+        &format!("{}", token::Variant::GreaterThan.to_string().code_str()),
+    );
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -1197,7 +1392,17 @@ fn parse_greater_than_or_equal_to<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(cache, cache_key, tokens, next, GreaterThanOrEqualTo);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        GreaterThanOrEqualTo,
+        &format!(
+            "{}",
+            token::Variant::GreaterThanOrEqualTo.to_string().code_str(),
+        ),
+    );
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -1228,7 +1433,14 @@ fn parse_boolean<'a>(
     let cache_key = cache_check!(cache, Boolean, start);
 
     // Consume the keyword.
-    let next = consume_token0!(cache, cache_key, tokens, start, Boolean);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        Boolean,
+        &format!("{}", token::Variant::Boolean.to_string().code_str()),
+    );
 
     // Construct and return the term.
     cache_return!(
@@ -1256,7 +1468,14 @@ fn parse_true<'a>(
     let cache_key = cache_check!(cache, True, start);
 
     // Consume the keyword.
-    let next = consume_token0!(cache, cache_key, tokens, start, True);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        True,
+        &format!("{}", token::Variant::True.to_string().code_str()),
+    );
 
     // Construct and return the term.
     cache_return!(
@@ -1284,7 +1503,14 @@ fn parse_false<'a>(
     let cache_key = cache_check!(cache, False, start);
 
     // Consume the keyword.
-    let next = consume_token0!(cache, cache_key, tokens, start, False);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        False,
+        &format!("{}", token::Variant::False.to_string().code_str()),
+    );
 
     // Construct and return the term.
     cache_return!(
@@ -1309,7 +1535,14 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     let cache_key = cache_check!(cache, If, start);
 
     // Consume the `if` keyword.
-    let next = consume_token0!(cache, cache_key, tokens, start, If);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        If,
+        &format!("{}", token::Variant::If.to_string().code_str()),
+    );
 
     // Parse the condition.
     let (condition, next) = parse_term(cache, tokens, next);
@@ -1318,7 +1551,13 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     let mut errors = vec![];
 
     // Consume the `then` keyword.
-    let (found_then, next) = expect_token0!(tokens, next, errors, Then);
+    let (found_then, next) = expect_token0!(
+        tokens,
+        next,
+        errors,
+        Then,
+        &format!("{}", token::Variant::Then.to_string().code_str()),
+    );
 
     // Parse the then branch. But to avoid reporting redundant errors, we skip trying to parse the
     // then branch if we didn't find a `then` keyword.
@@ -1337,7 +1576,13 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     };
 
     // Consume the `else` keyword.
-    let (found_else, next) = expect_token0!(tokens, next, errors, Else);
+    let (found_else, next) = expect_token0!(
+        tokens,
+        next,
+        errors,
+        Else,
+        &format!("{}", token::Variant::Else.to_string().code_str()),
+    );
 
     // Parse the else branch. But to avoid reporting redundant errors, we skip trying to parse the
     // else branch if we didn't find an `else` keyword.
@@ -1385,7 +1630,14 @@ fn parse_group<'a>(
     let cache_key = cache_check!(cache, Group, start);
 
     // Consume the left parenthesis.
-    let next = consume_token0!(cache, cache_key, tokens, start, LeftParen);
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        LeftParen,
+        &format!("{}", token::Variant::LeftParen.to_string().code_str()),
+    );
 
     // Parse the inner term.
     let (term, next) = try_eval!(cache, cache_key, parse_term(cache, tokens, next));
@@ -1489,7 +1741,11 @@ fn parse_atom<'a>(
     try_return!(cache, cache_key, parse_group(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
+    cache_return!(
+        cache,
+        cache_key,
+        (error_term(tokens, start, "an expression"), start),
+    )
 }
 
 // Parse a small term.
@@ -1508,7 +1764,11 @@ fn parse_small_term<'a>(
     try_return!(cache, cache_key, parse_atom(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
+    cache_return!(
+        cache,
+        cache_key,
+        (error_term(tokens, start, "an expression"), start),
+    )
 }
 
 // Parse a medium term.
@@ -1530,7 +1790,11 @@ fn parse_medium_term<'a>(
     try_return!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
+    cache_return!(
+        cache,
+        cache_key,
+        (error_term(tokens, start, "an expression"), start),
+    )
 }
 
 // Parse a large term.
@@ -1549,7 +1813,11 @@ fn parse_large_term<'a>(
     try_return!(cache, cache_key, parse_medium_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
+    cache_return!(
+        cache,
+        cache_key,
+        (error_term(tokens, start, "an expression"), start),
+    )
 }
 
 // Parse a huge term.
@@ -1571,7 +1839,11 @@ fn parse_huge_term<'a>(
     try_return!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
+    cache_return!(
+        cache,
+        cache_key,
+        (error_term(tokens, start, "an expression"), start),
+    )
 }
 
 // Parse a giant term.
@@ -1610,7 +1882,11 @@ fn parse_giant_term<'a>(
     try_return!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
+    cache_return!(
+        cache,
+        cache_key,
+        (error_term(tokens, start, "an expression"), start),
+    )
 }
 
 // Parse a jumbo term.
@@ -1642,7 +1918,11 @@ fn parse_jumbo_term<'a>(
     try_return!(cache, cache_key, parse_giant_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
+    cache_return!(
+        cache,
+        cache_key,
+        (error_term(tokens, start, "an expression"), start),
+    )
 }
 
 // This is the top-level parsing function. All the parsed terms are guaranteed to have a non-`None`
@@ -1667,7 +1947,7 @@ pub fn parse<'a>(
     // Check if the parse was successful but we didn't consume all the tokens.
     if errors.is_empty() && next != tokens.len() {
         // Complain about the first unparsed token.
-        errors.push(generic_error_factory(tokens, next));
+        errors.push(error_factory(tokens, next, "the end of the file"));
     }
 
     // Fail if there were any errors [tag:error_check].
@@ -3169,7 +3449,10 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_fails!(parse(None, source, &tokens[..], &context[..]), "Empty file");
+        assert_fails!(
+            parse(None, source, &tokens[..], &context[..]),
+            "file is empty",
+        );
     }
 
     #[test]
