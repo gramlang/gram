@@ -16,9 +16,12 @@ use unicode_segmentation::GraphemeCursor;
 pub fn tokenize<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
-) -> Result<Vec<Token<'a>>, Error> {
+) -> Result<Vec<Token<'a>>, Vec<Error>> {
     // We'll be building up this vector of tokens.
     let mut tokens = vec![];
+
+    // Construct a vector to hold any errors that might be detected below.
+    let mut errors = vec![];
 
     // We want to iterate one code point at a time, but we also want the byte indices so we can
     // capture slices.
@@ -292,14 +295,19 @@ pub fn tokenize<'a>(
                 // already.
                 let end = cursor.next_boundary(source_contents, 0).unwrap().unwrap();
 
-                // Now that we've computed the grapheme cluster, construct and return the error.
-                return Err(throw(
+                // Now that we've computed the grapheme cluster, construct and report the error.
+                errors.push(throw(
                     &format!("Unexpected symbol {}.", &source_contents[i..end].code_str()),
                     source_path,
                     Some((source_contents, (i, end))),
                 ));
             }
         }
+    }
+
+    // If there are any errors at this point, return them.
+    if !errors.is_empty() {
+        return Err(errors);
     }
 
     // Remove trailing line break terminators and line break terminators before certain token types.
@@ -355,7 +363,7 @@ pub fn tokenize<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        assert_fails,
+        assert_fails_vec,
         token::{
             TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
             IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
@@ -776,6 +784,6 @@ mod tests {
 
     #[test]
     fn tokenize_unexpected_code_point() {
-        assert_fails!(tokenize(None, "$"), "Unexpected symbol");
+        assert_fails_vec!(tokenize(None, "$"), "Unexpected symbol");
     }
 }

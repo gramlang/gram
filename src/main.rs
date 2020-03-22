@@ -111,45 +111,8 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
         )
 }
 
-// Check a program.
-fn check(source_path: &Path) -> Result<(), Error> {
-    // Read the source file.
-    let source_contents = read_to_string(source_path).map_err(lift(format!(
-        "Error when reading file {}.",
-        source_path.to_string_lossy().code_str(),
-    )))?;
-
-    // Tokenize the source file.
-    let tokens = tokenize(Some(source_path), &source_contents)?;
-
-    // Parse the term.
-    let term =
-        parse(Some(source_path), &source_contents, &tokens[..], &[]).map_err(|errors| Error {
-            message: errors
-                .iter()
-                .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error))
-                .trim()
-                .to_owned(),
-            reason: None,
-        })?;
-
-    // Type check the term.
-    let mut typing_context = vec![];
-    let mut definitions_context = vec![];
-    let _ = type_check(
-        Some(source_path),
-        &source_contents,
-        &term,
-        &mut typing_context,
-        &mut definitions_context,
-    )?;
-
-    // If we made it this far, nothing went wrong.
-    Ok(())
-}
-
 // Run a program.
-fn run(source_path: &Path) -> Result<(), Error> {
+fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
     // Read the source file.
     let source_contents = read_to_string(source_path).map_err(lift(format!(
         "Error when reading file {}.",
@@ -157,7 +120,14 @@ fn run(source_path: &Path) -> Result<(), Error> {
     )))?;
 
     // Tokenize the source file.
-    let tokens = tokenize(Some(source_path), &source_contents)?;
+    let tokens = tokenize(Some(source_path), &source_contents).map_err(|errors| Error {
+        message: errors
+            .iter()
+            .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error))
+            .trim()
+            .to_owned(),
+        reason: None,
+    })?;
 
     // Parse the term.
     let term =
@@ -182,8 +152,10 @@ fn run(source_path: &Path) -> Result<(), Error> {
     )?;
 
     // Evaluate the term.
-    let value = evaluate(Rc::new(term))?;
-    println!("{}", value.to_string().code_str());
+    if !check_only {
+        let value = evaluate(Rc::new(term))?;
+        println!("{}", value.to_string().code_str());
+    }
 
     // If we made it this far, nothing went wrong.
     Ok(())
@@ -228,7 +200,7 @@ fn entry() -> Result<(), Error> {
     // Check if the user provided a path as the first argument.
     if let Some(source_path) = matches.value_of(PATH_OPTION) {
         // We got a path. Run the program at that path.
-        run(Path::new(source_path))?;
+        run(Path::new(source_path), false)?;
     } else {
         // Decide what to do based on the subcommand.
         match matches.subcommand_name() {
@@ -245,7 +217,7 @@ fn entry() -> Result<(), Error> {
                 );
 
                 // Check the program.
-                check(source_path)?;
+                run(source_path, true)?;
             }
 
             // [tag:run_subcommand]
@@ -261,7 +233,7 @@ fn entry() -> Result<(), Error> {
                 );
 
                 // Run the program.
-                run(source_path)?;
+                run(source_path, false)?;
             }
 
             // [tag:shell_completion_subcommand]
