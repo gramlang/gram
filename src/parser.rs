@@ -1971,12 +1971,22 @@ pub fn parse<'a>(
         .map(|(i, variable)| (*variable, i))
         .collect();
 
-    // Resolve variables and return the term.
+    // Resolve variables.
     let mut errors = vec![];
     let resolved_term = resolve_variables(
         source_path,
         source_contents,
         &*reassociated_term,
+        context.len(),
+        &mut context,
+        &mut errors,
+    );
+
+    // Check that definitions will be evaluated before they are used.
+    check_definitions(
+        source_path,
+        source_contents,
+        &resolved_term,
         context.len(),
         &mut context,
         &mut errors,
@@ -3066,24 +3076,6 @@ fn resolve_variables<'a>(
                 ));
             }
 
-            // Ensure forward references make semantic sense.
-            for i in 0..resolved_definitions.len() {
-                if !is_value(&resolved_definitions[i].2) {
-                    let mut visited = HashSet::new();
-
-                    check_references(
-                        source_path,
-                        source_contents,
-                        &resolved_definitions,
-                        new_depth,
-                        i,
-                        i,
-                        &mut visited,
-                        errors,
-                    );
-                }
-            }
-
             // Temporarily borrow from the scope guard.
             let mut guard = context_cell.borrow_mut();
             let (borrowed_context, _) = &mut (*guard);
@@ -3419,10 +3411,149 @@ fn collect_definitions<'a>(
     }
 }
 
-// This function is used to ensure forward references in lets make semantic sense.
+// This function checks that definitions are evaluated before they are used.
+#[allow(clippy::too_many_lines)]
+fn check_definitions<'a>(
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    term: &term::Term<'a>,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
+    errors: &mut Vec<Error>,
+) {
+    match &term.variant {
+        term::Variant::Type
+        | term::Variant::Variable(_, _)
+        | term::Variant::Integer
+        | term::Variant::IntegerLiteral(_)
+        | term::Variant::Boolean
+        | term::Variant::True
+        | term::Variant::False => {}
+        term::Variant::Lambda(_, domain, body) => {
+            check_definitions(source_path, source_contents, domain, depth, context, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                body,
+                depth + 1,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Pi(_, domain, codomain) => {
+            check_definitions(source_path, source_contents, domain, depth, context, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                codomain,
+                depth + 1,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Application(applicand, argument) => {
+            check_definitions(
+                source_path,
+                source_contents,
+                applicand,
+                depth,
+                context,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                argument,
+                depth,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Let(definitions, body) => {
+            let new_depth = depth + definitions.len();
+
+            for i in 0..definitions.len() {
+                if !is_value(&definitions[i].2) {
+                    let mut visited = HashSet::new();
+
+                    check_definition(
+                        source_path,
+                        source_contents,
+                        definitions,
+                        new_depth,
+                        i,
+                        i,
+                        &mut visited,
+                        errors,
+                    );
+                }
+            }
+
+            check_definitions(
+                source_path,
+                source_contents,
+                body,
+                new_depth,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Negation(subterm) => {
+            check_definitions(
+                source_path,
+                source_contents,
+                subterm,
+                depth,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Sum(term1, term2)
+        | term::Variant::Difference(term1, term2)
+        | term::Variant::Product(term1, term2)
+        | term::Variant::Quotient(term1, term2)
+        | term::Variant::LessThan(term1, term2)
+        | term::Variant::LessThanOrEqualTo(term1, term2)
+        | term::Variant::EqualTo(term1, term2)
+        | term::Variant::GreaterThan(term1, term2)
+        | term::Variant::GreaterThanOrEqualTo(term1, term2) => {
+            check_definitions(source_path, source_contents, term1, depth, context, errors);
+            check_definitions(source_path, source_contents, term2, depth, context, errors);
+        }
+        term::Variant::If(condition, then_branch, else_branch) => {
+            check_definitions(
+                source_path,
+                source_contents,
+                condition,
+                depth,
+                context,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                then_branch,
+                depth,
+                context,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                else_branch,
+                depth,
+                context,
+                errors,
+            );
+        }
+    }
+}
+
+// This function checks that all the free variables in a definition will stand for values by the
+// time the definition is evaluated.
 #[allow(clippy::too_many_arguments)]
 #[allow(clippy::type_complexity)]
-fn check_references<'a>(
+fn check_definition<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     definitions: &[(&'a str, Option<Rc<term::Term<'a>>>, Rc<term::Term<'a>>)],
@@ -3447,7 +3578,7 @@ fn check_references<'a>(
                 // If the definition is a value, recurse on it. Otherwise, ensure the definition
                 // will be evaluated before the original definition.
                 if is_value(&definitions[definition_index].2) {
-                    check_references(
+                    check_definition(
                         source_path,
                         source_contents,
                         definitions,
