@@ -825,6 +825,7 @@ fn parse_application<'a>(
 }
 
 // Parse a let.
+#[allow(clippy::too_many_lines)]
 fn parse_let<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
@@ -866,21 +867,59 @@ fn parse_let<'a>(
         (None, next)
     };
 
-    // Consume the equals sign.
-    let next = consume_token0!(
-        cache,
-        cache_key,
-        tokens,
-        next,
-        Equals,
-        &format!("{}", token::Variant::Equals.to_string().code_str()),
-    );
-
-    // Parse the definition.
-    let (definition, next) = parse_term(cache, tokens, next);
-
     // Create a vector for parse errors.
     let mut errors = vec![];
+
+    // Consume the equals sign.
+    let (equals_found, next) = if annotation.is_some() {
+        // Since we have an annotation, we can be confident that we're parsing a let. Find the
+        // equals sign and proceed.
+        expect_token0!(
+            tokens,
+            next,
+            errors,
+            Equals,
+            &format!(
+                "{} or {} followed by an expression",
+                token::Variant::Terminator(TerminatorType::LineBreak)
+                    .to_string()
+                    .code_str(),
+                token::Variant::Terminator(TerminatorType::Semicolon)
+                    .to_string()
+                    .code_str(),
+            ),
+        )
+    } else {
+        // Since we don't have an annotation, we aren't sure yet whether what we're parsing is
+        // actually a let. So bail out if we don't find the equals sign.
+        (
+            true,
+            consume_token0!(
+                cache,
+                cache_key,
+                tokens,
+                next,
+                Equals,
+                &format!("{}", token::Variant::Equals.to_string().code_str()),
+            ),
+        )
+    };
+
+    // Parse the definition. But to avoid reporting redundant errors, we skip trying to parse the
+    // definition if we didn't find an equals sign.
+    let (definition, next) = if equals_found {
+        parse_term(cache, tokens, next)
+    } else {
+        (
+            Term {
+                source_range: empty_source_range(tokens, next),
+                group: false,
+                variant: Variant::ParseError,
+                errors: vec![],
+            },
+            next,
+        )
+    };
 
     // Consume the terminator.
     let (terminator_type, next) = expect_token1!(
