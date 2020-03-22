@@ -1979,7 +1979,7 @@ fn parse_jumbo_term<'a>(
         parse_if(cache, tokens, start),
     );
 
-    // Try to parse a jumbo term.
+    // Try to parse a giant term.
     try_return!(
         cache,
         nonterminal,
