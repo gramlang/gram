@@ -4,7 +4,7 @@ use crate::{
     evaluator::is_value,
     format::CodeStr,
     term,
-    token::{self, TerminatorType, Token},
+    token::{self, Token},
 };
 use num_bigint::BigInt;
 use scopeguard::defer;
@@ -48,23 +48,30 @@ use std::{
 // This represents a fresh variable name. It's never added to the context.
 pub const PLACEHOLDER_VARIABLE: &str = "_";
 
+// An `ErrorFactory` is a function which takes a source path and contents and produces an `Error`.
+// It's cheaper to generate a closure that produces the `Error` than to generate the actual
+// `Error`, which may contain a long string message.
+type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
+
 // The token stream is parsed into an abstract syntax tree (AST). This struct represents a node in
 // an AST. This is similar to `term::Term`, except:
 // - It doesn't contain De Bruijn indices.
 // - It has a `group` field (see see [ref:group_flag]).
 // - It has source ranges for variables.
-#[derive(Clone, Debug, Eq, PartialEq)]
+// - `Variant<'a>` has an extra case for missing terms and parse errors.
+#[derive(Clone)]
 struct Term<'a> {
-    // Inclusive on the left and exclusive on the right
-    source_range: (usize, usize),
-
-    group: bool, // For an explanation of this field, see [ref:group_flag].
+    source_range: (usize, usize), // Inclusive on the left and exclusive on the right
+    group: bool,                  // For an explanation of this field, see [ref:group_flag].
     variant: Variant<'a>,
+    errors: Vec<ErrorFactory<'a>>,
 }
 
 // Each term has a "variant" describing what kind of term it is.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone)]
 enum Variant<'a> {
+    Missing,
+    ParseError(ErrorFactory<'a>),
     Type,
     Variable(SourceVariable<'a>),
     Lambda(SourceVariable<'a>, Rc<Term<'a>>, Rc<Term<'a>>),
@@ -98,9 +105,7 @@ enum Variant<'a> {
 // us to report nice errors when there are multiple variables with the same name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SourceVariable<'a> {
-    // Inclusive on the left and exclusive on the right
-    source_range: (usize, usize),
-
+    source_range: (usize, usize), // Inclusive on the left and exclusive on the right
     name: &'a str,
 }
 
@@ -141,34 +146,11 @@ enum Nonterminal {
     JumboTerm,
 }
 
-// An `ParseSuccess` is a pair containing:
-// 1. The term that was parsed.
-// 2. The position of the next unconsumed token.
-type ParseSuccess<'a> = (Term<'a>, usize);
-
-// An `ErrorFactory` is a function which takes a source path and contents and produces an `Error`.
-// It's cheaper to generate a closure that produces the `Error` than to generate the actual
-// `Error`, which may contain a long string message.
-type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
-
-// An `ParseError` is a pair containing:
-// 1. An `ErrorFactory` that can be used to produce an error message.
-// 2. The position of the token that caused the error. This position will be used to rank errors
-//    and choose the "best" one.
-type ParseError<'a> = (ErrorFactory<'a>, usize);
-
-// The result of a parse is either a `ParseSuccess` or a `ParseError`.
-type ParseResult<'a> = Result<ParseSuccess<'a>, ParseError<'a>>;
-
-// A cache key consists of a `Nonterminal` indicating which function is being memoized together with
-// a position in the input stream.
-type CacheKey = (Nonterminal, usize);
-
-// A cache is a map from cache key to parse result.
-type Cache<'a> = HashMap<CacheKey, ParseResult<'a>>;
+// A cache is a map from nonterminal and position to term and new position.
+type Cache<'a> = HashMap<(Nonterminal, usize), (Term<'a>, usize)>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
-// return early on cache hit. It returns the nonterminal for use by subsequent macro invocations.
+// return early on cache hit. It returns the cache key for use by subsequent macro invocations.
 macro_rules! cache_check {
     ($cache:ident, $nonterminal:ident, $start:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
@@ -176,69 +158,62 @@ macro_rules! cache_check {
         let start = $start;
 
         // Do the cache lookup.
-        if let Some(result) = $cache.get(&(Nonterminal::$nonterminal, start)) {
+        let cache_key = (Nonterminal::$nonterminal, start);
+        if let Some(result) = $cache.get(&cache_key) {
             return result.clone();
         }
 
-        // Return the nonterminal.
-        Nonterminal::$nonterminal
+        // Return the cache key.
+        cache_key
     }};
 }
 
 // This macro caches a value and returns it. In parsing functions, this should always be used
 // instead of `return` to ensure results are memoized.
 macro_rules! cache_return {
-    ($cache:ident, $nonterminal:expr, $start:expr, $value:expr $(,)?) => {{
+    ($cache:ident, $cache_key:expr, $value:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let nonterminal = $nonterminal;
-        let start = $start;
+        let cache_key = $cache_key;
         let value = $value;
 
         // Cache and return the value.
-        $cache.insert((nonterminal, start), value.clone());
+        $cache.insert(cache_key, value.clone());
         return value;
     }};
 }
 
-// This macro will return early if `$value` is a success. If $value` is a failure, this macro will
-// update the given error unless the given error is better.
+// This macro will return early if `$value` is not an error.
 macro_rules! try_return {
-    ($cache:ident, $nonterminal:expr, $start:expr, $error:ident, $value:expr $(,)?) => {{
+    ($cache:ident, $cache_key:expr, $value:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let nonterminal = $nonterminal;
-        let start = $start;
+        let cache_key = $cache_key;
         let value = $value;
 
         // Check if the value is an error.
-        if let Err(e) = value {
-            // We got a parse error. Update the given error if the new error is better.
-            if e.1 > $error.1 {
-                $error = e;
-            }
+        if let Variant::ParseError(_) = value.0.variant {
         } else {
             // We got a successful parse. Return early.
-            cache_return!($cache, nonterminal, start, value)
+            cache_return!($cache, cache_key, value)
         }
     }};
 }
 
-// This macro should be used instead of the `x?` syntax to return early upon the failure of
-// `$expr` and cache the result. If `$expr` succeeds, this macro evaluates to its value.
+// This macro is analogous to the `x?` syntax to return early if `$expr` is an error. If `$expr`
+// isn't an error, this macro evaluates to it.
 macro_rules! try_eval {
-    ($cache:ident, $nonterminal:expr, $start:expr, $value:expr $(,)?) => {{
+    ($cache:ident, $cache_key:expr, $value:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let nonterminal = $nonterminal;
-        let start = $start;
+        let cache_key = $cache_key;
         let value = $value;
 
         // Extract the result or fail fast.
-        if let Ok(result) = value {
-            result
+        if let Variant::ParseError(_) = value.0.variant {
+            cache_return!($cache, cache_key, value)
         } else {
-            cache_return!($cache, nonterminal, start, value)
+            value
         }
     }};
 }
@@ -247,208 +222,67 @@ macro_rules! try_eval {
 macro_rules! consume_token {
     (
         $cache:ident,
-        $nonterminal:expr,
+        $cache_key:expr,
         $tokens:expr,
-        $start:expr,
         $next:expr,
-        $error:ident,
         $variant:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let nonterminal = $nonterminal;
+        let cache_key = $cache_key;
         let tokens = $tokens;
-        let start = $start;
         let next = $next;
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
-            if next > $error.1 {
-                $error = (
-                    Rc::new(move |source_path, source_contents| {
-                        throw(
-                            &format!(
-                                "Expected {} after {}.",
-                                token::Variant::$variant.to_string().code_str(),
-                                tokens[next - 1].to_string().code_str(),
-                            ),
-                            source_path,
-                            Some((source_contents, tokens[next - 1].source_range)),
-                        )
-                    }) as ErrorFactory,
-                    next,
-                );
-            }
-
-            cache_return!($cache, nonterminal, start, Err($error))
+            cache_return!($cache, cache_key, (generic_error(tokens, next), next))
         }
 
         // Check if the token was the expected one.
         if let token::Variant::$variant = tokens[next].variant {
             next + 1
         } else {
-            if next > $error.1 {
-                $error = (
-                    Rc::new(move |source_path, source_contents| {
-                        throw(
-                            &format!(
-                                "Expected {} but encountered {}.",
-                                token::Variant::$variant.to_string().code_str(),
-                                tokens[next].to_string().code_str(),
-                            ),
-                            source_path,
-                            Some((source_contents, tokens[next].source_range)),
-                        )
-                    }) as ErrorFactory,
-                    next,
-                );
-            }
-
-            cache_return!($cache, nonterminal, start, Err($error))
+            cache_return!($cache, cache_key, (generic_error(tokens, next), next))
         }
     }};
 }
 
-// This macro consumes a single terminator token and evaluates to the position of the next token.
-// This is similar to the `consume_token!` macro above, except that macro doesn't work for
-// terminator tokens since the terminator variant constructor takes an argument.
-macro_rules! consume_terminator {
-    (
-        $cache:ident,
-        $nonterminal:expr,
-        $tokens:expr,
-        $start:expr,
-        $next:expr,
-        $error:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
-    ) => {{
-        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
-        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let nonterminal = $nonterminal;
-        let tokens = $tokens;
-        let start = $start;
-        let next = $next;
-
-        // Fail if there are no more tokens to parse.
-        if next == tokens.len() {
-            if next > $error.1 {
-                $error = (
-                    Rc::new(move |source_path, source_contents| {
-                        throw(
-                            &format!(
-                                "Expected {} after {}.",
-                                token::Variant::Terminator(TerminatorType::Semicolon)
-                                    .to_string()
-                                    .code_str(),
-                                tokens[next - 1].to_string().code_str(),
-                            ),
-                            source_path,
-                            Some((source_contents, tokens[next - 1].source_range)),
-                        )
-                    }) as ErrorFactory,
-                    next,
-                );
-            }
-
-            cache_return!($cache, nonterminal, start, Err($error))
-        }
-
-        // Check if the token was the expected one.
-        if let token::Variant::Terminator(_) = tokens[next].variant {
-            next + 1
-        } else {
-            if next > $error.1 {
-                $error = (
-                    Rc::new(move |source_path, source_contents| {
-                        throw(
-                            &format!(
-                                "Expected {} but encountered {}.",
-                                token::Variant::Terminator(TerminatorType::Semicolon)
-                                    .to_string()
-                                    .code_str(),
-                                tokens[next].to_string().code_str(),
-                            ),
-                            source_path,
-                            Some((source_contents, tokens[next].source_range)),
-                        )
-                    }) as ErrorFactory,
-                    next,
-                );
-            }
-
-            cache_return!($cache, nonterminal, start, Err($error))
-        }
-    }};
-}
-
-// This macro consumes an identifier and evaluates to the identifier paired with the position of
-// the next token.
+// This macro consumes an identifier token and evaluates to the identifier paired with the position
+// of the next token.
 macro_rules! consume_identifier {
     (
         $cache:ident,
-        $nonterminal:expr,
+        $cache_key:expr,
         $tokens:expr,
-        $start:expr,
-        $next:expr,
-        $error:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $next:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let nonterminal = $nonterminal;
+        let cache_key = $cache_key;
         let tokens = $tokens;
-        let start = $start;
         let next = $next;
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
-            if next > $error.1 {
-                $error = (
-                    Rc::new(move |source_path, source_contents| {
-                        throw(
-                            &format!(
-                                "Expected an identifier after {}.",
-                                tokens[next - 1].to_string().code_str(),
-                            ),
-                            source_path,
-                            Some((source_contents, tokens[next - 1].source_range)),
-                        )
-                    }) as ErrorFactory,
-                    next,
-                );
-            }
-
-            cache_return!($cache, nonterminal, start, Err($error))
+            cache_return!($cache, cache_key, (generic_error(tokens, next), next))
         }
 
         // Check if the token is actually an identifier.
         if let token::Variant::Identifier(identifier) = tokens[next].variant {
             (identifier, next + 1)
         } else {
-            if next > $error.1 {
-                $error = (
-                    Rc::new(move |source_path, source_contents| {
-                        throw(
-                            &format!(
-                                "Expected an identifier but encountered {}.",
-                                tokens[next].to_string().code_str(),
-                            ),
-                            source_path,
-                            Some((source_contents, tokens[next].source_range)),
-                        )
-                    }) as ErrorFactory,
-                    next,
-                );
-            }
-
-            cache_return!($cache, nonterminal, start, Err($error))
+            cache_return!($cache, cache_key, (generic_error(tokens, next), next))
         }
     }};
 }
 
 // This function computes a generic error that just complains about a particular token or the end of
 // the source file.
-fn generic_error<'a>(tokens: &'a [Token<'a>], position: usize) -> ParseError<'a> {
-    (
-        Rc::new(move |source_path, source_contents| {
+fn generic_error<'a>(tokens: &'a [Token<'a>], position: usize) -> Term<'a> {
+    Term {
+        source_range: (position, position + 1),
+        group: false,
+        variant: Variant::ParseError(Rc::new(move |source_path, source_contents| {
             if tokens.is_empty() {
                 throw("Empty file.", source_path, Some((source_contents, (0, 0))))
             } else if position == tokens.len() {
@@ -467,65 +301,55 @@ fn generic_error<'a>(tokens: &'a [Token<'a>], position: usize) -> ParseError<'a>
                     Some((source_contents, tokens[position].source_range)),
                 )
             }
-        }) as ErrorFactory,
-        position,
-    )
+        }) as ErrorFactory),
+        errors: vec![],
+    }
 }
 
 // Parse a term.
-fn parse_term<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
+fn parse_term<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Term, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Term, start);
 
     // Try to parse a let.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_let(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_let(cache, tokens, start));
 
     // Try to parse a jumbo term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_jumbo_term(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_jumbo_term(cache, tokens, start));
 
-    // Since none of the parses succeeded, return the error.
-    cache_return!(cache, nonterminal, start, Err(error))
+    // Since none of the parses succeeded, return an error.
+    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
 }
 
 // Parse the type of all types.
-fn parse_type<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
+fn parse_type<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Type, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Type, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, tokens, start, start, error, Type);
+    let next = consume_token!(cache, cache_key, tokens, start, Type);
 
-    // Construct and return the value.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: tokens[start].source_range,
                 group: false,
                 variant: Variant::Type,
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -534,22 +358,18 @@ fn parse_variable<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Variable, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Variable, start);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, nonterminal, tokens, start, start, error);
+    let (variable, next) = consume_identifier!(cache, cache_key, tokens, start);
 
-    // Construct and return the variable.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: tokens[start].source_range,
                 group: false,
@@ -557,9 +377,10 @@ fn parse_variable<'a>(
                     source_range: tokens[start].source_range,
                     name: variable
                 }),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -568,46 +389,36 @@ fn parse_lambda<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Lambda, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Lambda, start);
 
     // Consume the left parenthesis.
-    let variable_pos = consume_token!(cache, nonterminal, tokens, start, start, error, LeftParen);
+    let variable_pos = consume_token!(cache, cache_key, tokens, start, LeftParen);
 
     // Consume the variable.
-    let (variable, next) =
-        consume_identifier!(cache, nonterminal, tokens, start, variable_pos, error);
+    let (variable, next) = consume_identifier!(cache, cache_key, tokens, variable_pos);
 
     // Consume the colon.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Colon);
+    let next = consume_token!(cache, cache_key, tokens, next, Colon);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_jumbo_term(cache, tokens, next),
-    );
+    let (domain, next) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, RightParen);
+    let next = consume_token!(cache, cache_key, tokens, next, RightParen);
 
     // Consume the arrow.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, ThickArrow);
+    let next = consume_token!(cache, cache_key, tokens, next, ThickArrow);
 
     // Parse the body.
-    let (body, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+    let (body, next) = parse_term(cache, tokens, next);
 
-    // Construct and return the lambda.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (tokens[start].source_range.0, body.source_range.1),
                 group: false,
@@ -619,53 +430,44 @@ fn parse_lambda<'a>(
                     Rc::new(domain),
                     Rc::new(body),
                 ),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
 // Parse a pi type.
-fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
+fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Pi, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Pi, start);
 
     // Consume the left parenthesis.
-    let variable_pos = consume_token!(cache, nonterminal, tokens, start, start, error, LeftParen);
+    let variable_pos = consume_token!(cache, cache_key, tokens, start, LeftParen);
 
     // Consume the variable.
-    let (variable, next) =
-        consume_identifier!(cache, nonterminal, tokens, start, variable_pos, error);
+    let (variable, next) = consume_identifier!(cache, cache_key, tokens, variable_pos);
 
     // Consume the colon.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Colon);
+    let next = consume_token!(cache, cache_key, tokens, next, Colon);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_jumbo_term(cache, tokens, next),
-    );
+    let (domain, next) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, RightParen);
+    let next = consume_token!(cache, cache_key, tokens, next, RightParen);
 
     // Consume the arrow.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, ThinArrow);
+    let next = consume_token!(cache, cache_key, tokens, next, ThinArrow);
 
     // Parse the codomain.
-    let (codomain, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+    let (codomain, next) = parse_term(cache, tokens, next);
 
-    // Construct and return the pi type.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (tokens[start].source_range.0, codomain.source_range.1),
                 group: false,
@@ -677,9 +479,10 @@ fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
                     Rc::new(domain),
                     Rc::new(codomain),
                 ),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -688,37 +491,28 @@ fn parse_non_dependent_pi<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, NonDependentPi, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, NonDependentPi, start);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_small_term(cache, tokens, start),
-    );
+    let (domain, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the arrow.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, ThinArrow);
+    let next = consume_token!(cache, cache_key, tokens, next, ThinArrow);
 
     // Parse the codomain.
-    let (codomain, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+    let (codomain, next) = parse_term(cache, tokens, next);
 
     // The source range for the implicit placeholder variable will be the empty range at this
     // location.
     let placeholder_variable_location = tokens[start].source_range.0;
 
-    // Construct and return the pi type.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (tokens[start].source_range.0, codomain.source_range.1),
                 group: false,
@@ -733,9 +527,10 @@ fn parse_non_dependent_pi<'a>(
                     Rc::new(domain),
                     Rc::new(codomain),
                 ),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -744,61 +539,53 @@ fn parse_application<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Application, start);
+    let cache_key = cache_check!(cache, Application, start);
 
     // Parse the applicand.
-    let (applicand, next) = try_eval!(cache, nonterminal, start, parse_atom(cache, tokens, start));
+    let (applicand, next) = try_eval!(cache, cache_key, parse_atom(cache, tokens, start));
 
     // Parse the argument.
-    let (argument, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_small_term(cache, tokens, next),
-    );
+    let (argument, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, next));
 
-    // Construct and return the application.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (applicand.source_range.0, argument.source_range.1),
                 group: false,
                 variant: Variant::Application(Rc::new(applicand), Rc::new(argument)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
 // Parse a let.
-fn parse_let<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
+fn parse_let<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Let, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Let, start);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, nonterminal, tokens, start, start, error);
+    let (variable, next) = consume_identifier!(cache, cache_key, tokens, start);
 
     // Parse the annotation, if there is one.
     let (annotation, next) = if next < tokens.len() {
         if let token::Variant::Colon = tokens[next].variant {
             // Consume the colon.
-            let next = consume_token!(cache, nonterminal, tokens, start, next, error, Colon);
+            let next = consume_token!(cache, cache_key, tokens, next, Colon);
 
             // Parse the annotation.
-            let (annotation, next) = try_eval!(
-                cache,
-                nonterminal,
-                start,
-                parse_small_term(cache, tokens, next),
-            );
+            let (annotation, next) =
+                try_eval!(cache, cache_key, parse_small_term(cache, tokens, next));
 
             // Package up the annotation in the right form.
             (Some(Rc::new(annotation)), next)
@@ -812,23 +599,84 @@ fn parse_let<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -
     };
 
     // Consume the equals sign.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Equals);
+    let next = consume_token!(cache, cache_key, tokens, next, Equals);
 
     // Parse the definition.
-    let (definition, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+    let (definition, next) = parse_term(cache, tokens, next);
 
-    // Consume the terminator.
-    let next = consume_terminator!(cache, nonterminal, tokens, start, next, error);
+    // Create a vector for parse errors.
+    let mut errors = vec![];
 
-    // Parse the body.
-    let (body, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+    // Report an error if the next token is not a terminator. But if we didn't consume any tokens
+    // when parsing the definition, then skip this check since we'd just be complaining about the
+    // same token again.
+    if let Variant::ParseError(_) | Variant::Missing = definition.variant {
+    } else if next == tokens.len() {
+        errors.push(Rc::new(move |source_path, source_contents| {
+            throw(
+                "Unexpected end of file.",
+                source_path,
+                Some((
+                    source_contents,
+                    tokens.last().map_or((0, 0), |token| token.source_range),
+                )),
+            )
+        }) as ErrorFactory);
+    } else if let token::Variant::Terminator(_) = tokens[next].variant {
+    } else {
+        errors.push(Rc::new(move |source_path, source_contents| {
+            throw(
+                &format!("Unexpected {}.", tokens[next].to_string().code_str()),
+                source_path,
+                Some((source_contents, tokens[next].source_range)),
+            )
+        }) as ErrorFactory);
+    }
 
-    // Construct and return the let.
+    // Find the terminator and skip past it.
+    let mut next = next;
+    let mut found_terminator = false;
+    let mut depth = 0_usize;
+    while next < tokens.len() {
+        match tokens[next].variant {
+            token::Variant::LeftParen => {
+                depth += 1;
+            }
+            token::Variant::RightParen if depth > 0 => {
+                depth -= 1;
+            }
+            token::Variant::Terminator(_) if depth == 0 => {
+                next += 1;
+                found_terminator = true;
+                break;
+            }
+            _ => {}
+        }
+
+        next += 1;
+    }
+
+    // Parse the body. But to avoid reporting redundant errors, we skip trying to parse the body if
+    // we didn't find a terminator.
+    let (body, next) = if found_terminator {
+        parse_term(cache, tokens, next)
+    } else {
+        (
+            Term {
+                source_range: (next, next),
+                group: false,
+                variant: Variant::Missing,
+                errors: vec![],
+            },
+            next,
+        )
+    };
+
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (tokens[start].source_range.0, body.source_range.1),
                 group: false,
@@ -841,9 +689,10 @@ fn parse_let<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -
                     Rc::new(definition),
                     Rc::new(body),
                 ),
+                errors: errors,
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -852,29 +701,26 @@ fn parse_integer<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Integer, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Integer, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, tokens, start, start, error, Integer);
+    let next = consume_token!(cache, cache_key, tokens, start, Integer);
 
-    // Construct and return the variable.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: tokens[start].source_range,
                 group: false,
                 variant: Variant::Integer,
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -883,70 +729,35 @@ fn parse_integer_literal<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, IntegerLiteral, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, IntegerLiteral, start);
 
     // Fail if there are no more tokens to parse.
     if start == tokens.len() {
-        if start > error.1 {
-            error = (
-                Rc::new(move |source_path, source_contents| {
-                    throw(
-                        &format!(
-                            "Expected an integer literal after {}.",
-                            tokens[start - 1].to_string().code_str(),
-                        ),
-                        source_path,
-                        Some((source_contents, tokens[start - 1].source_range)),
-                    )
-                }) as ErrorFactory,
-                start,
-            );
-        }
-
-        cache_return!(cache, nonterminal, start, Err(error))
+        cache_return!(cache, cache_key, (generic_error(tokens, start), start))
     }
 
     // Check if the token was the expected one.
-    let (next, integer) = if let token::Variant::IntegerLiteral(integer) = &tokens[start].variant {
-        (start + 1, integer.clone())
+    let (integer, next) = if let token::Variant::IntegerLiteral(integer) = &tokens[start].variant {
+        (integer.clone(), start + 1)
     } else {
-        if start > error.1 {
-            error = (
-                Rc::new(move |source_path, source_contents| {
-                    throw(
-                        &format!(
-                            "Expected an integer literal but encountered {}.",
-                            tokens[start].to_string().code_str(),
-                        ),
-                        source_path,
-                        Some((source_contents, tokens[start].source_range)),
-                    )
-                }) as ErrorFactory,
-                start,
-            );
-        }
-
-        cache_return!(cache, nonterminal, start, Err(error))
+        cache_return!(cache, cache_key, (generic_error(tokens, start), start))
     };
 
-    // Construct and return the variable.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: tokens[start].source_range,
                 group: false,
                 variant: Variant::IntegerLiteral(integer),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -955,84 +766,63 @@ fn parse_negation<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Negation, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Negation, start);
 
     // Consume the operator.
-    let next = consume_token!(cache, nonterminal, tokens, start, start, error, Minus);
+    let next = consume_token!(cache, cache_key, tokens, start, Minus);
 
     // Parse the subterm.
-    let (subterm, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_large_term(cache, tokens, next),
-        )
-    };
+    let (subterm, next) = parse_large_term(cache, tokens, next);
 
-    // Construct and return the negation.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (tokens[start].source_range.0, subterm.source_range.1),
                 group: false,
                 variant: Variant::Negation(Rc::new(subterm)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
 // Parse a sum.
-fn parse_sum<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
+fn parse_sum<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Sum, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Sum, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_large_term(cache, tokens, start),
-    );
+    let (term1, next) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Plus);
+    let next = consume_token!(cache, cache_key, tokens, next, Plus);
 
     // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next),
-        )
-    };
+    let (term2, next) = parse_huge_term(cache, tokens, next);
 
-    // Construct and return the sum.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
                 variant: Variant::Sum(Rc::new(term1), Rc::new(term2)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1041,47 +831,32 @@ fn parse_difference<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Difference, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Difference, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_large_term(cache, tokens, start),
-    );
+    let (term1, next) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Minus);
+    let next = consume_token!(cache, cache_key, tokens, next, Minus);
 
     // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next),
-        )
-    };
+    let (term2, next) = parse_huge_term(cache, tokens, next);
 
-    // Construct and return the sum.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
                 variant: Variant::Difference(Rc::new(term1), Rc::new(term2)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1090,47 +865,32 @@ fn parse_product<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Product, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Product, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_small_term(cache, tokens, start),
-    );
+    let (term1, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Asterisk);
+    let next = consume_token!(cache, cache_key, tokens, next, Asterisk);
 
     // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_large_term(cache, tokens, next),
-        )
-    };
+    let (term2, next) = parse_large_term(cache, tokens, next);
 
-    // Construct and return the product.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
                 variant: Variant::Product(Rc::new(term1), Rc::new(term2)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1139,47 +899,32 @@ fn parse_quotient<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Quotient, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Quotient, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_small_term(cache, tokens, start),
-    );
+    let (term1, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Slash);
+    let next = consume_token!(cache, cache_key, tokens, next, Slash);
 
     // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_large_term(cache, tokens, next),
-        )
-    };
+    let (term2, next) = parse_large_term(cache, tokens, next);
 
-    // Construct and return the quotient.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
                 variant: Variant::Quotient(Rc::new(term1), Rc::new(term2)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1188,47 +933,32 @@ fn parse_less_than<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, LessThan, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, LessThan, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start),
-    );
+    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
-    // Consume the comparison operator.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, LessThan);
+    // Consume the operator.
+    let next = consume_token!(cache, cache_key, tokens, next, LessThan);
 
     // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next),
-        )
-    };
+    let (term2, next) = parse_huge_term(cache, tokens, next);
 
-    // Construct and return the comparison.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
                 variant: Variant::LessThan(Rc::new(term1), Rc::new(term2)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1237,55 +967,32 @@ fn parse_less_than_or_equal_to<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, LessThanOrEqualTo, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, LessThanOrEqualTo, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start),
-    );
+    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
-    // Consume the comparison operator.
-    let next = consume_token!(
-        cache,
-        nonterminal,
-        tokens,
-        start,
-        next,
-        error,
-        LessThanOrEqualTo,
-    );
+    // Consume the operator.
+    let next = consume_token!(cache, cache_key, tokens, next, LessThanOrEqualTo);
 
     // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next),
-        )
-    };
+    let (term2, next) = parse_huge_term(cache, tokens, next);
 
-    // Construct and return the comparison.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
                 variant: Variant::LessThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1294,47 +1001,32 @@ fn parse_equal_to<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, EqualTo, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, EqualTo, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start),
-    );
+    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
-    // Consume the comparison operator.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, DoubleEquals);
+    // Consume the operator.
+    let next = consume_token!(cache, cache_key, tokens, next, DoubleEquals);
 
     // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next),
-        )
-    };
+    let (term2, next) = parse_huge_term(cache, tokens, next);
 
-    // Construct and return the comparison.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
                 variant: Variant::EqualTo(Rc::new(term1), Rc::new(term2)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1343,47 +1035,32 @@ fn parse_greater_than<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, GreaterThan, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, GreaterThan, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start),
-    );
+    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
-    // Consume the comparison operator.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, GreaterThan);
+    // Consume the operator.
+    let next = consume_token!(cache, cache_key, tokens, next, GreaterThan);
 
     // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next),
-        )
-    };
+    let (term2, next) = parse_huge_term(cache, tokens, next);
 
-    // Construct and return the comparison.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
                 variant: Variant::GreaterThan(Rc::new(term1), Rc::new(term2)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1392,55 +1069,32 @@ fn parse_greater_than_or_equal_to<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, GreaterThanOrEqualTo, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, GreaterThanOrEqualTo, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(
-        cache,
-        nonterminal,
-        start,
-        parse_huge_term(cache, tokens, start),
-    );
+    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
-    // Consume the comparison operator.
-    let next = consume_token!(
-        cache,
-        nonterminal,
-        tokens,
-        start,
-        next,
-        error,
-        GreaterThanOrEqualTo,
-    );
+    // Consume the operator.
+    let next = consume_token!(cache, cache_key, tokens, next, GreaterThanOrEqualTo);
 
     // Parse the right subterm.
-    let (term2, next) = {
-        try_eval!(
-            cache,
-            nonterminal,
-            start,
-            parse_huge_term(cache, tokens, next),
-        )
-    };
+    let (term2, next) = parse_huge_term(cache, tokens, next);
 
-    // Construct and return the comparison.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (term1.source_range.0, term2.source_range.1),
                 group: false,
                 variant: Variant::GreaterThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1449,56 +1103,54 @@ fn parse_boolean<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Boolean, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Boolean, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, tokens, start, start, error, Boolean);
+    let next = consume_token!(cache, cache_key, tokens, start, Boolean);
 
-    // Construct and return the value.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: tokens[start].source_range,
                 group: false,
                 variant: Variant::Boolean,
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
 // Parse the logical true value.
-fn parse_true<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
+fn parse_true<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, True, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, True, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, tokens, start, start, error, True);
+    let next = consume_token!(cache, cache_key, tokens, start, True);
 
-    // Construct and return the value.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: tokens[start].source_range,
                 group: false,
                 variant: Variant::True,
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1507,75 +1159,191 @@ fn parse_false<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, False, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, False, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, nonterminal, tokens, start, start, error, False);
+    let next = consume_token!(cache, cache_key, tokens, start, False);
 
-    // Construct and return the value.
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: tokens[start].source_range,
                 group: false,
                 variant: Variant::False,
+                errors: vec![],
             },
             next,
-        )),
+        ),
     )
 }
 
 // Parse an if expression.
-fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
+#[allow(clippy::too_many_lines)]
+fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, If, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, If, start);
 
     // Consume the `if` keyword.
-    let next = consume_token!(cache, nonterminal, tokens, start, start, error, If);
+    let next = consume_token!(cache, cache_key, tokens, start, If);
 
-    // Parse the conditional.
-    let (conditional, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+    // Parse the condition.
+    let (condition, next) = parse_term(cache, tokens, next);
 
-    // Consume the `then` keyword.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Then);
+    // Create a vector for parse errors.
+    let mut errors = vec![];
 
-    // Parse the then branch.
-    let (then_branch, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+    // Report an error if the next token is not a `then` keyword. But if we didn't consume any
+    // tokens when parsing the condition, then skip this check since we'd just be complaining about
+    // the same token again.
+    if let Variant::ParseError(_) | Variant::Missing = condition.variant {
+    } else if next == tokens.len() {
+        errors.push(Rc::new(move |source_path, source_contents| {
+            throw(
+                "Unexpected end of file.",
+                source_path,
+                Some((
+                    source_contents,
+                    tokens.last().map_or((0, 0), |token| token.source_range),
+                )),
+            )
+        }) as ErrorFactory);
+    } else if let token::Variant::Then = tokens[next].variant {
+    } else {
+        errors.push(Rc::new(move |source_path, source_contents| {
+            throw(
+                &format!("Unexpected {}.", tokens[next].to_string().code_str()),
+                source_path,
+                Some((source_contents, tokens[next].source_range)),
+            )
+        }) as ErrorFactory);
+    }
 
-    // Consume the `else` keyword.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, Else);
+    // Find the `then` keyword and skip past it.
+    let mut next = next;
+    let mut found_then = false;
+    let mut depth = 0_usize;
+    while next < tokens.len() {
+        match tokens[next].variant {
+            token::Variant::LeftParen => {
+                depth += 1;
+            }
+            token::Variant::RightParen if depth > 0 => {
+                depth -= 1;
+            }
+            token::Variant::Then if depth == 0 => {
+                next += 1;
+                found_then = true;
+                break;
+            }
+            _ => {}
+        }
 
-    // Parse the else branch.
-    let (else_branch, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+        next += 1;
+    }
 
-    // Construct and return the if expression.
+    // Parse the then branch. But to avoid reporting redundant errors, we skip trying to parse the
+    // then branch if we didn't find a `then` keyword.
+    let (then_branch, next) = if found_then {
+        parse_term(cache, tokens, next)
+    } else {
+        (
+            Term {
+                source_range: (next, next),
+                group: false,
+                variant: Variant::Missing,
+                errors: vec![],
+            },
+            next,
+        )
+    };
+
+    // Report an error if the next token is not an `else` keyword. But if we didn't consume any
+    // tokens when parsing the then branch, then skip this check since we'd just be complaining
+    // about the same token again.
+    if let Variant::ParseError(_) | Variant::Missing = then_branch.variant {
+    } else if next == tokens.len() {
+        errors.push(Rc::new(move |source_path, source_contents| {
+            throw(
+                "Unexpected end of file.",
+                source_path,
+                Some((
+                    source_contents,
+                    tokens.last().map_or((0, 0), |token| token.source_range),
+                )),
+            )
+        }) as ErrorFactory);
+    } else if let token::Variant::Else = tokens[next].variant {
+    } else {
+        errors.push(Rc::new(move |source_path, source_contents| {
+            throw(
+                &format!("Unexpected {}.", tokens[next].to_string().code_str()),
+                source_path,
+                Some((source_contents, tokens[next].source_range)),
+            )
+        }) as ErrorFactory);
+    }
+
+    // Find the `else` keyword and skip past it.
+    let mut next = next;
+    let mut found_else = false;
+    depth = 0;
+    while next < tokens.len() {
+        match tokens[next].variant {
+            token::Variant::LeftParen => {
+                depth += 1;
+            }
+            token::Variant::RightParen if depth > 0 => {
+                depth -= 1;
+            }
+            token::Variant::Else if depth == 0 => {
+                next += 1;
+                found_else = true;
+                break;
+            }
+            _ => {}
+        }
+
+        next += 1;
+    }
+
+    // Parse the else branch. But to avoid reporting redundant errors, we skip trying to parse the
+    // else branch if we didn't find an `else` keyword.
+    let (else_branch, next) = if found_else {
+        parse_term(cache, tokens, next)
+    } else {
+        (
+            Term {
+                source_range: (next, next),
+                group: false,
+                variant: Variant::Missing,
+                errors: vec![],
+            },
+            next,
+        )
+    };
+
+    // Construct and return the term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 source_range: (tokens[start].source_range.0, else_branch.source_range.1),
                 group: false,
                 variant: Variant::If(
-                    Rc::new(conditional),
+                    Rc::new(condition),
                     Rc::new(then_branch),
                     Rc::new(else_branch),
                 ),
+                errors: errors,
             },
             next,
-        )),
+        ),
     )
 }
 
@@ -1584,28 +1352,59 @@ fn parse_group<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Group, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Group, start);
 
     // Consume the left parenthesis.
-    let next = consume_token!(cache, nonterminal, tokens, start, start, error, LeftParen);
+    let next = consume_token!(cache, cache_key, tokens, start, LeftParen);
 
     // Parse the inner term.
-    let (term, next) = try_eval!(cache, nonterminal, start, parse_term(cache, tokens, next));
+    let (term, next) = parse_term(cache, tokens, next);
+
+    // Create a vector for parse errors.
+    let mut errors = vec![];
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, nonterminal, tokens, start, next, error, RightParen);
+    let next = if next == tokens.len() {
+        errors.push(Rc::new(move |source_path, source_contents| {
+            throw(
+                &format!(
+                    "Missing {} at the end of the file.",
+                    token::Variant::RightParen.to_string().code_str(),
+                ),
+                source_path,
+                Some((
+                    source_contents,
+                    tokens.last().map_or((0, 0), |token| token.source_range),
+                )),
+            )
+        }) as ErrorFactory);
+
+        next
+    } else if let token::Variant::RightParen = tokens[next].variant {
+        next + 1
+    } else {
+        errors.push(Rc::new(move |source_path, source_contents| {
+            throw(
+                &format!(
+                    "Missing {} after {}.",
+                    token::Variant::RightParen.to_string().code_str(),
+                    tokens[next].to_string().code_str(),
+                ),
+                source_path,
+                Some((source_contents, tokens[next].source_range)),
+            )
+        }) as ErrorFactory);
+
+        next
+    };
 
     // If we made it this far, we successfully parsed the group. Return the inner term.
     cache_return!(
         cache,
-        nonterminal,
-        start,
-        Ok((
+        cache_key,
+        (
             Term {
                 // It's important for this source range to include the parentheses, because parent
                 // nodes might use this source range for their own source ranges. We want to avoid
@@ -1617,94 +1416,52 @@ fn parse_group<'a>(
                 ),
                 group: true,
                 variant: term.variant,
+                errors: errors,
             },
             next,
-        )),
+        ),
     )
 }
 
 // Parse an applicand (the left part of an application).
-fn parse_atom<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> ParseResult<'a> {
+fn parse_atom<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, Atom, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, Atom, start);
 
     // Try to parse the type of all types.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_type(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_type(cache, tokens, start));
 
     // Try to parse a variable.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_variable(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_variable(cache, tokens, start));
 
     // Try to parse the type of integers.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_integer(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_integer(cache, tokens, start));
 
     // Try to parse an integer literal.
     try_return!(
         cache,
-        nonterminal,
-        start,
-        error,
+        cache_key,
         parse_integer_literal(cache, tokens, start),
     );
 
     // Try to parse the type of Booleans.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_boolean(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_boolean(cache, tokens, start));
 
     // Try to parse the logical true value.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_true(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_true(cache, tokens, start));
 
     // Try to parse the logical false value.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_false(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_false(cache, tokens, start));
 
     // Try to parse a group.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_group(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_group(cache, tokens, start));
 
-    // Since none of the parses succeeded, return the error.
-    cache_return!(cache, nonterminal, start, Err(error))
+    // Since none of the parses succeeded, return an error.
+    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
 }
 
 // Parse a small term.
@@ -1712,33 +1469,18 @@ fn parse_small_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, SmallTerm, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, SmallTerm, start);
 
     // Try to parse an application.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_application(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_application(cache, tokens, start));
 
     // Try to parse an atom.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_atom(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_atom(cache, tokens, start));
 
-    // Since none of the parses succeeded, return the error.
-    cache_return!(cache, nonterminal, start, Err(error))
+    // Since none of the parses succeeded, return an error.
+    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
 }
 
 // Parse a medium term.
@@ -1746,42 +1488,21 @@ fn parse_medium_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, MediumTerm, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, MediumTerm, start);
 
     // Try to parse a product.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_product(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_product(cache, tokens, start));
 
     // Try to parse a quotient.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_quotient(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_quotient(cache, tokens, start));
 
     // Try to parse a small term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_small_term(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_small_term(cache, tokens, start));
 
-    // Since none of the parses succeeded, return the error.
-    cache_return!(cache, nonterminal, start, Err(error))
+    // Since none of the parses succeeded, return an error.
+    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
 }
 
 // Parse a large term.
@@ -1789,33 +1510,18 @@ fn parse_large_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, LargeTerm, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, LargeTerm, start);
 
     // Try to parse a negation.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_negation(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_negation(cache, tokens, start));
 
     // Try to parse a medium term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_medium_term(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_medium_term(cache, tokens, start));
 
-    // Since none of the parses succeeded, return the error.
-    cache_return!(cache, nonterminal, start, Err(error))
+    // Since none of the parses succeeded, return an error.
+    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
 }
 
 // Parse a huge term.
@@ -1823,42 +1529,21 @@ fn parse_huge_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, HugeTerm, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, HugeTerm, start);
 
     // Try to parse a sum.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_sum(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_sum(cache, tokens, start));
 
     // Try to parse a difference.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_difference(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_difference(cache, tokens, start));
 
     // Try to parse a large term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_large_term(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_large_term(cache, tokens, start));
 
-    // Since none of the parses succeeded, return the error.
-    cache_return!(cache, nonterminal, start, Err(error))
+    // Since none of the parses succeeded, return an error.
+    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
 }
 
 // Parse a giant term.
@@ -1866,69 +1551,38 @@ fn parse_giant_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, GiantTerm, start);
-
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    let cache_key = cache_check!(cache, GiantTerm, start);
 
     // Try to parse a less than comparison.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_less_than(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_less_than(cache, tokens, start));
 
     // Try to parse a less than or equal to comparison.
     try_return!(
         cache,
-        nonterminal,
-        start,
-        error,
+        cache_key,
         parse_less_than_or_equal_to(cache, tokens, start),
     );
 
     // Try to parse an equality comparison.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_equal_to(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_equal_to(cache, tokens, start));
 
     // Try to parse a greater than comparison.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_greater_than(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_greater_than(cache, tokens, start));
 
     // Try to parse a greater than or equal to comparison.
     try_return!(
         cache,
-        nonterminal,
-        start,
-        error,
+        cache_key,
         parse_greater_than_or_equal_to(cache, tokens, start),
     );
 
     // Try to parse a huge term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_huge_term(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
-    // Since none of the parses succeeded, return the error.
-    cache_return!(cache, nonterminal, start, Err(error))
+    // Since none of the parses succeeded, return an error.
+    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
 }
 
 // Parse a jumbo term.
@@ -1936,60 +1590,31 @@ fn parse_jumbo_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> ParseResult<'a> {
+) -> (Term<'a>, usize) {
     // Check the cache.
-    let nonterminal = cache_check!(cache, JumboTerm, start);
+    let cache_key = cache_check!(cache, JumboTerm, start);
 
-    // This is the error we'll be returning in case we don't get a better error.
-    let mut error = generic_error(tokens, start);
+    // Try to parse a lambda.
+    try_return!(cache, cache_key, parse_lambda(cache, tokens, start));
+
+    // Try to parse a pi type.
+    try_return!(cache, cache_key, parse_pi(cache, tokens, start));
 
     // Try to parse a non-dependent pi type.
     try_return!(
         cache,
-        nonterminal,
-        start,
-        error,
+        cache_key,
         parse_non_dependent_pi(cache, tokens, start),
     );
 
-    // Try to parse a lambda.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_lambda(cache, tokens, start),
-    );
-
-    // Try to parse a pi type.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_pi(cache, tokens, start),
-    );
-
     // Try to parse an if expression.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_if(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_if(cache, tokens, start));
 
     // Try to parse a giant term.
-    try_return!(
-        cache,
-        nonterminal,
-        start,
-        error,
-        parse_giant_term(cache, tokens, start),
-    );
+    try_return!(cache, cache_key, parse_giant_term(cache, tokens, start));
 
-    // Since none of the parses succeeded, return the error.
-    cache_return!(cache, nonterminal, start, Err(error))
+    // Since none of the parses succeeded, return an error.
+    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
 }
 
 // This is the top-level parsing function. All the parsed terms are guaranteed to have a non-`None`
@@ -2005,48 +1630,119 @@ pub fn parse<'a>(
     let mut cache = Cache::new();
 
     // Parse the term.
-    let result = parse_term(&mut cache, tokens, 0);
+    let (term, next) = parse_term(&mut cache, tokens, 0);
 
-    // Check if we managed to parse something.
-    let error = match result {
-        Ok((term, next)) => {
-            // We parsed something, but did we parse everything?
-            if next == tokens.len() {
-                // We parsed everything. Flip the associativity of applications with non-grouped
-                // arguments from right to left.
-                let reassociated_term = reassociate_sums_and_differences(
-                    None,
-                    reassociate_products_and_quotients(
-                        None,
-                        reassociate_applications(None, Rc::new(term)),
-                    ),
-                );
+    // Check if there were any errors [tag:error_check].
+    let mut errors = vec![];
+    collect_errors(&mut errors, &term);
+    if !errors.is_empty() {
+        return Err(Error {
+            message: errors
+                .into_iter()
+                .map(|error_factory| error_factory(source_path, source_contents))
+                .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error)),
+            reason: None,
+        });
+    }
 
-                // Construct a mutable context.
-                let mut context: HashMap<&'a str, usize> = context
-                    .iter()
-                    .enumerate()
-                    .map(|(i, variable)| (*variable, i))
-                    .collect();
+    // Check if we parsed everything.
+    if next == tokens.len() {
+        // We parsed everything. Flip the associativity of applications with non-grouped
+        // arguments from right to left.
+        let reassociated_term = reassociate_sums_and_differences(
+            None,
+            reassociate_products_and_quotients(None, reassociate_applications(None, Rc::new(term))),
+        );
 
-                // Resolve variables and return the term.
-                return Ok(resolve_variables(
-                    source_path,
-                    source_contents,
-                    &*reassociated_term,
-                    context.len(),
-                    &mut context,
-                )?);
-            } else {
-                // We didn't parse all the tokens. Complain about the first unparsed token.
-                generic_error(tokens, next)
-            }
+        // Construct a mutable context.
+        let mut context: HashMap<&'a str, usize> = context
+            .iter()
+            .enumerate()
+            .map(|(i, variable)| (*variable, i))
+            .collect();
+
+        // Resolve variables and return the term.
+        return Ok(resolve_variables(
+            source_path,
+            source_contents,
+            &*reassociated_term,
+            context.len(),
+            &mut context,
+        )?);
+    } else {
+        // We didn't parse all the tokens. Complain about the first unparsed token.
+        collect_errors(&mut errors, &generic_error(tokens, next));
+    }
+
+    // If we made it this far, the parse failed. Construct and return the errors.
+    Err(Error {
+        message: errors
+            .into_iter()
+            .map(|error_factory| error_factory(source_path, source_contents))
+            .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error)),
+        reason: None,
+    })
+}
+
+// This function finds all the error subterms within a term.
+fn collect_errors<'a>(errors: &mut Vec<ErrorFactory<'a>>, term: &Term<'a>) {
+    match &term.variant {
+        Variant::Missing
+        | Variant::Type
+        | Variant::Variable(_)
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => {}
+        Variant::ParseError(error) => {
+            errors.push(error.clone());
         }
-        Err(error) => error,
+        Variant::Lambda(_, domain, body) => {
+            collect_errors(errors, domain);
+            collect_errors(errors, body);
+        }
+        Variant::Pi(_, domain, codomain) => {
+            collect_errors(errors, domain);
+            collect_errors(errors, codomain);
+        }
+        Variant::Application(applicand, argument) => {
+            collect_errors(errors, applicand);
+            collect_errors(errors, argument);
+        }
+        Variant::Let(_, annotation, definition, body) => {
+            if let Some(annotation) = annotation {
+                collect_errors(errors, annotation);
+            }
+
+            collect_errors(errors, definition);
+            collect_errors(errors, body);
+        }
+        Variant::Negation(subterm) => {
+            collect_errors(errors, subterm);
+        }
+        Variant::Sum(term1, term2)
+        | Variant::Difference(term1, term2)
+        | Variant::Product(term1, term2)
+        | Variant::Quotient(term1, term2)
+        | Variant::LessThan(term1, term2)
+        | Variant::LessThanOrEqualTo(term1, term2)
+        | Variant::EqualTo(term1, term2)
+        | Variant::GreaterThan(term1, term2)
+        | Variant::GreaterThanOrEqualTo(term1, term2) => {
+            collect_errors(errors, term1);
+            collect_errors(errors, term2);
+        }
+        Variant::If(condition, then_branch, else_branch) => {
+            collect_errors(errors, condition);
+            collect_errors(errors, then_branch);
+            collect_errors(errors, else_branch);
+        }
     };
 
-    // If we made it this far, something went wrong. Apply the error factory.
-    Err(error.0(source_path, source_contents))
+    for error in &term.errors {
+        errors.push(error.clone());
+    }
 }
 
 // Flip the associativity of applications from right to left.
@@ -2056,6 +1752,13 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
     // to construct an application with the accumulator as the applicand and the reduced term as
     // the argument. In the application case, we build up the accumulator.
     let reduced = match &term.variant {
+        Variant::Missing | Variant::ParseError(_) => {
+            // This should be unreachable due to [ref:error_check].
+            panic!(
+                "{} called on a missing term or parse error.",
+                "reassociate_applications".code_str(),
+            )
+        }
         Variant::Type
         | Variant::Variable(_)
         | Variant::Integer
@@ -2071,6 +1774,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, domain.clone()),
                 reassociate_applications(None, body.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Pi(variable, domain, codomain) => Rc::new(Term {
             source_range: term.source_range,
@@ -2080,6 +1784,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, domain.clone()),
                 reassociate_applications(None, codomain.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Application(applicand, argument) => {
             return if argument.group {
@@ -2091,6 +1796,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                             reassociate_applications(Some(acc), applicand.clone()),
                             reassociate_applications(None, argument.clone()),
                         ),
+                        errors: vec![],
                     })
                 } else {
                     Rc::new(Term {
@@ -2100,6 +1806,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                             reassociate_applications(None, applicand.clone()),
                             reassociate_applications(None, argument.clone()),
                         ),
+                        errors: vec![],
                     })
                 }
             } else {
@@ -2112,6 +1819,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                                 acc,
                                 reassociate_applications(None, applicand.clone()),
                             ),
+                            errors: vec![],
                         })
                     } else {
                         reassociate_applications(None, applicand.clone())
@@ -2131,11 +1839,13 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, definition.clone()),
                 reassociate_applications(None, body.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Negation(subterm) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Negation(reassociate_applications(None, subterm.clone())),
+            errors: vec![],
         }),
         Variant::Sum(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2144,6 +1854,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, term1.clone()),
                 reassociate_applications(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Difference(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2152,6 +1863,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, term1.clone()),
                 reassociate_applications(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Product(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2160,6 +1872,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, term1.clone()),
                 reassociate_applications(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Quotient(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2168,6 +1881,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, term1.clone()),
                 reassociate_applications(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::LessThan(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2176,6 +1890,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, term1.clone()),
                 reassociate_applications(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::LessThanOrEqualTo(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2184,6 +1899,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, term1.clone()),
                 reassociate_applications(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::EqualTo(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2192,6 +1908,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, term1.clone()),
                 reassociate_applications(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::GreaterThan(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2200,6 +1917,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, term1.clone()),
                 reassociate_applications(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2208,6 +1926,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, term1.clone()),
                 reassociate_applications(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
             source_range: term.source_range,
@@ -2217,6 +1936,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(None, then_branch.clone()),
                 reassociate_applications(None, else_branch.clone()),
             ),
+            errors: vec![],
         }),
     };
 
@@ -2227,6 +1947,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
             source_range: (acc.source_range.0, reduced.source_range.1),
             group: true,
             variant: Variant::Application(acc, reduced),
+            errors: vec![],
         })
     } else {
         reduced
@@ -2252,6 +1973,13 @@ fn reassociate_products_and_quotients<'a>(
     // reduced term as the right subterm. In the product and quotient cases, we build up the
     // accumulator.
     let reduced = match &term.variant {
+        Variant::Missing | Variant::ParseError(_) => {
+            // This should be unreachable due to [ref:error_check].
+            panic!(
+                "{} called on a missing term or parse error.",
+                "reassociate_products_and_quotients".code_str(),
+            )
+        }
         Variant::Type
         | Variant::Variable(_)
         | Variant::Integer
@@ -2267,6 +1995,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, domain.clone()),
                 reassociate_products_and_quotients(None, body.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Pi(variable, domain, codomain) => Rc::new(Term {
             source_range: term.source_range,
@@ -2276,6 +2005,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, domain.clone()),
                 reassociate_products_and_quotients(None, codomain.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Application(applicand, argument) => Rc::new(Term {
             source_range: term.source_range,
@@ -2284,6 +2014,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, applicand.clone()),
                 reassociate_products_and_quotients(None, argument.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Let(variable, annotation, definition, body) => Rc::new(Term {
             source_range: term.source_range,
@@ -2296,11 +2027,13 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, definition.clone()),
                 reassociate_products_and_quotients(None, body.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Negation(subterm) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Negation(reassociate_products_and_quotients(None, subterm.clone())),
+            errors: vec![],
         }),
         Variant::Sum(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2309,6 +2042,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, term1.clone()),
                 reassociate_products_and_quotients(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Difference(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2317,6 +2051,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, term1.clone()),
                 reassociate_products_and_quotients(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Product(term1, term2) => {
             return if term2.group {
@@ -2328,6 +2063,7 @@ fn reassociate_products_and_quotients<'a>(
                             reassociate_products_and_quotients(Some(acc), term1.clone()),
                             reassociate_products_and_quotients(None, term2.clone()),
                         ),
+                        errors: vec![],
                     })
                 } else {
                     Rc::new(Term {
@@ -2337,6 +2073,7 @@ fn reassociate_products_and_quotients<'a>(
                             reassociate_products_and_quotients(None, term1.clone()),
                             reassociate_products_and_quotients(None, term2.clone()),
                         ),
+                        errors: vec![],
                     })
                 }
             } else {
@@ -2356,6 +2093,7 @@ fn reassociate_products_and_quotients<'a>(
                                         reassociate_products_and_quotients(None, term1.clone()),
                                     ),
                                 },
+                                errors: vec![],
                             })
                         } else {
                             reassociate_products_and_quotients(None, term1.clone())
@@ -2376,6 +2114,7 @@ fn reassociate_products_and_quotients<'a>(
                             reassociate_products_and_quotients(Some(acc), term1.clone()),
                             reassociate_products_and_quotients(None, term2.clone()),
                         ),
+                        errors: vec![],
                     })
                 } else {
                     Rc::new(Term {
@@ -2385,6 +2124,7 @@ fn reassociate_products_and_quotients<'a>(
                             reassociate_products_and_quotients(None, term1.clone()),
                             reassociate_products_and_quotients(None, term2.clone()),
                         ),
+                        errors: vec![],
                     })
                 }
             } else {
@@ -2404,6 +2144,7 @@ fn reassociate_products_and_quotients<'a>(
                                         reassociate_products_and_quotients(None, term1.clone()),
                                     ),
                                 },
+                                errors: vec![],
                             })
                         } else {
                             reassociate_products_and_quotients(None, term1.clone())
@@ -2421,6 +2162,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, term1.clone()),
                 reassociate_products_and_quotients(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::LessThanOrEqualTo(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2429,6 +2171,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, term1.clone()),
                 reassociate_products_and_quotients(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::EqualTo(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2437,6 +2180,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, term1.clone()),
                 reassociate_products_and_quotients(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::GreaterThan(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2445,6 +2189,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, term1.clone()),
                 reassociate_products_and_quotients(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2453,6 +2198,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, term1.clone()),
                 reassociate_products_and_quotients(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
             source_range: term.source_range,
@@ -2462,6 +2208,7 @@ fn reassociate_products_and_quotients<'a>(
                 reassociate_products_and_quotients(None, then_branch.clone()),
                 reassociate_products_and_quotients(None, else_branch.clone()),
             ),
+            errors: vec![],
         }),
     };
 
@@ -2475,6 +2222,7 @@ fn reassociate_products_and_quotients<'a>(
                 ProductOrQuotient::Product => Variant::Product(acc, reduced),
                 ProductOrQuotient::Quotient => Variant::Quotient(acc, reduced),
             },
+            errors: vec![],
         })
     } else {
         reduced
@@ -2500,6 +2248,13 @@ fn reassociate_sums_and_differences<'a>(
     // reduced term as the right subterm. In the sum and difference cases, we build up the
     // accumulator.
     let reduced = match &term.variant {
+        Variant::Missing | Variant::ParseError(_) => {
+            // This should be unreachable due to [ref:error_check].
+            panic!(
+                "{} called on a missing term or parse error.",
+                "reassociate_sums_and_differences".code_str(),
+            )
+        }
         Variant::Type
         | Variant::Variable(_)
         | Variant::Integer
@@ -2515,6 +2270,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, domain.clone()),
                 reassociate_sums_and_differences(None, body.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Pi(variable, domain, codomain) => Rc::new(Term {
             source_range: term.source_range,
@@ -2524,6 +2280,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, domain.clone()),
                 reassociate_sums_and_differences(None, codomain.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Application(applicand, argument) => Rc::new(Term {
             source_range: term.source_range,
@@ -2532,6 +2289,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, applicand.clone()),
                 reassociate_sums_and_differences(None, argument.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Let(variable, annotation, definition, body) => Rc::new(Term {
             source_range: term.source_range,
@@ -2544,11 +2302,13 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, definition.clone()),
                 reassociate_sums_and_differences(None, body.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Negation(subterm) => Rc::new(Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Negation(reassociate_sums_and_differences(None, subterm.clone())),
+            errors: vec![],
         }),
         Variant::Sum(term1, term2) => {
             return if term2.group {
@@ -2560,6 +2320,7 @@ fn reassociate_sums_and_differences<'a>(
                             reassociate_sums_and_differences(Some(acc), term1.clone()),
                             reassociate_sums_and_differences(None, term2.clone()),
                         ),
+                        errors: vec![],
                     })
                 } else {
                     Rc::new(Term {
@@ -2569,6 +2330,7 @@ fn reassociate_sums_and_differences<'a>(
                             reassociate_sums_and_differences(None, term1.clone()),
                             reassociate_sums_and_differences(None, term2.clone()),
                         ),
+                        errors: vec![],
                     })
                 }
             } else {
@@ -2588,6 +2350,7 @@ fn reassociate_sums_and_differences<'a>(
                                         reassociate_sums_and_differences(None, term1.clone()),
                                     ),
                                 },
+                                errors: vec![],
                             })
                         } else {
                             reassociate_sums_and_differences(None, term1.clone())
@@ -2608,6 +2371,7 @@ fn reassociate_sums_and_differences<'a>(
                             reassociate_sums_and_differences(Some(acc), term1.clone()),
                             reassociate_sums_and_differences(None, term2.clone()),
                         ),
+                        errors: vec![],
                     })
                 } else {
                     Rc::new(Term {
@@ -2617,6 +2381,7 @@ fn reassociate_sums_and_differences<'a>(
                             reassociate_sums_and_differences(None, term1.clone()),
                             reassociate_sums_and_differences(None, term2.clone()),
                         ),
+                        errors: vec![],
                     })
                 }
             } else {
@@ -2636,6 +2401,7 @@ fn reassociate_sums_and_differences<'a>(
                                         reassociate_sums_and_differences(None, term1.clone()),
                                     ),
                                 },
+                                errors: vec![],
                             })
                         } else {
                             reassociate_sums_and_differences(None, term1.clone())
@@ -2653,6 +2419,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, term1.clone()),
                 reassociate_sums_and_differences(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::Quotient(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2661,6 +2428,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, term1.clone()),
                 reassociate_sums_and_differences(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::LessThan(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2669,6 +2437,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, term1.clone()),
                 reassociate_sums_and_differences(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::LessThanOrEqualTo(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2677,6 +2446,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, term1.clone()),
                 reassociate_sums_and_differences(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::EqualTo(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2685,6 +2455,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, term1.clone()),
                 reassociate_sums_and_differences(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::GreaterThan(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2693,6 +2464,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, term1.clone()),
                 reassociate_sums_and_differences(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
             source_range: term.source_range,
@@ -2701,6 +2473,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, term1.clone()),
                 reassociate_sums_and_differences(None, term2.clone()),
             ),
+            errors: vec![],
         }),
         Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
             source_range: term.source_range,
@@ -2710,6 +2483,7 @@ fn reassociate_sums_and_differences<'a>(
                 reassociate_sums_and_differences(None, then_branch.clone()),
                 reassociate_sums_and_differences(None, else_branch.clone()),
             ),
+            errors: vec![],
         }),
     };
 
@@ -2723,6 +2497,7 @@ fn reassociate_sums_and_differences<'a>(
                 SumOrDifference::Sum => Variant::Sum(acc, reduced),
                 SumOrDifference::Difference => Variant::Difference(acc, reduced),
             },
+            errors: vec![],
         })
     } else {
         reduced
@@ -2739,6 +2514,13 @@ fn resolve_variables<'a>(
     context: &mut HashMap<&'a str, usize>,
 ) -> Result<term::Term<'a>, Error> {
     Ok(match &term.variant {
+        Variant::Missing | Variant::ParseError(_) => {
+            // This should be unreachable due to [ref:error_check].
+            panic!(
+                "{} called on a missing term or parse error.",
+                "resolve_variables".code_str(),
+            )
+        }
         Variant::Type => {
             // There are no variables to resolve here.
             term::Term {
