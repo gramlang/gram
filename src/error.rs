@@ -155,12 +155,46 @@ pub fn lift<T: Into<String>, U: error::Error + 'static>(message: T) -> impl FnOn
 #[macro_export]
 macro_rules! assert_fails {
     ($expr:expr, $substr:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let expr = $expr;
+        let substr = $substr;
+
         // Before we actually evaluate the expression, disable terminal colors.
         colored::control::set_override(false);
 
         // Check that `$expr` fails and that the failure contains `$substr`.
-        if let Err(error) = $expr {
-            assert!(error.to_string().contains($substr));
+        if let Err(error) = expr {
+            assert!(error.to_string().contains(substr));
+        } else {
+            assert!(false);
+        }
+    }};
+}
+
+// This macro is useful for writing tests that deal with errors.
+#[macro_export]
+macro_rules! assert_fails_vec {
+    ($expr:expr, $substr:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let expr = $expr;
+        let substr = $substr;
+
+        // Before we actually evaluate the expression, disable terminal colors.
+        colored::control::set_override(false);
+
+        // Check that `$expr` fails and that the failure contains `$substr`.
+        if let Err(errors) = expr {
+            let mut found_error = false;
+
+            for error in errors {
+                if error.to_string().contains(substr) {
+                    found_error = true;
+                }
+            }
+
+            assert!(found_error);
         } else {
             assert!(false);
         }
