@@ -1933,34 +1933,29 @@ pub fn parse<'a>(
     source_contents: &'a str,
     tokens: &'a [Token<'a>],
     context: &[&'a str],
-) -> Result<term::Term<'a>, Error> {
+) -> Result<term::Term<'a>, Vec<Error>> {
     // Construct a hash table to memoize parsing results.
     let mut cache = Cache::new();
 
     // Parse the term.
     let (term, next) = parse_term(&mut cache, tokens, 0);
 
-    // Collect the parsing errors.
-    let mut errors = vec![];
-    collect_errors(&mut errors, &term);
+    // Collect the parsing error factories.
+    let mut error_factories = vec![];
+    collect_error_factories(&mut error_factories, &term);
 
     // Check if the parse was successful but we didn't consume all the tokens.
-    if errors.is_empty() && next != tokens.len() {
+    if error_factories.is_empty() && next != tokens.len() {
         // Complain about the first unparsed token.
-        errors.push(error_factory(tokens, next, "the end of the file"));
+        error_factories.push(error_factory(tokens, next, "the end of the file"));
     }
 
     // Fail if there were any errors [tag:error_check].
-    if !errors.is_empty() {
-        return Err(Error {
-            message: errors
-                .into_iter()
-                .map(|error_factory| error_factory(source_path, source_contents))
-                .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error))
-                .trim()
-                .to_owned(),
-            reason: None,
-        });
+    if !error_factories.is_empty() {
+        return Err(error_factories
+            .into_iter()
+            .map(|error_factory| error_factory(source_path, source_contents))
+            .collect());
     }
 
     // Flip the associativity of applications with non-grouped arguments from right to left.
@@ -1977,17 +1972,26 @@ pub fn parse<'a>(
         .collect();
 
     // Resolve variables and return the term.
-    Ok(resolve_variables(
+    let mut errors = vec![];
+    let resolved_term = resolve_variables(
         source_path,
         source_contents,
         &*reassociated_term,
         context.len(),
         &mut context,
-    )?)
+        &mut errors,
+    );
+
+    // Return the term if there are no errors. Otherwise return the errors.
+    if errors.is_empty() {
+        Ok(resolved_term)
+    } else {
+        Err(errors)
+    }
 }
 
-// This function finds all the error subterms within a term.
-fn collect_errors<'a>(errors: &mut Vec<ErrorFactory<'a>>, term: &Term<'a>) {
+// This function finds all the error factories within a term.
+fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term: &Term<'a>) {
     match &term.variant {
         Variant::Missing
         | Variant::Type
@@ -1997,31 +2001,31 @@ fn collect_errors<'a>(errors: &mut Vec<ErrorFactory<'a>>, term: &Term<'a>) {
         | Variant::Boolean
         | Variant::True
         | Variant::False => {}
-        Variant::ParseError(error) => {
-            errors.push(error.clone());
+        Variant::ParseError(error_factory) => {
+            error_factories.push(error_factory.clone());
         }
         Variant::Lambda(_, domain, body) => {
-            collect_errors(errors, domain);
-            collect_errors(errors, body);
+            collect_error_factories(error_factories, domain);
+            collect_error_factories(error_factories, body);
         }
         Variant::Pi(_, domain, codomain) => {
-            collect_errors(errors, domain);
-            collect_errors(errors, codomain);
+            collect_error_factories(error_factories, domain);
+            collect_error_factories(error_factories, codomain);
         }
         Variant::Application(applicand, argument) => {
-            collect_errors(errors, applicand);
-            collect_errors(errors, argument);
+            collect_error_factories(error_factories, applicand);
+            collect_error_factories(error_factories, argument);
         }
         Variant::Let(_, annotation, definition, body) => {
             if let Some(annotation) = annotation {
-                collect_errors(errors, annotation);
+                collect_error_factories(error_factories, annotation);
             }
 
-            collect_errors(errors, definition);
-            collect_errors(errors, body);
+            collect_error_factories(error_factories, definition);
+            collect_error_factories(error_factories, body);
         }
         Variant::Negation(subterm) => {
-            collect_errors(errors, subterm);
+            collect_error_factories(error_factories, subterm);
         }
         Variant::Sum(term1, term2)
         | Variant::Difference(term1, term2)
@@ -2032,18 +2036,18 @@ fn collect_errors<'a>(errors: &mut Vec<ErrorFactory<'a>>, term: &Term<'a>) {
         | Variant::EqualTo(term1, term2)
         | Variant::GreaterThan(term1, term2)
         | Variant::GreaterThanOrEqualTo(term1, term2) => {
-            collect_errors(errors, term1);
-            collect_errors(errors, term2);
+            collect_error_factories(error_factories, term1);
+            collect_error_factories(error_factories, term2);
         }
         Variant::If(condition, then_branch, else_branch) => {
-            collect_errors(errors, condition);
-            collect_errors(errors, then_branch);
-            collect_errors(errors, else_branch);
+            collect_error_factories(error_factories, condition);
+            collect_error_factories(error_factories, then_branch);
+            collect_error_factories(error_factories, else_branch);
         }
     };
 
-    for error in &term.errors {
-        errors.push(error.clone());
+    for error_factory in &term.errors {
+        error_factories.push(error_factory.clone());
     }
 }
 
@@ -2814,8 +2818,9 @@ fn resolve_variables<'a>(
     term: &Term<'a>,
     depth: usize,
     context: &mut HashMap<&'a str, usize>,
-) -> Result<term::Term<'a>, Error> {
-    Ok(match &term.variant {
+    errors: &mut Vec<Error>,
+) -> term::Term<'a> {
+    match &term.variant {
         Variant::Missing | Variant::ParseError(_) => {
             // This should be unreachable due to [ref:error_check].
             panic!(
@@ -2835,11 +2840,15 @@ fn resolve_variables<'a>(
             let index = if let Some(variable_depth) = context.get(variable.name) {
                 depth - 1 - variable_depth
             } else {
-                return Err(throw(
+                // The variable isn't in scope. Report the error.
+                errors.push(throw(
                     &format!("Variable {} not in scope.", variable.name.code_str()),
                     source_path,
                     Some((source_contents, variable.source_range.0)),
                 ));
+
+                // Use a bogus De Bruijn index for now.
+                0
             };
 
             // Construct the variable.
@@ -2850,15 +2859,21 @@ fn resolve_variables<'a>(
         }
         Variant::Lambda(variable, domain, body) => {
             // Resolve variables in the domain.
-            let resolved_domain =
-                resolve_variables(source_path, source_contents, &*domain, depth, context)?;
+            let resolved_domain = resolve_variables(
+                source_path,
+                source_contents,
+                &*domain,
+                depth,
+                context,
+                errors,
+            );
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
             if variable.name != PLACEHOLDER_VARIABLE {
-                // Fail if the variable is already in the context.
+                // Report an error if the variable is already in the context.
                 if context.contains_key(variable.name) {
-                    return Err(throw(
+                    errors.push(throw(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
                         Some((source_contents, variable.source_range.0)),
@@ -2887,21 +2902,28 @@ fn resolve_variables<'a>(
                         &*body,
                         depth + 1,
                         &mut *guard,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
         Variant::Pi(variable, domain, codomain) => {
             // Resolve variables in the domain.
-            let resolved_domain =
-                resolve_variables(source_path, source_contents, &*domain, depth, context)?;
+            let resolved_domain = resolve_variables(
+                source_path,
+                source_contents,
+                &*domain,
+                depth,
+                context,
+                errors,
+            );
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
             if variable.name != PLACEHOLDER_VARIABLE {
-                // Fail if the variable is already in the context.
+                // Report an error if the variable is already in the context.
                 if context.contains_key(variable.name) {
-                    return Err(throw(
+                    errors.push(throw(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
                         Some((source_contents, variable.source_range.0)),
@@ -2930,7 +2952,8 @@ fn resolve_variables<'a>(
                         &*codomain,
                         depth + 1,
                         &mut *guard,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -2945,14 +2968,16 @@ fn resolve_variables<'a>(
                         &*applicand,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*argument,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -2982,9 +3007,9 @@ fn resolve_variables<'a>(
                     let mut guard = context_cell.borrow_mut();
                     let (borrowed_context, borrowed_variables_added) = &mut (*guard);
 
-                    // Fail if the variable is already in the context.
+                    // Report an error if the variable is already in the context.
                     if borrowed_context.contains_key(inner_variable.name) {
-                        return Err(throw(
+                        errors.push(throw(
                             &format!(
                                 "Variable {} already exists.",
                                 inner_variable.name.code_str(),
@@ -3018,7 +3043,8 @@ fn resolve_variables<'a>(
                         &*annotation,
                         new_depth,
                         borrowed_context,
-                    )?)),
+                        errors,
+                    ))),
                     None => None,
                 };
 
@@ -3029,7 +3055,8 @@ fn resolve_variables<'a>(
                     &*inner_definition,
                     new_depth,
                     borrowed_context,
-                )?;
+                    errors,
+                );
 
                 // Add the definition to the vector.
                 resolved_definitions.push((
@@ -3052,7 +3079,8 @@ fn resolve_variables<'a>(
                         i,
                         i,
                         &mut visited,
-                    )?;
+                        errors,
+                    );
                 }
             }
 
@@ -3071,7 +3099,8 @@ fn resolve_variables<'a>(
                         &innermost_body,
                         new_depth,
                         borrowed_context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3099,7 +3128,8 @@ fn resolve_variables<'a>(
                     &*subterm,
                     depth,
                     context,
-                )?)),
+                    errors,
+                ))),
             }
         }
         Variant::Sum(term1, term2) => {
@@ -3113,14 +3143,16 @@ fn resolve_variables<'a>(
                         &*term1,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*term2,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3135,14 +3167,16 @@ fn resolve_variables<'a>(
                         &*term1,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*term2,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3157,14 +3191,16 @@ fn resolve_variables<'a>(
                         &*term1,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*term2,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3179,14 +3215,16 @@ fn resolve_variables<'a>(
                         &*term1,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*term2,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3201,14 +3239,16 @@ fn resolve_variables<'a>(
                         &*term1,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*term2,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3223,14 +3263,16 @@ fn resolve_variables<'a>(
                         &*term1,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*term2,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3245,14 +3287,16 @@ fn resolve_variables<'a>(
                         &*term1,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*term2,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3267,14 +3311,16 @@ fn resolve_variables<'a>(
                         &*term1,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*term2,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3289,14 +3335,16 @@ fn resolve_variables<'a>(
                         &*term1,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*term2,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
@@ -3332,25 +3380,28 @@ fn resolve_variables<'a>(
                         &*condition,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*then_branch,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*else_branch,
                         depth,
                         context,
-                    )?),
+                        errors,
+                    )),
                 ),
             }
         }
-    })
+    }
 }
 
 // Recurse into nested lets to collect their definitions and return the innermost body.
@@ -3369,6 +3420,7 @@ fn collect_definitions<'a>(
 }
 
 // This function is used to ensure forward references in lets make semantic sense.
+#[allow(clippy::too_many_arguments)]
 #[allow(clippy::type_complexity)]
 fn check_references<'a>(
     source_path: Option<&'a Path>,
@@ -3378,7 +3430,8 @@ fn check_references<'a>(
     start_index: usize,       // [0, definitions.len())
     current_index: usize,     // [0, definitions.len())
     visited: &mut HashSet<usize>,
-) -> Result<(), Error> {
+    errors: &mut Vec<Error>,
+) {
     // Collect the free variables of the definition.
     let mut variables = HashSet::new();
     free_variables(&definitions[current_index].2, 0, &mut variables);
@@ -3402,9 +3455,10 @@ fn check_references<'a>(
                         start_index,
                         definition_index,
                         visited,
-                    )?;
+                        errors,
+                    );
                 } else if definition_index >= start_index {
-                    return Err(throw(
+                    errors.push(throw(
                         &format!(
                             "The definition of {} references {} (directly or indirectly), \
                                     which will not be available in time during evaluation.",
@@ -3421,14 +3475,12 @@ fn check_references<'a>(
             }
         }
     }
-
-    Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        assert_fails,
+        assert_fails_vec,
         parser::parse,
         term::{
             Term,
@@ -3449,7 +3501,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_fails!(
+        assert_fails_vec!(
             parse(None, source, &tokens[..], &context[..]),
             "file is empty",
         );
@@ -3491,7 +3543,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_fails!(
+        assert_fails_vec!(
             parse(None, source, &tokens[..], &context[..]),
             "not in scope",
         );
@@ -3528,7 +3580,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a", "x"];
 
-        assert_fails!(
+        assert_fails_vec!(
             parse(None, source, &tokens[..], &context[..]),
             "already exists",
         );
@@ -3600,7 +3652,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a", "x"];
 
-        assert_fails!(
+        assert_fails_vec!(
             parse(None, source, &tokens[..], &context[..]),
             "already exists",
         );

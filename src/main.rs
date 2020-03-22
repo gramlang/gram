@@ -123,7 +123,15 @@ fn check(source_path: &Path) -> Result<(), Error> {
     let tokens = tokenize(Some(source_path), &source_contents)?;
 
     // Parse the term.
-    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
+    let term =
+        parse(Some(source_path), &source_contents, &tokens[..], &[]).map_err(|errors| Error {
+            message: errors
+                .iter()
+                .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error))
+                .trim()
+                .to_owned(),
+            reason: None,
+        })?;
 
     // Type check the term.
     let mut typing_context = vec![];
@@ -152,7 +160,15 @@ fn run(source_path: &Path) -> Result<(), Error> {
     let tokens = tokenize(Some(source_path), &source_contents)?;
 
     // Parse the term.
-    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
+    let term =
+        parse(Some(source_path), &source_contents, &tokens[..], &[]).map_err(|errors| Error {
+            message: errors
+                .iter()
+                .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error))
+                .trim()
+                .to_owned(),
+            reason: None,
+        })?;
 
     // Type check the term.
     let mut typing_context = vec![];
