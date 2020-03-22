@@ -1956,8 +1956,10 @@ pub fn parse<'a>(
         .map(|(i, variable)| (*variable, i))
         .collect();
 
-    // Resolve variables.
+    // Construct a vector to hold any errors that might be detected below.
     let mut errors = vec![];
+
+    // Resolve variables.
     let resolved_term = resolve_variables(
         source_path,
         source_contents,
