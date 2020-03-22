@@ -10,6 +10,7 @@ use num_bigint::BigInt;
 use scopeguard::defer;
 use std::{
     cell::RefCell,
+    cmp::{max, min},
     collections::{HashMap, HashSet},
     path::Path,
     rc::Rc,
@@ -61,8 +62,8 @@ type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
 // - `Variant<'a>` has an extra case for missing terms and parse errors.
 #[derive(Clone)]
 struct Term<'a> {
-    source_range: (usize, usize), // Inclusive on the left and exclusive on the right
-    group: bool,                  // For an explanation of this field, see [ref:group_flag].
+    source_range: SourceRange,
+    group: bool, // For an explanation of this field, see [ref:group_flag].
     variant: Variant<'a>,
     errors: Vec<ErrorFactory<'a>>,
 }
@@ -105,8 +106,45 @@ enum Variant<'a> {
 // us to report nice errors when there are multiple variables with the same name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SourceVariable<'a> {
-    source_range: (usize, usize), // Inclusive on the left and exclusive on the right
+    source_range: SourceRange,
     name: &'a str,
+}
+
+// For extra type safety, we use the "newtype" pattern here to introduce a new type for source
+// ranges. The goal is to prevent source ranges from accidentally including token indices.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct SourceRange(pub (usize, usize)); // Inclusive on the left and exclusive on the right
+
+// This function constructs a `SourceRange` that spans two given `SourceRange`s.
+fn span(x: SourceRange, y: SourceRange) -> SourceRange {
+    SourceRange {
+        0: (min((x.0).0, (y.0).0), max((x.0).1, (y.0).1)),
+    }
+}
+
+// This function computes the source range for a token, or the empty range at the end of the source
+// file in the case where the given position is at the end of the token stream.
+fn token_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
+    if position == tokens.len() {
+        SourceRange {
+            0: tokens.last().map_or((0, 0), |token| token.source_range),
+        }
+    } else {
+        SourceRange {
+            0: tokens[position].source_range,
+        }
+    }
+}
+
+// This function computes an empty source range at the beginning of a token, or the empty range at
+// the end of the sourcr file in the case where the given position is at the end of the token
+// stream.
+fn empty_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
+    let range_start = (token_source_range(tokens, position).0).0;
+
+    SourceRange {
+        0: (range_start, range_start),
+    }
 }
 
 // When memoizing a function, we'll use this enum to identify which function is being memoized.
@@ -219,6 +257,45 @@ macro_rules! try_eval {
     }};
 }
 
+// This function computes a generic error factory that just complains about a particular token or
+// the end of the source file.
+fn generic_error_factory<'a>(tokens: &'a [Token<'a>], position: usize) -> ErrorFactory {
+    let source_range = token_source_range(tokens, position);
+
+    Rc::new(move |source_path, source_contents| {
+        if tokens.is_empty() {
+            throw(
+                "Empty file.",
+                source_path,
+                Some((source_contents, source_range.0)),
+            )
+        } else if position == tokens.len() {
+            throw(
+                "Unexpected end of file.",
+                source_path,
+                Some((source_contents, source_range.0)),
+            )
+        } else {
+            throw(
+                &format!("Unexpected {}.", tokens[position].to_string().code_str()),
+                source_path,
+                Some((source_contents, source_range.0)),
+            )
+        }
+    })
+}
+
+// This function computes a generic error that just complains about a particular token or the end of
+// the source file.
+fn generic_error_term<'a>(tokens: &'a [Token<'a>], position: usize) -> Term<'a> {
+    Term {
+        source_range: token_source_range(tokens, position),
+        group: false,
+        variant: Variant::ParseError(generic_error_factory(tokens, position)),
+        errors: vec![],
+    }
+}
+
 // This macro consumes a single token (with no arguments) and evaluates to the position of the next
 // token. It returns early if the token isn't there.
 macro_rules! consume_token0 {
@@ -237,14 +314,14 @@ macro_rules! consume_token0 {
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
-            cache_return!($cache, cache_key, (generic_error(tokens, next), next))
+            cache_return!($cache, cache_key, (generic_error_term(tokens, next), next))
         }
 
         // Check if the token was the expected one.
         if let token::Variant::$variant = tokens[next].variant {
             next + 1
         } else {
-            cache_return!($cache, cache_key, (generic_error(tokens, next), next))
+            cache_return!($cache, cache_key, (generic_error_term(tokens, next), next))
         }
     }};
 }
@@ -267,46 +344,144 @@ macro_rules! consume_token1 {
 
         // Fail if there are no more tokens to parse.
         if next == tokens.len() {
-            cache_return!($cache, cache_key, (generic_error(tokens, next), next))
+            cache_return!($cache, cache_key, (generic_error_term(tokens, next), next))
         }
 
         // Check if the token was the expected one.
         if let token::Variant::$variant(argument) = &tokens[next].variant {
             (argument.clone(), next + 1)
         } else {
-            cache_return!($cache, cache_key, (generic_error(tokens, next), next))
+            cache_return!($cache, cache_key, (generic_error_term(tokens, next), next))
         }
     }};
 }
 
-// This function computes a generic error that just complains about a particular token or the end of
-// the source file.
-fn generic_error<'a>(tokens: &'a [Token<'a>], position: usize) -> Term<'a> {
-    Term {
-        source_range: (position, position + 1),
-        group: false,
-        variant: Variant::ParseError(Rc::new(move |source_path, source_contents| {
-            if tokens.is_empty() {
-                throw("Empty file.", source_path, Some((source_contents, (0, 0))))
-            } else if position == tokens.len() {
+// This macro consumes a single token (with no arguments). If the token isn't found at the given
+// position, the remaining tokens will be scanned until the token is found (skipping over
+// parenthesized groupings) or the end of the tokens is reached. This macro evaluates to a pair
+// consisting of a Boolean indicating whether the token was found and the position of the subsequent
+// token.
+macro_rules! expect_token0 {
+    (
+        $tokens:expr,
+        $next:expr,
+        $errors:ident,
+        $variant:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+    ) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let tokens = $tokens;
+        let next = $next;
+
+        // Report an error if the next token is not the expected token.
+        if next == tokens.len() {
+            $errors.push(Rc::new(move |source_path, source_contents| {
                 throw(
                     "Unexpected end of file.",
                     source_path,
-                    Some((
-                        source_contents,
-                        tokens.last().map_or((0, 0), |token| token.source_range),
-                    )),
+                    Some((source_contents, token_source_range(tokens, next).0)),
                 )
-            } else {
+            }) as ErrorFactory);
+        } else if let token::Variant::$variant = tokens[next].variant {
+        } else {
+            $errors.push(Rc::new(move |source_path, source_contents| {
                 throw(
-                    &format!("Unexpected {}.", tokens[position].to_string().code_str()),
+                    &format!("Unexpected {}.", tokens[next].to_string().code_str()),
                     source_path,
-                    Some((source_contents, tokens[position].source_range)),
+                    Some((source_contents, token_source_range(tokens, next).0)),
                 )
+            }) as ErrorFactory);
+        }
+
+        // Find the `then` keyword and skip past it.
+        let mut next = next;
+        let mut found = false;
+        let mut depth = 0_usize;
+        while next < tokens.len() {
+            match tokens[next].variant {
+                token::Variant::LeftParen => {
+                    depth += 1;
+                }
+                token::Variant::RightParen if depth > 0 => {
+                    depth -= 1;
+                }
+                token::Variant::$variant if depth == 0 => {
+                    next += 1;
+                    found = true;
+                    break;
+                }
+                _ => {}
             }
-        }) as ErrorFactory),
-        errors: vec![],
-    }
+
+            next += 1;
+        }
+
+        (found, next)
+    }};
+}
+
+// This macro consumes a single token (with one argument). If the token isn't found at the given
+// position, the remaining tokens will be scanned until the token is found (skipping over
+// parenthesized groupings) or the end of the tokens is reached. This macro evaluates to a pair
+// consisting of an option containing the argument if the token was found and the position of the
+// subsequent token.
+macro_rules! expect_token1 {
+    (
+        $tokens:expr,
+        $next:expr,
+        $errors:ident,
+        $variant:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
+    ) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let tokens = $tokens;
+        let next = $next;
+
+        // Report an error if the next token is not the expected token.
+        if next == tokens.len() {
+            $errors.push(Rc::new(move |source_path, source_contents| {
+                throw(
+                    "Unexpected end of file.",
+                    source_path,
+                    Some((source_contents, token_source_range(tokens, next).0)),
+                )
+            }) as ErrorFactory);
+        } else if let token::Variant::$variant(_) = tokens[next].variant {
+        } else {
+            $errors.push(Rc::new(move |source_path, source_contents| {
+                throw(
+                    &format!("Unexpected {}.", tokens[next].to_string().code_str()),
+                    source_path,
+                    Some((source_contents, token_source_range(tokens, next).0)),
+                )
+            }) as ErrorFactory);
+        }
+
+        // Find the `then` keyword and skip past it.
+        let mut next = next;
+        let mut argument_option = None;
+        let mut depth = 0_usize;
+        while next < tokens.len() {
+            match &tokens[next].variant {
+                token::Variant::LeftParen => {
+                    depth += 1;
+                }
+                token::Variant::RightParen if depth > 0 => {
+                    depth -= 1;
+                }
+                token::Variant::$variant(argument) if depth == 0 => {
+                    next += 1;
+                    argument_option = Some(argument.clone());
+                    break;
+                }
+                _ => {}
+            }
+
+            next += 1;
+        }
+
+        (argument_option, next)
+    }};
 }
 
 // Parse a term.
@@ -325,7 +500,7 @@ fn parse_term<'a>(
     try_return!(cache, cache_key, parse_jumbo_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
+    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
 }
 
 // Parse the type of all types.
@@ -346,7 +521,7 @@ fn parse_type<'a>(
         cache_key,
         (
             Term {
-                source_range: tokens[start].source_range,
+                source_range: token_source_range(tokens, start),
                 group: false,
                 variant: Variant::Type,
                 errors: vec![],
@@ -366,6 +541,7 @@ fn parse_variable<'a>(
     let cache_key = cache_check!(cache, Variable, start);
 
     // Consume the variable.
+    let variable_source_range = token_source_range(tokens, start);
     let (variable, next) = consume_token1!(cache, cache_key, tokens, start, Identifier);
 
     // Construct and return the term.
@@ -374,10 +550,10 @@ fn parse_variable<'a>(
         cache_key,
         (
             Term {
-                source_range: tokens[start].source_range,
+                source_range: variable_source_range,
                 group: false,
                 variant: Variant::Variable(SourceVariable {
-                    source_range: tokens[start].source_range,
+                    source_range: variable_source_range,
                     name: variable
                 }),
                 errors: vec![],
@@ -397,10 +573,11 @@ fn parse_lambda<'a>(
     let cache_key = cache_check!(cache, Lambda, start);
 
     // Consume the left parenthesis.
-    let variable_pos = consume_token0!(cache, cache_key, tokens, start, LeftParen);
+    let next = consume_token0!(cache, cache_key, tokens, start, LeftParen);
 
     // Consume the variable.
-    let (variable, next) = consume_token1!(cache, cache_key, tokens, variable_pos, Identifier);
+    let variable_source_range = token_source_range(tokens, next);
+    let (variable, next) = consume_token1!(cache, cache_key, tokens, next, Identifier);
 
     // Consume the colon.
     let next = consume_token0!(cache, cache_key, tokens, next, Colon);
@@ -423,11 +600,11 @@ fn parse_lambda<'a>(
         cache_key,
         (
             Term {
-                source_range: (tokens[start].source_range.0, body.source_range.1),
+                source_range: span(token_source_range(tokens, start), body.source_range),
                 group: false,
                 variant: Variant::Lambda(
                     SourceVariable {
-                        source_range: tokens[variable_pos].source_range,
+                        source_range: variable_source_range,
                         name: variable,
                     },
                     Rc::new(domain),
@@ -446,10 +623,11 @@ fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     let cache_key = cache_check!(cache, Pi, start);
 
     // Consume the left parenthesis.
-    let variable_pos = consume_token0!(cache, cache_key, tokens, start, LeftParen);
+    let next = consume_token0!(cache, cache_key, tokens, start, LeftParen);
 
     // Consume the variable.
-    let (variable, next) = consume_token1!(cache, cache_key, tokens, variable_pos, Identifier);
+    let variable_source_range = token_source_range(tokens, next);
+    let (variable, next) = consume_token1!(cache, cache_key, tokens, next, Identifier);
 
     // Consume the colon.
     let next = consume_token0!(cache, cache_key, tokens, next, Colon);
@@ -472,11 +650,11 @@ fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
         cache_key,
         (
             Term {
-                source_range: (tokens[start].source_range.0, codomain.source_range.1),
+                source_range: span(token_source_range(tokens, start), codomain.source_range),
                 group: false,
                 variant: Variant::Pi(
                     SourceVariable {
-                        source_range: tokens[variable_pos].source_range,
+                        source_range: variable_source_range,
                         name: variable,
                     },
                     Rc::new(domain),
@@ -507,24 +685,17 @@ fn parse_non_dependent_pi<'a>(
     // Parse the codomain.
     let (codomain, next) = parse_term(cache, tokens, next);
 
-    // The source range for the implicit placeholder variable will be the empty range at this
-    // location.
-    let placeholder_variable_location = tokens[start].source_range.0;
-
     // Construct and return the term.
     cache_return!(
         cache,
         cache_key,
         (
             Term {
-                source_range: (tokens[start].source_range.0, codomain.source_range.1),
+                source_range: span(domain.source_range, codomain.source_range),
                 group: false,
                 variant: Variant::Pi(
                     SourceVariable {
-                        source_range: (
-                            placeholder_variable_location,
-                            placeholder_variable_location,
-                        ),
+                        source_range: empty_source_range(tokens, start),
                         name: PLACEHOLDER_VARIABLE,
                     },
                     Rc::new(domain),
@@ -558,7 +729,7 @@ fn parse_application<'a>(
         cache_key,
         (
             Term {
-                source_range: (applicand.source_range.0, argument.source_range.1),
+                source_range: span(applicand.source_range, argument.source_range),
                 group: false,
                 variant: Variant::Application(Rc::new(applicand), Rc::new(argument)),
                 errors: vec![],
@@ -578,6 +749,7 @@ fn parse_let<'a>(
     let cache_key = cache_check!(cache, Let, start);
 
     // Consume the variable.
+    let variable_source_range = token_source_range(tokens, start);
     let (variable, next) = consume_token1!(cache, cache_key, tokens, start, Identifier);
 
     // Parse the annotation, if there is one.
@@ -610,63 +782,17 @@ fn parse_let<'a>(
     // Create a vector for parse errors.
     let mut errors = vec![];
 
-    // Report an error if the next token is not a terminator. But if we didn't consume any tokens
-    // when parsing the definition, then skip this check since we'd just be complaining about the
-    // same token again.
-    if let Variant::ParseError(_) | Variant::Missing = definition.variant {
-    } else if next == tokens.len() {
-        errors.push(Rc::new(move |source_path, source_contents| {
-            throw(
-                "Unexpected end of file.",
-                source_path,
-                Some((
-                    source_contents,
-                    tokens.last().map_or((0, 0), |token| token.source_range),
-                )),
-            )
-        }) as ErrorFactory);
-    } else if let token::Variant::Terminator(_) = tokens[next].variant {
-    } else {
-        errors.push(Rc::new(move |source_path, source_contents| {
-            throw(
-                &format!("Unexpected {}.", tokens[next].to_string().code_str()),
-                source_path,
-                Some((source_contents, tokens[next].source_range)),
-            )
-        }) as ErrorFactory);
-    }
-
-    // Find the terminator and skip past it.
-    let mut next = next;
-    let mut found_terminator = false;
-    let mut depth = 0_usize;
-    while next < tokens.len() {
-        match tokens[next].variant {
-            token::Variant::LeftParen => {
-                depth += 1;
-            }
-            token::Variant::RightParen if depth > 0 => {
-                depth -= 1;
-            }
-            token::Variant::Terminator(_) if depth == 0 => {
-                next += 1;
-                found_terminator = true;
-                break;
-            }
-            _ => {}
-        }
-
-        next += 1;
-    }
+    // Consume the terminator.
+    let (terminator_type, next) = expect_token1!(tokens, next, errors, Terminator);
 
     // Parse the body. But to avoid reporting redundant errors, we skip trying to parse the body if
     // we didn't find a terminator.
-    let (body, next) = if found_terminator {
+    let (body, next) = if terminator_type.is_some() {
         parse_term(cache, tokens, next)
     } else {
         (
             Term {
-                source_range: (next, next),
+                source_range: empty_source_range(tokens, next),
                 group: false,
                 variant: Variant::Missing,
                 errors: vec![],
@@ -681,11 +807,11 @@ fn parse_let<'a>(
         cache_key,
         (
             Term {
-                source_range: (tokens[start].source_range.0, body.source_range.1),
+                source_range: span(variable_source_range, body.source_range),
                 group: false,
                 variant: Variant::Let(
                     SourceVariable {
-                        source_range: tokens[start].source_range,
+                        source_range: variable_source_range,
                         name: variable,
                     },
                     annotation,
@@ -717,7 +843,7 @@ fn parse_integer<'a>(
         cache_key,
         (
             Term {
-                source_range: tokens[start].source_range,
+                source_range: token_source_range(tokens, start),
                 group: false,
                 variant: Variant::Integer,
                 errors: vec![],
@@ -745,7 +871,7 @@ fn parse_integer_literal<'a>(
         cache_key,
         (
             Term {
-                source_range: tokens[start].source_range,
+                source_range: token_source_range(tokens, start),
                 group: false,
                 variant: Variant::IntegerLiteral(integer),
                 errors: vec![],
@@ -776,7 +902,7 @@ fn parse_negation<'a>(
         cache_key,
         (
             Term {
-                source_range: (tokens[start].source_range.0, subterm.source_range.1),
+                source_range: span(token_source_range(tokens, start), subterm.source_range),
                 group: false,
                 variant: Variant::Negation(Rc::new(subterm)),
                 errors: vec![],
@@ -810,7 +936,7 @@ fn parse_sum<'a>(
         cache_key,
         (
             Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
+                source_range: span(term1.source_range, term2.source_range),
                 group: false,
                 variant: Variant::Sum(Rc::new(term1), Rc::new(term2)),
                 errors: vec![],
@@ -844,7 +970,7 @@ fn parse_difference<'a>(
         cache_key,
         (
             Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
+                source_range: span(term1.source_range, term2.source_range),
                 group: false,
                 variant: Variant::Difference(Rc::new(term1), Rc::new(term2)),
                 errors: vec![],
@@ -878,7 +1004,7 @@ fn parse_product<'a>(
         cache_key,
         (
             Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
+                source_range: span(term1.source_range, term2.source_range),
                 group: false,
                 variant: Variant::Product(Rc::new(term1), Rc::new(term2)),
                 errors: vec![],
@@ -912,7 +1038,7 @@ fn parse_quotient<'a>(
         cache_key,
         (
             Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
+                source_range: span(term1.source_range, term2.source_range),
                 group: false,
                 variant: Variant::Quotient(Rc::new(term1), Rc::new(term2)),
                 errors: vec![],
@@ -946,7 +1072,7 @@ fn parse_less_than<'a>(
         cache_key,
         (
             Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
+                source_range: span(term1.source_range, term2.source_range),
                 group: false,
                 variant: Variant::LessThan(Rc::new(term1), Rc::new(term2)),
                 errors: vec![],
@@ -980,7 +1106,7 @@ fn parse_less_than_or_equal_to<'a>(
         cache_key,
         (
             Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
+                source_range: span(term1.source_range, term2.source_range),
                 group: false,
                 variant: Variant::LessThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
                 errors: vec![],
@@ -1014,7 +1140,7 @@ fn parse_equal_to<'a>(
         cache_key,
         (
             Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
+                source_range: span(term1.source_range, term2.source_range),
                 group: false,
                 variant: Variant::EqualTo(Rc::new(term1), Rc::new(term2)),
                 errors: vec![],
@@ -1048,7 +1174,7 @@ fn parse_greater_than<'a>(
         cache_key,
         (
             Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
+                source_range: span(term1.source_range, term2.source_range),
                 group: false,
                 variant: Variant::GreaterThan(Rc::new(term1), Rc::new(term2)),
                 errors: vec![],
@@ -1082,7 +1208,7 @@ fn parse_greater_than_or_equal_to<'a>(
         cache_key,
         (
             Term {
-                source_range: (term1.source_range.0, term2.source_range.1),
+                source_range: span(term1.source_range, term2.source_range),
                 group: false,
                 variant: Variant::GreaterThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
                 errors: vec![],
@@ -1110,7 +1236,7 @@ fn parse_boolean<'a>(
         cache_key,
         (
             Term {
-                source_range: tokens[start].source_range,
+                source_range: token_source_range(tokens, start),
                 group: false,
                 variant: Variant::Boolean,
                 errors: vec![],
@@ -1138,7 +1264,7 @@ fn parse_true<'a>(
         cache_key,
         (
             Term {
-                source_range: tokens[start].source_range,
+                source_range: token_source_range(tokens, start),
                 group: false,
                 variant: Variant::True,
                 errors: vec![],
@@ -1166,7 +1292,7 @@ fn parse_false<'a>(
         cache_key,
         (
             Term {
-                source_range: tokens[start].source_range,
+                source_range: token_source_range(tokens, start),
                 group: false,
                 variant: Variant::False,
                 errors: vec![],
@@ -1191,54 +1317,8 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     // Create a vector for parse errors.
     let mut errors = vec![];
 
-    // Report an error if the next token is not a `then` keyword. But if we didn't consume any
-    // tokens when parsing the condition, then skip this check since we'd just be complaining about
-    // the same token again.
-    if let Variant::ParseError(_) | Variant::Missing = condition.variant {
-    } else if next == tokens.len() {
-        errors.push(Rc::new(move |source_path, source_contents| {
-            throw(
-                "Unexpected end of file.",
-                source_path,
-                Some((
-                    source_contents,
-                    tokens.last().map_or((0, 0), |token| token.source_range),
-                )),
-            )
-        }) as ErrorFactory);
-    } else if let token::Variant::Then = tokens[next].variant {
-    } else {
-        errors.push(Rc::new(move |source_path, source_contents| {
-            throw(
-                &format!("Unexpected {}.", tokens[next].to_string().code_str()),
-                source_path,
-                Some((source_contents, tokens[next].source_range)),
-            )
-        }) as ErrorFactory);
-    }
-
-    // Find the `then` keyword and skip past it.
-    let mut next = next;
-    let mut found_then = false;
-    let mut depth = 0_usize;
-    while next < tokens.len() {
-        match tokens[next].variant {
-            token::Variant::LeftParen => {
-                depth += 1;
-            }
-            token::Variant::RightParen if depth > 0 => {
-                depth -= 1;
-            }
-            token::Variant::Then if depth == 0 => {
-                next += 1;
-                found_then = true;
-                break;
-            }
-            _ => {}
-        }
-
-        next += 1;
-    }
+    // Consume the `then` keyword.
+    let (found_then, next) = expect_token0!(tokens, next, errors, Then);
 
     // Parse the then branch. But to avoid reporting redundant errors, we skip trying to parse the
     // then branch if we didn't find a `then` keyword.
@@ -1247,7 +1327,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     } else {
         (
             Term {
-                source_range: (next, next),
+                source_range: empty_source_range(tokens, next),
                 group: false,
                 variant: Variant::Missing,
                 errors: vec![],
@@ -1256,54 +1336,8 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
         )
     };
 
-    // Report an error if the next token is not an `else` keyword. But if we didn't consume any
-    // tokens when parsing the then branch, then skip this check since we'd just be complaining
-    // about the same token again.
-    if let Variant::ParseError(_) | Variant::Missing = then_branch.variant {
-    } else if next == tokens.len() {
-        errors.push(Rc::new(move |source_path, source_contents| {
-            throw(
-                "Unexpected end of file.",
-                source_path,
-                Some((
-                    source_contents,
-                    tokens.last().map_or((0, 0), |token| token.source_range),
-                )),
-            )
-        }) as ErrorFactory);
-    } else if let token::Variant::Else = tokens[next].variant {
-    } else {
-        errors.push(Rc::new(move |source_path, source_contents| {
-            throw(
-                &format!("Unexpected {}.", tokens[next].to_string().code_str()),
-                source_path,
-                Some((source_contents, tokens[next].source_range)),
-            )
-        }) as ErrorFactory);
-    }
-
-    // Find the `else` keyword and skip past it.
-    let mut next = next;
-    let mut found_else = false;
-    depth = 0;
-    while next < tokens.len() {
-        match tokens[next].variant {
-            token::Variant::LeftParen => {
-                depth += 1;
-            }
-            token::Variant::RightParen if depth > 0 => {
-                depth -= 1;
-            }
-            token::Variant::Else if depth == 0 => {
-                next += 1;
-                found_else = true;
-                break;
-            }
-            _ => {}
-        }
-
-        next += 1;
-    }
+    // Consume the `else` keyword.
+    let (found_else, next) = expect_token0!(tokens, next, errors, Else);
 
     // Parse the else branch. But to avoid reporting redundant errors, we skip trying to parse the
     // else branch if we didn't find an `else` keyword.
@@ -1312,7 +1346,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     } else {
         (
             Term {
-                source_range: (next, next),
+                source_range: empty_source_range(tokens, next),
                 group: false,
                 variant: Variant::Missing,
                 errors: vec![],
@@ -1327,7 +1361,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
         cache_key,
         (
             Term {
-                source_range: (tokens[start].source_range.0, else_branch.source_range.1),
+                source_range: span(token_source_range(tokens, start), else_branch.source_range),
                 group: false,
                 variant: Variant::If(
                     Rc::new(condition),
@@ -1404,9 +1438,9 @@ fn parse_group<'a>(
                 // nodes might use this source range for their own source ranges. We want to avoid
                 // a situation in which a parent node's source range includes one of these
                 // parentheses but not both.
-                source_range: (
-                    tokens[start].source_range.0,
-                    tokens[next - 1].source_range.1,
+                source_range: span(
+                    token_source_range(tokens, start),
+                    token_source_range(tokens, next - 1),
                 ),
                 group: true,
                 variant: term.variant,
@@ -1455,7 +1489,7 @@ fn parse_atom<'a>(
     try_return!(cache, cache_key, parse_group(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
+    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
 }
 
 // Parse a small term.
@@ -1474,7 +1508,7 @@ fn parse_small_term<'a>(
     try_return!(cache, cache_key, parse_atom(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
+    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
 }
 
 // Parse a medium term.
@@ -1496,7 +1530,7 @@ fn parse_medium_term<'a>(
     try_return!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
+    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
 }
 
 // Parse a large term.
@@ -1515,7 +1549,7 @@ fn parse_large_term<'a>(
     try_return!(cache, cache_key, parse_medium_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
+    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
 }
 
 // Parse a huge term.
@@ -1537,7 +1571,7 @@ fn parse_huge_term<'a>(
     try_return!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
+    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
 }
 
 // Parse a giant term.
@@ -1576,7 +1610,7 @@ fn parse_giant_term<'a>(
     try_return!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
+    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
 }
 
 // Parse a jumbo term.
@@ -1608,7 +1642,7 @@ fn parse_jumbo_term<'a>(
     try_return!(cache, cache_key, parse_giant_term(cache, tokens, start));
 
     // Since none of the parses succeeded, return an error.
-    cache_return!(cache, cache_key, (generic_error(tokens, start), start))
+    cache_return!(cache, cache_key, (generic_error_term(tokens, start), start))
 }
 
 // This is the top-level parsing function. All the parsed terms are guaranteed to have a non-`None`
@@ -1633,7 +1667,7 @@ pub fn parse<'a>(
     // Check if the parse was successful but we didn't consume all the tokens.
     if errors.is_empty() && next != tokens.len() {
         // Complain about the first unparsed token.
-        collect_errors(&mut errors, &generic_error(tokens, next));
+        errors.push(generic_error_factory(tokens, next));
     }
 
     // Fail if there were any errors [tag:error_check].
@@ -1778,7 +1812,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
             return if argument.group {
                 if let Some(acc) = acc {
                     Rc::new(Term {
-                        source_range: (acc.source_range.0, argument.source_range.1),
+                        source_range: span(acc.source_range, argument.source_range),
                         group: true,
                         variant: Variant::Application(
                             reassociate_applications(Some(acc), applicand.clone()),
@@ -1801,7 +1835,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
                 reassociate_applications(
                     Some(if let Some(acc) = acc {
                         Rc::new(Term {
-                            source_range: (acc.source_range.0, applicand.source_range.1),
+                            source_range: span(acc.source_range, applicand.source_range),
                             group: true,
                             variant: Variant::Application(
                                 acc,
@@ -1932,7 +1966,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
     // an application as described above. Otherwise, just return the reduced term.
     if let Some(acc) = acc {
         Rc::new(Term {
-            source_range: (acc.source_range.0, reduced.source_range.1),
+            source_range: span(acc.source_range, reduced.source_range),
             group: true,
             variant: Variant::Application(acc, reduced),
             errors: vec![],
@@ -2045,7 +2079,7 @@ fn reassociate_products_and_quotients<'a>(
             return if term2.group {
                 if let Some(acc) = acc {
                     Rc::new(Term {
-                        source_range: (acc.0.source_range.0, term2.source_range.1),
+                        source_range: span(acc.0.source_range, term2.source_range),
                         group: true,
                         variant: Variant::Product(
                             reassociate_products_and_quotients(Some(acc), term1.clone()),
@@ -2069,7 +2103,7 @@ fn reassociate_products_and_quotients<'a>(
                     Some((
                         if let Some((acc, operator)) = acc {
                             Rc::new(Term {
-                                source_range: (acc.source_range.0, term1.source_range.1),
+                                source_range: span(acc.source_range, term1.source_range),
                                 group: true,
                                 variant: match operator {
                                     ProductOrQuotient::Product => Variant::Product(
@@ -2096,7 +2130,7 @@ fn reassociate_products_and_quotients<'a>(
             return if term2.group {
                 if let Some(acc) = acc {
                     Rc::new(Term {
-                        source_range: (acc.0.source_range.0, term2.source_range.1),
+                        source_range: span(acc.0.source_range, term2.source_range),
                         group: true,
                         variant: Variant::Quotient(
                             reassociate_products_and_quotients(Some(acc), term1.clone()),
@@ -2120,7 +2154,7 @@ fn reassociate_products_and_quotients<'a>(
                     Some((
                         if let Some((acc, operator)) = acc {
                             Rc::new(Term {
-                                source_range: (acc.source_range.0, term1.source_range.1),
+                                source_range: span(acc.source_range, term1.source_range),
                                 group: true,
                                 variant: match operator {
                                     ProductOrQuotient::Product => Variant::Product(
@@ -2204,7 +2238,7 @@ fn reassociate_products_and_quotients<'a>(
     // construct a product or quotient as described above. Otherwise, just return the reduced term.
     if let Some((acc, operator)) = acc {
         Rc::new(Term {
-            source_range: (acc.source_range.0, reduced.source_range.1),
+            source_range: span(acc.source_range, reduced.source_range),
             group: true,
             variant: match operator {
                 ProductOrQuotient::Product => Variant::Product(acc, reduced),
@@ -2302,7 +2336,7 @@ fn reassociate_sums_and_differences<'a>(
             return if term2.group {
                 if let Some(acc) = acc {
                     Rc::new(Term {
-                        source_range: (acc.0.source_range.0, term2.source_range.1),
+                        source_range: span(acc.0.source_range, term2.source_range),
                         group: true,
                         variant: Variant::Sum(
                             reassociate_sums_and_differences(Some(acc), term1.clone()),
@@ -2326,7 +2360,7 @@ fn reassociate_sums_and_differences<'a>(
                     Some((
                         if let Some((acc, operator)) = acc {
                             Rc::new(Term {
-                                source_range: (acc.source_range.0, term1.source_range.1),
+                                source_range: span(acc.source_range, term1.source_range),
                                 group: true,
                                 variant: match operator {
                                     SumOrDifference::Sum => Variant::Sum(
@@ -2353,7 +2387,7 @@ fn reassociate_sums_and_differences<'a>(
             return if term2.group {
                 if let Some(acc) = acc {
                     Rc::new(Term {
-                        source_range: (acc.0.source_range.0, term2.source_range.1),
+                        source_range: span(acc.0.source_range, term2.source_range),
                         group: true,
                         variant: Variant::Difference(
                             reassociate_sums_and_differences(Some(acc), term1.clone()),
@@ -2377,7 +2411,7 @@ fn reassociate_sums_and_differences<'a>(
                     Some((
                         if let Some((acc, operator)) = acc {
                             Rc::new(Term {
-                                source_range: (acc.source_range.0, term1.source_range.1),
+                                source_range: span(acc.source_range, term1.source_range),
                                 group: true,
                                 variant: match operator {
                                     SumOrDifference::Sum => Variant::Sum(
@@ -2479,7 +2513,7 @@ fn reassociate_sums_and_differences<'a>(
     // construct a sum or difference as described above. Otherwise, just return the reduced term.
     if let Some((acc, operator)) = acc {
         Rc::new(Term {
-            source_range: (acc.source_range.0, reduced.source_range.1),
+            source_range: span(acc.source_range, reduced.source_range),
             group: true,
             variant: match operator {
                 SumOrDifference::Sum => Variant::Sum(acc, reduced),
@@ -2512,7 +2546,7 @@ fn resolve_variables<'a>(
         Variant::Type => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Type,
             }
         }
@@ -2524,13 +2558,13 @@ fn resolve_variables<'a>(
                 return Err(throw(
                     &format!("Variable {} not in scope.", variable.name.code_str()),
                     source_path,
-                    Some((source_contents, variable.source_range)),
+                    Some((source_contents, variable.source_range.0)),
                 ));
             };
 
             // Construct the variable.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Variable(variable.name, index),
             }
         }
@@ -2547,7 +2581,7 @@ fn resolve_variables<'a>(
                     return Err(throw(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some((source_contents, variable.source_range)),
+                        Some((source_contents, variable.source_range.0)),
                     ));
                 }
 
@@ -2563,7 +2597,7 @@ fn resolve_variables<'a>(
             // Construct the lambda.
             let mut guard = context_cell.borrow_mut();
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Lambda(
                     variable.name,
                     Rc::new(resolved_domain),
@@ -2590,7 +2624,7 @@ fn resolve_variables<'a>(
                     return Err(throw(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some((source_contents, variable.source_range)),
+                        Some((source_contents, variable.source_range.0)),
                     ));
                 }
 
@@ -2606,7 +2640,7 @@ fn resolve_variables<'a>(
             // Construct the pi type.
             let mut guard = context_cell.borrow_mut();
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Pi(
                     variable.name,
                     Rc::new(resolved_domain),
@@ -2623,7 +2657,7 @@ fn resolve_variables<'a>(
         Variant::Application(applicand, argument) => {
             // Just resolve variables in the applicand and the argument.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Application(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2676,7 +2710,7 @@ fn resolve_variables<'a>(
                                 inner_variable.name.code_str(),
                             ),
                             source_path,
-                            Some((source_contents, inner_variable.source_range)),
+                            Some((source_contents, inner_variable.source_range.0)),
                         ));
                     }
 
@@ -2748,7 +2782,7 @@ fn resolve_variables<'a>(
 
             // Resolve definitions in the body and construct the let.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Let(
                     resolved_definitions,
                     Rc::new(resolve_variables(
@@ -2764,21 +2798,21 @@ fn resolve_variables<'a>(
         Variant::Integer => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Integer,
             }
         }
         Variant::IntegerLiteral(integer) => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::IntegerLiteral(integer.clone()),
             }
         }
         Variant::Negation(subterm) => {
             // Just resolve variables in the subterm.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Negation(Rc::new(resolve_variables(
                     source_path,
                     source_contents,
@@ -2791,7 +2825,7 @@ fn resolve_variables<'a>(
         Variant::Sum(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Sum(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2813,7 +2847,7 @@ fn resolve_variables<'a>(
         Variant::Difference(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Difference(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2835,7 +2869,7 @@ fn resolve_variables<'a>(
         Variant::Product(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Product(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2857,7 +2891,7 @@ fn resolve_variables<'a>(
         Variant::Quotient(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Quotient(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2879,7 +2913,7 @@ fn resolve_variables<'a>(
         Variant::LessThan(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::LessThan(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2901,7 +2935,7 @@ fn resolve_variables<'a>(
         Variant::LessThanOrEqualTo(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::LessThanOrEqualTo(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2923,7 +2957,7 @@ fn resolve_variables<'a>(
         Variant::EqualTo(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::EqualTo(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2945,7 +2979,7 @@ fn resolve_variables<'a>(
         Variant::GreaterThan(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::GreaterThan(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2967,7 +3001,7 @@ fn resolve_variables<'a>(
         Variant::GreaterThanOrEqualTo(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::GreaterThanOrEqualTo(
                     Rc::new(resolve_variables(
                         source_path,
@@ -2989,28 +3023,28 @@ fn resolve_variables<'a>(
         Variant::Boolean => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::Boolean,
             }
         }
         Variant::True => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::True,
             }
         }
         Variant::False => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::False,
             }
         }
         Variant::If(condition, then_branch, else_branch) => {
             // Just resolve variables in the condition and branches.
             term::Term {
-                source_range: Some(term.source_range),
+                source_range: Some(term.source_range.0),
                 variant: term::Variant::If(
                     Rc::new(resolve_variables(
                         source_path,
