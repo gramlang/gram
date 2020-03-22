@@ -890,7 +890,7 @@ fn parse_let<'a>(
         errors,
         Terminator,
         &format!(
-            "{} or {}",
+            "{} or {} followed by an expression",
             token::Variant::Terminator(TerminatorType::LineBreak)
                 .to_string()
                 .code_str(),
@@ -1647,35 +1647,21 @@ fn parse_group<'a>(
 
     // Consume the right parenthesis.
     let next = if next == tokens.len() {
-        errors.push(Rc::new(move |source_path, source_contents| {
-            throw(
-                &format!(
-                    "Missing {} at the end of the file.",
-                    token::Variant::RightParen.to_string().code_str(),
-                ),
-                source_path,
-                Some((
-                    source_contents,
-                    tokens.last().map_or((0, 0), |token| token.source_range),
-                )),
-            )
-        }) as ErrorFactory);
+        errors.push(error_factory(
+            tokens,
+            next,
+            &format!("{}", token::Variant::RightParen.to_string().code_str()),
+        ));
 
         next
     } else if let token::Variant::RightParen = tokens[next].variant {
         next + 1
     } else {
-        errors.push(Rc::new(move |source_path, source_contents| {
-            throw(
-                &format!(
-                    "Missing {} after {}.",
-                    token::Variant::RightParen.to_string().code_str(),
-                    tokens[next].to_string().code_str(),
-                ),
-                source_path,
-                Some((source_contents, tokens[next].source_range)),
-            )
-        }) as ErrorFactory);
+        errors.push(error_factory(
+            tokens,
+            next,
+            &format!("{}", token::Variant::RightParen.to_string().code_str()),
+        ));
 
         next
     };
