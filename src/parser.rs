@@ -57,9 +57,9 @@ type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
 // The token stream is parsed into an abstract syntax tree (AST). This struct represents a node in
 // an AST. This is similar to `term::Term`, except:
 // - It doesn't contain De Bruijn indices.
-// - It has a `group` field (see see [ref:group_flag]).
-// - It has source ranges for variables.
-// - `Variant<'a>` has an extra case for missing terms and parse errors.
+// - It has a `group` field (see [ref:group_flag]).
+// - It has source ranges for variable bindings.
+// - `Variant<'a>` has an extra case for parse errors.
 #[derive(Clone)]
 struct Term<'a> {
     source_range: SourceRange,
@@ -71,8 +71,7 @@ struct Term<'a> {
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone)]
 enum Variant<'a> {
-    Missing,
-    ParseError(ErrorFactory<'a>),
+    ParseError,
     Type,
     Variable(SourceVariable<'a>),
     Lambda(SourceVariable<'a>, Rc<Term<'a>>, Rc<Term<'a>>),
@@ -231,7 +230,7 @@ macro_rules! try_return {
         let value = $value;
 
         // Check if the value is an error.
-        if let Variant::ParseError(_) = value.0.variant {
+        if let Variant::ParseError = value.0.variant {
         } else {
             // We got a successful parse. Return early.
             cache_return!($cache, cache_key, value)
@@ -249,7 +248,7 @@ macro_rules! try_eval {
         let value = $value;
 
         // Extract the result or fail fast.
-        if let Variant::ParseError(_) = value.0.variant {
+        if let Variant::ParseError = value.0.variant {
             cache_return!($cache, cache_key, value)
         } else {
             value
@@ -257,7 +256,7 @@ macro_rules! try_eval {
     }};
 }
 
-// This function computes a generic error factory that just complains about a particular token or
+// This function constructs a generic error factory that just complains about a particular token or
 // the end of the source file.
 fn error_factory<'a>(
     tokens: &'a [Token<'a>],
@@ -294,14 +293,14 @@ fn error_factory<'a>(
     })
 }
 
-// This function computes a generic error that just complains about a particular token or the end of
+// This function constructs an error term that just complains about a particular token or the end of
 // the source file.
 fn error_term<'a>(tokens: &'a [Token<'a>], position: usize, expectation: &str) -> Term<'a> {
     Term {
         source_range: token_source_range(tokens, position),
         group: false,
-        variant: Variant::ParseError(error_factory(tokens, position, expectation)),
-        errors: vec![],
+        variant: Variant::ParseError,
+        errors: vec![error_factory(tokens, position, expectation)],
     }
 }
 
@@ -909,7 +908,7 @@ fn parse_let<'a>(
             Term {
                 source_range: empty_source_range(tokens, next),
                 group: false,
-                variant: Variant::Missing,
+                variant: Variant::ParseError,
                 errors: vec![],
             },
             next,
@@ -1568,7 +1567,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
             Term {
                 source_range: empty_source_range(tokens, next),
                 group: false,
-                variant: Variant::Missing,
+                variant: Variant::ParseError,
                 errors: vec![],
             },
             next,
@@ -1593,7 +1592,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
             Term {
                 source_range: empty_source_range(tokens, next),
                 group: false,
-                variant: Variant::Missing,
+                variant: Variant::ParseError,
                 errors: vec![],
             },
             next,
@@ -1989,7 +1988,7 @@ pub fn parse<'a>(
 // This function finds all the error factories within a term.
 fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term: &Term<'a>) {
     match &term.variant {
-        Variant::Missing
+        Variant::ParseError
         | Variant::Type
         | Variant::Variable(_)
         | Variant::Integer
@@ -1997,9 +1996,6 @@ fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term
         | Variant::Boolean
         | Variant::True
         | Variant::False => {}
-        Variant::ParseError(error_factory) => {
-            error_factories.push(error_factory.clone());
-        }
         Variant::Lambda(_, domain, body) => {
             collect_error_factories(error_factories, domain);
             collect_error_factories(error_factories, body);
@@ -2054,7 +2050,7 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
     // to construct an application with the accumulator as the applicand and the reduced term as
     // the argument. In the application case, we build up the accumulator.
     let reduced = match &term.variant {
-        Variant::Missing | Variant::ParseError(_) => {
+        Variant::ParseError => {
             // This should be unreachable due to [ref:error_check].
             panic!(
                 "{} called on a missing term or parse error.",
@@ -2275,7 +2271,7 @@ fn reassociate_products_and_quotients<'a>(
     // reduced term as the right subterm. In the product and quotient cases, we build up the
     // accumulator.
     let reduced = match &term.variant {
-        Variant::Missing | Variant::ParseError(_) => {
+        Variant::ParseError => {
             // This should be unreachable due to [ref:error_check].
             panic!(
                 "{} called on a missing term or parse error.",
@@ -2550,7 +2546,7 @@ fn reassociate_sums_and_differences<'a>(
     // reduced term as the right subterm. In the sum and difference cases, we build up the
     // accumulator.
     let reduced = match &term.variant {
-        Variant::Missing | Variant::ParseError(_) => {
+        Variant::ParseError => {
             // This should be unreachable due to [ref:error_check].
             panic!(
                 "{} called on a missing term or parse error.",
@@ -2817,7 +2813,7 @@ fn resolve_variables<'a>(
     errors: &mut Vec<Error>,
 ) -> term::Term<'a> {
     match &term.variant {
-        Variant::Missing | Variant::ParseError(_) => {
+        Variant::ParseError => {
             // This should be unreachable due to [ref:error_check].
             panic!(
                 "{} called on a missing term or parse error.",
