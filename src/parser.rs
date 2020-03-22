@@ -37,7 +37,7 @@ use std::{
 // whether a term was parsed as group [tag:group_flag].
 //
 // After resolving ambiguities, we end up with the grammar located in `grammar.y`. This grammar has
-// been verified to be unambiguous by Bison. [tag:grammar] [ref:bison_grammar]
+// been verified to be unambiguous by Bison. [ref:bison_grammar]
 //
 // There is one more concern to consider: packrat parsers are greedy, so the order in which we try
 // the productions matters in some cases. We address this by attempting productions that result in
@@ -48,7 +48,7 @@ use std::{
 // This represents a fresh variable name. It's never added to the context.
 pub const PLACEHOLDER_VARIABLE: &str = "_";
 
-// An `ErrorFactory` is a function which takes a source path and contents and produces an `Error`.
+// An `ErrorFactory` is a closure which takes a source path and contents and produces an `Error`.
 // It's cheaper to generate a closure that produces the `Error` than to generate the actual
 // `Error`, which may contain a long string message.
 type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
@@ -146,7 +146,8 @@ enum Nonterminal {
     JumboTerm,
 }
 
-// A cache is a map from nonterminal and position to term and new position.
+// A cache is a map from nonterminal and position to term and new position. If the term is either
+// the `Missing` case or the `ParseError` case, the new position should equal the given position.
 type Cache<'a> = HashMap<(Nonterminal, usize), (Term<'a>, usize)>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
@@ -169,7 +170,7 @@ macro_rules! cache_check {
 }
 
 // This macro caches a value and returns it. In parsing functions, this should always be used
-// instead of `return` to ensure results are memoized.
+// instead of `return` to ensure results are memoized. It evaluates to `()`.
 macro_rules! cache_return {
     ($cache:ident, $cache_key:expr, $value:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
@@ -183,7 +184,7 @@ macro_rules! cache_return {
     }};
 }
 
-// This macro will return early if `$value` is not an error.
+// This macro will return early if `$value` is not a `ParseError`. It evaluates to `()`.
 macro_rules! try_return {
     ($cache:ident, $cache_key:expr, $value:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
@@ -200,8 +201,8 @@ macro_rules! try_return {
     }};
 }
 
-// This macro is analogous to the `x?` syntax to return early if `$expr` is an error. If `$expr`
-// isn't an error, this macro evaluates to it.
+// This macro is analogous to the `x?` syntax in that it returns early if `$value` is a
+// `ParseError`. If `$value` isn't a `ParseError`, this macro evaluates to it.
 macro_rules! try_eval {
     ($cache:ident, $cache_key:expr, $value:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
@@ -218,8 +219,9 @@ macro_rules! try_eval {
     }};
 }
 
-// This macro consumes a single token and evaluates to the position of the next token.
-macro_rules! consume_token {
+// This macro consumes a single token (with no arguments) and evaluates to the position of the next
+// token. It returns early if the token isn't there.
+macro_rules! consume_token0 {
     (
         $cache:ident,
         $cache_key:expr,
@@ -247,14 +249,15 @@ macro_rules! consume_token {
     }};
 }
 
-// This macro consumes an identifier token and evaluates to the identifier paired with the position
-// of the next token.
-macro_rules! consume_identifier {
+// This macro consumes a single token (with one argument) and evaluates to the argument paired with
+// the position of the next token. It returns early if the token isn't there.
+macro_rules! consume_token1 {
     (
         $cache:ident,
         $cache_key:expr,
         $tokens:expr,
-        $next:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $next:expr,
+        $variant:ident $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -267,9 +270,9 @@ macro_rules! consume_identifier {
             cache_return!($cache, cache_key, (generic_error(tokens, next), next))
         }
 
-        // Check if the token is actually an identifier.
-        if let token::Variant::Identifier(identifier) = tokens[next].variant {
-            (identifier, next + 1)
+        // Check if the token was the expected one.
+        if let token::Variant::$variant(argument) = &tokens[next].variant {
+            (argument.clone(), next + 1)
         } else {
             cache_return!($cache, cache_key, (generic_error(tokens, next), next))
         }
@@ -335,7 +338,7 @@ fn parse_type<'a>(
     let cache_key = cache_check!(cache, Type, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, cache_key, tokens, start, Type);
+    let next = consume_token0!(cache, cache_key, tokens, start, Type);
 
     // Construct and return the term.
     cache_return!(
@@ -363,7 +366,7 @@ fn parse_variable<'a>(
     let cache_key = cache_check!(cache, Variable, start);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, cache_key, tokens, start);
+    let (variable, next) = consume_token1!(cache, cache_key, tokens, start, Identifier);
 
     // Construct and return the term.
     cache_return!(
@@ -394,22 +397,22 @@ fn parse_lambda<'a>(
     let cache_key = cache_check!(cache, Lambda, start);
 
     // Consume the left parenthesis.
-    let variable_pos = consume_token!(cache, cache_key, tokens, start, LeftParen);
+    let variable_pos = consume_token0!(cache, cache_key, tokens, start, LeftParen);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, cache_key, tokens, variable_pos);
+    let (variable, next) = consume_token1!(cache, cache_key, tokens, variable_pos, Identifier);
 
     // Consume the colon.
-    let next = consume_token!(cache, cache_key, tokens, next, Colon);
+    let next = consume_token0!(cache, cache_key, tokens, next, Colon);
 
     // Parse the domain.
     let (domain, next) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, cache_key, tokens, next, RightParen);
+    let next = consume_token0!(cache, cache_key, tokens, next, RightParen);
 
     // Consume the arrow.
-    let next = consume_token!(cache, cache_key, tokens, next, ThickArrow);
+    let next = consume_token0!(cache, cache_key, tokens, next, ThickArrow);
 
     // Parse the body.
     let (body, next) = parse_term(cache, tokens, next);
@@ -443,22 +446,22 @@ fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     let cache_key = cache_check!(cache, Pi, start);
 
     // Consume the left parenthesis.
-    let variable_pos = consume_token!(cache, cache_key, tokens, start, LeftParen);
+    let variable_pos = consume_token0!(cache, cache_key, tokens, start, LeftParen);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, cache_key, tokens, variable_pos);
+    let (variable, next) = consume_token1!(cache, cache_key, tokens, variable_pos, Identifier);
 
     // Consume the colon.
-    let next = consume_token!(cache, cache_key, tokens, next, Colon);
+    let next = consume_token0!(cache, cache_key, tokens, next, Colon);
 
     // Parse the domain.
     let (domain, next) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
-    let next = consume_token!(cache, cache_key, tokens, next, RightParen);
+    let next = consume_token0!(cache, cache_key, tokens, next, RightParen);
 
     // Consume the arrow.
-    let next = consume_token!(cache, cache_key, tokens, next, ThinArrow);
+    let next = consume_token0!(cache, cache_key, tokens, next, ThinArrow);
 
     // Parse the codomain.
     let (codomain, next) = parse_term(cache, tokens, next);
@@ -499,7 +502,7 @@ fn parse_non_dependent_pi<'a>(
     let (domain, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the arrow.
-    let next = consume_token!(cache, cache_key, tokens, next, ThinArrow);
+    let next = consume_token0!(cache, cache_key, tokens, next, ThinArrow);
 
     // Parse the codomain.
     let (codomain, next) = parse_term(cache, tokens, next);
@@ -575,13 +578,13 @@ fn parse_let<'a>(
     let cache_key = cache_check!(cache, Let, start);
 
     // Consume the variable.
-    let (variable, next) = consume_identifier!(cache, cache_key, tokens, start);
+    let (variable, next) = consume_token1!(cache, cache_key, tokens, start, Identifier);
 
     // Parse the annotation, if there is one.
     let (annotation, next) = if next < tokens.len() {
         if let token::Variant::Colon = tokens[next].variant {
             // Consume the colon.
-            let next = consume_token!(cache, cache_key, tokens, next, Colon);
+            let next = consume_token0!(cache, cache_key, tokens, next, Colon);
 
             // Parse the annotation.
             let (annotation, next) =
@@ -599,7 +602,7 @@ fn parse_let<'a>(
     };
 
     // Consume the equals sign.
-    let next = consume_token!(cache, cache_key, tokens, next, Equals);
+    let next = consume_token0!(cache, cache_key, tokens, next, Equals);
 
     // Parse the definition.
     let (definition, next) = parse_term(cache, tokens, next);
@@ -706,7 +709,7 @@ fn parse_integer<'a>(
     let cache_key = cache_check!(cache, Integer, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, cache_key, tokens, start, Integer);
+    let next = consume_token0!(cache, cache_key, tokens, start, Integer);
 
     // Construct and return the term.
     cache_return!(
@@ -733,17 +736,8 @@ fn parse_integer_literal<'a>(
     // Check the cache.
     let cache_key = cache_check!(cache, IntegerLiteral, start);
 
-    // Fail if there are no more tokens to parse.
-    if start == tokens.len() {
-        cache_return!(cache, cache_key, (generic_error(tokens, start), start))
-    }
-
-    // Check if the token was the expected one.
-    let (integer, next) = if let token::Variant::IntegerLiteral(integer) = &tokens[start].variant {
-        (integer.clone(), start + 1)
-    } else {
-        cache_return!(cache, cache_key, (generic_error(tokens, start), start))
-    };
+    // Consume the integer.
+    let (integer, next) = consume_token1!(cache, cache_key, tokens, start, IntegerLiteral);
 
     // Construct and return the term.
     cache_return!(
@@ -771,7 +765,7 @@ fn parse_negation<'a>(
     let cache_key = cache_check!(cache, Negation, start);
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, start, Minus);
+    let next = consume_token0!(cache, cache_key, tokens, start, Minus);
 
     // Parse the subterm.
     let (subterm, next) = parse_large_term(cache, tokens, next);
@@ -805,7 +799,7 @@ fn parse_sum<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, next, Plus);
+    let next = consume_token0!(cache, cache_key, tokens, next, Plus);
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -839,7 +833,7 @@ fn parse_difference<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, next, Minus);
+    let next = consume_token0!(cache, cache_key, tokens, next, Minus);
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -873,7 +867,7 @@ fn parse_product<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, next, Asterisk);
+    let next = consume_token0!(cache, cache_key, tokens, next, Asterisk);
 
     // Parse the right subterm.
     let (term2, next) = parse_large_term(cache, tokens, next);
@@ -907,7 +901,7 @@ fn parse_quotient<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, next, Slash);
+    let next = consume_token0!(cache, cache_key, tokens, next, Slash);
 
     // Parse the right subterm.
     let (term2, next) = parse_large_term(cache, tokens, next);
@@ -941,7 +935,7 @@ fn parse_less_than<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, next, LessThan);
+    let next = consume_token0!(cache, cache_key, tokens, next, LessThan);
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -975,7 +969,7 @@ fn parse_less_than_or_equal_to<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, next, LessThanOrEqualTo);
+    let next = consume_token0!(cache, cache_key, tokens, next, LessThanOrEqualTo);
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -1009,7 +1003,7 @@ fn parse_equal_to<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, next, DoubleEquals);
+    let next = consume_token0!(cache, cache_key, tokens, next, DoubleEquals);
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -1043,7 +1037,7 @@ fn parse_greater_than<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, next, GreaterThan);
+    let next = consume_token0!(cache, cache_key, tokens, next, GreaterThan);
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -1077,7 +1071,7 @@ fn parse_greater_than_or_equal_to<'a>(
     let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token!(cache, cache_key, tokens, next, GreaterThanOrEqualTo);
+    let next = consume_token0!(cache, cache_key, tokens, next, GreaterThanOrEqualTo);
 
     // Parse the right subterm.
     let (term2, next) = parse_huge_term(cache, tokens, next);
@@ -1108,7 +1102,7 @@ fn parse_boolean<'a>(
     let cache_key = cache_check!(cache, Boolean, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, cache_key, tokens, start, Boolean);
+    let next = consume_token0!(cache, cache_key, tokens, start, Boolean);
 
     // Construct and return the term.
     cache_return!(
@@ -1136,7 +1130,7 @@ fn parse_true<'a>(
     let cache_key = cache_check!(cache, True, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, cache_key, tokens, start, True);
+    let next = consume_token0!(cache, cache_key, tokens, start, True);
 
     // Construct and return the term.
     cache_return!(
@@ -1164,7 +1158,7 @@ fn parse_false<'a>(
     let cache_key = cache_check!(cache, False, start);
 
     // Consume the keyword.
-    let next = consume_token!(cache, cache_key, tokens, start, False);
+    let next = consume_token0!(cache, cache_key, tokens, start, False);
 
     // Construct and return the term.
     cache_return!(
@@ -1189,7 +1183,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     let cache_key = cache_check!(cache, If, start);
 
     // Consume the `if` keyword.
-    let next = consume_token!(cache, cache_key, tokens, start, If);
+    let next = consume_token0!(cache, cache_key, tokens, start, If);
 
     // Parse the condition.
     let (condition, next) = parse_term(cache, tokens, next);
@@ -1357,7 +1351,7 @@ fn parse_group<'a>(
     let cache_key = cache_check!(cache, Group, start);
 
     // Consume the left parenthesis.
-    let next = consume_token!(cache, cache_key, tokens, start, LeftParen);
+    let next = consume_token0!(cache, cache_key, tokens, start, LeftParen);
 
     // Parse the inner term.
     let (term, next) = parse_term(cache, tokens, next);

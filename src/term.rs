@@ -9,8 +9,8 @@ use std::{
     rc::Rc,
 };
 
-// The token stream is parsed into an abstract syntax tree (AST). This struct represents a node in
-// an AST.
+// The token stream is parsed into an abstract syntax tree (AST) [tag:ast] [ref:bison_grammar]. This
+// struct represents a node in an AST.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Term<'a> {
     pub source_range: Option<(usize, usize)>, // Inclusive on the left and exclusive on the right
