@@ -1354,7 +1354,7 @@ fn parse_group<'a>(
     let next = consume_token0!(cache, cache_key, tokens, start, LeftParen);
 
     // Parse the inner term.
-    let (term, next) = parse_term(cache, tokens, next);
+    let (term, next) = try_eval!(cache, cache_key, parse_term(cache, tokens, next));
 
     // Create a vector for parse errors.
     let mut errors = vec![];
@@ -1626,56 +1626,50 @@ pub fn parse<'a>(
     // Parse the term.
     let (term, next) = parse_term(&mut cache, tokens, 0);
 
-    // Check if there were any errors [tag:error_check].
+    // Collect the parsing errors.
     let mut errors = vec![];
     collect_errors(&mut errors, &term);
+
+    // Check if the parse was successful but we didn't consume all the tokens.
+    if errors.is_empty() && next != tokens.len() {
+        // Complain about the first unparsed token.
+        collect_errors(&mut errors, &generic_error(tokens, next));
+    }
+
+    // Fail if there were any errors [tag:error_check].
     if !errors.is_empty() {
         return Err(Error {
             message: errors
                 .into_iter()
                 .map(|error_factory| error_factory(source_path, source_contents))
-                .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error)),
+                .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error))
+                .trim()
+                .to_owned(),
             reason: None,
         });
     }
 
-    // Check if we parsed everything.
-    if next == tokens.len() {
-        // We parsed everything. Flip the associativity of applications with non-grouped
-        // arguments from right to left.
-        let reassociated_term = reassociate_sums_and_differences(
-            None,
-            reassociate_products_and_quotients(None, reassociate_applications(None, Rc::new(term))),
-        );
+    // Flip the associativity of applications with non-grouped arguments from right to left.
+    let reassociated_term = reassociate_sums_and_differences(
+        None,
+        reassociate_products_and_quotients(None, reassociate_applications(None, Rc::new(term))),
+    );
 
-        // Construct a mutable context.
-        let mut context: HashMap<&'a str, usize> = context
-            .iter()
-            .enumerate()
-            .map(|(i, variable)| (*variable, i))
-            .collect();
+    // Construct a mutable context.
+    let mut context: HashMap<&'a str, usize> = context
+        .iter()
+        .enumerate()
+        .map(|(i, variable)| (*variable, i))
+        .collect();
 
-        // Resolve variables and return the term.
-        return Ok(resolve_variables(
-            source_path,
-            source_contents,
-            &*reassociated_term,
-            context.len(),
-            &mut context,
-        )?);
-    } else {
-        // We didn't parse all the tokens. Complain about the first unparsed token.
-        collect_errors(&mut errors, &generic_error(tokens, next));
-    }
-
-    // If we made it this far, the parse failed. Construct and return the errors.
-    Err(Error {
-        message: errors
-            .into_iter()
-            .map(|error_factory| error_factory(source_path, source_contents))
-            .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error)),
-        reason: None,
-    })
+    // Resolve variables and return the term.
+    Ok(resolve_variables(
+        source_path,
+        source_contents,
+        &*reassociated_term,
+        context.len(),
+        &mut context,
+    )?)
 }
 
 // This function finds all the error subterms within a term.
