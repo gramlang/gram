@@ -1528,7 +1528,6 @@ fn parse_false<'a>(
 }
 
 // Parse an if expression.
-#[allow(clippy::too_many_lines)]
 fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> (Term<'a>, usize) {
     // Check the cache.
     let cache_key = cache_check!(cache, If, start);
