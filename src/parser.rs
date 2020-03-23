@@ -101,14 +101,6 @@ enum Variant<'a> {
     If(Rc<Term<'a>>, Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
-// This function returns whether a term variant is a `ParseError`
-fn is_parse_error<'a>(variant: &Variant<'a>) -> bool {
-    match variant {
-        Variant::ParseError => true,
-        _ => false,
-    }
-}
-
 // For variables, we store the name of the variable and its source range. The source range allows
 // us to report nice errors when there are multiple variables with the same name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -191,9 +183,10 @@ enum Nonterminal {
     JumboTerm,
 }
 
-// A cache is a map from nonterminal and position to term and new position. If the term is either
-// the `Missing` case or the `ParseError` case, the new position should equal the given position.
-type Cache<'a> = HashMap<(Nonterminal, usize), (Term<'a>, usize)>;
+// A cache is a map from nonterminal and position to term, a new position, and a boolean indicating
+// whether we're confident in the new position. If the term is either the `Missing` case or the
+// `ParseError` case, the new position should equal the given position.
+type Cache<'a> = HashMap<(Nonterminal, usize), (Term<'a>, usize, bool)>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
 // return early on cache hit. It returns the cache key for use by subsequent macro invocations.
@@ -335,7 +328,7 @@ macro_rules! consume_token0 {
             cache_return!(
                 $cache,
                 cache_key,
-                (error_term(tokens, next, expectation), next),
+                (error_term(tokens, next, expectation), next, false),
             )
         }
 
@@ -346,7 +339,7 @@ macro_rules! consume_token0 {
             cache_return!(
                 $cache,
                 cache_key,
-                (error_term(tokens, next, expectation), next),
+                (error_term(tokens, next, expectation), next, false),
             )
         }
     }};
@@ -375,7 +368,7 @@ macro_rules! consume_token1 {
             cache_return!(
                 $cache,
                 cache_key,
-                (error_term(tokens, next, expectation), next),
+                (error_term(tokens, next, expectation), next, false),
             )
         }
 
@@ -386,7 +379,7 @@ macro_rules! consume_token1 {
             cache_return!(
                 $cache,
                 cache_key,
-                (error_term(tokens, next, expectation), next),
+                (error_term(tokens, next, expectation), next, false),
             )
         }
     }};
@@ -527,7 +520,7 @@ fn parse_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Term, start);
 
@@ -541,7 +534,7 @@ fn parse_term<'a>(
     cache_return!(
         cache,
         cache_key,
-        (error_term(tokens, start, "an expression"), start),
+        (error_term(tokens, start, "an expression"), start, false),
     )
 }
 
@@ -550,7 +543,7 @@ fn parse_type<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Type, start);
 
@@ -576,6 +569,7 @@ fn parse_type<'a>(
                 errors: vec![],
             },
             next,
+            true,
         ),
     )
 }
@@ -585,7 +579,7 @@ fn parse_variable<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Variable, start);
 
@@ -609,6 +603,7 @@ fn parse_variable<'a>(
                 errors: vec![],
             },
             next,
+            true,
         ),
     )
 }
@@ -618,7 +613,7 @@ fn parse_lambda<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Lambda, start);
 
@@ -648,7 +643,7 @@ fn parse_lambda<'a>(
     );
 
     // Parse the domain.
-    let (domain, next) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
+    let (domain, next, _) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
     let next = consume_token0!(
@@ -671,7 +666,7 @@ fn parse_lambda<'a>(
     );
 
     // Parse the body.
-    let (body, next) = parse_term(cache, tokens, next);
+    let (body, next, confident_next) = parse_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -692,12 +687,17 @@ fn parse_lambda<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
 
 // Parse a pi type.
-fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> (Term<'a>, usize) {
+fn parse_pi<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Pi, start);
 
@@ -727,7 +727,7 @@ fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     );
 
     // Parse the domain.
-    let (domain, next) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
+    let (domain, next, _) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
     let next = consume_token0!(
@@ -750,7 +750,7 @@ fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     );
 
     // Parse the codomain.
-    let (codomain, next) = parse_term(cache, tokens, next);
+    let (codomain, next, confident_next) = parse_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -771,6 +771,7 @@ fn parse_pi<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -780,12 +781,12 @@ fn parse_non_dependent_pi<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, NonDependentPi, start);
 
     // Parse the domain.
-    let (domain, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
+    let (domain, next, _) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the arrow.
     let next = consume_token0!(
@@ -798,7 +799,7 @@ fn parse_non_dependent_pi<'a>(
     );
 
     // Parse the codomain.
-    let (codomain, next) = parse_term(cache, tokens, next);
+    let (codomain, next, confident_next) = parse_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -819,6 +820,7 @@ fn parse_non_dependent_pi<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -828,15 +830,16 @@ fn parse_application<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Application, start);
 
     // Parse the applicand.
-    let (applicand, next) = try_eval!(cache, cache_key, parse_atom(cache, tokens, start));
+    let (applicand, next, _) = try_eval!(cache, cache_key, parse_atom(cache, tokens, start));
 
     // Parse the argument.
-    let (argument, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, next));
+    let (argument, next, confident_next) =
+        try_eval!(cache, cache_key, parse_small_term(cache, tokens, next));
 
     // Construct and return the term.
     cache_return!(
@@ -850,6 +853,7 @@ fn parse_application<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -861,7 +865,7 @@ fn parse_let<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Let, start);
 
@@ -871,7 +875,7 @@ fn parse_let<'a>(
         consume_token1!(cache, cache_key, tokens, start, Identifier, "a variable");
 
     // Parse the annotation, if there is one.
-    let (annotation, next) = if next < tokens.len() {
+    let (annotation, next, annotation_confident_next) = if next < tokens.len() {
         if let token::Variant::Colon = tokens[next].variant {
             // Consume the colon.
             let next = consume_token0!(
@@ -884,18 +888,18 @@ fn parse_let<'a>(
             );
 
             // Parse the annotation.
-            let (annotation, next) =
+            let (annotation, next, confident_next) =
                 try_eval!(cache, cache_key, parse_small_term(cache, tokens, next));
 
             // Package up the annotation in the right form.
-            (Some(Rc::new(annotation)), next)
+            (Some(Rc::new(annotation)), next, confident_next)
         } else {
             // There is no annotation.
-            (None, next)
+            (None, next, true)
         }
     } else {
         // There is no annotation because we're at the end of the token stream.
-        (None, next)
+        (None, next, true)
     };
 
     // Create a vector for parse errors.
@@ -919,7 +923,7 @@ fn parse_let<'a>(
                     .to_string()
                     .code_str(),
             ),
-            true,
+            annotation_confident_next,
         )
     } else {
         // Since we don't have an annotation, we aren't sure yet whether what we're parsing is
@@ -939,7 +943,7 @@ fn parse_let<'a>(
 
     // Parse the definition. But to avoid reporting redundant errors, we skip trying to parse the
     // definition if we didn't find an equals sign.
-    let (definition, next) = if equals_found {
+    let (definition, next, definition_confident_next) = if equals_found {
         parse_term(cache, tokens, next)
     } else {
         (
@@ -950,6 +954,7 @@ fn parse_let<'a>(
                 errors: vec![],
             },
             next,
+            false,
         )
     };
 
@@ -968,12 +973,12 @@ fn parse_let<'a>(
                 .to_string()
                 .code_str(),
         ),
-        !is_parse_error(&definition.variant),
+        definition_confident_next,
     );
 
     // Parse the body. But to avoid reporting redundant errors, we skip trying to parse the body if
     // we didn't find a terminator.
-    let (body, next) = if terminator_type.is_some() {
+    let (body, next, body_confident_next) = if terminator_type.is_some() {
         parse_term(cache, tokens, next)
     } else {
         (
@@ -984,6 +989,7 @@ fn parse_let<'a>(
                 errors: vec![],
             },
             next,
+            false,
         )
     };
 
@@ -1007,6 +1013,7 @@ fn parse_let<'a>(
                 errors: errors,
             },
             next,
+            body_confident_next,
         ),
     )
 }
@@ -1016,7 +1023,7 @@ fn parse_integer<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Integer, start);
 
@@ -1042,6 +1049,7 @@ fn parse_integer<'a>(
                 errors: vec![],
             },
             next,
+            true,
         ),
     )
 }
@@ -1051,7 +1059,7 @@ fn parse_integer_literal<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, IntegerLiteral, start);
 
@@ -1077,6 +1085,7 @@ fn parse_integer_literal<'a>(
                 errors: vec![],
             },
             next,
+            true,
         ),
     )
 }
@@ -1086,7 +1095,7 @@ fn parse_negation<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Negation, start);
 
@@ -1101,7 +1110,7 @@ fn parse_negation<'a>(
     );
 
     // Parse the subterm.
-    let (subterm, next) = parse_large_term(cache, tokens, next);
+    let (subterm, next, confident_next) = parse_large_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1115,6 +1124,7 @@ fn parse_negation<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1124,12 +1134,12 @@ fn parse_sum<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Sum, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
+    let (term1, next, _) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
     let next = consume_token0!(
@@ -1142,7 +1152,7 @@ fn parse_sum<'a>(
     );
 
     // Parse the right subterm.
-    let (term2, next) = parse_huge_term(cache, tokens, next);
+    let (term2, next, confident_next) = parse_huge_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1156,6 +1166,7 @@ fn parse_sum<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1165,12 +1176,12 @@ fn parse_difference<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Difference, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
+    let (term1, next, _) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
     let next = consume_token0!(
@@ -1183,7 +1194,7 @@ fn parse_difference<'a>(
     );
 
     // Parse the right subterm.
-    let (term2, next) = parse_huge_term(cache, tokens, next);
+    let (term2, next, confident_next) = parse_huge_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1197,6 +1208,7 @@ fn parse_difference<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1206,12 +1218,12 @@ fn parse_product<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Product, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
+    let (term1, next, _) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
     let next = consume_token0!(
@@ -1224,7 +1236,7 @@ fn parse_product<'a>(
     );
 
     // Parse the right subterm.
-    let (term2, next) = parse_large_term(cache, tokens, next);
+    let (term2, next, confident_next) = parse_large_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1238,6 +1250,7 @@ fn parse_product<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1247,12 +1260,12 @@ fn parse_quotient<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Quotient, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
+    let (term1, next, _) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
     let next = consume_token0!(
@@ -1265,7 +1278,7 @@ fn parse_quotient<'a>(
     );
 
     // Parse the right subterm.
-    let (term2, next) = parse_large_term(cache, tokens, next);
+    let (term2, next, confident_next) = parse_large_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1279,6 +1292,7 @@ fn parse_quotient<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1288,12 +1302,12 @@ fn parse_less_than<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, LessThan, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
+    let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
     let next = consume_token0!(
@@ -1306,7 +1320,7 @@ fn parse_less_than<'a>(
     );
 
     // Parse the right subterm.
-    let (term2, next) = parse_huge_term(cache, tokens, next);
+    let (term2, next, confident_next) = parse_huge_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1320,6 +1334,7 @@ fn parse_less_than<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1329,12 +1344,12 @@ fn parse_less_than_or_equal_to<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, LessThanOrEqualTo, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
+    let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
     let next = consume_token0!(
@@ -1350,7 +1365,7 @@ fn parse_less_than_or_equal_to<'a>(
     );
 
     // Parse the right subterm.
-    let (term2, next) = parse_huge_term(cache, tokens, next);
+    let (term2, next, confident_next) = parse_huge_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1364,6 +1379,7 @@ fn parse_less_than_or_equal_to<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1373,12 +1389,12 @@ fn parse_equal_to<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, EqualTo, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
+    let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
     let next = consume_token0!(
@@ -1391,7 +1407,7 @@ fn parse_equal_to<'a>(
     );
 
     // Parse the right subterm.
-    let (term2, next) = parse_huge_term(cache, tokens, next);
+    let (term2, next, confident_next) = parse_huge_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1405,6 +1421,7 @@ fn parse_equal_to<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1414,12 +1431,12 @@ fn parse_greater_than<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, GreaterThan, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
+    let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
     let next = consume_token0!(
@@ -1432,7 +1449,7 @@ fn parse_greater_than<'a>(
     );
 
     // Parse the right subterm.
-    let (term2, next) = parse_huge_term(cache, tokens, next);
+    let (term2, next, confident_next) = parse_huge_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1446,6 +1463,7 @@ fn parse_greater_than<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1455,12 +1473,12 @@ fn parse_greater_than_or_equal_to<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, GreaterThanOrEqualTo, start);
 
     // Parse the left subterm.
-    let (term1, next) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
+    let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
     let next = consume_token0!(
@@ -1476,7 +1494,7 @@ fn parse_greater_than_or_equal_to<'a>(
     );
 
     // Parse the right subterm.
-    let (term2, next) = parse_huge_term(cache, tokens, next);
+    let (term2, next, confident_next) = parse_huge_term(cache, tokens, next);
 
     // Construct and return the term.
     cache_return!(
@@ -1490,6 +1508,7 @@ fn parse_greater_than_or_equal_to<'a>(
                 errors: vec![],
             },
             next,
+            confident_next,
         ),
     )
 }
@@ -1499,7 +1518,7 @@ fn parse_boolean<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Boolean, start);
 
@@ -1525,6 +1544,7 @@ fn parse_boolean<'a>(
                 errors: vec![],
             },
             next,
+            true,
         ),
     )
 }
@@ -1534,7 +1554,7 @@ fn parse_true<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, True, start);
 
@@ -1560,6 +1580,7 @@ fn parse_true<'a>(
                 errors: vec![],
             },
             next,
+            true,
         ),
     )
 }
@@ -1569,7 +1590,7 @@ fn parse_false<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, False, start);
 
@@ -1595,12 +1616,17 @@ fn parse_false<'a>(
                 errors: vec![],
             },
             next,
+            true,
         ),
     )
 }
 
 // Parse an if expression.
-fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) -> (Term<'a>, usize) {
+fn parse_if<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, If, start);
 
@@ -1615,7 +1641,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
     );
 
     // Parse the condition.
-    let (condition, next) = parse_term(cache, tokens, next);
+    let (condition, next, condition_confident_next) = parse_term(cache, tokens, next);
 
     // Create a vector for parse errors.
     let mut errors = vec![];
@@ -1627,12 +1653,12 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
         errors,
         Then,
         &format!("{}", token::Variant::Then.to_string().code_str()),
-        !is_parse_error(&condition.variant),
+        condition_confident_next,
     );
 
     // Parse the then branch. But to avoid reporting redundant errors, we skip trying to parse the
     // then branch if we didn't find a `then` keyword.
-    let (then_branch, next) = if found_then {
+    let (then_branch, next, then_branch_confident_next) = if found_then {
         parse_term(cache, tokens, next)
     } else {
         (
@@ -1643,6 +1669,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
                 errors: vec![],
             },
             next,
+            false,
         )
     };
 
@@ -1653,12 +1680,12 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
         errors,
         Else,
         &format!("{}", token::Variant::Else.to_string().code_str()),
-        !is_parse_error(&then_branch.variant),
+        then_branch_confident_next,
     );
 
     // Parse the else branch. But to avoid reporting redundant errors, we skip trying to parse the
     // else branch if we didn't find an `else` keyword.
-    let (else_branch, next) = if found_else {
+    let (else_branch, next, else_branch_confident_next) = if found_else {
         parse_term(cache, tokens, next)
     } else {
         (
@@ -1669,6 +1696,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
                 errors: vec![],
             },
             next,
+            false,
         )
     };
 
@@ -1688,6 +1716,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
                 errors: errors,
             },
             next,
+            else_branch_confident_next,
         ),
     )
 }
@@ -1697,7 +1726,7 @@ fn parse_group<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Group, start);
 
@@ -1712,7 +1741,7 @@ fn parse_group<'a>(
     );
 
     // Parse the inner term.
-    let (term, next) = try_eval!(cache, cache_key, parse_term(cache, tokens, next));
+    let (term, next, confident_next) = try_eval!(cache, cache_key, parse_term(cache, tokens, next));
 
     // Create a copy of the errors vector for reporting additional errors.
     let mut errors = term.errors.clone();
@@ -1720,13 +1749,13 @@ fn parse_group<'a>(
     // Consume the right parenthesis. Here we use `expect_token0!` rather than `consume_token0!`
     // because we know we're parsing a group at this point. If it were a lambda or a pi type, it
     // would have been parsed already.
-    let (_, next) = expect_token0!(
+    let (found, next) = expect_token0!(
         tokens,
         next,
         errors,
         RightParen,
         &format!("{}", token::Variant::RightParen.to_string().code_str()),
-        true,
+        confident_next,
     );
 
     // If we made it this far, we successfully parsed the group. Return the inner term.
@@ -1748,6 +1777,7 @@ fn parse_group<'a>(
                 errors: errors,
             },
             next,
+            found,
         ),
     )
 }
@@ -1757,7 +1787,7 @@ fn parse_atom<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, Atom, start);
 
@@ -1793,7 +1823,7 @@ fn parse_atom<'a>(
     cache_return!(
         cache,
         cache_key,
-        (error_term(tokens, start, "an expression"), start),
+        (error_term(tokens, start, "an expression"), start, false),
     )
 }
 
@@ -1802,7 +1832,7 @@ fn parse_small_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, SmallTerm, start);
 
@@ -1816,7 +1846,7 @@ fn parse_small_term<'a>(
     cache_return!(
         cache,
         cache_key,
-        (error_term(tokens, start, "an expression"), start),
+        (error_term(tokens, start, "an expression"), start, false),
     )
 }
 
@@ -1825,7 +1855,7 @@ fn parse_medium_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, MediumTerm, start);
 
@@ -1842,7 +1872,7 @@ fn parse_medium_term<'a>(
     cache_return!(
         cache,
         cache_key,
-        (error_term(tokens, start, "an expression"), start),
+        (error_term(tokens, start, "an expression"), start, false),
     )
 }
 
@@ -1851,7 +1881,7 @@ fn parse_large_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, LargeTerm, start);
 
@@ -1865,7 +1895,7 @@ fn parse_large_term<'a>(
     cache_return!(
         cache,
         cache_key,
-        (error_term(tokens, start, "an expression"), start),
+        (error_term(tokens, start, "an expression"), start, false),
     )
 }
 
@@ -1874,7 +1904,7 @@ fn parse_huge_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, HugeTerm, start);
 
@@ -1891,7 +1921,7 @@ fn parse_huge_term<'a>(
     cache_return!(
         cache,
         cache_key,
-        (error_term(tokens, start, "an expression"), start),
+        (error_term(tokens, start, "an expression"), start, false),
     )
 }
 
@@ -1900,7 +1930,7 @@ fn parse_giant_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, GiantTerm, start);
 
@@ -1934,7 +1964,7 @@ fn parse_giant_term<'a>(
     cache_return!(
         cache,
         cache_key,
-        (error_term(tokens, start, "an expression"), start),
+        (error_term(tokens, start, "an expression"), start, false),
     )
 }
 
@@ -1943,7 +1973,7 @@ fn parse_jumbo_term<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
     start: usize,
-) -> (Term<'a>, usize) {
+) -> (Term<'a>, usize, bool) {
     // Check the cache.
     let cache_key = cache_check!(cache, JumboTerm, start);
 
@@ -1970,7 +2000,7 @@ fn parse_jumbo_term<'a>(
     cache_return!(
         cache,
         cache_key,
-        (error_term(tokens, start, "an expression"), start),
+        (error_term(tokens, start, "an expression"), start, false),
     )
 }
 
@@ -1987,7 +2017,7 @@ pub fn parse<'a>(
     let mut cache = Cache::new();
 
     // Parse the term.
-    let (term, next) = parse_term(&mut cache, tokens, 0);
+    let (term, next, _) = parse_term(&mut cache, tokens, 0);
 
     // Collect the parsing error factories.
     let mut error_factories = vec![];
