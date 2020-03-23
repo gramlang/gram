@@ -101,10 +101,18 @@ enum Variant<'a> {
     If(Rc<Term<'a>>, Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
+// This function returns whether a term variant is a `ParseError`
+fn is_parse_error<'a>(variant: &Variant<'a>) -> bool {
+    match variant {
+        Variant::ParseError => true,
+        _ => false,
+    }
+}
+
 // For variables, we store the name of the variable and its source range. The source range allows
 // us to report nice errors when there are multiple variables with the same name.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SourceVariable<'a> {
+struct SourceVariable<'a> {
     source_range: SourceRange,
     name: &'a str,
 }
@@ -112,7 +120,7 @@ pub struct SourceVariable<'a> {
 // For extra type safety, we use the "newtype" pattern here to introduce a new type for source
 // ranges. The goal is to prevent source ranges from accidentally including token indices.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct SourceRange(pub (usize, usize)); // Inclusive on the left and exclusive on the right
+struct SourceRange((usize, usize)); // Inclusive on the left and exclusive on the right
 
 // This function constructs a `SourceRange` that spans two given `SourceRange`s.
 fn span(x: SourceRange, y: SourceRange) -> SourceRange {
@@ -386,29 +394,33 @@ macro_rules! consume_token1 {
 
 // This macro consumes a single token (with no arguments). If the token isn't found at the given
 // position, the remaining tokens will be scanned until the token is found (skipping over
-// parenthesized groupings) or the end of the tokens is reached. This macro evaluates to a pair
-// consisting of a Boolean indicating whether the token was found and the position of the subsequent
-// token.
+// nested parenthesized groupings) or the end of the current parenthesized group is reached. This
+// macro evaluates to a pair consisting of a Boolean indicating whether the token was found and the
+// position of the subsequent token.
 macro_rules! expect_token0 {
     (
         $tokens:expr,
         $next:expr,
         $errors:ident,
         $variant:ident,
-        $expectation:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $expectation:expr,
+        $report_error:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let tokens = $tokens;
         let next = $next;
         let expectation = $expectation;
+        let report_error = $report_error;
 
         // Report an error if the next token is not the expected token.
-        if next == tokens.len() {
-            $errors.push(error_factory(tokens, next, expectation));
-        } else if let token::Variant::$variant = tokens[next].variant {
-        } else {
-            $errors.push(error_factory(tokens, next, expectation));
+        if report_error {
+            if next == tokens.len() {
+                $errors.push(error_factory(tokens, next, expectation));
+            } else if let token::Variant::$variant = tokens[next].variant {
+            } else {
+                $errors.push(error_factory(tokens, next, expectation));
+            }
         }
 
         // Find the `then` keyword and skip past it.
@@ -417,16 +429,20 @@ macro_rules! expect_token0 {
         let mut depth = 0_usize;
         while next < tokens.len() {
             match tokens[next].variant {
-                token::Variant::LeftParen => {
-                    depth += 1;
-                }
-                token::Variant::RightParen if depth > 0 => {
-                    depth -= 1;
-                }
                 token::Variant::$variant if depth == 0 => {
                     next += 1;
                     found = true;
                     break;
+                }
+                token::Variant::LeftParen => {
+                    depth += 1;
+                }
+                token::Variant::RightParen => {
+                    if depth > 0 {
+                        depth -= 1;
+                    } else {
+                        break;
+                    }
                 }
                 _ => {}
             }
@@ -440,29 +456,33 @@ macro_rules! expect_token0 {
 
 // This macro consumes a single token (with one argument). If the token isn't found at the given
 // position, the remaining tokens will be scanned until the token is found (skipping over
-// parenthesized groupings) or the end of the tokens is reached. This macro evaluates to a pair
-// consisting of an option containing the argument if the token was found and the position of the
-// subsequent token.
+// nested parenthesized groupings) or the end of the current parenthesized group is reached. This
+// macro evaluates to a pair consisting of a Boolean indicating whether the token was found and the
+// position of the subsequent token.
 macro_rules! expect_token1 {
     (
         $tokens:expr,
         $next:expr,
         $errors:ident,
         $variant:ident,
-        $expectation:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $expectation:expr,
+        $report_error:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let tokens = $tokens;
         let next = $next;
         let expectation = $expectation;
+        let report_error = $report_error;
 
         // Report an error if the next token is not the expected token.
-        if next == tokens.len() {
-            $errors.push(error_factory(tokens, next, expectation));
-        } else if let token::Variant::$variant(_) = tokens[next].variant {
-        } else {
-            $errors.push(error_factory(tokens, next, expectation));
+        if report_error {
+            if next == tokens.len() {
+                $errors.push(error_factory(tokens, next, expectation));
+            } else if let token::Variant::$variant(_) = tokens[next].variant {
+            } else {
+                $errors.push(error_factory(tokens, next, expectation));
+            }
         }
 
         // Find the `then` keyword and skip past it.
@@ -471,16 +491,20 @@ macro_rules! expect_token1 {
         let mut depth = 0_usize;
         while next < tokens.len() {
             match &tokens[next].variant {
-                token::Variant::LeftParen => {
-                    depth += 1;
-                }
-                token::Variant::RightParen if depth > 0 => {
-                    depth -= 1;
-                }
                 token::Variant::$variant(argument) if depth == 0 => {
                     next += 1;
                     argument_option = Some(argument.clone());
                     break;
+                }
+                token::Variant::LeftParen => {
+                    depth += 1;
+                }
+                token::Variant::RightParen => {
+                    if depth > 0 {
+                        depth -= 1;
+                    } else {
+                        break;
+                    }
                 }
                 _ => {}
             }
@@ -888,6 +912,7 @@ fn parse_let<'a>(
                     .to_string()
                     .code_str(),
             ),
+            true,
         )
     } else {
         // Since we don't have an annotation, we aren't sure yet whether what we're parsing is
@@ -936,6 +961,7 @@ fn parse_let<'a>(
                 .to_string()
                 .code_str(),
         ),
+        !is_parse_error(&definition.variant),
     );
 
     // Parse the body. But to avoid reporting redundant errors, we skip trying to parse the body if
@@ -1594,6 +1620,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
         errors,
         Then,
         &format!("{}", token::Variant::Then.to_string().code_str()),
+        !is_parse_error(&condition.variant),
     );
 
     // Parse the then branch. But to avoid reporting redundant errors, we skip trying to parse the
@@ -1619,6 +1646,7 @@ fn parse_if<'a>(cache: &mut Cache<'a>, tokens: &'a [Token<'a>], start: usize) ->
         errors,
         Else,
         &format!("{}", token::Variant::Else.to_string().code_str()),
+        !is_parse_error(&then_branch.variant),
     );
 
     // Parse the else branch. But to avoid reporting redundant errors, we skip trying to parse the
@@ -1679,8 +1707,8 @@ fn parse_group<'a>(
     // Parse the inner term.
     let (term, next) = try_eval!(cache, cache_key, parse_term(cache, tokens, next));
 
-    // Create a vector for parse errors.
-    let mut errors = vec![];
+    // Create a copy of the errors vector for reporting additional errors.
+    let mut errors = term.errors.clone();
 
     // Consume the right parenthesis. Here we use `expect_token0!` rather than `consume_token0!`
     // because we know we're parsing a group at this point. If it were a lambda or a pi type, it
@@ -1691,6 +1719,7 @@ fn parse_group<'a>(
         errors,
         RightParen,
         &format!("{}", token::Variant::RightParen.to_string().code_str()),
+        true,
     );
 
     // If we made it this far, we successfully parsed the group. Return the inner term.
