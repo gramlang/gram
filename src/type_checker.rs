@@ -619,8 +619,8 @@ pub fn type_check<'a>(
                         "The two branches of conditional {} don\u{2019}t match. The then \
                                 branch has type {}, but the else branch has type {}.",
                         term.to_string().code_str(),
-                        then_branch.to_string().code_str(),
-                        else_branch.to_string().code_str(),
+                        then_branch_type.to_string().code_str(),
+                        else_branch_type.to_string().code_str(),
                     ),
                     source_path,
                     term.source_range
