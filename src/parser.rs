@@ -872,8 +872,8 @@ fn parse_let<'a>(
 
     // Consume the equals sign.
     let (equals_found, next) = if annotation.is_some() {
-        // Since we have an annotation, we can be confident that we're parsing a let. Find the
-        // equals sign and proceed.
+        // Since we have an annotation, we can be confident we're parsing a let (if it were a lambda
+        // or a pi type, it would have been parsed already). Find the equals sign and proceed.
         expect_token0!(
             tokens,
             next,
@@ -1682,26 +1682,16 @@ fn parse_group<'a>(
     // Create a vector for parse errors.
     let mut errors = vec![];
 
-    // Consume the right parenthesis.
-    let next = if next == tokens.len() {
-        errors.push(error_factory(
-            tokens,
-            next,
-            &format!("{}", token::Variant::RightParen.to_string().code_str()),
-        ));
-
-        next
-    } else if let token::Variant::RightParen = tokens[next].variant {
-        next + 1
-    } else {
-        errors.push(error_factory(
-            tokens,
-            next,
-            &format!("{}", token::Variant::RightParen.to_string().code_str()),
-        ));
-
-        next
-    };
+    // Consume the right parenthesis. Here we use `expect_token0!` rather than `consume_token0!`
+    // because we know we're parsing a group at this point. If it were a lambda or a pi type, it
+    // would have been parsed already.
+    let (_, next) = expect_token0!(
+        tokens,
+        next,
+        errors,
+        RightParen,
+        &format!("{}", token::Variant::RightParen.to_string().code_str()),
+    );
 
     // If we made it this far, we successfully parsed the group. Return the inner term.
     cache_return!(
