@@ -305,7 +305,7 @@ fn error_factory<'a>(
 // the source file.
 fn error_term<'a>(tokens: &'a [Token<'a>], position: usize, expectation: &str) -> Term<'a> {
     Term {
-        source_range: token_source_range(tokens, position),
+        source_range: empty_source_range(tokens, position),
         group: false,
         variant: Variant::ParseError,
         errors: vec![error_factory(tokens, position, expectation)],
@@ -394,9 +394,9 @@ macro_rules! consume_token1 {
 
 // This macro consumes a single token (with no arguments). If the token isn't found at the given
 // position, the remaining tokens will be scanned until the token is found (skipping over
-// nested parenthesized groupings) or the end of the current parenthesized group is reached. This
-// macro evaluates to a pair consisting of a Boolean indicating whether the token was found and the
-// position of the subsequent token.
+// nested parenthesized groupings) or a terminator or the end of the current parenthesized group is
+// reached. This macro evaluates to a pair consisting of a Boolean indicating whether the token was
+// found and the position of the subsequent token.
 macro_rules! expect_token0 {
     (
         $tokens:expr,
@@ -444,6 +444,9 @@ macro_rules! expect_token0 {
                         break;
                     }
                 }
+                token::Variant::Terminator(_) if depth == 0 => {
+                    break;
+                }
                 _ => {}
             }
 
@@ -456,9 +459,9 @@ macro_rules! expect_token0 {
 
 // This macro consumes a single token (with one argument). If the token isn't found at the given
 // position, the remaining tokens will be scanned until the token is found (skipping over
-// nested parenthesized groupings) or the end of the current parenthesized group is reached. This
-// macro evaluates to a pair consisting of a Boolean indicating whether the token was found and the
-// position of the subsequent token.
+// nested parenthesized groupings) or a terminator or the end of the current parenthesized group is
+// reached. This macro evaluates to a pair consisting of a Boolean indicating whether the token was
+// found and the position of the subsequent token.
 macro_rules! expect_token1 {
     (
         $tokens:expr,
@@ -505,6 +508,9 @@ macro_rules! expect_token1 {
                     } else {
                         break;
                     }
+                }
+                token::Variant::Terminator(_) if depth == 0 => {
+                    break;
                 }
                 _ => {}
             }
@@ -849,6 +855,7 @@ fn parse_application<'a>(
 }
 
 // Parse a let.
+#[allow(clippy::cognitive_complexity)]
 #[allow(clippy::too_many_lines)]
 fn parse_let<'a>(
     cache: &mut Cache<'a>,
