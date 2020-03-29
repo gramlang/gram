@@ -126,7 +126,9 @@ fn span(x: SourceRange, y: SourceRange) -> SourceRange {
 fn token_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
     if position == tokens.len() {
         SourceRange {
-            0: tokens.last().map_or((0, 0), |token| token.source_range),
+            0: tokens
+                .last()
+                .map_or((0, 0), |token| (token.source_range.1, token.source_range.1)),
         }
     } else {
         SourceRange {

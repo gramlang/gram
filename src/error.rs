@@ -1,5 +1,5 @@
 use crate::format::CodeStr;
-use colored::Colorize;
+use colored::{control::SHOULD_COLORIZE, Colorize};
 use pad::{Alignment, PadStr};
 use std::{
     cmp::{max, min},
@@ -36,82 +36,17 @@ pub fn throw(
     message: &str,
     source_path: Option<&Path>,
 
-    // Inclusive on the left and exclusive on the right
-    source_range: Option<(&str, (usize, usize))>,
+    // The range is inclusive on the left and exclusive on the right.
+    source: Option<(&str, (usize, usize))>,
 ) -> Error {
     {
-        // If we have a source range, fetch the relevant lines from the source.
-        let listing = if let Some((source_contents, source_range)) = source_range {
-            // Remember the relevant lines and the position of the start of the next line.
-            let mut lines = vec![];
-            let mut pos = 0_usize;
-
-            // Find the relevant lines.
-            for (i, line) in source_contents.split('\n').enumerate() {
-                // Record the start of the line before we advance the cursor.
-                let line_start = pos;
-
-                // Move the cursor to the start of the next line.
-                pos += line.len() + 1;
-
-                // If the start of the line is past the end of the range, we're done.
-                if line_start >= source_range.1 {
-                    break;
-                }
-
-                // If the start of the next line is before the start of the range, we haven't
-                // reached the lines of interest yet.
-                if pos <= source_range.0 {
-                    continue;
-                }
-
-                // Highlight the relevant part of the line.
-                let trimmed_line = line.trim_end();
-                let (section_start, section_end) = if source_range.0 > line_start {
-                    (
-                        min(source_range.0 - line_start, trimmed_line.len()),
-                        min(source_range.1 - line_start, trimmed_line.len()),
-                    )
-                } else {
-                    (0, min(source_range.1 - line_start, trimmed_line.len()))
-                };
-                let colored_line = format!(
-                    "{}{}{}",
-                    &trimmed_line[..section_start],
-                    &trimmed_line[section_start..section_end].red(),
-                    &trimmed_line[section_end..],
-                );
-
-                // Record the line number and the line contents. We trim the end of the line to
-                // remove any carriage return that might have been present before the line feed (as
-                // well as any other whitespace).
-                lines.push(((i + 1).to_string(), colored_line));
-            }
-
-            // Compute the width of the string representation of the hugest relevant line number.
-            let gutter_width = lines
-                .iter()
-                .fold(0_usize, |acc, (line_number, _)| max(acc, line_number.len()));
-
-            // Render the code listing with line numbers.
-            lines
-                .iter()
-                .map(|(line_number, line)| {
-                    format!(
-                        "{} {}",
-                        format!(
-                            "{} |",
-                            line_number.pad(gutter_width, ' ', Alignment::Right, false),
-                        )
-                        .blue()
-                        .bold(),
-                        line,
-                    )
-                })
-                .collect::<Vec<_>>()
-        } else {
-            vec![]
-        };
+        // Render the relevant lines from the source if applicable.
+        let listing = source.map_or_else(
+            || "".to_owned(),
+            |(source_contents, source_range)| {
+                listing(source_contents, source_range.0, source_range.1)
+            },
+        );
 
         // Now we have everything we need to construct the error.
         Error {
@@ -127,13 +62,13 @@ pub fn throw(
                         "Error in {}: {}\n\n{}",
                         path.to_string_lossy().code_str(),
                         message,
-                        listing.join("\n"),
+                        listing,
                     )
                 }
             } else if listing.is_empty() {
                 format!("Error: {}", message)
             } else {
-                format!("Error: {}\n\n{}", message, listing.join("\n"))
+                format!("Error: {}\n\n{}", message, listing)
             },
             reason: None,
         }
@@ -149,6 +84,103 @@ pub fn lift<T: Into<String>, U: error::Error + 'static>(message: T) -> impl FnOn
         message,
         reason: Some(Rc::new(error)),
     }
+}
+
+// This function renders the relevant lines of a source file given the source file contents and a
+// range. The range is inclusive on the left and exclusive on the right.
+pub fn listing(source_contents: &str, range_start: usize, range_end: usize) -> String {
+    // Remember the relevant lines and the position of the start of the next line.
+    let mut lines = vec![];
+    let mut pos = 0_usize;
+
+    // Find the relevant lines.
+    for (i, line) in source_contents.split('\n').enumerate() {
+        // Record the start of the line before we advance the cursor.
+        let line_start = pos;
+
+        // Move the cursor to the start of the next line.
+        pos += line.len() + 1;
+
+        // If we're past the lines of interest, we're done.
+        if line_start >= range_end {
+            break;
+        }
+
+        // If we haven't reached the lines of interest yet, skip to the next line.
+        if pos <= range_start {
+            continue;
+        }
+
+        // We trim the end of the line to remove any carriage return (or any other whitespace) that
+        // might have been present before the line feed.
+        let trimmed_line = line.trim_end();
+
+        // Highlight the relevant part of the line.
+        let (section_start, section_end) = if range_start > line_start {
+            (
+                min(range_start - line_start, trimmed_line.len()),
+                min(range_end - line_start, trimmed_line.len()),
+            )
+        } else {
+            (0, min(range_end - line_start, trimmed_line.len()))
+        };
+
+        // Record the line number and the line contents.
+        lines.push((
+            (i + 1).to_string(),
+            trimmed_line,
+            section_start,
+            section_end,
+        ));
+    }
+
+    // Compute the width of the string representation of the hugest relevant line number.
+    let gutter_width = lines.iter().fold(0_usize, |acc, (line_number, _, _, _)| {
+        max(acc, line_number.len())
+    });
+
+    // Determine whether the output will be colorized.
+    let colorized = SHOULD_COLORIZE.should_colorize();
+
+    // Render the code listing with line numbers.
+    lines
+        .iter()
+        .enumerate()
+        .map(|(i, (line_number, line, section_start, section_end))| {
+            format!(
+                "{}{}{}",
+                format!(
+                    "{} \u{2502} ",
+                    line_number.pad(gutter_width, ' ', Alignment::Right, false),
+                )
+                .blue()
+                .bold(),
+                format!(
+                    "{}{}{}",
+                    &line[..*section_start],
+                    &line[*section_start..*section_end].red(),
+                    &line[*section_end..],
+                ),
+                if !colorized && section_start != section_end {
+                    format!(
+                        "\n{} {} {}{}",
+                        " ".repeat(gutter_width),
+                        if i == lines.len() - 1 {
+                            " "
+                        } else {
+                            "\u{250a}"
+                        },
+                        " ".repeat(*section_start),
+                        // [tag:overline_u203e]
+                        "\u{203e}".repeat(section_end - section_start),
+                    )
+                } else {
+                    "".to_owned()
+                },
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 // This macro is useful for writing tests that deal with errors.
@@ -212,7 +244,7 @@ mod tests {
 
         let error = throw("An error occurred.", None, None);
 
-        assert_eq!(error.message, "Error: An error occurred.".to_owned());
+        assert_eq!(error.message, "Error: An error occurred.");
     }
 
     #[test]
@@ -221,7 +253,7 @@ mod tests {
 
         let error = throw("An error occurred.", None, Some(("", (0, 0))));
 
-        assert_eq!(error.message, "Error: An error occurred.".to_owned());
+        assert_eq!(error.message, "Error: An error occurred.");
     }
 
     #[test]
@@ -230,10 +262,7 @@ mod tests {
 
         let error = throw("An error occurred.", Some(Path::new("foo.g")), None);
 
-        assert_eq!(
-            error.message,
-            "Error in `foo.g`: An error occurred.".to_owned(),
-        );
+        assert_eq!(error.message, "Error in `foo.g`: An error occurred.");
     }
 
     #[test]
@@ -246,10 +275,7 @@ mod tests {
             Some(("", (0, 0))),
         );
 
-        assert_eq!(
-            error.message,
-            "Error in `foo.g`: An error occurred.".to_owned(),
-        );
+        assert_eq!(error.message, "Error in `foo.g`: An error occurred.");
     }
 
     #[test]
@@ -260,7 +286,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n1 | foo".to_owned(),
+            "Error: An error occurred.\n\n1 \u{2502} foo\n    \u{203e}\u{203e}\u{203e}",
         );
     }
 
@@ -276,7 +302,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error in `foo.g`: An error occurred.\n\n1 | foo".to_owned(),
+            "Error in `foo.g`: An error occurred.\n\n1 \u{2502} foo\n    \u{203e}\u{203e}\u{203e}",
         );
     }
 
@@ -288,7 +314,9 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n1 | foo\n2 | bar\n3 | baz".to_owned(),
+            "Error: An error occurred.\n\n1 \u{2502} foo\n  \u{250a} \u{203e}\u{203e}\u{203e}\n2 \
+                \u{2502} bar\n  \u{250a} \u{203e}\u{203e}\u{203e}\n3 \u{2502} baz\n    \u{203e}\
+                \u{203e}\u{203e}",
         );
     }
 
@@ -304,7 +332,8 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n2 | bar\n3 | baz".to_owned(),
+            "Error: An error occurred.\n\n2 \u{2502} bar\n  \u{250a}  \u{203e}\u{203e}\n3 \u{2502} \
+                baz\n    \u{203e}\u{203e}\u{203e}",
         );
     }
 
@@ -323,7 +352,9 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n 9 | foo\n10 | bar\n11 | baz".to_owned(),
+            "Error: An error occurred.\n\n 9 \u{2502} foo\n   \u{250a}  \u{203e}\u{203e}\n10 \
+                \u{2502} bar\n   \u{250a} \u{203e}\u{203e}\u{203e}\n11 \u{2502} baz\n     \u{203e}\
+                \u{203e}",
         );
     }
 
@@ -336,8 +367,8 @@ mod tests {
             reason: None,
         });
 
-        assert_eq!(error.message, "An error occurred.".to_owned());
+        assert_eq!(error.message, "An error occurred.");
 
-        assert_eq!(error.reason.unwrap().to_string(), "This is why.".to_owned());
+        assert_eq!(error.reason.unwrap().to_string(), "This is why.");
     }
 }
