@@ -122,7 +122,12 @@ pub fn listing(source_contents: &str, range_start: usize, range_end: usize) -> S
                 min(range_end - line_start, trimmed_line.len()),
             )
         } else {
-            (0, min(range_end - line_start, trimmed_line.len()))
+            let end = min(range_end - line_start, trimmed_line.len());
+            let start = trimmed_line
+                .find(|c: char| !c.is_whitespace())
+                .unwrap_or(end);
+
+            (start, end)
         };
 
         // Record the line number and the line contents.
@@ -161,7 +166,19 @@ pub fn listing(source_contents: &str, range_start: usize, range_end: usize) -> S
                     &line[*section_start..*section_end].red(),
                     &line[*section_end..],
                 ),
-                if !colorized && section_start != section_end {
+                if colorized {
+                    "".to_owned()
+                } else if section_start == section_end {
+                    format!(
+                        "\n{} {}",
+                        " ".repeat(gutter_width),
+                        if i == lines.len() - 1 {
+                            " "
+                        } else {
+                            "\u{250a}"
+                        },
+                    )
+                } else {
                     format!(
                         "\n{} {} {}{}",
                         " ".repeat(gutter_width),
@@ -174,8 +191,6 @@ pub fn listing(source_contents: &str, range_start: usize, range_end: usize) -> S
                         // [tag:overline_u203e]
                         "\u{203e}".repeat(section_end - section_start),
                     )
-                } else {
-                    "".to_owned()
                 },
             )
         })
