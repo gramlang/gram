@@ -1,6 +1,6 @@
 use crate::{
     de_bruijn::free_variables,
-    error::{throw, Error},
+    error::{listing, throw, Error},
     evaluator::is_value,
     format::CodeStr,
     term,
@@ -284,11 +284,17 @@ fn error_factory<'a>(
             )
         } else {
             throw(
-                &format!(
-                    "Expected {}, but encountered {}.",
-                    expectation,
-                    tokens[position].to_string().code_str(),
-                ),
+                &if tokens[position].variant
+                    == token::Variant::Terminator(TerminatorType::LineBreak)
+                {
+                    format!("Expected {} at the end of this line:", expectation)
+                } else {
+                    format!(
+                        "Expected {}, but encountered {}.",
+                        expectation,
+                        tokens[position].to_string().code_str(),
+                    )
+                },
                 source_path,
                 Some((source_contents, source_range.0)),
             )
@@ -916,15 +922,7 @@ fn parse_let<'a>(
             next,
             errors,
             Equals,
-            &format!(
-                "{} or {} followed by an expression",
-                token::Variant::Terminator(TerminatorType::LineBreak)
-                    .to_string()
-                    .code_str(),
-                token::Variant::Terminator(TerminatorType::Semicolon)
-                    .to_string()
-                    .code_str(),
-            ),
+            &format!("{}", token::Variant::Equals.to_string().code_str()),
             annotation_confident_next,
         )
     } else {
@@ -967,10 +965,7 @@ fn parse_let<'a>(
         errors,
         Terminator,
         &format!(
-            "{} or {} followed by an expression",
-            token::Variant::Terminator(TerminatorType::LineBreak)
-                .to_string()
-                .code_str(),
+            "{} or a line break followed by an expression",
             token::Variant::Terminator(TerminatorType::Semicolon)
                 .to_string()
                 .code_str(),
@@ -1745,20 +1740,76 @@ fn parse_group<'a>(
     // Parse the inner term.
     let (term, next, confident_next) = try_eval!(cache, cache_key, parse_term(cache, tokens, next));
 
-    // Create a copy of the errors vector for reporting additional errors.
-    let mut errors = term.errors.clone();
-
     // Consume the right parenthesis. Here we use `expect_token0!` rather than `consume_token0!`
     // because we know we're parsing a group at this point. If it were a lambda or a pi type, it
-    // would have been parsed already.
+    // would have been parsed already. We're going to construct a more informative error than what
+    // `expect_token0!` gives us, so we create a phony `errors` vector just for this macro
+    // invocation.
+    let mut phony_errors = vec![];
     let (found, next) = expect_token0!(
         tokens,
         next,
-        errors,
+        phony_errors,
         RightParen,
         &format!("{}", token::Variant::RightParen.to_string().code_str()),
         confident_next,
     );
+
+    // Create a copy of the errors vector for reporting additional errors.
+    let mut errors = term.errors.clone();
+
+    // Check if we found the right parenthesis.
+    if !found {
+        // We didn't find it. Report an error.
+        errors.push(Rc::new(move |source_path, source_contents| {
+            // Compute the source range for the left parenthesis.
+            let left_parenthesis_source_range = token_source_range(tokens, start);
+
+            // Check if we're at the end of the file.
+            if next == tokens.len() {
+                throw(
+                    "This parenthesis was never closed:",
+                    source_path,
+                    Some((source_contents, left_parenthesis_source_range.0)),
+                )
+            } else {
+                let left_parenthesis_listing = listing(
+                    source_contents,
+                    (left_parenthesis_source_range.0).0,
+                    (left_parenthesis_source_range.0).1,
+                );
+
+                let unexpected_token_source_range = token_source_range(tokens, next);
+
+                let unexpected_token_listing = listing(
+                    source_contents,
+                    (unexpected_token_source_range.0).0,
+                    (unexpected_token_source_range.0).1,
+                );
+
+                Error {
+                    message: if tokens[next].variant
+                        == token::Variant::Terminator(TerminatorType::LineBreak)
+                    {
+                        format!(
+                            "This parenthesis was never closed:\n\n{}\n\nIt was expected to be \
+                                    closed at the end of this line:\n\n{}",
+                            left_parenthesis_listing, unexpected_token_listing,
+                        )
+                    } else {
+                        format!(
+                            "This parenthesis was never closed:\n\n{}\n\nIt was expected to be \
+                                    closed before {}:\n\n{}",
+                            left_parenthesis_listing,
+                            tokens[next].to_string().code_str(),
+                            unexpected_token_listing,
+                        )
+                    },
+                    reason: None,
+                }
+            }
+        }));
+    }
 
     // If we made it this far, we successfully parsed the group. Return the inner term.
     cache_return!(
