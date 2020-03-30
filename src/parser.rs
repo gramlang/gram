@@ -1791,15 +1791,34 @@ fn parse_group<'a>(
                     message: if tokens[next].variant
                         == token::Variant::Terminator(TerminatorType::LineBreak)
                     {
+                        if let Some(path) = source_path {
+                            format!(
+                                "Error in {}: This parenthesis was never closed:\n\n{}\n\nIt was \
+                                    expected to be closed at the end of this line:\n\n{}",
+                                path.to_string_lossy().code_str(),
+                                left_parenthesis_listing,
+                                unexpected_token_listing,
+                            )
+                        } else {
+                            format!(
+                                "Error: This parenthesis was never closed:\n\n{}\n\nIt was \
+                                    expected to be closed at the end of this line:\n\n{}",
+                                left_parenthesis_listing, unexpected_token_listing,
+                            )
+                        }
+                    } else if let Some(path) = source_path {
                         format!(
-                            "This parenthesis was never closed:\n\n{}\n\nIt was expected to be \
-                                    closed at the end of this line:\n\n{}",
-                            left_parenthesis_listing, unexpected_token_listing,
+                            "Error in {}: This parenthesis was never closed:\n\n{}\n\nIt was \
+                                expected to be closed before {}:\n\n{}",
+                            path.to_string_lossy().code_str(),
+                            left_parenthesis_listing,
+                            tokens[next].to_string().code_str(),
+                            unexpected_token_listing,
                         )
                     } else {
                         format!(
-                            "This parenthesis was never closed:\n\n{}\n\nIt was expected to be \
-                                    closed before {}:\n\n{}",
+                            "Error: This parenthesis was never closed:\n\n{}\n\nIt was \
+                                expected to be closed before {}:\n\n{}",
                             left_parenthesis_listing,
                             tokens[next].to_string().code_str(),
                             unexpected_token_listing,
