@@ -81,7 +81,7 @@ pub fn type_check<'a>(
             // Check that the type of the domain is the type of all types.
             if !definitionally_equal(domain_type.clone(), Rc::new(TYPE_TERM), definitions_context) {
                 return Err(throw(
-                    &format!("{} is not a type.", domain.to_string().code_str()),
+                    "This is not a type:",
                     source_path,
                     domain
                         .source_range
@@ -129,7 +129,7 @@ pub fn type_check<'a>(
             // Check that the type of the domain is the type of all types.
             if !definitionally_equal(domain_type.clone(), Rc::new(TYPE_TERM), definitions_context) {
                 return Err(throw(
-                    &format!("{} is not a type.", domain.to_string().code_str()),
+                    "This is not a type:",
                     source_path,
                     domain
                         .source_range
@@ -183,7 +183,7 @@ pub fn type_check<'a>(
 
                 // Throw a type error.
                 return Err(throw(
-                    &format!("{} is not a type.", codomain.to_string().code_str()),
+                    "This is not a type:",
                     source_path,
                     codomain
                         .source_range
@@ -214,8 +214,7 @@ pub fn type_check<'a>(
             } else {
                 return Err(throw(
                     &format!(
-                        "{} has type {} when a function was expected.",
-                        applicand.to_string().code_str(),
+                        "This has type {} when a function was expected:",
                         applicand_type.to_string().code_str(),
                     ),
                     source_path,
@@ -238,8 +237,7 @@ pub fn type_check<'a>(
             if !definitionally_equal(argument_type.clone(), domain.clone(), definitions_context) {
                 return Err(throw(
                     &format!(
-                        "{} has type {}, but it should have type {}.",
-                        argument.to_string().code_str(),
+                        "This has type {}, but it should have type {}:",
                         argument_type.to_string().code_str(),
                         domain.to_string().code_str(),
                     ),
@@ -318,8 +316,7 @@ pub fn type_check<'a>(
                     ) {
                         return Err(throw(
                             &format!(
-                                "{} has type {} but it was annotated as {}.",
-                                definition.to_string().code_str(),
+                                "This has type {} but it was annotated as {}:",
                                 definition_type.to_string().code_str(),
                                 annotation.to_string().code_str(),
                             ),
@@ -414,8 +411,7 @@ pub fn type_check<'a>(
             ) {
                 return Err(throw(
                     &format!(
-                        "{} has type {}, but it should have type {}.",
-                        subterm.to_string().code_str(),
+                        "This has type {}, but it should have type {}:",
                         subterm_type.to_string().code_str(),
                         INTEGER_TERM.to_string().code_str(),
                     ),
@@ -450,8 +446,7 @@ pub fn type_check<'a>(
             ) {
                 return Err(throw(
                     &format!(
-                        "{} has type {}, but it should have type {}.",
-                        term1.to_string().code_str(),
+                        "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
                         INTEGER_TERM.to_string().code_str(),
                     ),
@@ -479,8 +474,7 @@ pub fn type_check<'a>(
             ) {
                 return Err(throw(
                     &format!(
-                        "{} has type {}, but it should have type {}.",
-                        term2.to_string().code_str(),
+                        "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
                         INTEGER_TERM.to_string().code_str(),
                     ),
@@ -516,8 +510,7 @@ pub fn type_check<'a>(
             ) {
                 return Err(throw(
                     &format!(
-                        "{} has type {}, but it should have type {}.",
-                        term1.to_string().code_str(),
+                        "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
                         INTEGER_TERM.to_string().code_str(),
                     ),
@@ -545,8 +538,7 @@ pub fn type_check<'a>(
             ) {
                 return Err(throw(
                     &format!(
-                        "{} has type {}, but it should have type {}.",
-                        term2.to_string().code_str(),
+                        "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
                         INTEGER_TERM.to_string().code_str(),
                     ),
@@ -578,8 +570,7 @@ pub fn type_check<'a>(
             ) {
                 return Err(throw(
                     &format!(
-                        "{} has type {}, but it should have type {}.",
-                        condition.to_string().code_str(),
+                        "This has type {}, but it should have type {}:",
                         condition_type.to_string().code_str(),
                         BOOLEAN_TERM.to_string().code_str(),
                     ),
@@ -616,9 +607,8 @@ pub fn type_check<'a>(
             ) {
                 return Err(throw(
                     &format!(
-                        "The two branches of conditional {} don\u{2019}t match. The then \
-                                branch has type {}, but the else branch has type {}.",
-                        term.to_string().code_str(),
+                        "The two branches of this conditional don\u{2019}t match. The first branch \
+                            has type {}, but the second branch has type {}.",
                         then_branch_type.to_string().code_str(),
                         else_branch_type.to_string().code_str(),
                     ),
