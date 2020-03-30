@@ -134,7 +134,27 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
         parse(Some(source_path), &source_contents, &tokens[..], &[]).map_err(|errors| Error {
             message: errors
                 .iter()
-                .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error))
+                .fold(String::new(), |acc, error| {
+                    format!(
+                        "{}\n{}{}",
+                        acc,
+                        // Only render an empty line between errors here if the previous line
+                        // doesn't already visually look like an empty line. See
+                        // [ref:overline_u203e].
+                        if acc
+                            .split('\n')
+                            .last()
+                            .unwrap()
+                            .chars()
+                            .all(|c| c == ' ' || c == '\u{203e}')
+                        {
+                            ""
+                        } else {
+                            "\n"
+                        },
+                        error,
+                    )
+                })
                 .trim()
                 .to_owned(),
             reason: None,
