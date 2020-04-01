@@ -54,7 +54,8 @@
 term: let | jumbo_term;
 type: TYPE;
 variable: IDENTIFIER;
-lambda: LEFT_PAREN IDENTIFIER COLON jumbo_term RIGHT_PAREN THICK_ARROW term;
+lambda: IDENTIFIER THICK_ARROW term;
+annotated_lambda: LEFT_PAREN IDENTIFIER COLON jumbo_term RIGHT_PAREN THICK_ARROW term;
 pi: LEFT_PAREN IDENTIFIER COLON jumbo_term RIGHT_PAREN THIN_ARROW term;
 non_dependent_pi: small_term THIN_ARROW term;
 application: atom small_term;
@@ -89,4 +90,4 @@ giant_term:
   greater_than |
   greater_than_or_equal_to |
   huge_term;
-jumbo_term: lambda | pi | non_dependent_pi | if | giant_term;
+jumbo_term: lambda | annotated_lambda | pi | non_dependent_pi | if | giant_term;

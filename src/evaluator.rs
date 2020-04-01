@@ -689,7 +689,7 @@ mod tests {
                 source_range: Some((0, 39)),
                 variant: Lambda(
                     "f",
-                    Rc::new(Term {
+                    Some(Rc::new(Term {
                         source_range: Some((5, 17)),
                         variant: Pi(
                             "_",
@@ -702,15 +702,15 @@ mod tests {
                                 variant: Type,
                             }),
                         ),
-                    }),
+                    })),
                     Rc::new(Term {
                         source_range: Some((22, 39)),
                         variant: Lambda(
                             "x",
-                            Rc::new(Term {
+                            Some(Rc::new(Term {
                                 source_range: Some((27, 31)),
                                 variant: Type,
-                            }),
+                            })),
                             Rc::new(Term {
                                 source_range: Some((36, 39)),
                                 variant: Application(

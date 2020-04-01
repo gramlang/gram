@@ -485,17 +485,17 @@ mod tests {
                 source_range: Some((0, 48)),
                 variant: Lambda(
                     "x",
-                    Rc::new(Term {
+                    Some(Rc::new(Term {
                         source_range: Some((5, 24)),
                         variant: Application(
                             Rc::new(Term {
                                 source_range: Some((5, 22)),
                                 variant: Lambda(
                                     "y",
-                                    Rc::new(Term {
+                                    Some(Rc::new(Term {
                                         source_range: Some((11, 15)),
                                         variant: Type,
-                                    }),
+                                    })),
                                     Rc::new(Term {
                                         source_range: Some((20, 21)),
                                         variant: Variable("y", 0),
@@ -507,7 +507,7 @@ mod tests {
                                 variant: Variable("p", 1),
                             }),
                         ),
-                    }),
+                    })),
                     Rc::new(Term {
                         source_range: Some((29, 48)),
                         variant: Application(
@@ -515,10 +515,10 @@ mod tests {
                                 source_range: Some((29, 46)),
                                 variant: Lambda(
                                     "z",
-                                    Rc::new(Term {
+                                    Some(Rc::new(Term {
                                         source_range: Some((35, 39)),
                                         variant: Type,
-                                    }),
+                                    })),
                                     Rc::new(Term {
                                         source_range: Some((44, 45)),
                                         variant: Variable("z", 0),
@@ -558,10 +558,10 @@ mod tests {
                                 source_range: Some((5, 22)),
                                 variant: Lambda(
                                     "y",
-                                    Rc::new(Term {
+                                    Some(Rc::new(Term {
                                         source_range: Some((11, 15)),
                                         variant: Type,
-                                    }),
+                                    })),
                                     Rc::new(Term {
                                         source_range: Some((20, 21)),
                                         variant: Variable("y", 0),
@@ -581,10 +581,10 @@ mod tests {
                                 source_range: Some((29, 46)),
                                 variant: Lambda(
                                     "z",
-                                    Rc::new(Term {
+                                    Some(Rc::new(Term {
                                         source_range: Some((35, 39)),
                                         variant: Type,
-                                    }),
+                                    })),
                                     Rc::new(Term {
                                         source_range: Some((44, 45)),
                                         variant: Variable("z", 0),
@@ -627,10 +627,10 @@ mod tests {
                                 source_range: Some((23, 40)),
                                 variant: Lambda(
                                     "z",
-                                    Rc::new(Term {
+                                    Some(Rc::new(Term {
                                         source_range: Some((29, 33)),
                                         variant: Type,
-                                    }),
+                                    })),
                                     Rc::new(Term {
                                         source_range: Some((38, 39)),
                                         variant: Variable("z", 0),

@@ -22,7 +22,7 @@ pub struct Term<'a> {
 pub enum Variant<'a> {
     Type,
     Variable(&'a str, usize),
-    Lambda(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
+    Lambda(&'a str, Option<Rc<Term<'a>>>, Rc<Term<'a>>),
     Pi(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
     #[allow(clippy::type_complexity)]
@@ -61,7 +61,11 @@ impl<'a> Display for Variant<'a> {
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
             Self::Variable(variable, _) => write!(f, "{}", variable),
             Self::Lambda(variable, domain, body) => {
-                write!(f, "({} : {}) => {}", variable, domain, body)
+                if let Some(domain) = domain {
+                    write!(f, "({} : {}) => {}", variable, domain, body)
+                } else {
+                    write!(f, "{} => {}", variable, body)
+                }
             }
             Self::Pi(variable, domain, codomain) => {
                 let mut variables = HashSet::new();
