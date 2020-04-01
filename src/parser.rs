@@ -3069,7 +3069,16 @@ fn resolve_variables<'a>(
             } else {
                 // The variable isn't in scope. Report the error.
                 errors.push(throw(
-                    &format!("Variable {} not in scope.", variable.name.code_str()),
+                    &if variable.name == PLACEHOLDER_VARIABLE {
+                        format!(
+                            "{} is not a valid variable name. Rather, it\u{2019}s used to indicate \
+                                that a variable will not be used and thus doesn\u{2019}t need a \
+                                name.",
+                            variable.name.code_str(),
+                        )
+                    } else {
+                        format!("Variable {} not in scope.", variable.name.code_str())
+                    },
                     source_path,
                     Some((source_contents, variable.source_range.0)),
                 ));
