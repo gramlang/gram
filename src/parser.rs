@@ -74,7 +74,7 @@ enum Variant<'a> {
     ParseError,
     Type,
     Variable(SourceVariable<'a>),
-    Lambda(SourceVariable<'a>, Rc<Term<'a>>, Rc<Term<'a>>),
+    Lambda(SourceVariable<'a>, Option<Rc<Term<'a>>>, Rc<Term<'a>>),
     Pi(SourceVariable<'a>, Rc<Term<'a>>, Rc<Term<'a>>),
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
     Let(
@@ -155,6 +155,7 @@ enum Nonterminal {
     Type,
     Variable,
     Lambda,
+    AnnotatedLambda,
     Pi,
     NonDependentPi,
     Application,
@@ -625,6 +626,56 @@ fn parse_lambda<'a>(
     // Check the cache.
     let cache_key = cache_check!(cache, Lambda, start);
 
+    // Consume the variable.
+    let (variable, next) =
+        consume_token1!(cache, cache_key, tokens, start, Identifier, "a variable");
+
+    // Consume the arrow.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        ThickArrow,
+        &format!("{}", token::Variant::ThickArrow.to_string().code_str()),
+    );
+
+    // Parse the body.
+    let (body, next, confident_next) = parse_term(cache, tokens, next);
+
+    // Construct and return the term.
+    cache_return!(
+        cache,
+        cache_key,
+        (
+            Term {
+                source_range: span(token_source_range(tokens, start), body.source_range),
+                group: false,
+                variant: Variant::Lambda(
+                    SourceVariable {
+                        source_range: token_source_range(tokens, start),
+                        name: variable,
+                    },
+                    None,
+                    Rc::new(body),
+                ),
+                errors: vec![],
+            },
+            next,
+            confident_next,
+        ),
+    )
+}
+
+// Parse an annotated lambda.
+fn parse_annotated_lambda<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize, bool) {
+    // Check the cache.
+    let cache_key = cache_check!(cache, AnnotatedLambda, start);
+
     // Consume the left parenthesis.
     let next = consume_token0!(
         cache,
@@ -689,7 +740,7 @@ fn parse_lambda<'a>(
                         source_range: variable_source_range,
                         name: variable,
                     },
-                    Rc::new(domain),
+                    Some(Rc::new(domain)),
                     Rc::new(body),
                 ),
                 errors: vec![],
@@ -2052,6 +2103,13 @@ fn parse_jumbo_term<'a>(
     // Try to parse a lambda.
     try_return!(cache, cache_key, parse_lambda(cache, tokens, start));
 
+    // Try to parse an annotated lambda.
+    try_return!(
+        cache,
+        cache_key,
+        parse_annotated_lambda(cache, tokens, start),
+    );
+
     // Try to parse a pi type.
     try_return!(cache, cache_key, parse_pi(cache, tokens, start));
 
@@ -2165,7 +2223,10 @@ fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term
         | Variant::True
         | Variant::False => {}
         Variant::Lambda(_, domain, body) => {
-            collect_error_factories(error_factories, domain);
+            if let Some(domain) = domain {
+                collect_error_factories(error_factories, domain);
+            }
+
             collect_error_factories(error_factories, body);
         }
         Variant::Pi(_, domain, codomain) => {
@@ -2237,7 +2298,9 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
             group: term.group,
             variant: Variant::Lambda(
                 *variable,
-                reassociate_applications(None, domain.clone()),
+                domain
+                    .as_ref()
+                    .map(|domain| reassociate_applications(None, domain.clone())),
                 reassociate_applications(None, body.clone()),
             ),
             errors: vec![],
@@ -2458,7 +2521,9 @@ fn reassociate_products_and_quotients<'a>(
             group: term.group,
             variant: Variant::Lambda(
                 *variable,
-                reassociate_products_and_quotients(None, domain.clone()),
+                domain
+                    .as_ref()
+                    .map(|domain| reassociate_products_and_quotients(None, domain.clone())),
                 reassociate_products_and_quotients(None, body.clone()),
             ),
             errors: vec![],
@@ -2733,7 +2798,9 @@ fn reassociate_sums_and_differences<'a>(
             group: term.group,
             variant: Variant::Lambda(
                 *variable,
-                reassociate_sums_and_differences(None, domain.clone()),
+                domain
+                    .as_ref()
+                    .map(|domain| reassociate_sums_and_differences(None, domain.clone())),
                 reassociate_sums_and_differences(None, body.clone()),
             ),
             errors: vec![],
@@ -3018,15 +3085,10 @@ fn resolve_variables<'a>(
             }
         }
         Variant::Lambda(variable, domain, body) => {
-            // Resolve variables in the domain.
-            let resolved_domain = resolve_variables(
-                source_path,
-                source_contents,
-                &*domain,
-                depth,
-                context,
-                errors,
-            );
+            // Resolve variables in the domain if it exists.
+            let resolved_domain = domain.as_ref().map(|domain| {
+                resolve_variables(source_path, source_contents, domain, depth, context, errors)
+            });
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -3055,7 +3117,7 @@ fn resolve_variables<'a>(
                 source_range: Some(term.source_range.0),
                 variant: term::Variant::Lambda(
                     variable.name,
-                    Rc::new(resolved_domain),
+                    resolved_domain.map(Rc::new),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
@@ -3580,7 +3642,10 @@ fn check_definitions<'a>(
         | term::Variant::True
         | term::Variant::False => {}
         term::Variant::Lambda(_, domain, body) => {
-            check_definitions(source_path, source_contents, domain, depth, context, errors);
+            if let Some(domain) = domain {
+                check_definitions(source_path, source_contents, domain, depth, context, errors);
+            }
+
             check_definitions(
                 source_path,
                 source_contents,
@@ -3832,6 +3897,28 @@ mod tests {
 
     #[test]
     fn parse_lambda() {
+        let source = "x => x";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 6)),
+                variant: Lambda(
+                    "x",
+                    None,
+                    Rc::new(Term {
+                        source_range: Some((5, 6)),
+                        variant: Variable("x", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_annotated_lambda() {
         let source = "(x : a) => x";
         let tokens = tokenize(None, source).unwrap();
         let context = ["a"];
@@ -3842,10 +3929,10 @@ mod tests {
                 source_range: Some((0, 12)),
                 variant: Lambda(
                     "x",
-                    Rc::new(Term {
+                    Some(Rc::new(Term {
                         source_range: Some((5, 6)),
                         variant: Variable("a", 0),
-                    }),
+                    })),
                     Rc::new(Term {
                         source_range: Some((11, 12)),
                         variant: Variable("x", 0),
@@ -3879,18 +3966,18 @@ mod tests {
                 source_range: Some((0, 23)),
                 variant: Lambda(
                     "_",
-                    Rc::new(Term {
+                    Some(Rc::new(Term {
                         source_range: Some((5, 6)),
                         variant: Variable("a", 0),
-                    }),
+                    })),
                     Rc::new(Term {
                         source_range: Some((11, 23)),
                         variant: Lambda(
                             "_",
-                            Rc::new(Term {
+                            Some(Rc::new(Term {
                                 source_range: Some((16, 17)),
                                 variant: Variable("a", 1),
-                            }),
+                            })),
                             Rc::new(Term {
                                 source_range: Some((22, 23)),
                                 variant: Variable("a", 2),
@@ -4146,10 +4233,10 @@ mod tests {
                                         source_range: Some((4, 21)),
                                         variant: Lambda(
                                             "_",
-                                            Rc::new(Term {
+                                            Some(Rc::new(Term {
                                                 source_range: Some((10, 14)),
                                                 variant: Type,
-                                            }),
+                                            })),
                                             Rc::new(Term {
                                                 source_range: Some((19, 20)),
                                                 variant: Variable("y", 1),
@@ -4603,23 +4690,23 @@ mod tests {
                 source_range: Some((0, 58)),
                 variant: Lambda(
                     "a",
-                    Rc::new(Term {
+                    Some(Rc::new(Term {
                         source_range: Some((5, 9)),
                         variant: Type,
-                    }),
+                    })),
                     Rc::new(Term {
                         source_range: Some((14, 58)),
                         variant: Lambda(
                             "b",
-                            Rc::new(Term {
+                            Some(Rc::new(Term {
                                 source_range: Some((19, 23)),
                                 variant: Type,
-                            }),
+                            })),
                             Rc::new(Term {
                                 source_range: Some((28, 58)),
                                 variant: Lambda(
                                     "f",
-                                    Rc::new(Term {
+                                    Some(Rc::new(Term {
                                         source_range: Some((33, 39)),
                                         variant: Pi(
                                             "_",
@@ -4632,15 +4719,15 @@ mod tests {
                                                 variant: Variable("b", 1),
                                             }),
                                         ),
-                                    }),
+                                    })),
                                     Rc::new(Term {
                                         source_range: Some((44, 58)),
                                         variant: Lambda(
                                             "x",
-                                            Rc::new(Term {
+                                            Some(Rc::new(Term {
                                                 source_range: Some((49, 50)),
                                                 variant: Variable("a", 2),
-                                            }),
+                                            })),
                                             Rc::new(Term {
                                                 source_range: Some((55, 58)),
                                                 variant: Application(

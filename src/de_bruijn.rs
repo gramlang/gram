@@ -29,7 +29,9 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
             source_range: term.source_range,
             variant: Lambda(
                 variable,
-                shift(domain.clone(), cutoff, amount),
+                domain
+                    .as_ref()
+                    .map(|domain| shift(domain.clone(), cutoff, amount)),
                 shift(body.clone(), cutoff + 1, amount),
             ),
         }),
@@ -176,12 +178,14 @@ pub fn open<'a>(
             source_range: term_to_open.source_range,
             variant: Lambda(
                 variable,
-                open(
-                    domain.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
+                domain.as_ref().map(|domain| {
+                    open(
+                        domain.clone(),
+                        index_to_replace,
+                        term_to_insert.clone(),
+                        shift_amount,
+                    )
+                }),
                 open(
                     body.clone(),
                     index_to_replace + 1,
@@ -464,7 +468,10 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
             }
         }
         Lambda(_, domain, body) => {
-            free_variables(domain, cutoff, variables);
+            if let Some(domain) = domain {
+                free_variables(domain, cutoff, variables);
+            }
+
             free_variables(body, cutoff + 1, variables);
         }
         Pi(_, domain, codomain) => {
@@ -586,10 +593,10 @@ mod tests {
                     source_range: Some((97, 112)),
                     variant: Lambda(
                         "a",
-                        Rc::new(Term {
+                        Some(Rc::new(Term {
                             source_range: Some((102, 106)),
                             variant: Variable("b", 0),
-                        }),
+                        })),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
                             variant: Variable("b", 1),
@@ -603,10 +610,10 @@ mod tests {
                 source_range: Some((97, 112)),
                 variant: Lambda(
                     "a",
-                    Rc::new(Term {
+                    Some(Rc::new(Term {
                         source_range: Some((102, 106)),
                         variant: Variable("b", 42),
-                    }),
+                    })),
                     Rc::new(Term {
                         source_range: Some((111, 112)),
                         variant: Variable("b", 43),
@@ -1344,10 +1351,10 @@ mod tests {
                     source_range: Some((97, 112)),
                     variant: Lambda(
                         "a",
-                        Rc::new(Term {
+                        Some(Rc::new(Term {
                             source_range: Some((102, 106)),
                             variant: Variable("b", 0),
-                        }),
+                        })),
                         Rc::new(Term {
                             source_range: Some((111, 112)),
                             variant: Variable("b", 1),
@@ -1365,10 +1372,10 @@ mod tests {
                 source_range: Some((97, 112)),
                 variant: Lambda(
                     "a",
-                    Rc::new(Term {
+                    Some(Rc::new(Term {
                         source_range: Some((3, 4)),
                         variant: Variable("x", 4),
-                    }),
+                    })),
                     Rc::new(Term {
                         source_range: Some((3, 4)),
                         variant: Variable("x", 5),
@@ -2143,10 +2150,10 @@ mod tests {
                 source_range: Some((97, 112)),
                 variant: Lambda(
                     "a",
-                    Rc::new(Term {
+                    Some(Rc::new(Term {
                         source_range: Some((102, 106)),
                         variant: Variable("b", 15),
-                    }),
+                    })),
                     Rc::new(Term {
                         source_range: Some((111, 112)),
                         variant: Variable("b", 15),

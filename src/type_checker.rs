@@ -69,11 +69,21 @@ pub fn type_check<'a>(
             }
         }
         Lambda(variable, domain, body) => {
+            // Check that we have a domain.
+            let domain = domain.as_ref().ok_or_else(|| {
+                throw(
+                    "The argument to this function needs a type annotation:",
+                    source_path,
+                    term.source_range
+                        .map(|source_range| (source_contents, source_range)),
+                )
+            })?;
+
             // Infer the type of the domain.
             let domain_type = type_check(
                 source_path,
                 source_contents,
-                &**domain,
+                domain,
                 typing_context,
                 definitions_context,
             )?;
