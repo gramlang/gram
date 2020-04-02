@@ -59,7 +59,7 @@ impl<'a> Display for Variant<'a> {
         match self {
             Self::Unifier(subterm) => {
                 if let Some(subterm) = &*subterm.borrow() {
-                    write!(f, "{{{}}}", subterm)
+                    write!(f, "{}", subterm)
                 } else {
                     write!(f, "?")
                 }
@@ -130,9 +130,15 @@ impl<'a> Display for Variant<'a> {
 // Convert a term to a string with surrounding parentheses, except for simple terms that cause no
 // parsing ambiguities in any context.
 fn group<'a>(term: &Term<'a>) -> String {
-    match term.variant {
-        Variant::Unifier(_)
-        | Variant::Type
+    match &term.variant {
+        Variant::Unifier(subterm) => {
+            if let Some(subterm) = &*subterm.borrow() {
+                group(&subterm)
+            } else {
+                format!("{}", term)
+            }
+        }
+        Variant::Type
         | Variant::Variable(_, _)
         | Variant::Integer
         | Variant::IntegerLiteral(_)
