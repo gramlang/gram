@@ -3133,7 +3133,14 @@ fn resolve_variables<'a>(
                 source_range: Some(term.source_range.0),
                 variant: term::Variant::Lambda(
                     variable.name,
-                    resolved_domain.map(Rc::new),
+                    if let Some(resolved_domain) = resolved_domain {
+                        Rc::new(resolved_domain)
+                    } else {
+                        Rc::new(term::Term {
+                            source_range: None,
+                            variant: term::Variant::Unifier(Rc::new(RefCell::new(None))),
+                        })
+                    },
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
@@ -3275,15 +3282,18 @@ fn resolve_variables<'a>(
 
                 // Resolve variables in the annotation.
                 let resolved_annotation = match inner_annotation {
-                    Some(annotation) => Some(Rc::new(resolve_variables(
+                    Some(annotation) => Rc::new(resolve_variables(
                         source_path,
                         source_contents,
                         &*annotation,
                         new_depth,
                         borrowed_context,
                         errors,
-                    ))),
-                    None => None,
+                    )),
+                    None => Rc::new(term::Term {
+                        source_range: None,
+                        variant: term::Variant::Unifier(Rc::new(RefCell::new(None))),
+                    }),
                 };
 
                 // Resolve variables in the definition.
@@ -3657,11 +3667,20 @@ fn check_definitions<'a>(
         | term::Variant::Boolean
         | term::Variant::True
         | term::Variant::False => {}
-        term::Variant::Lambda(_, domain, body) => {
-            if let Some(domain) = domain {
-                check_definitions(source_path, source_contents, domain, depth, context, errors);
+        term::Variant::Unifier(subterm) => {
+            if let Some(subterm) = &*subterm.borrow() {
+                check_definitions(
+                    source_path,
+                    source_contents,
+                    subterm,
+                    depth,
+                    context,
+                    errors,
+                );
             }
-
+        }
+        term::Variant::Lambda(_, domain, body) => {
+            check_definitions(source_path, source_contents, domain, depth, context, errors);
             check_definitions(
                 source_path,
                 source_contents,
@@ -3787,7 +3806,7 @@ fn check_definitions<'a>(
 fn check_definition<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
-    definitions: &[(&'a str, Option<Rc<term::Term<'a>>>, Rc<term::Term<'a>>)],
+    definitions: &[(&'a str, Rc<term::Term<'a>>, Rc<term::Term<'a>>)],
     definitions_depth: usize, // Assumes the definitions have already been added to the context
     start_index: usize,       // [0, definitions.len())
     current_index: usize,     // [0, definitions.len())
@@ -3849,13 +3868,14 @@ mod tests {
             Variant::{
                 Application, Boolean, Difference, EqualTo, False, GreaterThan,
                 GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
-                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Variable,
+                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
+                Variable,
             },
         },
         tokenizer::tokenize,
     };
     use num_bigint::ToBigInt;
-    use std::rc::Rc;
+    use std::{cell::RefCell, rc::Rc};
 
     #[test]
     fn parse_empty() {
@@ -3923,7 +3943,10 @@ mod tests {
                 source_range: Some((0, 6)),
                 variant: Lambda(
                     "x",
-                    None,
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Unifier(Rc::new(RefCell::new(None))),
+                    }),
                     Rc::new(Term {
                         source_range: Some((5, 6)),
                         variant: Variable("x", 0),
@@ -3945,10 +3968,10 @@ mod tests {
                 source_range: Some((0, 12)),
                 variant: Lambda(
                     "x",
-                    Some(Rc::new(Term {
+                    Rc::new(Term {
                         source_range: Some((5, 6)),
                         variant: Variable("a", 0),
-                    })),
+                    }),
                     Rc::new(Term {
                         source_range: Some((11, 12)),
                         variant: Variable("x", 0),
@@ -3982,18 +4005,18 @@ mod tests {
                 source_range: Some((0, 23)),
                 variant: Lambda(
                     "_",
-                    Some(Rc::new(Term {
+                    Rc::new(Term {
                         source_range: Some((5, 6)),
                         variant: Variable("a", 0),
-                    })),
+                    }),
                     Rc::new(Term {
                         source_range: Some((11, 23)),
                         variant: Lambda(
                             "_",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: Some((16, 17)),
                                 variant: Variable("a", 1),
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: Some((22, 23)),
                                 variant: Variable("a", 2),
@@ -4241,7 +4264,10 @@ mod tests {
                     vec![
                         (
                             "x",
-                            None,
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Unifier(Rc::new(RefCell::new(None))),
+                            }),
                             Rc::new(Term {
                                 source_range: Some((4, 26)),
                                 variant: Application(
@@ -4249,10 +4275,10 @@ mod tests {
                                         source_range: Some((4, 21)),
                                         variant: Lambda(
                                             "_",
-                                            Some(Rc::new(Term {
+                                            Rc::new(Term {
                                                 source_range: Some((10, 14)),
                                                 variant: Type,
-                                            })),
+                                            }),
                                             Rc::new(Term {
                                                 source_range: Some((19, 20)),
                                                 variant: Variable("y", 1),
@@ -4268,10 +4294,10 @@ mod tests {
                         ),
                         (
                             "y",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: Some((32, 36)),
                                 variant: Type,
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: Some((39, 43)),
                                 variant: Type,
@@ -4706,23 +4732,23 @@ mod tests {
                 source_range: Some((0, 58)),
                 variant: Lambda(
                     "a",
-                    Some(Rc::new(Term {
+                    Rc::new(Term {
                         source_range: Some((5, 9)),
                         variant: Type,
-                    })),
+                    }),
                     Rc::new(Term {
                         source_range: Some((14, 58)),
                         variant: Lambda(
                             "b",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: Some((19, 23)),
                                 variant: Type,
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: Some((28, 58)),
                                 variant: Lambda(
                                     "f",
-                                    Some(Rc::new(Term {
+                                    Rc::new(Term {
                                         source_range: Some((33, 39)),
                                         variant: Pi(
                                             "_",
@@ -4735,15 +4761,15 @@ mod tests {
                                                 variant: Variable("b", 1),
                                             }),
                                         ),
-                                    })),
+                                    }),
                                     Rc::new(Term {
                                         source_range: Some((44, 58)),
                                         variant: Lambda(
                                             "x",
-                                            Some(Rc::new(Term {
+                                            Rc::new(Term {
                                                 source_range: Some((49, 50)),
                                                 variant: Variable("a", 2),
-                                            })),
+                                            }),
                                             Rc::new(Term {
                                                 source_range: Some((55, 58)),
                                                 variant: Application(

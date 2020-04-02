@@ -4,6 +4,7 @@ use crate::{
 };
 use num_bigint::BigInt;
 use std::{
+    cell::RefCell,
     collections::HashSet,
     fmt::{Display, Formatter, Result},
     rc::Rc,
@@ -20,16 +21,14 @@ pub struct Term<'a> {
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Variant<'a> {
+    Unifier(Rc<RefCell<Option<Term<'a>>>>), // `Some(...)` should not be mutated
     Type,
     Variable(&'a str, usize),
-    Lambda(&'a str, Option<Rc<Term<'a>>>, Rc<Term<'a>>),
+    Lambda(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
     Pi(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
     #[allow(clippy::type_complexity)]
-    Let(
-        Vec<(&'a str, Option<Rc<Term<'a>>>, Rc<Term<'a>>)>,
-        Rc<Term<'a>>,
-    ),
+    Let(Vec<(&'a str, Rc<Term<'a>>, Rc<Term<'a>>)>, Rc<Term<'a>>),
     Integer,
     IntegerLiteral(BigInt),
     Negation(Rc<Term<'a>>),
@@ -58,14 +57,17 @@ impl<'a> Display for Term<'a> {
 impl<'a> Display for Variant<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
+            Self::Unifier(subterm) => {
+                if let Some(subterm) = &*subterm.borrow() {
+                    write!(f, "{{{}}}", subterm)
+                } else {
+                    write!(f, "?")
+                }
+            }
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
             Self::Variable(variable, _) => write!(f, "{}", variable),
             Self::Lambda(variable, domain, body) => {
-                if let Some(domain) = domain {
-                    write!(f, "({} : {}) => {}", variable, domain, body)
-                } else {
-                    write!(f, "{} => {}", variable, body)
-                }
+                write!(f, "({} : {}) => {}", variable, domain, body)
             }
             Self::Pi(variable, domain, codomain) => {
                 let mut variables = HashSet::new();
@@ -86,20 +88,13 @@ impl<'a> Display for Variant<'a> {
             },
             Self::Let(definitions, body) => {
                 for (variable, annotation, definition) in definitions {
-                    match annotation {
-                        Some(annotation) => {
-                            write!(
-                                f,
-                                "{} : {} = {}; ",
-                                variable,
-                                group(annotation),
-                                group(definition),
-                            )?;
-                        }
-                        None => {
-                            write!(f, "{} = {}; ", variable, definition)?;
-                        }
-                    }
+                    write!(
+                        f,
+                        "{} : {} = {}; ",
+                        variable,
+                        group(annotation),
+                        group(definition),
+                    )?;
                 }
 
                 write!(f, "{}", body)
@@ -136,7 +131,8 @@ impl<'a> Display for Variant<'a> {
 // parsing ambiguities in any context.
 fn group<'a>(term: &Term<'a>) -> String {
     match term.variant {
-        Variant::Type
+        Variant::Unifier(_)
+        | Variant::Type
         | Variant::Variable(_, _)
         | Variant::Integer
         | Variant::IntegerLiteral(_)

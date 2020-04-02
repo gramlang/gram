@@ -214,9 +214,14 @@ macro_rules! assert_fails {
 
         // Check that `$expr` fails and that the failure contains `$substr`.
         if let Err(error) = expr {
-            assert!(error.to_string().contains(substr));
+            let error_string = error.to_string();
+
+            assert!(error_string.contains(substr), error_string);
         } else {
-            assert!(false);
+            assert!(
+                false,
+                "The expression was supposed to fail, but it succeeded.",
+            );
         }
     }};
 }
@@ -236,16 +241,23 @@ macro_rules! assert_fails_vec {
         // Check that `$expr` fails and that the failure contains `$substr`.
         if let Err(errors) = expr {
             let mut found_error = false;
+            let mut all_errors_string = "".to_owned();
 
             for error in errors {
-                if error.to_string().contains(substr) {
+                let error_string = error.to_string();
+                all_errors_string.push_str(&format!("{}\n", error_string));
+
+                if error_string.contains(substr) {
                     found_error = true;
                 }
             }
 
             assert!(found_error);
         } else {
-            assert!(false);
+            assert!(
+                false,
+                "The expression was supposed to fail, but it succeeded.",
+            );
         }
     }};
 }

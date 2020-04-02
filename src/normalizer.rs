@@ -5,7 +5,7 @@ use crate::{
         Variant::{
             Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
             If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
-            Product, Quotient, Sum, True, Type, Variable,
+            Product, Quotient, Sum, True, Type, Unifier, Variable,
         },
     },
 };
@@ -29,6 +29,14 @@ pub fn normalize_weak_head<'a>(
         | False => {
             // These cases are already in beta normal form.
             term
+        }
+        Unifier(subterm) => {
+            // If the unifier points to something, normalize it. Otherwise, we're stuck.
+            if let Some(subterm) = &*subterm.borrow() {
+                normalize_weak_head(Rc::new(subterm.clone()), definitions_context)
+            } else {
+                term.clone()
+            }
         }
         Variable(_, index) => {
             // Look up the definition in the context.
@@ -91,14 +99,12 @@ pub fn normalize_weak_head<'a>(
                         variant: Let(
                             vec![(
                                 variable,
-                                annotation.as_ref().map(|annotation| {
-                                    open(
-                                        shift(annotation.clone(), 0, 1),
-                                        i_index_plus_one,
-                                        body_for_unfolding.clone(),
-                                        0,
-                                    )
-                                }),
+                                open(
+                                    shift(annotation.clone(), 0, 1),
+                                    i_index_plus_one,
+                                    body_for_unfolding.clone(),
+                                    0,
+                                ),
                                 open(
                                     shift(definition.clone(), 0, 1),
                                     i_index_plus_one,
@@ -114,10 +120,7 @@ pub fn normalize_weak_head<'a>(
 
                 // Substitute the unfolded definition in subsequent annotations and definitions.
                 for (_, annotation, definition) in definitions.iter_mut().skip(i) {
-                    *annotation = annotation.as_ref().map(|annotation| {
-                        open(annotation.clone(), i_index, unfolded_definition.clone(), 0)
-                    });
-
+                    *annotation = open(annotation.clone(), i_index, unfolded_definition.clone(), 0);
                     *definition = open(definition.clone(), i_index, unfolded_definition.clone(), 0);
                 }
 
@@ -485,17 +488,17 @@ mod tests {
                 source_range: Some((0, 48)),
                 variant: Lambda(
                     "x",
-                    Some(Rc::new(Term {
+                    Rc::new(Term {
                         source_range: Some((5, 24)),
                         variant: Application(
                             Rc::new(Term {
                                 source_range: Some((5, 22)),
                                 variant: Lambda(
                                     "y",
-                                    Some(Rc::new(Term {
+                                    Rc::new(Term {
                                         source_range: Some((11, 15)),
                                         variant: Type,
-                                    })),
+                                    }),
                                     Rc::new(Term {
                                         source_range: Some((20, 21)),
                                         variant: Variable("y", 0),
@@ -507,7 +510,7 @@ mod tests {
                                 variant: Variable("p", 1),
                             }),
                         ),
-                    })),
+                    }),
                     Rc::new(Term {
                         source_range: Some((29, 48)),
                         variant: Application(
@@ -515,10 +518,10 @@ mod tests {
                                 source_range: Some((29, 46)),
                                 variant: Lambda(
                                     "z",
-                                    Some(Rc::new(Term {
+                                    Rc::new(Term {
                                         source_range: Some((35, 39)),
                                         variant: Type,
-                                    })),
+                                    }),
                                     Rc::new(Term {
                                         source_range: Some((44, 45)),
                                         variant: Variable("z", 0),
@@ -558,10 +561,10 @@ mod tests {
                                 source_range: Some((5, 22)),
                                 variant: Lambda(
                                     "y",
-                                    Some(Rc::new(Term {
+                                    Rc::new(Term {
                                         source_range: Some((11, 15)),
                                         variant: Type,
-                                    })),
+                                    }),
                                     Rc::new(Term {
                                         source_range: Some((20, 21)),
                                         variant: Variable("y", 0),
@@ -581,10 +584,10 @@ mod tests {
                                 source_range: Some((29, 46)),
                                 variant: Lambda(
                                     "z",
-                                    Some(Rc::new(Term {
+                                    Rc::new(Term {
                                         source_range: Some((35, 39)),
                                         variant: Type,
-                                    })),
+                                    }),
                                     Rc::new(Term {
                                         source_range: Some((44, 45)),
                                         variant: Variable("z", 0),
@@ -627,10 +630,10 @@ mod tests {
                                 source_range: Some((23, 40)),
                                 variant: Lambda(
                                     "z",
-                                    Some(Rc::new(Term {
+                                    Rc::new(Term {
                                         source_range: Some((29, 33)),
                                         variant: Type,
-                                    })),
+                                    }),
                                     Rc::new(Term {
                                         source_range: Some((38, 39)),
                                         variant: Variable("z", 0),

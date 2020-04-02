@@ -3,7 +3,7 @@ use crate::term::{
     Variant::{
         Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo, If,
         Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi, Product,
-        Quotient, Sum, True, Type, Variable,
+        Quotient, Sum, True, Type, Unifier, Variable,
     },
 };
 use std::{cmp::Ordering, collections::HashSet, rc::Rc};
@@ -14,6 +14,13 @@ use std::{cmp::Ordering, collections::HashSet, rc::Rc};
 #[allow(clippy::too_many_lines)]
 pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a>> {
     match &term.variant {
+        Unifier(subterm) => {
+            if let Some(subterm) = &*subterm.borrow() {
+                shift(Rc::new(subterm.clone()), cutoff, amount)
+            } else {
+                term.clone()
+            }
+        }
         Type | Integer | IntegerLiteral(_) | Boolean | True | False => term,
         Variable(variable, index) => {
             if *index >= cutoff {
@@ -29,9 +36,7 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
             source_range: term.source_range,
             variant: Lambda(
                 variable,
-                domain
-                    .as_ref()
-                    .map(|domain| shift(domain.clone(), cutoff, amount)),
+                shift(domain.clone(), cutoff, amount),
                 shift(body.clone(), cutoff + 1, amount),
             ),
         }),
@@ -51,10 +56,8 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
             ),
         }),
         Let(definitions, body) => {
-            // Compute this once rather than multiple times.
             let new_cutoff = cutoff + definitions.len();
 
-            // Shift definitions, annotations, and the body by the new index.
             Rc::new(Term {
                 source_range: term.source_range,
                 variant: Let(
@@ -63,9 +66,7 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
                         .map(|(variable, annotation, definition)| {
                             (
                                 *variable,
-                                annotation.as_ref().map(|annotation| {
-                                    shift(annotation.clone(), new_cutoff, amount)
-                                }),
+                                shift(annotation.clone(), new_cutoff, amount),
                                 shift(definition.clone(), new_cutoff, amount),
                             )
                         })
@@ -165,6 +166,18 @@ pub fn open<'a>(
     shift_amount: usize,
 ) -> Rc<Term<'a>> {
     match &term_to_open.variant {
+        Unifier(subterm) => {
+            if let Some(subterm) = &*subterm.borrow() {
+                open(
+                    Rc::new(subterm.clone()),
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                )
+            } else {
+                term_to_open.clone()
+            }
+        }
         Type | Integer | IntegerLiteral(_) | Boolean | True | False => term_to_open,
         Variable(variable, index) => match index.cmp(&index_to_replace) {
             Ordering::Greater => Rc::new(Term {
@@ -178,14 +191,12 @@ pub fn open<'a>(
             source_range: term_to_open.source_range,
             variant: Lambda(
                 variable,
-                domain.as_ref().map(|domain| {
-                    open(
-                        domain.clone(),
-                        index_to_replace,
-                        term_to_insert.clone(),
-                        shift_amount,
-                    )
-                }),
+                open(
+                    domain.clone(),
+                    index_to_replace,
+                    term_to_insert.clone(),
+                    shift_amount,
+                ),
                 open(
                     body.clone(),
                     index_to_replace + 1,
@@ -230,11 +241,9 @@ pub fn open<'a>(
             ),
         }),
         Let(definitions, body) => {
-            // Compute these once rather than multiple times.
             let new_index_to_replace = index_to_replace + definitions.len();
             let new_shift_amount = shift_amount + definitions.len();
 
-            // Open definitions, annotations, and the body at the new index to replace.
             Rc::new(Term {
                 source_range: term_to_open.source_range,
                 variant: Let(
@@ -243,14 +252,12 @@ pub fn open<'a>(
                         .map(|(variable, annotation, definition)| {
                             (
                                 *variable,
-                                annotation.as_ref().map(|annotation| {
-                                    open(
-                                        annotation.clone(),
-                                        new_index_to_replace,
-                                        term_to_insert.clone(),
-                                        new_shift_amount,
-                                    )
-                                }),
+                                open(
+                                    annotation.clone(),
+                                    new_index_to_replace,
+                                    term_to_insert.clone(),
+                                    new_shift_amount,
+                                ),
                                 open(
                                     definition.clone(),
                                     new_index_to_replace,
@@ -461,6 +468,11 @@ pub fn open<'a>(
 // This function includes free variables in type annotations.
 pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSet<usize>) {
     match &term.variant {
+        Unifier(subterm) => {
+            if let Some(subterm) = &*subterm.borrow() {
+                free_variables(subterm, cutoff, variables);
+            }
+        }
         Type | Integer | IntegerLiteral(_) | Boolean | True | False => {}
         Variable(_, index) => {
             if *index >= cutoff {
@@ -468,10 +480,7 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
             }
         }
         Lambda(_, domain, body) => {
-            if let Some(domain) = domain {
-                free_variables(domain, cutoff, variables);
-            }
-
+            free_variables(domain, cutoff, variables);
             free_variables(body, cutoff + 1, variables);
         }
         Pi(_, domain, codomain) => {
@@ -484,10 +493,7 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
         }
         Let(definitions, body) => {
             for (_, annotation, definition) in definitions {
-                if let Some(annotation) = annotation {
-                    free_variables(annotation, cutoff + definitions.len(), variables);
-                }
-
+                free_variables(annotation, cutoff + definitions.len(), variables);
                 free_variables(definition, cutoff + definitions.len(), variables);
             }
 
@@ -523,12 +529,52 @@ mod tests {
             Variant::{
                 Application, Boolean, Difference, EqualTo, False, GreaterThan,
                 GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
-                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Variable,
+                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
+                Variable,
             },
         },
     };
     use num_bigint::ToBigInt;
-    use std::{collections::HashSet, rc::Rc};
+    use std::{cell::RefCell, collections::HashSet, rc::Rc};
+
+    #[test]
+    fn shift_unifier_none() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Unifier(Rc::new(RefCell::new(None))),
+                }),
+                0,
+                42,
+            ),
+            Term {
+                source_range: None,
+                variant: Unifier(Rc::new(RefCell::new(None))),
+            },
+        );
+    }
+
+    #[test]
+    fn shift_unifier_some() {
+        assert_eq!(
+            *shift(
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Unifier(Rc::new(RefCell::new(Some(Term {
+                        source_range: None,
+                        variant: Variable("x", 0),
+                    })))),
+                }),
+                0,
+                42,
+            ),
+            Term {
+                source_range: None,
+                variant: Variable("x", 42),
+            },
+        );
+    }
 
     #[test]
     fn shift_type() {
@@ -592,10 +638,10 @@ mod tests {
                     source_range: None,
                     variant: Lambda(
                         "a",
-                        Some(Rc::new(Term {
+                        Rc::new(Term {
                             source_range: None,
                             variant: Variable("b", 0),
-                        })),
+                        }),
                         Rc::new(Term {
                             source_range: None,
                             variant: Variable("b", 1),
@@ -609,10 +655,10 @@ mod tests {
                 source_range: None,
                 variant: Lambda(
                     "a",
-                    Some(Rc::new(Term {
+                    Rc::new(Term {
                         source_range: None,
                         variant: Variable("b", 42),
-                    })),
+                    }),
                     Rc::new(Term {
                         source_range: None,
                         variant: Variable("b", 43),
@@ -706,10 +752,10 @@ mod tests {
                         vec![
                             (
                                 "x",
-                                Some(Rc::new(Term {
+                                Rc::new(Term {
                                     source_range: None,
                                     variant: Type,
-                                })),
+                                }),
                                 Rc::new(Term {
                                     source_range: None,
                                     variant: Variable("y", 0),
@@ -717,10 +763,10 @@ mod tests {
                             ),
                             (
                                 "y",
-                                Some(Rc::new(Term {
+                                Rc::new(Term {
                                     source_range: None,
                                     variant: Type,
-                                })),
+                                }),
                                 Rc::new(Term {
                                     source_range: None,
                                     variant: Variable("z", 3),
@@ -742,10 +788,10 @@ mod tests {
                     vec![
                         (
                             "x",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: None,
                                 variant: Type,
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: None,
                                 variant: Variable("y", 0),
@@ -753,10 +799,10 @@ mod tests {
                         ),
                         (
                             "y",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: None,
                                 variant: Type,
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: None,
                                 variant: Variable("z", 45),
@@ -1255,6 +1301,53 @@ mod tests {
     }
 
     #[test]
+    fn open_unifier_none() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Unifier(Rc::new(RefCell::new(None))),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Variable("y", 0),
+                }),
+                0,
+            ),
+            Term {
+                source_range: None,
+                variant: Unifier(Rc::new(RefCell::new(None))),
+            },
+        );
+    }
+
+    #[test]
+    fn open_unifier_some() {
+        assert_eq!(
+            *open(
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Unifier(Rc::new(RefCell::new(Some(Term {
+                        source_range: None,
+                        variant: Variable("x", 0),
+                    })))),
+                }),
+                0,
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Variable("y", 0),
+                }),
+                0,
+            ),
+            Term {
+                source_range: None,
+                variant: Variable("y", 0),
+            },
+        );
+    }
+
+    #[test]
     fn open_type() {
         assert_eq!(
             *open(
@@ -1350,10 +1443,10 @@ mod tests {
                     source_range: None,
                     variant: Lambda(
                         "a",
-                        Some(Rc::new(Term {
+                        Rc::new(Term {
                             source_range: None,
                             variant: Variable("b", 0),
-                        })),
+                        }),
                         Rc::new(Term {
                             source_range: None,
                             variant: Variable("b", 1),
@@ -1371,10 +1464,10 @@ mod tests {
                 source_range: None,
                 variant: Lambda(
                     "a",
-                    Some(Rc::new(Term {
+                    Rc::new(Term {
                         source_range: None,
                         variant: Variable("x", 4),
-                    })),
+                    }),
                     Rc::new(Term {
                         source_range: None,
                         variant: Variable("x", 5),
@@ -1476,10 +1569,10 @@ mod tests {
                         vec![
                             (
                                 "x",
-                                Some(Rc::new(Term {
+                                Rc::new(Term {
                                     source_range: None,
                                     variant: Type,
-                                })),
+                                }),
                                 Rc::new(Term {
                                     source_range: None,
                                     variant: Variable("y", 0),
@@ -1487,10 +1580,10 @@ mod tests {
                             ),
                             (
                                 "y",
-                                Some(Rc::new(Term {
+                                Rc::new(Term {
                                     source_range: None,
                                     variant: Type,
-                                })),
+                                }),
                                 Rc::new(Term {
                                     source_range: None,
                                     variant: Variable("z", 2),
@@ -1516,10 +1609,10 @@ mod tests {
                     vec![
                         (
                             "x",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: None,
                                 variant: Type,
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: None,
                                 variant: Variable("y", 0),
@@ -1527,10 +1620,10 @@ mod tests {
                         ),
                         (
                             "y",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: None,
                                 variant: Type,
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: None,
                                 variant: Variable("x", 6),
@@ -2093,6 +2186,41 @@ mod tests {
     }
 
     #[test]
+    fn free_variables_unifier_none() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Unifier(Rc::new(RefCell::new(None))),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_unifier_some() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Unifier(Rc::new(RefCell::new(Some(Term {
+                    source_range: None,
+                    variant: Variable("x", 15),
+                })))),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
     fn free_variables_type() {
         let mut variables = HashSet::new();
 
@@ -2149,10 +2277,10 @@ mod tests {
                 source_range: None,
                 variant: Lambda(
                     "a",
-                    Some(Rc::new(Term {
+                    Rc::new(Term {
                         source_range: None,
                         variant: Variable("b", 15),
-                    })),
+                    }),
                     Rc::new(Term {
                         source_range: None,
                         variant: Variable("b", 15),
@@ -2231,10 +2359,10 @@ mod tests {
                     vec![
                         (
                             "x",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: None,
                                 variant: Type,
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: None,
                                 variant: Variable("y", 15),
@@ -2242,10 +2370,10 @@ mod tests {
                         ),
                         (
                             "y",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: None,
                                 variant: Type,
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: None,
                                 variant: Variable("z", 16),
