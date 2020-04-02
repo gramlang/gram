@@ -33,14 +33,8 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
             definitions1.len() == definitions2.len()
                 && definitions1.iter().zip(definitions2.iter()).fold(
                     true,
-                    |acc, ((_, annotation1, definition1), (_, annotation2, definition2))| {
-                        acc && (match (annotation1, annotation2) {
-                            (Some(annotation1), Some(annotation2)) => {
-                                syntactically_equal(&**annotation1, &**annotation2)
-                            }
-                            (None, None) => true,
-                            _ => false,
-                        }) && syntactically_equal(&**definition1, &**definition2)
+                    |acc, ((_, _, definition1), (_, _, definition2))| {
+                        acc && syntactically_equal(&**definition1, &**definition2)
                     },
                 )
                 && syntactically_equal(&**body1, &**body2)
