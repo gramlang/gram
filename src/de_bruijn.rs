@@ -526,7 +526,6 @@ mod tests {
                 LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Variable,
             },
         },
-        token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
     };
     use num_bigint::ToBigInt;
     use std::{collections::HashSet, rc::Rc};
@@ -536,14 +535,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((0, TYPE_KEYWORD.len())),
+                    source_range: None,
                     variant: Type,
                 }),
                 0,
                 42,
             ),
             Term {
-                source_range: Some((0, TYPE_KEYWORD.len())),
+                source_range: None,
                 variant: Type,
             },
         );
@@ -554,14 +553,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((0, 1)),
+                    source_range: None,
                     variant: Variable("x", 0),
                 }),
                 0,
                 42,
             ),
             Term {
-                source_range: Some((0, 1)),
+                source_range: None,
                 variant: Variable("x", 42),
             },
         );
@@ -572,14 +571,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((0, 1)),
+                    source_range: None,
                     variant: Variable("x", 0),
                 }),
                 1,
                 42,
             ),
             Term {
-                source_range: Some((0, 1)),
+                source_range: None,
                 variant: Variable("x", 0),
             },
         );
@@ -590,15 +589,15 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Lambda(
                         "a",
                         Some(Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("b", 0),
                         })),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -607,15 +606,15 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Lambda(
                     "a",
                     Some(Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 42),
                     })),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -628,15 +627,15 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Pi(
                         "a",
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("b", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -645,15 +644,15 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Pi(
                     "a",
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 42),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -666,14 +665,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Application(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -682,14 +681,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Application(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -702,34 +701,34 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((0, 29)),
+                    source_range: None,
                     variant: Let(
                         vec![
                             (
                                 "x",
                                 Some(Rc::new(Term {
-                                    source_range: Some((4, 8)),
+                                    source_range: None,
                                     variant: Type,
                                 })),
                                 Rc::new(Term {
-                                    source_range: Some((11, 12)),
+                                    source_range: None,
                                     variant: Variable("y", 0),
                                 }),
                             ),
                             (
                                 "y",
                                 Some(Rc::new(Term {
-                                    source_range: Some((18, 22)),
+                                    source_range: None,
                                     variant: Type,
                                 })),
                                 Rc::new(Term {
-                                    source_range: Some((25, 26)),
+                                    source_range: None,
                                     variant: Variable("z", 3),
                                 }),
                             ),
                         ],
                         Rc::new(Term {
-                            source_range: Some((28, 29)),
+                            source_range: None,
                             variant: Variable("w", 4),
                         }),
                     ),
@@ -738,34 +737,34 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((0, 29)),
+                source_range: None,
                 variant: Let(
                     vec![
                         (
                             "x",
                             Some(Rc::new(Term {
-                                source_range: Some((4, 8)),
+                                source_range: None,
                                 variant: Type,
                             })),
                             Rc::new(Term {
-                                source_range: Some((11, 12)),
+                                source_range: None,
                                 variant: Variable("y", 0),
                             }),
                         ),
                         (
                             "y",
                             Some(Rc::new(Term {
-                                source_range: Some((18, 22)),
+                                source_range: None,
                                 variant: Type,
                             })),
                             Rc::new(Term {
-                                source_range: Some((25, 26)),
+                                source_range: None,
                                 variant: Variable("z", 45),
                             }),
                         ),
                     ],
                     Rc::new(Term {
-                        source_range: Some((28, 29)),
+                        source_range: None,
                         variant: Variable("w", 46),
                     }),
                 ),
@@ -778,14 +777,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((0, INTEGER_KEYWORD.len())),
+                    source_range: None,
                     variant: Integer,
                 }),
                 0,
                 42,
             ),
             Term {
-                source_range: Some((0, INTEGER_KEYWORD.len())),
+                source_range: None,
                 variant: Integer,
             },
         );
@@ -796,14 +795,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((0, 2)),
+                    source_range: None,
                     variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
                 }),
                 0,
                 42,
             ),
             Term {
-                source_range: Some((0, 2)),
+                source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
             },
         );
@@ -814,9 +813,9 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Negation(Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     })),
                 }),
@@ -824,9 +823,9 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Negation(Rc::new(Term {
-                    source_range: Some((102, 106)),
+                    source_range: None,
                     variant: Variable("a", 42),
                 })),
             },
@@ -838,14 +837,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Sum(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -854,14 +853,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Sum(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -874,14 +873,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Difference(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -890,14 +889,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Difference(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -910,14 +909,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Product(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -926,14 +925,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Product(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -946,14 +945,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Quotient(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -962,14 +961,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Quotient(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -982,14 +981,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: LessThan(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -998,14 +997,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: LessThan(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -1018,14 +1017,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: LessThanOrEqualTo(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -1034,14 +1033,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: LessThanOrEqualTo(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -1054,14 +1053,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: EqualTo(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -1070,14 +1069,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: EqualTo(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -1090,14 +1089,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: GreaterThan(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -1106,14 +1105,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: GreaterThan(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -1126,14 +1125,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: GreaterThanOrEqualTo(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
@@ -1142,14 +1141,14 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: GreaterThanOrEqualTo(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                 ),
@@ -1162,14 +1161,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                    source_range: None,
                     variant: Boolean,
                 }),
                 0,
                 42,
             ),
             Term {
-                source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                source_range: None,
                 variant: Boolean,
             },
         );
@@ -1180,14 +1179,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((0, TRUE_KEYWORD.len())),
+                    source_range: None,
                     variant: True,
                 }),
                 0,
                 42,
             ),
             Term {
-                source_range: Some((0, TRUE_KEYWORD.len())),
+                source_range: None,
                 variant: True,
             },
         );
@@ -1198,14 +1197,14 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((0, FALSE_KEYWORD.len())),
+                    source_range: None,
                     variant: False,
                 }),
                 0,
                 42,
             ),
             Term {
-                source_range: Some((0, FALSE_KEYWORD.len())),
+                source_range: None,
                 variant: False,
             },
         );
@@ -1216,18 +1215,18 @@ mod tests {
         assert_eq!(
             *shift(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: If(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                         Rc::new(Term {
-                            source_range: Some((121, 122)),
+                            source_range: None,
                             variant: Variable("c", 2),
                         }),
                     ),
@@ -1236,18 +1235,18 @@ mod tests {
                 42,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: If(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 43),
                     }),
                     Rc::new(Term {
-                        source_range: Some((121, 122)),
+                        source_range: None,
                         variant: Variable("c", 44),
                     }),
                 ),
@@ -1260,18 +1259,18 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, TYPE_KEYWORD.len())),
+                    source_range: None,
                     variant: Type,
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((0, TYPE_KEYWORD.len())),
+                source_range: None,
                 variant: Type,
             },
         );
@@ -1282,18 +1281,18 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, 1)),
+                    source_range: None,
                     variant: Variable("x", 0),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((3, 4)),
+                source_range: None,
                 variant: Variable("y", 0),
             },
         );
@@ -1304,18 +1303,18 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, 1)),
+                    source_range: None,
                     variant: Variable("x", 1),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((0, 1)),
+                source_range: None,
                 variant: Variable("x", 0),
             },
         );
@@ -1326,18 +1325,18 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, 1)),
+                    source_range: None,
                     variant: Variable("x", 0),
                 }),
                 1,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((0, 1)),
+                source_range: None,
                 variant: Variable("x", 0),
             },
         );
@@ -1348,36 +1347,36 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Lambda(
                         "a",
                         Some(Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("b", 0),
                         })),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Lambda(
                     "a",
                     Some(Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     })),
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 5),
                     }),
                 ),
@@ -1390,36 +1389,36 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Pi(
                         "a",
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("b", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Pi(
                     "a",
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 5),
                     }),
                 ),
@@ -1432,34 +1431,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Application(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Application(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1472,74 +1471,74 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, 29)),
+                    source_range: None,
                     variant: Let(
                         vec![
                             (
                                 "x",
                                 Some(Rc::new(Term {
-                                    source_range: Some((4, 8)),
+                                    source_range: None,
                                     variant: Type,
                                 })),
                                 Rc::new(Term {
-                                    source_range: Some((11, 12)),
+                                    source_range: None,
                                     variant: Variable("y", 0),
                                 }),
                             ),
                             (
                                 "y",
                                 Some(Rc::new(Term {
-                                    source_range: Some((18, 22)),
+                                    source_range: None,
                                     variant: Type,
                                 })),
                                 Rc::new(Term {
-                                    source_range: Some((25, 26)),
+                                    source_range: None,
                                     variant: Variable("z", 2),
                                 }),
                             ),
                         ],
                         Rc::new(Term {
-                            source_range: Some((28, 29)),
+                            source_range: None,
                             variant: Variable("w", 3),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((0, 29)),
+                source_range: None,
                 variant: Let(
                     vec![
                         (
                             "x",
                             Some(Rc::new(Term {
-                                source_range: Some((4, 8)),
+                                source_range: None,
                                 variant: Type,
                             })),
                             Rc::new(Term {
-                                source_range: Some((11, 12)),
+                                source_range: None,
                                 variant: Variable("y", 0),
                             }),
                         ),
                         (
                             "y",
                             Some(Rc::new(Term {
-                                source_range: Some((18, 22)),
+                                source_range: None,
                                 variant: Type,
                             })),
                             Rc::new(Term {
-                                source_range: Some((3, 4)),
+                                source_range: None,
                                 variant: Variable("x", 6),
                             }),
                         ),
                     ],
                     Rc::new(Term {
-                        source_range: Some((28, 29)),
+                        source_range: None,
                         variant: Variable("w", 2),
                     }),
                 ),
@@ -1552,18 +1551,18 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, INTEGER_KEYWORD.len())),
+                    source_range: None,
                     variant: Integer,
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((0, INTEGER_KEYWORD.len())),
+                source_range: None,
                 variant: Integer,
             },
         );
@@ -1574,18 +1573,18 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, 2)),
+                    source_range: None,
                     variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((0, 2)),
+                source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
             },
         );
@@ -1596,23 +1595,23 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Negation(Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("a", 0),
                     })),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Negation(Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 })),
             },
@@ -1624,34 +1623,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Sum(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Sum(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1664,34 +1663,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Difference(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Difference(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1704,34 +1703,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Product(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Product(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1744,34 +1743,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: Quotient(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Quotient(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1784,34 +1783,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: LessThan(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: LessThan(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1824,34 +1823,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: LessThanOrEqualTo(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: LessThanOrEqualTo(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1864,34 +1863,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: EqualTo(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: EqualTo(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1904,34 +1903,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: GreaterThan(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: GreaterThan(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1944,34 +1943,34 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: GreaterThanOrEqualTo(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: GreaterThanOrEqualTo(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                 ),
@@ -1984,18 +1983,18 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                    source_range: None,
                     variant: Boolean,
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                source_range: None,
                 variant: Boolean,
             },
         );
@@ -2006,18 +2005,18 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, TRUE_KEYWORD.len())),
+                    source_range: None,
                     variant: True,
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((0, TRUE_KEYWORD.len())),
+                source_range: None,
                 variant: True,
             },
         );
@@ -2028,18 +2027,18 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((0, FALSE_KEYWORD.len())),
+                    source_range: None,
                     variant: False,
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("y", 0),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((0, FALSE_KEYWORD.len())),
+                source_range: None,
                 variant: False,
             },
         );
@@ -2050,42 +2049,42 @@ mod tests {
         assert_eq!(
             *open(
                 Rc::new(Term {
-                    source_range: Some((97, 112)),
+                    source_range: None,
                     variant: If(
                         Rc::new(Term {
-                            source_range: Some((102, 106)),
+                            source_range: None,
                             variant: Variable("a", 0),
                         }),
                         Rc::new(Term {
-                            source_range: Some((111, 112)),
+                            source_range: None,
                             variant: Variable("b", 1),
                         }),
                         Rc::new(Term {
-                            source_range: Some((121, 122)),
+                            source_range: None,
                             variant: Variable("c", 2),
                         }),
                     ),
                 }),
                 0,
                 Rc::new(Term {
-                    source_range: Some((3, 4)),
+                    source_range: None,
                     variant: Variable("x", 4),
                 }),
                 0,
             ),
             Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: If(
                     Rc::new(Term {
-                        source_range: Some((3, 4)),
+                        source_range: None,
                         variant: Variable("x", 4),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((121, 122)),
+                        source_range: None,
                         variant: Variable("c", 1),
                     }),
                 ),
@@ -2099,7 +2098,7 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((0, TYPE_KEYWORD.len())),
+                source_range: None,
                 variant: Type,
             },
             10,
@@ -2115,7 +2114,7 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((0, 1)),
+                source_range: None,
                 variant: Variable("x", 15),
             },
             10,
@@ -2131,7 +2130,7 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((0, 1)),
+                source_range: None,
                 variant: Variable("x", 5),
             },
             10,
@@ -2147,15 +2146,15 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Lambda(
                     "a",
                     Some(Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     })),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     }),
                 ),
@@ -2174,15 +2173,15 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Pi(
                     "a",
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     }),
                 ),
@@ -2201,14 +2200,14 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Application(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 16),
                     }),
                 ),
@@ -2227,34 +2226,34 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((0, 29)),
+                source_range: None,
                 variant: Let(
                     vec![
                         (
                             "x",
                             Some(Rc::new(Term {
-                                source_range: Some((4, 8)),
+                                source_range: None,
                                 variant: Type,
                             })),
                             Rc::new(Term {
-                                source_range: Some((11, 12)),
+                                source_range: None,
                                 variant: Variable("y", 15),
                             }),
                         ),
                         (
                             "y",
                             Some(Rc::new(Term {
-                                source_range: Some((18, 22)),
+                                source_range: None,
                                 variant: Type,
                             })),
                             Rc::new(Term {
-                                source_range: Some((25, 26)),
+                                source_range: None,
                                 variant: Variable("z", 16),
                             }),
                         ),
                     ],
                     Rc::new(Term {
-                        source_range: Some((28, 29)),
+                        source_range: None,
                         variant: Variable("w", 17),
                     }),
                 ),
@@ -2274,7 +2273,7 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((0, INTEGER_KEYWORD.len())),
+                source_range: None,
                 variant: Integer,
             },
             10,
@@ -2290,7 +2289,7 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((0, 2)),
+                source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
             },
             10,
@@ -2306,9 +2305,9 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Negation(Rc::new(Term {
-                    source_range: Some((102, 106)),
+                    source_range: None,
                     variant: Variable("b", 15),
                 })),
             },
@@ -2325,14 +2324,14 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Sum(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 16),
                     }),
                 ),
@@ -2351,14 +2350,14 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Difference(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 16),
                     }),
                 ),
@@ -2377,14 +2376,14 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Product(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 16),
                     }),
                 ),
@@ -2403,14 +2402,14 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: Quotient(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 16),
                     }),
                 ),
@@ -2429,7 +2428,7 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((0, BOOLEAN_KEYWORD.len())),
+                source_range: None,
                 variant: Boolean,
             },
             10,
@@ -2445,7 +2444,7 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((0, TRUE_KEYWORD.len())),
+                source_range: None,
                 variant: True,
             },
             10,
@@ -2461,7 +2460,7 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((0, FALSE_KEYWORD.len())),
+                source_range: None,
                 variant: False,
             },
             10,
@@ -2477,18 +2476,18 @@ mod tests {
 
         free_variables(
             &Term {
-                source_range: Some((97, 112)),
+                source_range: None,
                 variant: If(
                     Rc::new(Term {
-                        source_range: Some((102, 106)),
+                        source_range: None,
                         variant: Variable("b", 15),
                     }),
                     Rc::new(Term {
-                        source_range: Some((111, 112)),
+                        source_range: None,
                         variant: Variable("b", 16),
                     }),
                     Rc::new(Term {
-                        source_range: Some((121, 122)),
+                        source_range: None,
                         variant: Variable("c", 17),
                     }),
                 ),
