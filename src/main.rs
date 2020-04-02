@@ -9,6 +9,7 @@ mod term;
 mod token;
 mod tokenizer;
 mod type_checker;
+mod unifier;
 
 use crate::{
     error::{lift, Error},

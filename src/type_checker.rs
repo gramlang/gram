@@ -1,38 +1,20 @@
 use crate::{
     de_bruijn::{open, shift},
-    equality::definitionally_equal,
     error::{throw, Error},
     format::CodeStr,
-    normalizer::normalize_weak_head,
+    parser::PLACEHOLDER_VARIABLE,
     term::{
         Term,
         Variant::{
             Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
             If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
-            Product, Quotient, Sum, True, Type, Variable,
+            Product, Quotient, Sum, True, Type, Unifier, Variable,
         },
     },
+    unifier::unify,
 };
 use scopeguard::defer;
 use std::{cell::RefCell, path::Path, rc::Rc};
-
-// Construct the type of all types once here rather than constructing it many times later.
-pub const TYPE_TERM: Term = Term {
-    source_range: None,
-    variant: Type,
-};
-
-// Construct the type of integers once here rather than constructing it many times later.
-pub const INTEGER_TERM: Term = Term {
-    source_range: None,
-    variant: Integer,
-};
-
-// Construct the type of Booleans once here rather than constructing it many times later.
-pub const BOOLEAN_TERM: Term = Term {
-    source_range: None,
-    variant: Boolean,
-};
 
 // This is the top-level type checking function. Invariants:
 // - The two contexts have the same length.
@@ -42,43 +24,35 @@ pub fn type_check<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     term: &Term<'a>,
-    typing_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
+    typing_context: &mut Vec<(Rc<Term<'a>>, usize)>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
 ) -> Result<Rc<Term<'a>>, Error> {
+    // Construct the type of all types once here rather than constructing it many times later.
+    let type_term = Term {
+        source_range: None,
+        variant: Type,
+    };
+
+    // Construct the type of integers once here rather than constructing it many times later.
+    let integer_term = Term {
+        source_range: None,
+        variant: Integer,
+    };
+
+    // Construct the type of Booleans once here rather than constructing it many times later.
+    let boolean_term = Term {
+        source_range: None,
+        variant: Boolean,
+    };
+
     Ok(match &term.variant {
-        Type | Integer | Boolean => Rc::new(TYPE_TERM),
-        Variable(variable, index) => {
-            // Check if we have a type for this variable.
-            match &typing_context[typing_context.len() - 1 - *index] {
-                Some((variable_type, offset)) => {
-                    // Shift the type such that it's valid in the current context.
-                    shift(variable_type.clone(), 0, *index + 1 - offset)
-                }
-                None => {
-                    return Err(throw(
-                        &format!(
-                            "Unknown type for {}. You can fix this error by annotating the \
-                                variable where it\u{2019}s introduced.",
-                            (*variable).to_string().code_str(),
-                        ),
-                        source_path,
-                        term.source_range
-                            .map(|source_range| (source_contents, source_range)),
-                    ));
-                }
-            }
+        Unifier(_) | Type | Integer | Boolean => Rc::new(type_term),
+        Variable(_, index) => {
+            // Shift the type such that it's valid in the current context.
+            let (variable_type, offset) = &typing_context[typing_context.len() - 1 - *index];
+            shift(variable_type.clone(), 0, *index + 1 - offset)
         }
         Lambda(variable, domain, body) => {
-            // Check that we have a domain.
-            let domain = domain.as_ref().ok_or_else(|| {
-                throw(
-                    "The argument to this function needs a type annotation:",
-                    source_path,
-                    term.source_range
-                        .map(|source_range| (source_contents, source_range)),
-                )
-            })?;
-
             // Infer the type of the domain.
             let domain_type = type_check(
                 source_path,
@@ -89,7 +63,7 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the domain is the type of all types.
-            if !definitionally_equal(domain_type.clone(), Rc::new(TYPE_TERM), definitions_context) {
+            if !unify(domain_type.clone(), Rc::new(type_term), definitions_context) {
                 return Err(throw(
                     "This is not a type:",
                     source_path,
@@ -101,7 +75,7 @@ pub fn type_check<'a>(
 
             // Temporarily add the variable's type to the context for the purpose of inferring
             // the codomain.
-            typing_context.push(Some((domain.clone(), 0)));
+            typing_context.push((domain.clone(), 0));
             definitions_context.push(None);
 
             // Infer the codomain.
@@ -137,7 +111,11 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the domain is the type of all types.
-            if !definitionally_equal(domain_type.clone(), Rc::new(TYPE_TERM), definitions_context) {
+            if !unify(
+                domain_type.clone(),
+                Rc::new(type_term.clone()),
+                definitions_context,
+            ) {
                 return Err(throw(
                     "This is not a type:",
                     source_path,
@@ -149,7 +127,7 @@ pub fn type_check<'a>(
 
             // Temporarily add the variable's type to the context for the purpose of inferring
             // the type of the codomain.
-            typing_context.push(Some((domain.clone(), 0)));
+            typing_context.push((domain.clone(), 0));
             definitions_context.push(None);
 
             // Infer the type of the codomain.
@@ -175,9 +153,9 @@ pub fn type_check<'a>(
             };
 
             // Check that the type of the codomain is the type of all types.
-            let codomain_is_type = definitionally_equal(
+            let codomain_is_type = unify(
                 codomain_type.clone(),
-                Rc::new(TYPE_TERM),
+                Rc::new(type_term.clone()),
                 definitions_context,
             );
 
@@ -202,7 +180,7 @@ pub fn type_check<'a>(
             }
 
             // The type of a pi type is the type of all types.
-            Rc::new(TYPE_TERM)
+            Rc::new(type_term)
         }
         Application(applicand, argument) => {
             // Infer the type of the applicand.
@@ -214,14 +192,26 @@ pub fn type_check<'a>(
                 definitions_context,
             )?;
 
-            // Reduce the type of the applicand to weak head normal form.
-            let applicand_type_whnf =
-                normalize_weak_head(applicand_type.clone(), definitions_context);
+            // Construct a unification term for the domain.
+            let domain = Rc::new(Term {
+                source_range: None,
+                variant: Unifier(Rc::new(RefCell::new(None))),
+            });
+
+            // Construct a unification term for the codomain.
+            let codomain = Rc::new(Term {
+                source_range: None,
+                variant: Unifier(Rc::new(RefCell::new(None))),
+            });
+
+            // Construct a pi type for unification.
+            let pi_type = Rc::new(Term {
+                source_range: None,
+                variant: Pi(PLACEHOLDER_VARIABLE, domain.clone(), codomain.clone()),
+            });
 
             // Make sure the type of the applicand is a pi type.
-            let (domain, codomain) = if let Pi(_, domain, codomain) = &applicand_type_whnf.variant {
-                (domain, codomain)
-            } else {
+            if !unify(pi_type, applicand_type.clone(), definitions_context) {
                 return Err(throw(
                     &format!(
                         "This has type {} when a function was expected:",
@@ -244,7 +234,7 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the argument type equals the domain.
-            if !definitionally_equal(argument_type.clone(), domain.clone(), definitions_context) {
+            if !unify(argument_type.clone(), domain.clone(), definitions_context) {
                 return Err(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
@@ -291,18 +281,14 @@ pub fn type_check<'a>(
                 let definitions_len_minus_i = definitions.len() - i;
 
                 // Add the definition and its type to the context.
-                borrowed_typing_context.push(
-                    annotation
-                        .as_ref()
-                        .map(|annotation| (annotation.clone(), definitions_len_minus_i)),
-                );
+                borrowed_typing_context.push((annotation.clone(), definitions_len_minus_i));
                 borrowed_definitions_context
                     .push(Some((definition.clone(), definitions_len_minus_i)));
                 *borrowed_variables_added += 1;
             }
 
             // Infer/check the types of the definitions.
-            for (i, (_, annotation, definition)) in definitions.iter().enumerate() {
+            for (_, annotation, definition) in definitions.iter() {
                 // Temporarily borrow from the scope guard.
                 let mut guard = context_cell.borrow_mut();
                 let ((borrowed_typing_context, borrowed_definitions_context), _) = &mut (*guard);
@@ -316,31 +302,23 @@ pub fn type_check<'a>(
                     borrowed_definitions_context,
                 )?;
 
-                // Check if we have an annotation.
-                if let Some(annotation) = annotation {
-                    // Check the type against the annotation.
-                    if !definitionally_equal(
-                        definition_type.clone(),
-                        annotation.clone(),
-                        borrowed_definitions_context,
-                    ) {
-                        return Err(throw(
-                            &format!(
-                                "This has type {} but it was annotated as {}:",
-                                definition_type.to_string().code_str(),
-                                annotation.to_string().code_str(),
-                            ),
-                            source_path,
-                            definition
-                                .source_range
-                                .map(|source_range| (source_contents, source_range)),
-                        ));
-                    }
-                } else {
-                    // Update the type in the context.
-                    let definition_index = borrowed_typing_context.len() - definitions.len() + i;
-                    borrowed_typing_context[definition_index] =
-                        Some((definition_type, definitions.len() - i));
+                // Check the type against the annotation.
+                if !unify(
+                    definition_type.clone(),
+                    annotation.clone(),
+                    borrowed_definitions_context,
+                ) {
+                    return Err(throw(
+                        &format!(
+                            "This has type {} but it was annotated as {}:",
+                            definition_type.to_string().code_str(),
+                            annotation.to_string().code_str(),
+                        ),
+                        source_path,
+                        definition
+                            .source_range
+                            .map(|source_range| (source_contents, source_range)),
+                    ));
                 }
             }
 
@@ -374,13 +352,11 @@ pub fn type_check<'a>(
                                 .map(|(variable, annotation, definition)| {
                                     (
                                         *variable,
-                                        annotation.as_ref().map(|annotation| {
-                                            shift(
-                                                annotation.clone(),
-                                                0,
-                                                definitions_len_minus_one_minus_i,
-                                            )
-                                        }),
+                                        shift(
+                                            annotation.clone(),
+                                            0,
+                                            definitions_len_minus_one_minus_i,
+                                        ),
                                         shift(
                                             definition.clone(),
                                             0,
@@ -402,7 +378,7 @@ pub fn type_check<'a>(
                 )
             })
         }
-        IntegerLiteral(_) => Rc::new(INTEGER_TERM),
+        IntegerLiteral(_) => Rc::new(integer_term),
         Negation(subterm) => {
             // Infer the type of the subterm.
             let subterm_type = type_check(
@@ -414,16 +390,16 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the subterm is the type of integers.
-            if !definitionally_equal(
+            if !unify(
                 subterm_type.clone(),
-                Rc::new(INTEGER_TERM),
+                Rc::new(integer_term.clone()),
                 definitions_context,
             ) {
                 return Err(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         subterm_type.to_string().code_str(),
-                        INTEGER_TERM.to_string().code_str(),
+                        integer_term.to_string().code_str(),
                     ),
                     source_path,
                     subterm
@@ -433,7 +409,7 @@ pub fn type_check<'a>(
             };
 
             // Return the type of integers.
-            Rc::new(INTEGER_TERM)
+            Rc::new(integer_term)
         }
         Sum(term1, term2)
         | Difference(term1, term2)
@@ -449,16 +425,16 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the left subterm is the type of integers.
-            if !definitionally_equal(
+            if !unify(
                 term1_type.clone(),
-                Rc::new(INTEGER_TERM),
+                Rc::new(integer_term.clone()),
                 definitions_context,
             ) {
                 return Err(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
-                        INTEGER_TERM.to_string().code_str(),
+                        integer_term.to_string().code_str(),
                     ),
                     source_path,
                     term1
@@ -477,16 +453,16 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the right subterm is the type of integers.
-            if !definitionally_equal(
+            if !unify(
                 term2_type.clone(),
-                Rc::new(INTEGER_TERM),
+                Rc::new(integer_term.clone()),
                 definitions_context,
             ) {
                 return Err(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
-                        INTEGER_TERM.to_string().code_str(),
+                        integer_term.to_string().code_str(),
                     ),
                     source_path,
                     term2
@@ -496,7 +472,7 @@ pub fn type_check<'a>(
             };
 
             // Return the type of integers.
-            Rc::new(INTEGER_TERM)
+            Rc::new(integer_term)
         }
         LessThan(term1, term2)
         | LessThanOrEqualTo(term1, term2)
@@ -513,16 +489,16 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the left subterm is the type of integers.
-            if !definitionally_equal(
+            if !unify(
                 term1_type.clone(),
-                Rc::new(INTEGER_TERM),
+                Rc::new(integer_term.clone()),
                 definitions_context,
             ) {
                 return Err(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
-                        INTEGER_TERM.to_string().code_str(),
+                        integer_term.to_string().code_str(),
                     ),
                     source_path,
                     term1
@@ -541,16 +517,16 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the right subterm is the type of integers.
-            if !definitionally_equal(
+            if !unify(
                 term2_type.clone(),
-                Rc::new(INTEGER_TERM),
+                Rc::new(integer_term.clone()),
                 definitions_context,
             ) {
                 return Err(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
-                        INTEGER_TERM.to_string().code_str(),
+                        integer_term.to_string().code_str(),
                     ),
                     source_path,
                     term2
@@ -560,7 +536,7 @@ pub fn type_check<'a>(
             };
 
             // Return the type of Booleans.
-            Rc::new(BOOLEAN_TERM)
+            Rc::new(boolean_term)
         }
         If(condition, then_branch, else_branch) => {
             // Infer the type of the condition.
@@ -573,16 +549,16 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the type of the condition is the type of Booleans.
-            if !definitionally_equal(
+            if !unify(
                 condition_type.clone(),
-                Rc::new(BOOLEAN_TERM),
+                Rc::new(boolean_term.clone()),
                 definitions_context,
             ) {
                 return Err(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         condition_type.to_string().code_str(),
-                        BOOLEAN_TERM.to_string().code_str(),
+                        boolean_term.to_string().code_str(),
                     ),
                     source_path,
                     condition
@@ -610,7 +586,7 @@ pub fn type_check<'a>(
             )?;
 
             // Check that the types of the two branches are definitionally equal.
-            if !definitionally_equal(
+            if !unify(
                 then_branch_type.clone(),
                 else_branch_type.clone(),
                 definitions_context,
@@ -631,7 +607,7 @@ pub fn type_check<'a>(
             // Return the type of the branches.
             then_branch_type
         }
-        True | False => Rc::new(BOOLEAN_TERM),
+        True | False => Rc::new(boolean_term),
     })
 }
 
@@ -679,20 +655,20 @@ mod tests {
     fn type_check_variable() {
         let parsing_context = ["a", "x"];
         let mut typing_context = vec![
-            Some((
+            (
                 Rc::new(Term {
                     source_range: None,
                     variant: Type,
                 }),
                 0,
-            )),
-            Some((
+            ),
+            (
                 Rc::new(Term {
                     source_range: None,
                     variant: Variable("a", 0),
                 }),
                 0,
-            )),
+            ),
         ];
         let mut definitions_context = vec![None, None];
         let term_source = "x";
@@ -718,13 +694,13 @@ mod tests {
     #[test]
     fn type_check_lambda() {
         let parsing_context = ["a"];
-        let mut typing_context = vec![Some((
+        let mut typing_context = vec![(
             Rc::new(Term {
                 source_range: None,
                 variant: Type,
             }),
             0,
-        ))];
+        )];
         let mut definitions_context = vec![None];
         let term_source = "(x : a) => x";
         let type_source = "(x : a) -> a";
@@ -749,13 +725,13 @@ mod tests {
     #[test]
     fn type_check_pi() {
         let parsing_context = ["a"];
-        let mut typing_context = vec![Some((
+        let mut typing_context = vec![(
             Rc::new(Term {
                 source_range: None,
                 variant: Type,
             }),
             0,
-        ))];
+        )];
         let mut definitions_context = vec![None];
         let term_source = "(x : a) -> a";
         let type_source = "type";
@@ -781,20 +757,20 @@ mod tests {
     fn type_check_application() {
         let parsing_context = ["a", "y"];
         let mut typing_context = vec![
-            Some((
+            (
                 Rc::new(Term {
                     source_range: None,
                     variant: Type,
                 }),
                 0,
-            )),
-            Some((
+            ),
+            (
                 Rc::new(Term {
                     source_range: None,
                     variant: Variable("a", 0),
                 }),
                 0,
-            )),
+            ),
         ];
         let mut definitions_context = vec![None, None];
         let term_source = "((x : a) => x) y";
@@ -821,27 +797,27 @@ mod tests {
     fn type_check_bad_application() {
         let parsing_context = ["a", "b", "y"];
         let mut typing_context = vec![
-            Some((
+            (
                 Rc::new(Term {
                     source_range: None,
                     variant: Type,
                 }),
                 0,
-            )),
-            Some((
+            ),
+            (
                 Rc::new(Term {
                     source_range: None,
                     variant: Type,
                 }),
                 0,
-            )),
-            Some((
+            ),
+            (
                 Rc::new(Term {
                     source_range: None,
                     variant: Variable("b", 0),
                 }),
                 0,
-            )),
+            ),
         ];
         let mut definitions_context = vec![None, None, None];
         let term_source = "((x : a) => x) y";
@@ -857,7 +833,7 @@ mod tests {
                 &mut typing_context,
                 &mut definitions_context,
             ),
-            "has type `b`, but it should have type `a`",
+            "has type `b`, but it should have type `{a}`",
         );
     }
 
@@ -865,29 +841,34 @@ mod tests {
     fn type_check_dependent_apply() {
         let parsing_context = ["foo", "y"];
         let mut typing_context = vec![
-            Some((
+            (
                 Rc::new(Term {
                     source_range: None,
                     variant: Type,
                 }),
                 0,
-            )),
-            Some((
+            ),
+            (
                 Rc::new(Term {
                     source_range: None,
                     variant: Variable("foo", 0),
                 }),
                 0,
-            )),
+            ),
         ];
         let mut definitions_context = vec![None, None];
         let term_source = "
-          ((a : type) => (P: (x : a) -> type) => (f : (x : a) -> P x) => (x : a) => f x) (
-            ((t : type) => t) foo) (
-              (x : foo) => foo) (
-                (x : foo) => x) y
+          (
+            (a : type) => (P: (x : a) -> type) => (f : (x : a) -> P x) => (x : a) => f x # ,
+          ) (
+            ((t : type) => t) foo # ,
+          ) (
+            (x : foo) => foo # ,
+          ) (
+            (x : foo) => x # ,
+          ) y
         ";
-        let type_source = "(((x : foo) => foo) (y))";
+        let type_source = "foo";
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
@@ -909,13 +890,13 @@ mod tests {
     #[test]
     fn type_check_let() {
         let parsing_context = ["a"];
-        let mut typing_context = vec![Some((
+        let mut typing_context = vec![(
             Rc::new(Term {
                 source_range: None,
                 variant: Type,
             }),
             0,
-        ))];
+        )];
         let mut definitions_context = vec![None];
         let term_source = "b = a; b";
         let type_source = "type";

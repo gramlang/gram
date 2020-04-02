@@ -1,3 +1,3 @@
-t : type = int -> t
-f : t = (x : int) => f
+t = int -> t
+f : t = x => f
 f 1 2 3

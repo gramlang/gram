@@ -7,7 +7,7 @@ use crate::{
         Variant::{
             Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
             If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
-            Product, Quotient, Sum, True, Type, Variable,
+            Product, Quotient, Sum, True, Type, Unifier, Variable,
         },
     },
 };
@@ -46,6 +46,13 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         | Boolean
         | True
         | False => None,
+        Unifier(subterm) => {
+            // If the unifier points to something, step to it. Otherwise, we're stuck.
+            subterm
+                .borrow()
+                .as_ref()
+                .map(|subterm| Rc::new(subterm.clone()))
+        }
         Application(applicand, argument) => {
             // Try to step the applicand.
             if let Some(stepped_applicand) = step(applicand) {
@@ -131,14 +138,12 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                         variant: Let(
                             vec![(
                                 variable,
-                                annotation.as_ref().map(|annotation| {
-                                    open(
-                                        shift(annotation.clone(), 0, 1),
-                                        index_plus_one,
-                                        body_for_unfolding.clone(),
-                                        0,
-                                    )
-                                }),
+                                open(
+                                    shift(annotation.clone(), 0, 1),
+                                    index_plus_one,
+                                    body_for_unfolding.clone(),
+                                    0,
+                                ),
                                 open(
                                     shift(definition.clone(), 0, 1),
                                     index_plus_one,
@@ -159,9 +164,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                     .map(|(variable, annotation, definition)| {
                         (
                             *variable,
-                            annotation.as_ref().map(|annotation| {
-                                open(annotation.clone(), index, unfolded_definition.clone(), 0)
-                            }),
+                            open(annotation.clone(), index, unfolded_definition.clone(), 0),
                             open(definition.clone(), index, unfolded_definition.clone(), 0),
                         )
                     })
@@ -617,7 +620,8 @@ pub fn is_value<'a>(term: &Term<'a>) -> bool {
         | Boolean
         | True
         | False => true,
-        Variable(_, _)
+        Unifier(_)
+        | Variable(_, _)
         | Application(_, _)
         | Let(_, _)
         | Negation(_)
@@ -689,7 +693,7 @@ mod tests {
                 source_range: Some((0, 39)),
                 variant: Lambda(
                     "f",
-                    Some(Rc::new(Term {
+                    Rc::new(Term {
                         source_range: Some((5, 17)),
                         variant: Pi(
                             "_",
@@ -702,15 +706,15 @@ mod tests {
                                 variant: Type,
                             }),
                         ),
-                    })),
+                    }),
                     Rc::new(Term {
                         source_range: Some((22, 39)),
                         variant: Lambda(
                             "x",
-                            Some(Rc::new(Term {
+                            Rc::new(Term {
                                 source_range: Some((27, 31)),
                                 variant: Type,
-                            })),
+                            }),
                             Rc::new(Term {
                                 source_range: Some((36, 39)),
                                 variant: Application(
