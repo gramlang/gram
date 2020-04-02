@@ -65,7 +65,7 @@ pub fn unify<'a>(
                 let mut unifiers = vec![];
                 let mut visited = HashSet::new();
                 collect_unifiers(&*whnf2, &mut unifiers, &mut visited);
-                if unifiers.iter().any(|unifier| Rc::ptr_eq(unifier, subterm1)) {
+                if visited.contains(&HashableRc(subterm1.clone())) {
                     return false;
                 }
 
@@ -87,7 +87,7 @@ pub fn unify<'a>(
                 let mut unifiers = vec![];
                 let mut visited = HashSet::new();
                 collect_unifiers(&*whnf1, &mut unifiers, &mut visited);
-                if unifiers.iter().any(|unifier| Rc::ptr_eq(unifier, subterm2)) {
+                if visited.contains(&HashableRc(subterm2.clone())) {
                     return false;
                 }
 
