@@ -363,7 +363,7 @@ pub fn tokenize<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        assert_fails_vec,
+        assert_fails,
         token::{
             TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
             IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
@@ -784,6 +784,6 @@ mod tests {
 
     #[test]
     fn tokenize_unexpected_code_point() {
-        assert_fails_vec!(tokenize(None, "$"), "Unexpected symbol");
+        assert_fails!(tokenize(None, "$"), "Unexpected symbol");
     }
 }

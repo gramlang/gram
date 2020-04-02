@@ -120,46 +120,42 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
         source_path.to_string_lossy().code_str(),
     )))?;
 
-    // Tokenize the source file.
-    let tokens = tokenize(Some(source_path), &source_contents).map_err(|errors| Error {
+    // Here is a helper function for mapping a `Vec<Error>` to a single `Error`.
+    let collect_errors = |errors: Vec<Error>| Error {
         message: errors
             .iter()
-            .fold(String::new(), |acc, error| format!("{}\n\n{}", acc, error))
+            .fold(String::new(), |acc, error| {
+                format!(
+                    "{}\n{}{}",
+                    acc,
+                    // Only render an empty line between errors here if the previous line
+                    // doesn't already visually look like an empty line. See
+                    // [ref:overline_u203e].
+                    if acc
+                        .split('\n')
+                        .last()
+                        .unwrap()
+                        .chars()
+                        .all(|c| c == ' ' || c == '\u{203e}')
+                    {
+                        ""
+                    } else {
+                        "\n"
+                    },
+                    error,
+                )
+            })
             .trim()
             .to_owned(),
         reason: None,
-    })?;
+    };
+
+    // Tokenize the source file.
+    let tokens = tokenize(Some(source_path), &source_contents).map_err(collect_errors)?;
 
     // Parse the term.
     let term =
-        parse(Some(source_path), &source_contents, &tokens[..], &[]).map_err(|errors| Error {
-            message: errors
-                .iter()
-                .fold(String::new(), |acc, error| {
-                    format!(
-                        "{}\n{}{}",
-                        acc,
-                        // Only render an empty line between errors here if the previous line
-                        // doesn't already visually look like an empty line. See
-                        // [ref:overline_u203e].
-                        if acc
-                            .split('\n')
-                            .last()
-                            .unwrap()
-                            .chars()
-                            .all(|c| c == ' ' || c == '\u{203e}')
-                        {
-                            ""
-                        } else {
-                            "\n"
-                        },
-                        error,
-                    )
-                })
-                .trim()
-                .to_owned(),
-            reason: None,
-        })?;
+        parse(Some(source_path), &source_contents, &tokens[..], &[]).map_err(collect_errors)?;
 
     // Type check the term.
     let mut typing_context = vec![];
@@ -170,7 +166,8 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
         &term,
         &mut typing_context,
         &mut definitions_context,
-    )?;
+    )
+    .map_err(collect_errors)?;
 
     // Evaluate the term.
     if !check_only {
