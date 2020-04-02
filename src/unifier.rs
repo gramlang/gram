@@ -11,7 +11,31 @@ use crate::{
         },
     },
 };
-use std::{cell::RefCell, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashSet,
+    hash::{Hash, Hasher},
+    ptr,
+    rc::Rc,
+};
+
+// This struct is a "newtype" for `Rc` that implements `Eq` and `Hash` based on the underlying
+// pointer, rather than the value being pointed to.
+struct HashableRc<T>(Rc<T>);
+
+impl<T> Hash for HashableRc<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        ptr::hash(&*self.0, state);
+    }
+}
+
+impl<T> PartialEq for HashableRc<T> {
+    fn eq(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl<T> Eq for HashableRc<T> {}
 
 // Unify two terms by updating nested unifiers. Terms are equated up to beta normalization. Type
 // annotations are not checked.
@@ -39,7 +63,8 @@ pub fn unify<'a>(
             if subterm1.borrow().is_none() {
                 // Occurs check
                 let mut unifiers = vec![];
-                collect_unifiers(&*whnf2, &mut unifiers);
+                let mut visited = HashSet::new();
+                collect_unifiers(&*whnf2, &mut unifiers, &mut visited);
                 if unifiers.iter().any(|unifier| Rc::ptr_eq(unifier, subterm1)) {
                     return false;
                 }
@@ -60,7 +85,8 @@ pub fn unify<'a>(
             if subterm2.borrow().is_none() {
                 // Occurs check
                 let mut unifiers = vec![];
-                collect_unifiers(&*whnf1, &mut unifiers);
+                let mut visited = HashSet::new();
+                collect_unifiers(&*whnf1, &mut unifiers, &mut visited);
                 if unifiers.iter().any(|unifier| Rc::ptr_eq(unifier, subterm2)) {
                     return false;
                 }
@@ -194,38 +220,43 @@ pub fn unify<'a>(
     }
 }
 
-// This function collects all the unset unifiers in a term.
-fn collect_unifiers<'a>(term: &Term<'a>, unifiers: &mut Vec<Rc<RefCell<Option<Term<'a>>>>>) {
+// This function collects all the unresolved unifiers in a term. The unifiers are deduplicated and
+// returned in the order they are first encountered in the term.
+fn collect_unifiers<'a>(
+    term: &Term<'a>,
+    unifiers: &mut Vec<Rc<RefCell<Option<Term<'a>>>>>,
+    visited: &mut HashSet<HashableRc<RefCell<Option<Term<'a>>>>>,
+) {
     match &term.variant {
         Unifier(unifier) => {
             if let Some(subterm) = &*unifier.borrow() {
-                collect_unifiers(subterm, unifiers);
-            } else {
+                collect_unifiers(subterm, unifiers, visited);
+            } else if visited.insert(HashableRc(unifier.clone())) {
                 unifiers.push(unifier.clone());
             }
         }
         Type | Variable(_, _) | Integer | IntegerLiteral(_) | Boolean | True | False => {}
         Lambda(_, domain, body) => {
-            collect_unifiers(domain, unifiers);
-            collect_unifiers(body, unifiers);
+            collect_unifiers(domain, unifiers, visited);
+            collect_unifiers(body, unifiers, visited);
         }
         Pi(_, domain, codomain) => {
-            collect_unifiers(domain, unifiers);
-            collect_unifiers(codomain, unifiers);
+            collect_unifiers(domain, unifiers, visited);
+            collect_unifiers(codomain, unifiers, visited);
         }
         Application(applicand, argument) => {
-            collect_unifiers(applicand, unifiers);
-            collect_unifiers(argument, unifiers);
+            collect_unifiers(applicand, unifiers, visited);
+            collect_unifiers(argument, unifiers, visited);
         }
         Let(definitions, body) => {
             for (_, annotation, definition) in definitions {
-                collect_unifiers(annotation, unifiers);
-                collect_unifiers(definition, unifiers);
+                collect_unifiers(annotation, unifiers, visited);
+                collect_unifiers(definition, unifiers, visited);
             }
 
-            collect_unifiers(body, unifiers);
+            collect_unifiers(body, unifiers, visited);
         }
-        Negation(subterm) => collect_unifiers(subterm, unifiers),
+        Negation(subterm) => collect_unifiers(subterm, unifiers, visited),
         Sum(term1, term2)
         | Difference(term1, term2)
         | Product(term1, term2)
@@ -235,13 +266,13 @@ fn collect_unifiers<'a>(term: &Term<'a>, unifiers: &mut Vec<Rc<RefCell<Option<Te
         | EqualTo(term1, term2)
         | GreaterThan(term1, term2)
         | GreaterThanOrEqualTo(term1, term2) => {
-            collect_unifiers(term1, unifiers);
-            collect_unifiers(term2, unifiers);
+            collect_unifiers(term1, unifiers, visited);
+            collect_unifiers(term2, unifiers, visited);
         }
         If(condition, then_branch, else_branch) => {
-            collect_unifiers(condition, unifiers);
-            collect_unifiers(then_branch, unifiers);
-            collect_unifiers(else_branch, unifiers);
+            collect_unifiers(condition, unifiers, visited);
+            collect_unifiers(then_branch, unifiers, visited);
+            collect_unifiers(else_branch, unifiers, visited);
         }
     }
 }
@@ -251,9 +282,48 @@ mod tests {
     use crate::{
         parser::parse,
         tokenizer::tokenize,
+        type_checker::type_check,
         unifier::{collect_unifiers, unify},
     };
-    use std::rc::Rc;
+    use std::{collections::HashSet, rc::Rc};
+
+    #[test]
+    fn unify_unifier_left() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "_";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "type";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true,
+        );
+    }
+
+    #[test]
+    fn unify_unifier_right() {
+        let parsing_context = [];
+        let mut definitions_context = vec![];
+
+        let source1 = "type";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+
+        let source2 = "_";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+
+        assert_eq!(
+            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
+            true,
+        );
+    }
 
     #[test]
     fn unify_type() {
@@ -294,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_variable() {
+    fn unify_failure_variable() {
         let parsing_context = ["x", "y"];
         let mut definitions_context = vec![None, None];
 
@@ -351,7 +421,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_lambda_body() {
+    fn unify_failure_lambda_body() {
         let parsing_context = [];
         let mut definitions_context = vec![];
 
@@ -389,7 +459,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_pi_domain() {
+    fn unify_failure_pi_domain() {
         let parsing_context = [];
         let mut definitions_context = vec![];
 
@@ -408,7 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_pi_codomain() {
+    fn unify_failure_pi_codomain() {
         let parsing_context = [];
         let mut definitions_context = vec![];
 
@@ -446,7 +516,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_application_applicand() {
+    fn unify_failure_application_applicand() {
         let parsing_context = ["f", "x"];
         let mut definitions_context = vec![None, None];
 
@@ -465,7 +535,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_application_argument() {
+    fn unify_failure_application_argument() {
         let parsing_context = ["f", "x"];
         let mut definitions_context = vec![None, None];
 
@@ -503,7 +573,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_let_definition() {
+    fn unify_failure_let_definition() {
         let parsing_context = [];
         let mut definitions_context = vec![];
 
@@ -522,7 +592,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_let_body() {
+    fn unify_failure_let_body() {
         let parsing_context = [];
         let mut definitions_context = vec![];
 
@@ -579,7 +649,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_integer_literal() {
+    fn unify_failure_integer_literal() {
         let parsing_context = [];
         let mut definitions_context = vec![];
 
@@ -617,7 +687,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_negation() {
+    fn unify_failure_negation() {
         let parsing_context = [];
         let mut definitions_context = vec![];
 
@@ -655,7 +725,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_sum() {
+    fn unify_failure_sum() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -693,7 +763,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_difference() {
+    fn unify_failure_difference() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -731,7 +801,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_product() {
+    fn unify_failure_product() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -769,7 +839,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_quotient() {
+    fn unify_failure_quotient() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -807,7 +877,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_less_than() {
+    fn unify_failure_less_than() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -845,7 +915,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_less_than_or_equal_to() {
+    fn unify_failure_less_than_or_equal_to() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -883,7 +953,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_equal_to() {
+    fn unify_failure_equal_to() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -921,7 +991,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_greater_than() {
+    fn unify_failure_greater_than() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -959,7 +1029,7 @@ mod tests {
     }
 
     #[test]
-    fn definitionally_inequal_greater_than_or_equal_to() {
+    fn unify_failure_greater_than_or_equal_to() {
         let parsing_context = [];
         let mut definitions_context = vec![None, None];
 
@@ -1073,6 +1143,86 @@ mod tests {
     }
 
     #[test]
+    fn collect_unifiers_unifier_no_deduplication() {
+        let parsing_context = [];
+
+        let source = "(x => x) _";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        let mut unifiers = vec![];
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
+
+        assert_eq!(unifiers.len(), 2);
+    }
+
+    #[test]
+    fn collect_unifiers_unifier_deduplication() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+
+        let source = "(x => x) _";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let _ = type_check(
+            None,
+            source,
+            &term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let mut unifiers = vec![];
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
+
+        assert_eq!(unifiers.len(), 1);
+    }
+
+    #[test]
+    fn collect_unifiers_unresolved() {
+        let parsing_context = [];
+
+        let source = "x => x + 3";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+
+        let mut unifiers = vec![];
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
+
+        assert_eq!(unifiers.len(), 1);
+    }
+
+    #[test]
+    fn collect_unifiers_resolved() {
+        let parsing_context = [];
+        let mut typing_context = vec![];
+        let mut definitions_context = vec![];
+
+        let source = "x => x + 3";
+        let tokens = tokenize(None, source).unwrap();
+        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let _ = type_check(
+            None,
+            source,
+            &term,
+            &mut typing_context,
+            &mut definitions_context,
+        )
+        .unwrap();
+
+        let mut unifiers = vec![];
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
+
+        assert_eq!(unifiers.len(), 0);
+    }
+
+    #[test]
     fn collect_unifiers_type() {
         let parsing_context = [];
 
@@ -1081,7 +1231,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1095,7 +1246,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1109,7 +1261,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert_eq!(unifiers.len(), 1);
     }
@@ -1123,7 +1276,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1137,7 +1291,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1151,7 +1306,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1165,7 +1321,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert_eq!(unifiers.len(), 1);
     }
@@ -1179,7 +1336,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1193,7 +1351,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1207,7 +1366,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1221,7 +1381,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1235,7 +1396,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1249,7 +1411,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1263,7 +1426,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1277,7 +1441,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1291,7 +1456,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1305,7 +1471,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1319,7 +1486,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1333,7 +1501,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1347,7 +1516,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1361,7 +1531,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1375,7 +1546,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1389,7 +1561,8 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
-        collect_unifiers(&term, &mut unifiers);
+        let mut visited = HashSet::new();
+        collect_unifiers(&term, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
