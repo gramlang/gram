@@ -61,7 +61,7 @@ impl<'a> Display for Variant<'a> {
                 if let Some(subterm) = &*subterm.borrow() {
                     write!(f, "{}", subterm)
                 } else {
-                    write!(f, "?")
+                    write!(f, "_")
                 }
             }
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
