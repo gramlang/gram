@@ -6,6 +6,7 @@ use crate::{
     term,
     token::{self, TerminatorType, Token},
 };
+use colored::Colorize;
 use num_bigint::BigInt;
 use scopeguard::defer;
 use std::{
@@ -1770,6 +1771,7 @@ fn parse_if<'a>(
 }
 
 // Parse a group.
+#[allow(clippy::too_many_lines)]
 fn parse_group<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
@@ -1844,32 +1846,37 @@ fn parse_group<'a>(
                     {
                         if let Some(path) = source_path {
                             format!(
-                                "Error in {}: This parenthesis was never closed:\n\n{}\n\nIt was \
+                                "{} {} This parenthesis was never closed:\n\n{}\n\nIt was \
                                     expected to be closed at the end of this line:\n\n{}",
-                                path.to_string_lossy().code_str(),
+                                "[Error]".red().bold(),
+                                format!("[{}]", path.to_string_lossy().code_str()).magenta(),
                                 left_parenthesis_listing,
                                 unexpected_token_listing,
                             )
                         } else {
                             format!(
-                                "Error: This parenthesis was never closed:\n\n{}\n\nIt was \
+                                "{} This parenthesis was never closed:\n\n{}\n\nIt was \
                                     expected to be closed at the end of this line:\n\n{}",
-                                left_parenthesis_listing, unexpected_token_listing,
+                                "[Error]".red().bold(),
+                                left_parenthesis_listing,
+                                unexpected_token_listing,
                             )
                         }
                     } else if let Some(path) = source_path {
                         format!(
-                            "Error in {}: This parenthesis was never closed:\n\n{}\n\nIt was \
+                            "{} {} This parenthesis was never closed:\n\n{}\n\nIt was \
                                 expected to be closed before {}:\n\n{}",
-                            path.to_string_lossy().code_str(),
+                            "[Error]".red().bold(),
+                            format!("[{}]", path.to_string_lossy().code_str()).magenta(),
                             left_parenthesis_listing,
                             tokens[next].to_string().code_str(),
                             unexpected_token_listing,
                         )
                     } else {
                         format!(
-                            "Error: This parenthesis was never closed:\n\n{}\n\nIt was \
+                            "{} This parenthesis was never closed:\n\n{}\n\nIt was \
                                 expected to be closed before {}:\n\n{}",
+                            "[Error]".red().bold(),
                             left_parenthesis_listing,
                             tokens[next].to_string().code_str(),
                             unexpected_token_listing,

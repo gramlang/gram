@@ -53,22 +53,24 @@ pub fn throw(
             message: if let Some(path) = source_path {
                 if listing.is_empty() {
                     format!(
-                        "Error in {}: {}",
-                        path.to_string_lossy().code_str(),
+                        "{} {} {}",
+                        "[Error]".red().bold(),
+                        format!("[{}]", path.to_string_lossy().code_str()).magenta(),
                         message,
                     )
                 } else {
                     format!(
-                        "Error in {}: {}\n\n{}",
-                        path.to_string_lossy().code_str(),
+                        "{} {} {}\n\n{}",
+                        "[Error]".red().bold(),
+                        format!("[{}]", path.to_string_lossy().code_str()).magenta(),
                         message,
                         listing,
                     )
                 }
             } else if listing.is_empty() {
-                format!("Error: {}", message)
+                format!("{} {}", "[Error]".red().bold(), message)
             } else {
-                format!("Error: {}\n\n{}", message, listing)
+                format!("{} {}\n\n{}", "[Error]".red().bold(), message, listing)
             },
             reason: None,
         }
@@ -259,7 +261,7 @@ mod tests {
 
         let error = throw("An error occurred.", None, None);
 
-        assert_eq!(error.message, "Error: An error occurred.");
+        assert_eq!(error.message, "[Error] An error occurred.");
     }
 
     #[test]
@@ -268,7 +270,7 @@ mod tests {
 
         let error = throw("An error occurred.", None, Some(("", (0, 0))));
 
-        assert_eq!(error.message, "Error: An error occurred.");
+        assert_eq!(error.message, "[Error] An error occurred.");
     }
 
     #[test]
@@ -277,7 +279,7 @@ mod tests {
 
         let error = throw("An error occurred.", Some(Path::new("foo.g")), None);
 
-        assert_eq!(error.message, "Error in `foo.g`: An error occurred.");
+        assert_eq!(error.message, "[Error] [`foo.g`] An error occurred.");
     }
 
     #[test]
@@ -290,7 +292,7 @@ mod tests {
             Some(("", (0, 0))),
         );
 
-        assert_eq!(error.message, "Error in `foo.g`: An error occurred.");
+        assert_eq!(error.message, "[Error] [`foo.g`] An error occurred.");
     }
 
     #[test]
@@ -301,7 +303,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n1 \u{2502} foo\n    \u{203e}\u{203e}\u{203e}",
+            "[Error] An error occurred.\n\n1 \u{2502} foo\n    \u{203e}\u{203e}\u{203e}",
         );
     }
 
@@ -317,7 +319,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error in `foo.g`: An error occurred.\n\n1 \u{2502} foo\n    \u{203e}\u{203e}\u{203e}",
+            "[Error] [`foo.g`] An error occurred.\n\n1 \u{2502} foo\n    \u{203e}\u{203e}\u{203e}",
         );
     }
 
@@ -329,7 +331,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n1 \u{2502} foo\n  \u{250a} \u{203e}\u{203e}\u{203e}\n2 \
+            "[Error] An error occurred.\n\n1 \u{2502} foo\n  \u{250a} \u{203e}\u{203e}\u{203e}\n2 \
                 \u{2502} bar\n  \u{250a} \u{203e}\u{203e}\u{203e}\n3 \u{2502} baz\n    \u{203e}\
                 \u{203e}\u{203e}",
         );
@@ -347,8 +349,8 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n2 \u{2502} bar\n  \u{250a}  \u{203e}\u{203e}\n3 \u{2502} \
-                baz\n    \u{203e}\u{203e}\u{203e}",
+            "[Error] An error occurred.\n\n2 \u{2502} bar\n  \u{250a}  \u{203e}\u{203e}\n3 \
+                \u{2502} baz\n    \u{203e}\u{203e}\u{203e}",
         );
     }
 
@@ -367,7 +369,7 @@ mod tests {
 
         assert_eq!(
             error.message,
-            "Error: An error occurred.\n\n 9 \u{2502} foo\n   \u{250a}  \u{203e}\u{203e}\n10 \
+            "[Error] An error occurred.\n\n 9 \u{2502} foo\n   \u{250a}  \u{203e}\u{203e}\n10 \
                 \u{2502} bar\n   \u{250a} \u{203e}\u{203e}\u{203e}\n11 \u{2502} baz\n     \u{203e}\
                 \u{203e}",
         );
