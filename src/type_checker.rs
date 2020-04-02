@@ -833,7 +833,7 @@ mod tests {
                 &mut typing_context,
                 &mut definitions_context,
             ),
-            "has type `b`, but it should have type `{a}`",
+            "has type `b`, but it should have type `a`",
         );
     }
 
