@@ -3070,34 +3070,29 @@ fn resolve_variables<'a>(
             }
         }
         Variant::Variable(variable) => {
-            // Make sure the variable is in scope and calculate its De Bruijn index.
-            let index = if let Some(variable_depth) = context.get(variable.name) {
-                depth - 1 - variable_depth
+            // Check if the variable is in scope.
+            if let Some(variable_depth) = context.get(variable.name) {
+                // Calculate the De Bruijn index for the variable and return it.
+                term::Term {
+                    source_range: Some(term.source_range.0),
+                    variant: term::Variant::Variable(variable.name, depth - 1 - variable_depth),
+                }
             } else {
-                // The variable isn't in scope. Report the error.
-                errors.push(throw(
-                    &if variable.name == PLACEHOLDER_VARIABLE {
-                        format!(
-                            "{} is not a valid variable name. Rather, it\u{2019}s used to indicate \
-                                that a variable will not be used and thus doesn\u{2019}t need a \
-                                name.",
-                            variable.name.code_str(),
-                        )
-                    } else {
-                        format!("Variable {} not in scope.", variable.name.code_str())
-                    },
-                    source_path,
-                    Some((source_contents, variable.source_range.0)),
-                ));
+                // The variable isn't in scope. If it's the placeholder variable, don't worry about
+                // it; we'll construct a unifier below. Otherwise report an error.
+                if variable.name != PLACEHOLDER_VARIABLE {
+                    errors.push(throw(
+                        &format!("Variable {} not in scope.", variable.name.code_str()),
+                        source_path,
+                        Some((source_contents, variable.source_range.0)),
+                    ));
+                }
 
-                // Use a bogus De Bruijn index for now.
-                0
-            };
-
-            // Construct the variable.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Variable(variable.name, index),
+                // Construct and return a unifier.
+                term::Term {
+                    source_range: Some(term.source_range.0),
+                    variant: term::Variant::Unifier(Rc::new(RefCell::new(None))),
+                }
             }
         }
         Variant::Lambda(variable, domain, body) => {
@@ -3915,6 +3910,21 @@ mod tests {
             Term {
                 source_range: Some((0, 1)),
                 variant: Variable("x", 0),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_variable_unifier() {
+        let source = "_";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_eq!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 1)),
+                variant: Unifier(Rc::new(RefCell::new(None))),
             },
         );
     }
