@@ -19,34 +19,62 @@ use std::{cell::RefCell, path::Path, rc::Rc};
 // This is the top-level type checking function. Invariants:
 // - The two contexts have the same length.
 // - When this function is finished, the contexts are left unmodified.
-#[allow(clippy::too_many_lines)]
 pub fn type_check<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     term: &Term<'a>,
     typing_context: &mut Vec<(Rc<Term<'a>>, usize)>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
-) -> Result<Rc<Term<'a>>, Error> {
+) -> Result<Rc<Term<'a>>, Vec<Error>> {
+    let mut errors = vec![];
+
+    let result = type_check_rec(
+        source_path,
+        source_contents,
+        term,
+        typing_context,
+        definitions_context,
+        &mut errors,
+    );
+
+    if errors.is_empty() {
+        Ok(result)
+    } else {
+        Err(errors)
+    }
+}
+
+// This helper function is the workhorse of the `type_check` function above.
+#[allow(clippy::too_many_lines)]
+pub fn type_check_rec<'a>(
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    term: &Term<'a>,
+    typing_context: &mut Vec<(Rc<Term<'a>>, usize)>,
+    definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
+    errors: &mut Vec<Error>,
+) -> Rc<Term<'a>> {
     // Construct the type of all types once here rather than constructing it many times later.
-    let type_term = Term {
+    let type_term = Rc::new(Term {
         source_range: None,
         variant: Type,
-    };
+    });
 
     // Construct the type of integers once here rather than constructing it many times later.
-    let integer_term = Term {
+    let integer_term = Rc::new(Term {
         source_range: None,
         variant: Integer,
-    };
+    });
 
     // Construct the type of Booleans once here rather than constructing it many times later.
-    let boolean_term = Term {
+    let boolean_term = Rc::new(Term {
         source_range: None,
         variant: Boolean,
-    };
+    });
 
-    Ok(match &term.variant {
-        Unifier(_) | Type | Integer | Boolean => Rc::new(type_term),
+    // The typing rules are syntax-directed, so we pattern-match on the term.
+    match &term.variant {
+        Unifier(_) | Type | Integer | Boolean => type_term,
         Variable(_, index) => {
             // Shift the type such that it's valid in the current context.
             let (variable_type, offset) = &typing_context[typing_context.len() - 1 - *index];
@@ -54,17 +82,18 @@ pub fn type_check<'a>(
         }
         Lambda(variable, domain, body) => {
             // Infer the type of the domain.
-            let domain_type = type_check(
+            let domain_type = type_check_rec(
                 source_path,
                 source_contents,
                 domain,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the type of the domain is the type of all types.
-            if !unify(domain_type.clone(), Rc::new(type_term), definitions_context) {
-                return Err(throw(
+            if !unify(domain_type.clone(), type_term, definitions_context) {
+                errors.push(throw(
                     "This is not a type:",
                     source_path,
                     domain
@@ -73,26 +102,24 @@ pub fn type_check<'a>(
                 ));
             }
 
-            // Temporarily add the variable's type to the context for the purpose of inferring
-            // the codomain.
+            // Temporarily add the variable's type to the context for the purpose of inferring the
+            // codomain.
             typing_context.push((domain.clone(), 0));
             definitions_context.push(None);
 
             // Infer the codomain.
-            let codomain_result = type_check(
+            let codomain = type_check_rec(
                 source_path,
                 source_contents,
                 &**body,
                 typing_context,
                 definitions_context,
+                errors,
             );
 
             // Restore the context.
             definitions_context.pop();
             typing_context.pop();
-
-            // Fail if the codomain is not well-typed.
-            let codomain = codomain_result?;
 
             // Construct and return the pi type.
             Rc::new(Term {
@@ -102,21 +129,18 @@ pub fn type_check<'a>(
         }
         Pi(_, domain, codomain) => {
             // Infer the type of the domain.
-            let domain_type = type_check(
+            let domain_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**domain,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the type of the domain is the type of all types.
-            if !unify(
-                domain_type.clone(),
-                Rc::new(type_term.clone()),
-                definitions_context,
-            ) {
-                return Err(throw(
+            if !unify(domain_type.clone(), type_term.clone(), definitions_context) {
+                errors.push(throw(
                     "This is not a type:",
                     source_path,
                     domain
@@ -125,52 +149,32 @@ pub fn type_check<'a>(
                 ));
             }
 
-            // Temporarily add the variable's type to the context for the purpose of inferring
-            // the type of the codomain.
+            // Temporarily add the variable's type to the context for the purpose of inferring the
+            // type of the codomain.
             typing_context.push((domain.clone(), 0));
             definitions_context.push(None);
 
             // Infer the type of the codomain.
-            let codomain_type_result = type_check(
+            let codomain_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**codomain,
                 typing_context,
                 definitions_context,
-            );
-
-            // Fail if the type of the codomain is not well-typed.
-            let codomain_type = match codomain_type_result {
-                Ok(codomain_type) => codomain_type,
-                Err(err) => {
-                    // Restore the context.
-                    definitions_context.pop();
-                    typing_context.pop();
-
-                    // Return the error.
-                    return Err(err);
-                }
-            };
-
-            // Check that the type of the codomain is the type of all types.
-            let codomain_is_type = unify(
-                codomain_type.clone(),
-                Rc::new(type_term.clone()),
-                definitions_context,
+                errors,
             );
 
             // Restore the context.
             definitions_context.pop();
             typing_context.pop();
 
-            // If the codomain is not a type, throw a type error.
-            if !codomain_is_type {
-                // Restore the context.
-                definitions_context.pop();
-                typing_context.pop();
-
-                // Throw a type error.
-                return Err(throw(
+            // Check that the type of the codomain is the type of all types.
+            if !unify(
+                codomain_type.clone(),
+                type_term.clone(),
+                definitions_context,
+            ) {
+                errors.push(throw(
                     "This is not a type:",
                     source_path,
                     codomain
@@ -180,17 +184,18 @@ pub fn type_check<'a>(
             }
 
             // The type of a pi type is the type of all types.
-            Rc::new(type_term)
+            type_term
         }
         Application(applicand, argument) => {
             // Infer the type of the applicand.
-            let applicand_type = type_check(
+            let applicand_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**applicand,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Construct a unification term for the domain.
             let domain = Rc::new(Term {
@@ -212,7 +217,7 @@ pub fn type_check<'a>(
 
             // Make sure the type of the applicand is a pi type.
             if !unify(pi_type, applicand_type.clone(), definitions_context) {
-                return Err(throw(
+                errors.push(throw(
                     &format!(
                         "This has type {} when a function was expected:",
                         applicand_type.to_string().code_str(),
@@ -225,17 +230,18 @@ pub fn type_check<'a>(
             };
 
             // Infer the type of the argument.
-            let argument_type = type_check(
+            let argument_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**argument,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the argument type equals the domain.
             if !unify(argument_type.clone(), domain.clone(), definitions_context) {
-                return Err(throw(
+                errors.push(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         argument_type.to_string().code_str(),
@@ -294,13 +300,14 @@ pub fn type_check<'a>(
                 let ((borrowed_typing_context, borrowed_definitions_context), _) = &mut (*guard);
 
                 // Infer the type of the definition.
-                let definition_type = type_check(
+                let definition_type = type_check_rec(
                     source_path,
                     source_contents,
                     &**definition,
                     borrowed_typing_context,
                     borrowed_definitions_context,
-                )?;
+                    errors,
+                );
 
                 // Check the type against the annotation.
                 if !unify(
@@ -308,7 +315,7 @@ pub fn type_check<'a>(
                     annotation.clone(),
                     borrowed_definitions_context,
                 ) {
-                    return Err(throw(
+                    errors.push(throw(
                         &format!(
                             "This has type {} but it was annotated as {}:",
                             definition_type.to_string().code_str(),
@@ -327,13 +334,14 @@ pub fn type_check<'a>(
             let ((borrowed_typing_context, borrowed_definitions_context), _) = &mut (*guard);
 
             // Infer the type of the body.
-            let body_type = type_check(
+            let body_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**body,
                 borrowed_typing_context,
                 borrowed_definitions_context,
-            )?;
+                errors,
+            );
 
             // Return the opened type of the body.
             (0..definitions.len()).fold(body_type, |acc, i| {
@@ -378,24 +386,25 @@ pub fn type_check<'a>(
                 )
             })
         }
-        IntegerLiteral(_) => Rc::new(integer_term),
+        IntegerLiteral(_) => integer_term,
         Negation(subterm) => {
             // Infer the type of the subterm.
-            let subterm_type = type_check(
+            let subterm_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**subterm,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the type of the subterm is the type of integers.
             if !unify(
                 subterm_type.clone(),
-                Rc::new(integer_term.clone()),
+                integer_term.clone(),
                 definitions_context,
             ) {
-                return Err(throw(
+                errors.push(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         subterm_type.to_string().code_str(),
@@ -409,28 +418,29 @@ pub fn type_check<'a>(
             };
 
             // Return the type of integers.
-            Rc::new(integer_term)
+            integer_term
         }
         Sum(term1, term2)
         | Difference(term1, term2)
         | Product(term1, term2)
         | Quotient(term1, term2) => {
             // Infer the type of the left subterm.
-            let term1_type = type_check(
+            let term1_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**term1,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(
                 term1_type.clone(),
-                Rc::new(integer_term.clone()),
+                integer_term.clone(),
                 definitions_context,
             ) {
-                return Err(throw(
+                errors.push(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -444,21 +454,22 @@ pub fn type_check<'a>(
             };
 
             // Infer the type of the right subterm.
-            let term2_type = type_check(
+            let term2_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**term2,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(
                 term2_type.clone(),
-                Rc::new(integer_term.clone()),
+                integer_term.clone(),
                 definitions_context,
             ) {
-                return Err(throw(
+                errors.push(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -472,7 +483,7 @@ pub fn type_check<'a>(
             };
 
             // Return the type of integers.
-            Rc::new(integer_term)
+            integer_term
         }
         LessThan(term1, term2)
         | LessThanOrEqualTo(term1, term2)
@@ -480,21 +491,22 @@ pub fn type_check<'a>(
         | GreaterThan(term1, term2)
         | GreaterThanOrEqualTo(term1, term2) => {
             // Infer the type of the left subterm.
-            let term1_type = type_check(
+            let term1_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**term1,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(
                 term1_type.clone(),
-                Rc::new(integer_term.clone()),
+                integer_term.clone(),
                 definitions_context,
             ) {
-                return Err(throw(
+                errors.push(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -508,21 +520,22 @@ pub fn type_check<'a>(
             };
 
             // Infer the type of the right subterm.
-            let term2_type = type_check(
+            let term2_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**term2,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(
                 term2_type.clone(),
-                Rc::new(integer_term.clone()),
+                integer_term.clone(),
                 definitions_context,
             ) {
-                return Err(throw(
+                errors.push(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -536,25 +549,26 @@ pub fn type_check<'a>(
             };
 
             // Return the type of Booleans.
-            Rc::new(boolean_term)
+            boolean_term
         }
         If(condition, then_branch, else_branch) => {
             // Infer the type of the condition.
-            let condition_type = type_check(
+            let condition_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**condition,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the type of the condition is the type of Booleans.
             if !unify(
                 condition_type.clone(),
-                Rc::new(boolean_term.clone()),
+                boolean_term.clone(),
                 definitions_context,
             ) {
-                return Err(throw(
+                errors.push(throw(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         condition_type.to_string().code_str(),
@@ -568,22 +582,24 @@ pub fn type_check<'a>(
             };
 
             // Infer the type of the then branch.
-            let then_branch_type = type_check(
+            let then_branch_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**then_branch,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Infer the type of the else branch.
-            let else_branch_type = type_check(
+            let else_branch_type = type_check_rec(
                 source_path,
                 source_contents,
                 &**else_branch,
                 typing_context,
                 definitions_context,
-            )?;
+                errors,
+            );
 
             // Check that the types of the two branches are definitionally equal.
             if !unify(
@@ -591,7 +607,7 @@ pub fn type_check<'a>(
                 else_branch_type.clone(),
                 definitions_context,
             ) {
-                return Err(throw(
+                errors.push(throw(
                     &format!(
                         "The two branches of this conditional don\u{2019}t match. The first branch \
                             has type {}, but the second branch has type {}.",
@@ -607,8 +623,8 @@ pub fn type_check<'a>(
             // Return the type of the branches.
             then_branch_type
         }
-        True | False => Rc::new(boolean_term),
-    })
+        True | False => boolean_term,
+    }
 }
 
 #[cfg(test)]

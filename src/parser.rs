@@ -3856,7 +3856,7 @@ fn check_definition<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        assert_fails_vec,
+        assert_fails,
         parser::parse,
         term::{
             Term,
@@ -3878,7 +3878,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_fails_vec!(
+        assert_fails!(
             parse(None, source, &tokens[..], &context[..]),
             "file is empty",
         );
@@ -3935,7 +3935,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_fails_vec!(
+        assert_fails!(
             parse(None, source, &tokens[..], &context[..]),
             "not in scope",
         );
@@ -3997,7 +3997,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a", "x"];
 
-        assert_fails_vec!(
+        assert_fails!(
             parse(None, source, &tokens[..], &context[..]),
             "already exists",
         );
@@ -4069,7 +4069,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a", "x"];
 
-        assert_fails_vec!(
+        assert_fails!(
             parse(None, source, &tokens[..], &context[..]),
             "already exists",
         );

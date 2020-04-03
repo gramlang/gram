@@ -213,32 +213,6 @@ macro_rules! assert_fails {
         colored::control::set_override(false);
 
         // Check that `$expr` fails and that the failure contains `$substr`.
-        if let Err(error) = expr {
-            let error_string = error.to_string();
-
-            assert!(error_string.contains(substr), error_string);
-        } else {
-            assert!(
-                false,
-                "The expression was supposed to fail, but it succeeded.",
-            );
-        }
-    }};
-}
-
-// This macro is useful for writing tests that deal with errors.
-#[macro_export]
-macro_rules! assert_fails_vec {
-    ($expr:expr, $substr:expr $(,)?) => {{
-        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
-        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let expr = $expr;
-        let substr = $substr;
-
-        // Before we actually evaluate the expression, disable terminal colors.
-        colored::control::set_override(false);
-
-        // Check that `$expr` fails and that the failure contains `$substr`.
         if let Err(errors) = expr {
             let mut found_error = false;
             let mut all_errors_string = "".to_owned();
