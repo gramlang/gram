@@ -934,6 +934,21 @@ fn parse_let<'a>(
     let (variable, next) =
         consume_token1!(cache, cache_key, tokens, start, Identifier, "a variable");
 
+    // Consume the arguments, if any.
+    let mut arguments = vec![];
+    let mut next = next;
+    while next < tokens.len() {
+        if let token::Variant::Identifier(argument) = tokens[next].variant {
+            arguments.push(SourceVariable {
+                source_range: token_source_range(tokens, next),
+                name: argument,
+            });
+            next += 1;
+        } else {
+            break;
+        }
+    }
+
     // Parse the annotation, if there is one.
     let (annotation, next, annotation_confident_next) = if next < tokens.len() {
         if let token::Variant::Colon = tokens[next].variant {
@@ -1042,29 +1057,35 @@ fn parse_let<'a>(
         )
     };
 
-    // Construct and return the term.
-    cache_return!(
-        cache,
-        cache_key,
-        (
-            Term {
-                source_range: span(variable_source_range, body.source_range),
-                group: false,
-                variant: Variant::Let(
-                    SourceVariable {
-                        source_range: variable_source_range,
-                        name: variable,
-                    },
-                    annotation,
-                    Rc::new(definition),
-                    Rc::new(body),
-                ),
-                errors: errors,
+    // Create a lambda for each argument.
+    let abstracted_definition = arguments
+        .iter()
+        .rev()
+        .fold(definition.clone(), |acc, argument| Term {
+            source_range: definition.source_range,
+            group: false,
+            variant: Variant::Lambda(*argument, None, Rc::new(acc)),
+            errors: vec![],
+        });
+
+    // Construct the let.
+    let let_term = Term {
+        source_range: span(variable_source_range, body.source_range),
+        group: false,
+        variant: Variant::Let(
+            SourceVariable {
+                source_range: variable_source_range,
+                name: variable,
             },
-            next,
-            body_confident_next,
+            annotation,
+            Rc::new(abstracted_definition),
+            Rc::new(body),
         ),
-    )
+        errors,
+    };
+
+    // Construct and return the term.
+    cache_return!(cache, cache_key, (let_term, next, body_confident_next))
 }
 
 // Parse the type of integers.
