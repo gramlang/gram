@@ -47,7 +47,7 @@ pub fn unify<'a>(
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
 ) -> bool {
     // The two terms might not have normal forms, but if they are syntactically equal then we can
-    // still consider them definitionally equal. So we check for that first.
+    // still consider them unified. So we check for that first.
     if syntactically_equal(&*term1, &*term2) {
         return true;
     }
@@ -64,7 +64,7 @@ pub fn unify<'a>(
                 // Occurs check
                 let mut unifiers = vec![];
                 let mut visited = HashSet::new();
-                collect_unifiers(&*whnf2, &mut unifiers, &mut visited);
+                collect_unifiers(&*whnf2, 0, &mut unifiers, &mut visited);
                 if visited.contains(&HashableRc(subterm1.clone())) {
                     return false;
                 }
@@ -86,7 +86,7 @@ pub fn unify<'a>(
                 // Occurs check
                 let mut unifiers = vec![];
                 let mut visited = HashSet::new();
-                collect_unifiers(&*whnf1, &mut unifiers, &mut visited);
+                collect_unifiers(&*whnf1, 0, &mut unifiers, &mut visited);
                 if visited.contains(&HashableRc(subterm2.clone())) {
                     return false;
                 }
@@ -108,32 +108,31 @@ pub fn unify<'a>(
         }
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
         (Lambda(_, _, body1), Lambda(_, _, body2)) => {
-            // Temporarily add the variable to the context for the purpose of normalizing the body.
+            // Temporarily add the variable to the context.
             definitions_context.push(None);
 
-            // Check if the bodies are definitionally equal.
+            // Unify the bodies.
             let bodies_unify = unify(body1.clone(), body2.clone(), definitions_context);
 
             // Restore the context.
             definitions_context.pop();
 
-            // Return the result.
+            // Return whether unification succeeded.
             bodies_unify
         }
         (Pi(_, domain1, codomain1), Pi(_, domain2, codomain2)) => {
             unify(domain1.clone(), domain2.clone(), definitions_context) && {
-                // Temporarily add the variable to the context for the purpose of normalizing the
-                // codomain.
+                // Temporarily add the variable to the context.
                 definitions_context.push(None);
 
-                // Check if the codomains are definitionally equal.
+                // Unify the codomains.
                 let codomains_unify =
                     unify(codomain1.clone(), codomain2.clone(), definitions_context);
 
                 // Restore the context.
                 definitions_context.pop();
 
-                // Return the result.
+                // Return whether unification succeeded.
                 codomains_unify
             }
         }
@@ -224,39 +223,40 @@ pub fn unify<'a>(
 // returned in the order they are first encountered in the term.
 fn collect_unifiers<'a>(
     term: &Term<'a>,
-    unifiers: &mut Vec<Rc<RefCell<Option<Term<'a>>>>>,
+    depth: usize,
+    unifiers: &mut Vec<(Rc<RefCell<Option<Term<'a>>>>, usize)>,
     visited: &mut HashSet<HashableRc<RefCell<Option<Term<'a>>>>>,
 ) {
     match &term.variant {
         Unifier(unifier) => {
             if let Some(subterm) = &*unifier.borrow() {
-                collect_unifiers(subterm, unifiers, visited);
+                collect_unifiers(subterm, depth, unifiers, visited);
             } else if visited.insert(HashableRc(unifier.clone())) {
-                unifiers.push(unifier.clone());
+                unifiers.push((unifier.clone(), depth));
             }
         }
         Type | Variable(_, _) | Integer | IntegerLiteral(_) | Boolean | True | False => {}
         Lambda(_, domain, body) => {
-            collect_unifiers(domain, unifiers, visited);
-            collect_unifiers(body, unifiers, visited);
+            collect_unifiers(domain, depth, unifiers, visited);
+            collect_unifiers(body, depth + 1, unifiers, visited);
         }
         Pi(_, domain, codomain) => {
-            collect_unifiers(domain, unifiers, visited);
-            collect_unifiers(codomain, unifiers, visited);
+            collect_unifiers(domain, depth, unifiers, visited);
+            collect_unifiers(codomain, depth + 1, unifiers, visited);
         }
         Application(applicand, argument) => {
-            collect_unifiers(applicand, unifiers, visited);
-            collect_unifiers(argument, unifiers, visited);
+            collect_unifiers(applicand, depth, unifiers, visited);
+            collect_unifiers(argument, depth, unifiers, visited);
         }
         Let(definitions, body) => {
             for (_, annotation, definition) in definitions {
-                collect_unifiers(annotation, unifiers, visited);
-                collect_unifiers(definition, unifiers, visited);
+                collect_unifiers(annotation, depth + definitions.len(), unifiers, visited);
+                collect_unifiers(definition, depth + definitions.len(), unifiers, visited);
             }
 
-            collect_unifiers(body, unifiers, visited);
+            collect_unifiers(body, depth + definitions.len(), unifiers, visited);
         }
-        Negation(subterm) => collect_unifiers(subterm, unifiers, visited),
+        Negation(subterm) => collect_unifiers(subterm, depth, unifiers, visited),
         Sum(term1, term2)
         | Difference(term1, term2)
         | Product(term1, term2)
@@ -266,13 +266,13 @@ fn collect_unifiers<'a>(
         | EqualTo(term1, term2)
         | GreaterThan(term1, term2)
         | GreaterThanOrEqualTo(term1, term2) => {
-            collect_unifiers(term1, unifiers, visited);
-            collect_unifiers(term2, unifiers, visited);
+            collect_unifiers(term1, depth, unifiers, visited);
+            collect_unifiers(term2, depth, unifiers, visited);
         }
         If(condition, then_branch, else_branch) => {
-            collect_unifiers(condition, unifiers, visited);
-            collect_unifiers(then_branch, unifiers, visited);
-            collect_unifiers(else_branch, unifiers, visited);
+            collect_unifiers(condition, depth, unifiers, visited);
+            collect_unifiers(then_branch, depth, unifiers, visited);
+            collect_unifiers(else_branch, depth, unifiers, visited);
         }
     }
 }
@@ -1152,7 +1152,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert_eq!(unifiers.len(), 2);
     }
@@ -1177,7 +1177,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert_eq!(unifiers.len(), 1);
     }
@@ -1192,7 +1192,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert_eq!(unifiers.len(), 1);
     }
@@ -1217,7 +1217,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert_eq!(unifiers.len(), 0);
     }
@@ -1232,7 +1232,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1247,7 +1247,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1262,7 +1262,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert_eq!(unifiers.len(), 1);
     }
@@ -1277,7 +1277,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1292,7 +1292,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1307,7 +1307,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1322,7 +1322,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert_eq!(unifiers.len(), 1);
     }
@@ -1337,7 +1337,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1352,7 +1352,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1367,7 +1367,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1382,7 +1382,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1397,7 +1397,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1412,7 +1412,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1427,7 +1427,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1442,7 +1442,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1457,7 +1457,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1472,7 +1472,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1487,7 +1487,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1502,7 +1502,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1517,7 +1517,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1532,7 +1532,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1547,7 +1547,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
@@ -1562,7 +1562,7 @@ mod tests {
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
-        collect_unifiers(&term, &mut unifiers, &mut visited);
+        collect_unifiers(&term, 0, &mut unifiers, &mut visited);
 
         assert!(unifiers.is_empty());
     }
