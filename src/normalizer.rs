@@ -275,7 +275,7 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Product(normalized_term1, normalized_term2),
+                    variant: LessThan(normalized_term1, normalized_term2),
                 })
             }
         }
@@ -299,7 +299,7 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Product(normalized_term1, normalized_term2),
+                    variant: LessThanOrEqualTo(normalized_term1, normalized_term2),
                 })
             }
         }
@@ -323,7 +323,7 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Product(normalized_term1, normalized_term2),
+                    variant: EqualTo(normalized_term1, normalized_term2),
                 })
             }
         }
@@ -347,7 +347,7 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Product(normalized_term1, normalized_term2),
+                    variant: GreaterThan(normalized_term1, normalized_term2),
                 })
             }
         }
@@ -371,7 +371,7 @@ pub fn normalize_weak_head<'a>(
                 // We didn't get integer literals. We're done here.
                 Rc::new(Term {
                     source_range: None,
-                    variant: Product(normalized_term1, normalized_term2),
+                    variant: GreaterThanOrEqualTo(normalized_term1, normalized_term2),
                 })
             }
         }

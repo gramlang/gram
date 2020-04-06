@@ -48,7 +48,7 @@ pub fn unify<'a>(
 ) -> bool {
     // The two terms might not have normal forms, but if they are syntactically equal then we can
     // still consider them unified. So we check for that first.
-    if syntactically_equal(&*term1, &*term2) {
+    if syntactically_equal(&term1, &term2) {
         return true;
     }
 
@@ -64,7 +64,7 @@ pub fn unify<'a>(
                 // Occurs check
                 let mut unifiers = vec![];
                 let mut visited = HashSet::new();
-                collect_unifiers(&*whnf2, 0, &mut unifiers, &mut visited);
+                collect_unifiers(&whnf2, 0, &mut unifiers, &mut visited);
                 if visited.contains(&HashableRc(subterm1.clone())) {
                     return false;
                 }
@@ -86,7 +86,7 @@ pub fn unify<'a>(
                 // Occurs check
                 let mut unifiers = vec![];
                 let mut visited = HashSet::new();
-                collect_unifiers(&*whnf1, 0, &mut unifiers, &mut visited);
+                collect_unifiers(&whnf1, 0, &mut unifiers, &mut visited);
                 if visited.contains(&HashableRc(subterm2.clone())) {
                     return false;
                 }

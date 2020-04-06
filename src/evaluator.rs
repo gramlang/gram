@@ -11,7 +11,7 @@ use crate::{
         },
     },
 };
-use std::rc::Rc;
+use std::{iter::once, rc::Rc};
 
 // This function evaluates a term using a call-by-value strategy.
 pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Result<Rc<Term<'a>>, Error> {
@@ -21,7 +21,7 @@ pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Result<Rc<Term<'a>>, Error> {
     }
 
     // Check if we got a value.
-    if is_value(&*term) {
+    if is_value(&term) {
         Ok(term)
     } else {
         Err(Error {
@@ -102,16 +102,12 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                     return Some(Rc::new(Term {
                         source_range: None,
                         variant: Let(
-                            definitions
-                                .iter()
-                                .enumerate()
-                                .map(|(i, (variable, annotation, definition))| {
-                                    if i == 0 {
-                                        (*variable, annotation.clone(), stepped_definition.clone())
-                                    } else {
+                            once((*variable, annotation.clone(), stepped_definition.clone()))
+                                .chain(definitions.iter().map(
+                                    |(variable, annotation, definition)| {
                                         (*variable, annotation.clone(), definition.clone())
-                                    }
-                                })
+                                    },
+                                ))
                                 .collect(),
                             body.clone(),
                         ),
