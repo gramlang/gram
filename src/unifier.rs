@@ -25,7 +25,8 @@ struct HashableRc<T>(Rc<T>);
 
 impl<T> Hash for HashableRc<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        ptr::hash(&*self.0, state);
+        let reference: &T = &*self.0;
+        ptr::hash(reference, state);
     }
 }
 
