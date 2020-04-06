@@ -29,27 +29,25 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
             true
         }
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
-        (Lambda(_, _, body1), Lambda(_, _, body2)) => syntactically_equal(&**body1, &**body2),
+        (Lambda(_, _, body1), Lambda(_, _, body2)) => syntactically_equal(body1, body2),
         (Pi(_, domain1, codomain1), Pi(_, domain2, codomain2)) => {
-            syntactically_equal(&**domain1, &**domain2)
-                && syntactically_equal(&**codomain1, &**codomain2)
+            syntactically_equal(domain1, domain2) && syntactically_equal(codomain1, codomain2)
         }
         (Application(applicand1, argument1), Application(applicand2, argument2)) => {
-            syntactically_equal(&**applicand1, &**applicand2)
-                && syntactically_equal(&**argument1, &**argument2)
+            syntactically_equal(applicand1, applicand2) && syntactically_equal(argument1, argument2)
         }
         (Let(definitions1, body1), Let(definitions2, body2)) => {
             definitions1.len() == definitions2.len()
                 && definitions1.iter().zip(definitions2.iter()).fold(
                     true,
                     |acc, ((_, _, definition1), (_, _, definition2))| {
-                        acc && syntactically_equal(&**definition1, &**definition2)
+                        acc && syntactically_equal(definition1, definition2)
                     },
                 )
-                && syntactically_equal(&**body1, &**body2)
+                && syntactically_equal(body1, body2)
         }
         (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
-        (Negation(subterm1), Negation(subterm2)) => syntactically_equal(&**subterm1, &**subterm2),
+        (Negation(subterm1), Negation(subterm2)) => syntactically_equal(subterm1, subterm2),
         (Sum(term11, term21), Sum(term12, term22))
         | (Difference(term11, term21), Difference(term12, term22))
         | (Product(term11, term21), Product(term12, term22))
@@ -59,15 +57,15 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
         | (EqualTo(term11, term21), EqualTo(term12, term22))
         | (GreaterThan(term11, term21), GreaterThan(term12, term22))
         | (GreaterThanOrEqualTo(term11, term21), GreaterThanOrEqualTo(term12, term22)) => {
-            syntactically_equal(&**term11, &**term12) && syntactically_equal(&**term21, &**term22)
+            syntactically_equal(term11, term12) && syntactically_equal(term21, term22)
         }
         (
             If(condition1, then_branch1, else_branch1),
             If(condition2, then_branch2, else_branch2),
         ) => {
-            syntactically_equal(&**condition1, &**condition2)
-                && syntactically_equal(&**then_branch1, &**then_branch2)
-                && syntactically_equal(&**else_branch1, &**else_branch2)
+            syntactically_equal(condition1, condition2)
+                && syntactically_equal(then_branch1, then_branch2)
+                && syntactically_equal(else_branch1, else_branch2)
         }
         (Unifier(_), _)
         | (_, Unifier(_))

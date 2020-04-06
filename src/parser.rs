@@ -2194,7 +2194,7 @@ pub fn parse<'a>(
     let resolved_term = resolve_variables(
         source_path,
         source_contents,
-        &*reassociated_term,
+        &reassociated_term,
         context.len(),
         &mut context,
         &mut errors,
@@ -3139,7 +3139,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*body,
+                        body,
                         depth + 1,
                         &mut *guard,
                         errors,
@@ -3149,14 +3149,8 @@ fn resolve_variables<'a>(
         }
         Variant::Pi(variable, domain, codomain) => {
             // Resolve variables in the domain.
-            let resolved_domain = resolve_variables(
-                source_path,
-                source_contents,
-                &*domain,
-                depth,
-                context,
-                errors,
-            );
+            let resolved_domain =
+                resolve_variables(source_path, source_contents, domain, depth, context, errors);
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -3189,7 +3183,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*codomain,
+                        codomain,
                         depth + 1,
                         &mut *guard,
                         errors,
@@ -3205,7 +3199,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*applicand,
+                        applicand,
                         depth,
                         context,
                         errors,
@@ -3213,7 +3207,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*argument,
+                        argument,
                         depth,
                         context,
                         errors,
@@ -3280,7 +3274,7 @@ fn resolve_variables<'a>(
                     Some(annotation) => Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*annotation,
+                        annotation,
                         new_depth,
                         borrowed_context,
                         errors,
@@ -3295,7 +3289,7 @@ fn resolve_variables<'a>(
                 let resolved_definition = resolve_variables(
                     source_path,
                     source_contents,
-                    &*inner_definition,
+                    inner_definition,
                     new_depth,
                     borrowed_context,
                     errors,
@@ -3350,7 +3344,7 @@ fn resolve_variables<'a>(
                 variant: term::Variant::Negation(Rc::new(resolve_variables(
                     source_path,
                     source_contents,
-                    &*subterm,
+                    subterm,
                     depth,
                     context,
                     errors,
@@ -3365,7 +3359,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term1,
+                        term1,
                         depth,
                         context,
                         errors,
@@ -3373,7 +3367,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term2,
+                        term2,
                         depth,
                         context,
                         errors,
@@ -3389,7 +3383,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term1,
+                        term1,
                         depth,
                         context,
                         errors,
@@ -3397,7 +3391,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term2,
+                        term2,
                         depth,
                         context,
                         errors,
@@ -3413,7 +3407,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term1,
+                        term1,
                         depth,
                         context,
                         errors,
@@ -3421,7 +3415,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term2,
+                        term2,
                         depth,
                         context,
                         errors,
@@ -3437,7 +3431,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term1,
+                        term1,
                         depth,
                         context,
                         errors,
@@ -3445,7 +3439,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term2,
+                        term2,
                         depth,
                         context,
                         errors,
@@ -3461,7 +3455,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term1,
+                        term1,
                         depth,
                         context,
                         errors,
@@ -3469,7 +3463,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term2,
+                        term2,
                         depth,
                         context,
                         errors,
@@ -3485,7 +3479,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term1,
+                        term1,
                         depth,
                         context,
                         errors,
@@ -3493,7 +3487,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term2,
+                        term2,
                         depth,
                         context,
                         errors,
@@ -3509,7 +3503,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term1,
+                        term1,
                         depth,
                         context,
                         errors,
@@ -3517,7 +3511,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term2,
+                        term2,
                         depth,
                         context,
                         errors,
@@ -3533,7 +3527,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term1,
+                        term1,
                         depth,
                         context,
                         errors,
@@ -3541,7 +3535,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term2,
+                        term2,
                         depth,
                         context,
                         errors,
@@ -3557,7 +3551,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term1,
+                        term1,
                         depth,
                         context,
                         errors,
@@ -3565,7 +3559,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*term2,
+                        term2,
                         depth,
                         context,
                         errors,
@@ -3602,7 +3596,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*condition,
+                        condition,
                         depth,
                         context,
                         errors,
@@ -3610,7 +3604,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*then_branch,
+                        then_branch,
                         depth,
                         context,
                         errors,
@@ -3618,7 +3612,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
-                        &*else_branch,
+                        else_branch,
                         depth,
                         context,
                         errors,

@@ -111,7 +111,7 @@ pub fn type_check_rec<'a>(
             let codomain = type_check_rec(
                 source_path,
                 source_contents,
-                &**body,
+                body,
                 typing_context,
                 definitions_context,
                 errors,
@@ -132,7 +132,7 @@ pub fn type_check_rec<'a>(
             let domain_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**domain,
+                domain,
                 typing_context,
                 definitions_context,
                 errors,
@@ -158,7 +158,7 @@ pub fn type_check_rec<'a>(
             let codomain_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**codomain,
+                codomain,
                 typing_context,
                 definitions_context,
                 errors,
@@ -191,7 +191,7 @@ pub fn type_check_rec<'a>(
             let applicand_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**applicand,
+                applicand,
                 typing_context,
                 definitions_context,
                 errors,
@@ -233,7 +233,7 @@ pub fn type_check_rec<'a>(
             let argument_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**argument,
+                argument,
                 typing_context,
                 definitions_context,
                 errors,
@@ -303,7 +303,7 @@ pub fn type_check_rec<'a>(
                 let definition_type = type_check_rec(
                     source_path,
                     source_contents,
-                    &**definition,
+                    definition,
                     borrowed_typing_context,
                     borrowed_definitions_context,
                     errors,
@@ -337,7 +337,7 @@ pub fn type_check_rec<'a>(
             let body_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**body,
+                body,
                 borrowed_typing_context,
                 borrowed_definitions_context,
                 errors,
@@ -392,7 +392,7 @@ pub fn type_check_rec<'a>(
             let subterm_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**subterm,
+                subterm,
                 typing_context,
                 definitions_context,
                 errors,
@@ -428,7 +428,7 @@ pub fn type_check_rec<'a>(
             let term1_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**term1,
+                term1,
                 typing_context,
                 definitions_context,
                 errors,
@@ -457,7 +457,7 @@ pub fn type_check_rec<'a>(
             let term2_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**term2,
+                term2,
                 typing_context,
                 definitions_context,
                 errors,
@@ -494,7 +494,7 @@ pub fn type_check_rec<'a>(
             let term1_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**term1,
+                term1,
                 typing_context,
                 definitions_context,
                 errors,
@@ -523,7 +523,7 @@ pub fn type_check_rec<'a>(
             let term2_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**term2,
+                term2,
                 typing_context,
                 definitions_context,
                 errors,
@@ -556,7 +556,7 @@ pub fn type_check_rec<'a>(
             let condition_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**condition,
+                condition,
                 typing_context,
                 definitions_context,
                 errors,
@@ -585,7 +585,7 @@ pub fn type_check_rec<'a>(
             let then_branch_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**then_branch,
+                then_branch,
                 typing_context,
                 definitions_context,
                 errors,
@@ -595,7 +595,7 @@ pub fn type_check_rec<'a>(
             let else_branch_type = type_check_rec(
                 source_path,
                 source_contents,
-                &**else_branch,
+                else_branch,
                 typing_context,
                 definitions_context,
                 errors,
