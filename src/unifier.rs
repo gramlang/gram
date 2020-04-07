@@ -1040,7 +1040,7 @@ mod tests {
     fn collect_unifiers_unresolved() {
         let parsing_context = [];
 
-        let source = "x => x + 3";
+        let source = "(x => x) type";
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
@@ -1057,7 +1057,7 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
 
-        let source = "x => x + 3";
+        let source = "(x => x) type";
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
         let _ = type_check(

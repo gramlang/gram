@@ -101,7 +101,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                         source_range: None,
                         variant: Let(
                             once((*variable, annotation.clone(), Rc::new(stepped_definition)))
-                                .chain(definitions.iter().map(
+                                .chain(definitions.iter().skip(1).map(
                                     |(variable, annotation, definition)| {
                                         (*variable, annotation.clone(), definition.clone())
                                     },
