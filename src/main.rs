@@ -25,7 +25,7 @@ use clap::{
     AppSettings::{ArgRequiredElseHelp, ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
     Arg, Shell, SubCommand,
 };
-use std::{fs::read_to_string, io::stdout, path::Path, process::exit, rc::Rc, thread};
+use std::{fs::read_to_string, io::stdout, path::Path, process::exit, thread};
 
 // The program version
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -171,7 +171,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
 
     // Evaluate the term.
     if !check_only {
-        let value = evaluate(Rc::new(term))?;
+        let value = evaluate(&term)?;
         println!("{}", value.to_string().code_str());
     }
 
