@@ -12,14 +12,14 @@ use std::{
 
 // The token stream is parsed into an abstract syntax tree (AST) [tag:ast] [ref:bison_grammar]. This
 // struct represents a node in an AST.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Term<'a> {
     pub source_range: Option<(usize, usize)>, // Inclusive on the left and exclusive on the right
     pub variant: Variant<'a>,
 }
 
 // Each term has a "variant" describing what kind of term it is.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Variant<'a> {
     Unifier(Rc<RefCell<Option<Term<'a>>>>), // `Some(...)` should not be mutated
     Type,

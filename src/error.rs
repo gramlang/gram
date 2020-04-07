@@ -200,42 +200,6 @@ pub fn listing(source_contents: &str, range_start: usize, range_end: usize) -> S
         .join("\n")
 }
 
-// This macro is useful for writing tests that deal with errors.
-#[macro_export]
-macro_rules! assert_fails {
-    ($expr:expr, $substr:expr $(,)?) => {{
-        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
-        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
-        let expr = $expr;
-        let substr = $substr;
-
-        // Before we actually evaluate the expression, disable terminal colors.
-        colored::control::set_override(false);
-
-        // Check that `$expr` fails and that the failure contains `$substr`.
-        if let Err(errors) = expr {
-            let mut found_error = false;
-            let mut all_errors_string = "".to_owned();
-
-            for error in errors {
-                let error_string = error.to_string();
-                all_errors_string.push_str(&format!("{}\n", error_string));
-
-                if error_string.contains(substr) {
-                    found_error = true;
-                }
-            }
-
-            assert!(found_error);
-        } else {
-            assert!(
-                false,
-                "The expression was supposed to fail, but it succeeded.",
-            );
-        }
-    }};
-}
-
 #[cfg(test)]
 mod tests {
     use crate::error::{lift, throw, Error};

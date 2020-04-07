@@ -314,7 +314,7 @@ pub fn tokenize<'a>(
     let mut filtered_tokens = vec![];
     let mut tokens_iter = tokens.iter().peekable();
     while let Some(token) = tokens_iter.next() {
-        if token.variant == Variant::Terminator(TerminatorType::LineBreak) {
+        if let Variant::Terminator(TerminatorType::LineBreak) = token.variant {
             if let Some(next_token) = tokens_iter.peek() {
                 if match next_token.variant {
                     Variant::Asterisk
@@ -363,7 +363,7 @@ pub fn tokenize<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        assert_fails,
+        assert_fails, assert_same,
         token::{
             TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
             IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
@@ -374,22 +374,22 @@ mod tests {
 
     #[test]
     fn tokenize_empty() {
-        assert_eq!(tokenize(None, "").unwrap(), vec![]);
+        assert_same!(tokenize(None, "").unwrap(), vec![]);
     }
 
     #[test]
     fn tokenize_whitespace() {
-        assert_eq!(tokenize(None, " \t\n").unwrap(), vec![]);
+        assert_same!(tokenize(None, " \t\n").unwrap(), vec![]);
     }
 
     #[test]
     fn tokenize_comment() {
-        assert_eq!(tokenize(None, "# Hello, World!").unwrap(), vec![]);
+        assert_same!(tokenize(None, "# Hello, World!").unwrap(), vec![]);
     }
 
     #[test]
     fn tokenize_asterisk() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "*").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn tokenize_boolean() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, BOOLEAN_KEYWORD).unwrap(),
             vec![Token {
                 source_range: (0, BOOLEAN_KEYWORD.len()),
@@ -411,7 +411,7 @@ mod tests {
 
     #[test]
     fn tokenize_colon() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, ":").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -422,7 +422,7 @@ mod tests {
 
     #[test]
     fn tokenize_double_equals() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "==").unwrap(),
             vec![Token {
                 source_range: (0, 2),
@@ -433,7 +433,7 @@ mod tests {
 
     #[test]
     fn tokenize_else() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, ELSE_KEYWORD).unwrap(),
             vec![Token {
                 source_range: (0, ELSE_KEYWORD.len()),
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn tokenize_equals() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "=").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -455,7 +455,7 @@ mod tests {
 
     #[test]
     fn tokenize_false() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, FALSE_KEYWORD).unwrap(),
             vec![Token {
                 source_range: (0, FALSE_KEYWORD.len()),
@@ -466,7 +466,7 @@ mod tests {
 
     #[test]
     fn tokenize_greater_than() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, ">").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -477,7 +477,7 @@ mod tests {
 
     #[test]
     fn tokenize_greater_than_or_equal() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, ">=").unwrap(),
             vec![Token {
                 source_range: (0, 2),
@@ -488,7 +488,7 @@ mod tests {
 
     #[test]
     fn tokenize_identifier() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "\u{5e78}\u{798f}").unwrap(),
             vec![Token {
                 source_range: (0, 6),
@@ -499,7 +499,7 @@ mod tests {
 
     #[test]
     fn tokenize_if() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, IF_KEYWORD).unwrap(),
             vec![Token {
                 source_range: (0, IF_KEYWORD.len()),
@@ -510,7 +510,7 @@ mod tests {
 
     #[test]
     fn tokenize_integer() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, INTEGER_KEYWORD).unwrap(),
             vec![Token {
                 source_range: (0, INTEGER_KEYWORD.len()),
@@ -521,7 +521,7 @@ mod tests {
 
     #[test]
     fn tokenize_integer_literal() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "42").unwrap(),
             vec![Token {
                 source_range: (0, 2),
@@ -532,7 +532,7 @@ mod tests {
 
     #[test]
     fn tokenize_left_paren() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "(").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -543,7 +543,7 @@ mod tests {
 
     #[test]
     fn tokenize_less_than() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "<").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -554,7 +554,7 @@ mod tests {
 
     #[test]
     fn tokenize_less_than_or_equal() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "<=").unwrap(),
             vec![Token {
                 source_range: (0, 2),
@@ -565,7 +565,7 @@ mod tests {
 
     #[test]
     fn tokenize_minus() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "-").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -576,7 +576,7 @@ mod tests {
 
     #[test]
     fn tokenize_plus() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "+").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -587,7 +587,7 @@ mod tests {
 
     #[test]
     fn tokenize_right_paren() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, ")").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -598,7 +598,7 @@ mod tests {
 
     #[test]
     fn tokenize_slash() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "/").unwrap(),
             vec![Token {
                 source_range: (0, 1),
@@ -609,7 +609,7 @@ mod tests {
 
     #[test]
     fn tokenize_terminator_line_break() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "\n\ntype\n\ntype\n\n").unwrap(),
             vec![
                 Token {
@@ -630,7 +630,7 @@ mod tests {
 
     #[test]
     fn tokenize_terminator_semicolon() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, ";;type;;type;;").unwrap(),
             vec![
                 Token {
@@ -671,7 +671,7 @@ mod tests {
 
     #[test]
     fn tokenize_then() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, THEN_KEYWORD).unwrap(),
             vec![Token {
                 source_range: (0, THEN_KEYWORD.len()),
@@ -682,7 +682,7 @@ mod tests {
 
     #[test]
     fn tokenize_thick_arrow() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "=>").unwrap(),
             vec![Token {
                 source_range: (0, 2),
@@ -693,7 +693,7 @@ mod tests {
 
     #[test]
     fn tokenize_thin_arrow() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, "->").unwrap(),
             vec![Token {
                 source_range: (0, 2),
@@ -704,7 +704,7 @@ mod tests {
 
     #[test]
     fn tokenize_true() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, TRUE_KEYWORD).unwrap(),
             vec![Token {
                 source_range: (0, TRUE_KEYWORD.len()),
@@ -715,7 +715,7 @@ mod tests {
 
     #[test]
     fn tokenize_type() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, TYPE_KEYWORD).unwrap(),
             vec![Token {
                 source_range: (0, TYPE_KEYWORD.len()),
@@ -726,7 +726,7 @@ mod tests {
 
     #[test]
     fn tokenize_operators() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, ":()=>->").unwrap(),
             vec![
                 Token {
@@ -755,7 +755,7 @@ mod tests {
 
     #[test]
     fn tokenize_operators_with_whitespace() {
-        assert_eq!(
+        assert_same!(
             tokenize(None, " : ( ) => -> ").unwrap(),
             vec![
                 Token {

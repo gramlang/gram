@@ -13,7 +13,7 @@ pub const TYPE_KEYWORD: &str = "type";
 
 // The first step of compilation is to split the source into a stream of tokens. This struct
 // represents a single token.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct Token<'a> {
     pub source_range: (usize, usize), // Inclusive on the left and exclusive on the right
     pub variant: Variant<'a>,
@@ -21,7 +21,7 @@ pub struct Token<'a> {
 
 // We assign each token a "variant" describing what kind of token it is.
 // [tag:tokens] [ref:bison_tokens]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum Variant<'a> {
     Asterisk,
     Boolean,
@@ -53,7 +53,7 @@ pub enum Variant<'a> {
 
 // A terminator can be a line break or a semicolon. Note that not every line break is parsed as a
 // terminator, however.
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub enum TerminatorType {
     LineBreak,
     Semicolon,

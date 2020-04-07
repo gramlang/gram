@@ -418,6 +418,7 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
 #[cfg(test)]
 mod tests {
     use crate::{
+        assert_same,
         de_bruijn::{free_variables, open, shift},
         term::{
             Term,
@@ -434,7 +435,7 @@ mod tests {
 
     #[test]
     fn shift_unifier_none() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -452,7 +453,7 @@ mod tests {
 
     #[test]
     fn shift_unifier_some() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -473,7 +474,7 @@ mod tests {
 
     #[test]
     fn shift_type() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -491,7 +492,7 @@ mod tests {
 
     #[test]
     fn shift_variable_free() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -509,7 +510,7 @@ mod tests {
 
     #[test]
     fn shift_variable_bound() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -527,7 +528,7 @@ mod tests {
 
     #[test]
     fn shift_lambda() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -565,7 +566,7 @@ mod tests {
 
     #[test]
     fn shift_pi() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -603,7 +604,7 @@ mod tests {
 
     #[test]
     fn shift_application() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -639,7 +640,7 @@ mod tests {
 
     #[test]
     fn shift_let() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -715,7 +716,7 @@ mod tests {
 
     #[test]
     fn shift_integer() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -733,7 +734,7 @@ mod tests {
 
     #[test]
     fn shift_integer_literal() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -751,7 +752,7 @@ mod tests {
 
     #[test]
     fn shift_negation() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -775,7 +776,7 @@ mod tests {
 
     #[test]
     fn shift_sum() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -811,7 +812,7 @@ mod tests {
 
     #[test]
     fn shift_difference() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -847,7 +848,7 @@ mod tests {
 
     #[test]
     fn shift_product() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -883,7 +884,7 @@ mod tests {
 
     #[test]
     fn shift_quotient() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -919,7 +920,7 @@ mod tests {
 
     #[test]
     fn shift_less_than() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -955,7 +956,7 @@ mod tests {
 
     #[test]
     fn shift_less_than_or_equal_to() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -991,7 +992,7 @@ mod tests {
 
     #[test]
     fn shift_equal_to() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -1027,7 +1028,7 @@ mod tests {
 
     #[test]
     fn shift_greater_than() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -1063,7 +1064,7 @@ mod tests {
 
     #[test]
     fn shift_greater_than_or_equal_to() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -1099,7 +1100,7 @@ mod tests {
 
     #[test]
     fn shift_boolean() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -1117,7 +1118,7 @@ mod tests {
 
     #[test]
     fn shift_true() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -1135,7 +1136,7 @@ mod tests {
 
     #[test]
     fn shift_false() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -1153,7 +1154,7 @@ mod tests {
 
     #[test]
     fn shift_if() {
-        assert_eq!(
+        assert_same!(
             shift(
                 &Term {
                     source_range: None,
@@ -1197,7 +1198,7 @@ mod tests {
 
     #[test]
     fn open_unifier_none() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1219,7 +1220,7 @@ mod tests {
 
     #[test]
     fn open_unifier_some() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1244,7 +1245,7 @@ mod tests {
 
     #[test]
     fn open_type() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1266,7 +1267,7 @@ mod tests {
 
     #[test]
     fn open_variable_match() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1288,7 +1289,7 @@ mod tests {
 
     #[test]
     fn open_variable_free() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1310,7 +1311,7 @@ mod tests {
 
     #[test]
     fn open_variable_bound() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1332,7 +1333,7 @@ mod tests {
 
     #[test]
     fn open_lambda() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1374,7 +1375,7 @@ mod tests {
 
     #[test]
     fn open_pi() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1416,7 +1417,7 @@ mod tests {
 
     #[test]
     fn open_application() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1456,7 +1457,7 @@ mod tests {
 
     #[test]
     fn open_let() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1536,7 +1537,7 @@ mod tests {
 
     #[test]
     fn open_integer() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1558,7 +1559,7 @@ mod tests {
 
     #[test]
     fn open_integer_literal() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1580,7 +1581,7 @@ mod tests {
 
     #[test]
     fn open_negation() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1608,7 +1609,7 @@ mod tests {
 
     #[test]
     fn open_sum() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1648,7 +1649,7 @@ mod tests {
 
     #[test]
     fn open_difference() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1688,7 +1689,7 @@ mod tests {
 
     #[test]
     fn open_product() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1728,7 +1729,7 @@ mod tests {
 
     #[test]
     fn open_quotient() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1768,7 +1769,7 @@ mod tests {
 
     #[test]
     fn open_less_than() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1808,7 +1809,7 @@ mod tests {
 
     #[test]
     fn open_less_than_or_equal_to() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1848,7 +1849,7 @@ mod tests {
 
     #[test]
     fn open_equal_to() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1888,7 +1889,7 @@ mod tests {
 
     #[test]
     fn open_greater_than() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1928,7 +1929,7 @@ mod tests {
 
     #[test]
     fn open_greater_than_or_equal_to() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1968,7 +1969,7 @@ mod tests {
 
     #[test]
     fn open_boolean() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -1990,7 +1991,7 @@ mod tests {
 
     #[test]
     fn open_true() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -2012,7 +2013,7 @@ mod tests {
 
     #[test]
     fn open_false() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,
@@ -2034,7 +2035,7 @@ mod tests {
 
     #[test]
     fn open_if() {
-        assert_eq!(
+        assert_same!(
             open(
                 &Term {
                     source_range: None,

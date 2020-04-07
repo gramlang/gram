@@ -1,3 +1,4 @@
+mod assertions;
 mod de_bruijn;
 mod equality;
 mod error;
