@@ -2177,7 +2177,7 @@ pub fn parse<'a>(
     // Flip the associativity of applications with non-grouped arguments from right to left.
     let reassociated_term = reassociate_sums_and_differences(
         None,
-        reassociate_products_and_quotients(None, reassociate_applications(None, Rc::new(term))),
+        &reassociate_products_and_quotients(None, &reassociate_applications(None, &term)),
     );
 
     // Construct a mutable context.
@@ -2281,7 +2281,7 @@ fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term
 
 // Flip the associativity of applications from right to left.
 #[allow(clippy::too_many_lines)]
-fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -> Rc<Term<'a>> {
+fn reassociate_applications<'a>(acc: Option<Term<'a>>, term: &Term<'a>) -> Term<'a> {
     // In every case except the application case, if we have a value for the accumulator, we want
     // to construct an application with the accumulator as the applicand and the reduced term as
     // the argument. In the application case, we build up the accumulator.
@@ -2300,192 +2300,192 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
         | Variant::IntegerLiteral(_)
         | Variant::Boolean
         | Variant::True
-        | Variant::False => term,
-        Variant::Lambda(variable, domain, body) => Rc::new(Term {
+        | Variant::False => term.clone(),
+        Variant::Lambda(variable, domain, body) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Lambda(
                 *variable,
                 domain
                     .as_ref()
-                    .map(|domain| reassociate_applications(None, domain.clone())),
-                reassociate_applications(None, body.clone()),
+                    .map(|domain| Rc::new(reassociate_applications(None, domain))),
+                Rc::new(reassociate_applications(None, body)),
             ),
             errors: vec![],
-        }),
-        Variant::Pi(variable, domain, codomain) => Rc::new(Term {
+        },
+        Variant::Pi(variable, domain, codomain) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Pi(
                 *variable,
-                reassociate_applications(None, domain.clone()),
-                reassociate_applications(None, codomain.clone()),
+                Rc::new(reassociate_applications(None, domain)),
+                Rc::new(reassociate_applications(None, codomain)),
             ),
             errors: vec![],
-        }),
+        },
         Variant::Application(applicand, argument) => {
             return if argument.group {
                 if let Some(acc) = acc {
-                    Rc::new(Term {
+                    Term {
                         source_range: span(acc.source_range, argument.source_range),
                         group: true,
                         variant: Variant::Application(
-                            reassociate_applications(Some(acc), applicand.clone()),
-                            reassociate_applications(None, argument.clone()),
+                            Rc::new(reassociate_applications(Some(acc), applicand)),
+                            Rc::new(reassociate_applications(None, argument)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 } else {
-                    Rc::new(Term {
+                    Term {
                         source_range: term.source_range,
                         group: term.group,
                         variant: Variant::Application(
-                            reassociate_applications(None, applicand.clone()),
-                            reassociate_applications(None, argument.clone()),
+                            Rc::new(reassociate_applications(None, applicand)),
+                            Rc::new(reassociate_applications(None, argument)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 }
             } else {
                 reassociate_applications(
                     Some(if let Some(acc) = acc {
-                        Rc::new(Term {
+                        Term {
                             source_range: span(acc.source_range, applicand.source_range),
                             group: true,
                             variant: Variant::Application(
-                                acc,
-                                reassociate_applications(None, applicand.clone()),
+                                Rc::new(acc),
+                                Rc::new(reassociate_applications(None, applicand)),
                             ),
                             errors: vec![],
-                        })
+                        }
                     } else {
-                        reassociate_applications(None, applicand.clone())
+                        reassociate_applications(None, applicand)
                     }),
-                    argument.clone(),
+                    argument,
                 )
             };
         }
-        Variant::Let(variable, annotation, definition, body) => Rc::new(Term {
+        Variant::Let(variable, annotation, definition, body) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Let(
                 *variable,
                 annotation
                     .as_ref()
-                    .map(|annotation| reassociate_applications(None, annotation.clone())),
-                reassociate_applications(None, definition.clone()),
-                reassociate_applications(None, body.clone()),
+                    .map(|annotation| Rc::new(reassociate_applications(None, annotation))),
+                Rc::new(reassociate_applications(None, definition)),
+                Rc::new(reassociate_applications(None, body)),
             ),
             errors: vec![],
-        }),
-        Variant::Negation(subterm) => Rc::new(Term {
+        },
+        Variant::Negation(subterm) => Term {
             source_range: term.source_range,
             group: term.group,
-            variant: Variant::Negation(reassociate_applications(None, subterm.clone())),
+            variant: Variant::Negation(Rc::new(reassociate_applications(None, subterm))),
             errors: vec![],
-        }),
-        Variant::Sum(term1, term2) => Rc::new(Term {
+        },
+        Variant::Sum(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Sum(
-                reassociate_applications(None, term1.clone()),
-                reassociate_applications(None, term2.clone()),
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::Difference(term1, term2) => Rc::new(Term {
+        },
+        Variant::Difference(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Difference(
-                reassociate_applications(None, term1.clone()),
-                reassociate_applications(None, term2.clone()),
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::Product(term1, term2) => Rc::new(Term {
+        },
+        Variant::Product(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Product(
-                reassociate_applications(None, term1.clone()),
-                reassociate_applications(None, term2.clone()),
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::Quotient(term1, term2) => Rc::new(Term {
+        },
+        Variant::Quotient(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Quotient(
-                reassociate_applications(None, term1.clone()),
-                reassociate_applications(None, term2.clone()),
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::LessThan(term1, term2) => Rc::new(Term {
+        },
+        Variant::LessThan(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::LessThan(
-                reassociate_applications(None, term1.clone()),
-                reassociate_applications(None, term2.clone()),
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        Variant::LessThanOrEqualTo(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::LessThanOrEqualTo(
-                reassociate_applications(None, term1.clone()),
-                reassociate_applications(None, term2.clone()),
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::EqualTo(term1, term2) => Rc::new(Term {
+        },
+        Variant::EqualTo(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::EqualTo(
-                reassociate_applications(None, term1.clone()),
-                reassociate_applications(None, term2.clone()),
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::GreaterThan(term1, term2) => Rc::new(Term {
+        },
+        Variant::GreaterThan(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::GreaterThan(
-                reassociate_applications(None, term1.clone()),
-                reassociate_applications(None, term2.clone()),
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        Variant::GreaterThanOrEqualTo(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::GreaterThanOrEqualTo(
-                reassociate_applications(None, term1.clone()),
-                reassociate_applications(None, term2.clone()),
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
+        },
+        Variant::If(condition, then_branch, else_branch) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::If(
-                reassociate_applications(None, condition.clone()),
-                reassociate_applications(None, then_branch.clone()),
-                reassociate_applications(None, else_branch.clone()),
+                Rc::new(reassociate_applications(None, condition)),
+                Rc::new(reassociate_applications(None, then_branch)),
+                Rc::new(reassociate_applications(None, else_branch)),
             ),
             errors: vec![],
-        }),
+        },
     };
 
     // We end up here as long as `term` isn't an application. If we have an accumulator, construct
     // an application as described above. Otherwise, just return the reduced term.
     if let Some(acc) = acc {
-        Rc::new(Term {
+        Term {
             source_range: span(acc.source_range, reduced.source_range),
             group: true,
-            variant: Variant::Application(acc, reduced),
+            variant: Variant::Application(Rc::new(acc), Rc::new(reduced)),
             errors: vec![],
-        })
+        }
     } else {
         reduced
     }
@@ -2502,9 +2502,9 @@ enum ProductOrQuotient {
 // Flip the associativity of products and quotients from right to left.
 #[allow(clippy::too_many_lines)]
 fn reassociate_products_and_quotients<'a>(
-    acc: Option<(Rc<Term<'a>>, ProductOrQuotient)>,
-    term: Rc<Term<'a>>,
-) -> Rc<Term<'a>> {
+    acc: Option<(Term<'a>, ProductOrQuotient)>,
+    term: &Term<'a>,
+) -> Term<'a> {
     // In every case except the product and quotient cases, if we have a value for the accumulator,
     // we want to construct a product or quotient with the accumulator as the left subterm and the
     // reduced term as the right subterm. In the product and quotient cases, we build up the
@@ -2524,246 +2524,246 @@ fn reassociate_products_and_quotients<'a>(
         | Variant::IntegerLiteral(_)
         | Variant::Boolean
         | Variant::True
-        | Variant::False => term,
-        Variant::Lambda(variable, domain, body) => Rc::new(Term {
+        | Variant::False => term.clone(),
+        Variant::Lambda(variable, domain, body) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Lambda(
                 *variable,
                 domain
                     .as_ref()
-                    .map(|domain| reassociate_products_and_quotients(None, domain.clone())),
-                reassociate_products_and_quotients(None, body.clone()),
+                    .map(|domain| Rc::new(reassociate_products_and_quotients(None, domain))),
+                Rc::new(reassociate_products_and_quotients(None, body)),
             ),
             errors: vec![],
-        }),
-        Variant::Pi(variable, domain, codomain) => Rc::new(Term {
+        },
+        Variant::Pi(variable, domain, codomain) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Pi(
                 *variable,
-                reassociate_products_and_quotients(None, domain.clone()),
-                reassociate_products_and_quotients(None, codomain.clone()),
+                Rc::new(reassociate_products_and_quotients(None, domain)),
+                Rc::new(reassociate_products_and_quotients(None, codomain)),
             ),
             errors: vec![],
-        }),
-        Variant::Application(applicand, argument) => Rc::new(Term {
+        },
+        Variant::Application(applicand, argument) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Application(
-                reassociate_products_and_quotients(None, applicand.clone()),
-                reassociate_products_and_quotients(None, argument.clone()),
+                Rc::new(reassociate_products_and_quotients(None, applicand)),
+                Rc::new(reassociate_products_and_quotients(None, argument)),
             ),
             errors: vec![],
-        }),
-        Variant::Let(variable, annotation, definition, body) => Rc::new(Term {
+        },
+        Variant::Let(variable, annotation, definition, body) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Let(
                 *variable,
-                annotation
-                    .as_ref()
-                    .map(|annotation| reassociate_products_and_quotients(None, annotation.clone())),
-                reassociate_products_and_quotients(None, definition.clone()),
-                reassociate_products_and_quotients(None, body.clone()),
+                annotation.as_ref().map(|annotation| {
+                    Rc::new(reassociate_products_and_quotients(None, annotation))
+                }),
+                Rc::new(reassociate_products_and_quotients(None, definition)),
+                Rc::new(reassociate_products_and_quotients(None, body)),
             ),
             errors: vec![],
-        }),
-        Variant::Negation(subterm) => Rc::new(Term {
+        },
+        Variant::Negation(subterm) => Term {
             source_range: term.source_range,
             group: term.group,
-            variant: Variant::Negation(reassociate_products_and_quotients(None, subterm.clone())),
+            variant: Variant::Negation(Rc::new(reassociate_products_and_quotients(None, subterm))),
             errors: vec![],
-        }),
-        Variant::Sum(term1, term2) => Rc::new(Term {
+        },
+        Variant::Sum(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Sum(
-                reassociate_products_and_quotients(None, term1.clone()),
-                reassociate_products_and_quotients(None, term2.clone()),
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::Difference(term1, term2) => Rc::new(Term {
+        },
+        Variant::Difference(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Difference(
-                reassociate_products_and_quotients(None, term1.clone()),
-                reassociate_products_and_quotients(None, term2.clone()),
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
             ),
             errors: vec![],
-        }),
+        },
         Variant::Product(term1, term2) => {
             return if term2.group {
                 if let Some(acc) = acc {
-                    Rc::new(Term {
+                    Term {
                         source_range: span(acc.0.source_range, term2.source_range),
                         group: true,
                         variant: Variant::Product(
-                            reassociate_products_and_quotients(Some(acc), term1.clone()),
-                            reassociate_products_and_quotients(None, term2.clone()),
+                            Rc::new(reassociate_products_and_quotients(Some(acc), term1)),
+                            Rc::new(reassociate_products_and_quotients(None, term2)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 } else {
-                    Rc::new(Term {
+                    Term {
                         source_range: term.source_range,
                         group: term.group,
                         variant: Variant::Product(
-                            reassociate_products_and_quotients(None, term1.clone()),
-                            reassociate_products_and_quotients(None, term2.clone()),
+                            Rc::new(reassociate_products_and_quotients(None, term1)),
+                            Rc::new(reassociate_products_and_quotients(None, term2)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 }
             } else {
                 reassociate_products_and_quotients(
                     Some((
                         if let Some((acc, operator)) = acc {
-                            Rc::new(Term {
+                            Term {
                                 source_range: span(acc.source_range, term1.source_range),
                                 group: true,
                                 variant: match operator {
                                     ProductOrQuotient::Product => Variant::Product(
-                                        acc,
-                                        reassociate_products_and_quotients(None, term1.clone()),
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_products_and_quotients(None, term1)),
                                     ),
                                     ProductOrQuotient::Quotient => Variant::Quotient(
-                                        acc,
-                                        reassociate_products_and_quotients(None, term1.clone()),
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_products_and_quotients(None, term1)),
                                     ),
                                 },
                                 errors: vec![],
-                            })
+                            }
                         } else {
-                            reassociate_products_and_quotients(None, term1.clone())
+                            reassociate_products_and_quotients(None, term1)
                         },
                         ProductOrQuotient::Product,
                     )),
-                    term2.clone(),
+                    term2,
                 )
             };
         }
         Variant::Quotient(term1, term2) => {
             return if term2.group {
                 if let Some(acc) = acc {
-                    Rc::new(Term {
+                    Term {
                         source_range: span(acc.0.source_range, term2.source_range),
                         group: true,
                         variant: Variant::Quotient(
-                            reassociate_products_and_quotients(Some(acc), term1.clone()),
-                            reassociate_products_and_quotients(None, term2.clone()),
+                            Rc::new(reassociate_products_and_quotients(Some(acc), term1)),
+                            Rc::new(reassociate_products_and_quotients(None, term2)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 } else {
-                    Rc::new(Term {
+                    Term {
                         source_range: term.source_range,
                         group: term.group,
                         variant: Variant::Quotient(
-                            reassociate_products_and_quotients(None, term1.clone()),
-                            reassociate_products_and_quotients(None, term2.clone()),
+                            Rc::new(reassociate_products_and_quotients(None, term1)),
+                            Rc::new(reassociate_products_and_quotients(None, term2)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 }
             } else {
                 reassociate_products_and_quotients(
                     Some((
                         if let Some((acc, operator)) = acc {
-                            Rc::new(Term {
+                            Term {
                                 source_range: span(acc.source_range, term1.source_range),
                                 group: true,
                                 variant: match operator {
                                     ProductOrQuotient::Product => Variant::Product(
-                                        acc,
-                                        reassociate_products_and_quotients(None, term1.clone()),
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_products_and_quotients(None, term1)),
                                     ),
                                     ProductOrQuotient::Quotient => Variant::Quotient(
-                                        acc,
-                                        reassociate_products_and_quotients(None, term1.clone()),
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_products_and_quotients(None, term1)),
                                     ),
                                 },
                                 errors: vec![],
-                            })
+                            }
                         } else {
-                            reassociate_products_and_quotients(None, term1.clone())
+                            reassociate_products_and_quotients(None, term1)
                         },
                         ProductOrQuotient::Quotient,
                     )),
-                    term2.clone(),
+                    term2,
                 )
             };
         }
-        Variant::LessThan(term1, term2) => Rc::new(Term {
+        Variant::LessThan(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::LessThan(
-                reassociate_products_and_quotients(None, term1.clone()),
-                reassociate_products_and_quotients(None, term2.clone()),
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        Variant::LessThanOrEqualTo(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::LessThanOrEqualTo(
-                reassociate_products_and_quotients(None, term1.clone()),
-                reassociate_products_and_quotients(None, term2.clone()),
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::EqualTo(term1, term2) => Rc::new(Term {
+        },
+        Variant::EqualTo(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::EqualTo(
-                reassociate_products_and_quotients(None, term1.clone()),
-                reassociate_products_and_quotients(None, term2.clone()),
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::GreaterThan(term1, term2) => Rc::new(Term {
+        },
+        Variant::GreaterThan(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::GreaterThan(
-                reassociate_products_and_quotients(None, term1.clone()),
-                reassociate_products_and_quotients(None, term2.clone()),
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        Variant::GreaterThanOrEqualTo(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::GreaterThanOrEqualTo(
-                reassociate_products_and_quotients(None, term1.clone()),
-                reassociate_products_and_quotients(None, term2.clone()),
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
+        },
+        Variant::If(condition, then_branch, else_branch) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::If(
-                reassociate_products_and_quotients(None, condition.clone()),
-                reassociate_products_and_quotients(None, then_branch.clone()),
-                reassociate_products_and_quotients(None, else_branch.clone()),
+                Rc::new(reassociate_products_and_quotients(None, condition)),
+                Rc::new(reassociate_products_and_quotients(None, then_branch)),
+                Rc::new(reassociate_products_and_quotients(None, else_branch)),
             ),
             errors: vec![],
-        }),
+        },
     };
 
     // We end up here as long as `term` isn't a product or quotient. If we have an accumulator,
     // construct a product or quotient as described above. Otherwise, just return the reduced term.
     if let Some((acc, operator)) = acc {
-        Rc::new(Term {
+        Term {
             source_range: span(acc.source_range, reduced.source_range),
             group: true,
             variant: match operator {
-                ProductOrQuotient::Product => Variant::Product(acc, reduced),
-                ProductOrQuotient::Quotient => Variant::Quotient(acc, reduced),
+                ProductOrQuotient::Product => Variant::Product(Rc::new(acc), Rc::new(reduced)),
+                ProductOrQuotient::Quotient => Variant::Quotient(Rc::new(acc), Rc::new(reduced)),
             },
             errors: vec![],
-        })
+        }
     } else {
         reduced
     }
@@ -2780,9 +2780,9 @@ enum SumOrDifference {
 // Flip the associativity of sums and differences from right to left.
 #[allow(clippy::too_many_lines)]
 fn reassociate_sums_and_differences<'a>(
-    acc: Option<(Rc<Term<'a>>, SumOrDifference)>,
-    term: Rc<Term<'a>>,
-) -> Rc<Term<'a>> {
+    acc: Option<(Term<'a>, SumOrDifference)>,
+    term: &Term<'a>,
+) -> Term<'a> {
     // In every case except the sum and difference cases, if we have a value for the accumulator,
     // we want to construct a sum or difference with the accumulator as the left subterm and the
     // reduced term as the right subterm. In the sum and difference cases, we build up the
@@ -2802,246 +2802,246 @@ fn reassociate_sums_and_differences<'a>(
         | Variant::IntegerLiteral(_)
         | Variant::Boolean
         | Variant::True
-        | Variant::False => term,
-        Variant::Lambda(variable, domain, body) => Rc::new(Term {
+        | Variant::False => term.clone(),
+        Variant::Lambda(variable, domain, body) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Lambda(
                 *variable,
                 domain
                     .as_ref()
-                    .map(|domain| reassociate_sums_and_differences(None, domain.clone())),
-                reassociate_sums_and_differences(None, body.clone()),
+                    .map(|domain| Rc::new(reassociate_sums_and_differences(None, domain))),
+                Rc::new(reassociate_sums_and_differences(None, body)),
             ),
             errors: vec![],
-        }),
-        Variant::Pi(variable, domain, codomain) => Rc::new(Term {
+        },
+        Variant::Pi(variable, domain, codomain) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Pi(
                 *variable,
-                reassociate_sums_and_differences(None, domain.clone()),
-                reassociate_sums_and_differences(None, codomain.clone()),
+                Rc::new(reassociate_sums_and_differences(None, domain)),
+                Rc::new(reassociate_sums_and_differences(None, codomain)),
             ),
             errors: vec![],
-        }),
-        Variant::Application(applicand, argument) => Rc::new(Term {
+        },
+        Variant::Application(applicand, argument) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Application(
-                reassociate_sums_and_differences(None, applicand.clone()),
-                reassociate_sums_and_differences(None, argument.clone()),
+                Rc::new(reassociate_sums_and_differences(None, applicand)),
+                Rc::new(reassociate_sums_and_differences(None, argument)),
             ),
             errors: vec![],
-        }),
-        Variant::Let(variable, annotation, definition, body) => Rc::new(Term {
+        },
+        Variant::Let(variable, annotation, definition, body) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Let(
                 *variable,
                 annotation
                     .as_ref()
-                    .map(|annotation| reassociate_sums_and_differences(None, annotation.clone())),
-                reassociate_sums_and_differences(None, definition.clone()),
-                reassociate_sums_and_differences(None, body.clone()),
+                    .map(|annotation| Rc::new(reassociate_sums_and_differences(None, annotation))),
+                Rc::new(reassociate_sums_and_differences(None, definition)),
+                Rc::new(reassociate_sums_and_differences(None, body)),
             ),
             errors: vec![],
-        }),
-        Variant::Negation(subterm) => Rc::new(Term {
+        },
+        Variant::Negation(subterm) => Term {
             source_range: term.source_range,
             group: term.group,
-            variant: Variant::Negation(reassociate_sums_and_differences(None, subterm.clone())),
+            variant: Variant::Negation(Rc::new(reassociate_sums_and_differences(None, subterm))),
             errors: vec![],
-        }),
+        },
         Variant::Sum(term1, term2) => {
             return if term2.group {
                 if let Some(acc) = acc {
-                    Rc::new(Term {
+                    Term {
                         source_range: span(acc.0.source_range, term2.source_range),
                         group: true,
                         variant: Variant::Sum(
-                            reassociate_sums_and_differences(Some(acc), term1.clone()),
-                            reassociate_sums_and_differences(None, term2.clone()),
+                            Rc::new(reassociate_sums_and_differences(Some(acc), term1)),
+                            Rc::new(reassociate_sums_and_differences(None, term2)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 } else {
-                    Rc::new(Term {
+                    Term {
                         source_range: term.source_range,
                         group: term.group,
                         variant: Variant::Sum(
-                            reassociate_sums_and_differences(None, term1.clone()),
-                            reassociate_sums_and_differences(None, term2.clone()),
+                            Rc::new(reassociate_sums_and_differences(None, term1)),
+                            Rc::new(reassociate_sums_and_differences(None, term2)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 }
             } else {
                 reassociate_sums_and_differences(
                     Some((
                         if let Some((acc, operator)) = acc {
-                            Rc::new(Term {
+                            Term {
                                 source_range: span(acc.source_range, term1.source_range),
                                 group: true,
                                 variant: match operator {
                                     SumOrDifference::Sum => Variant::Sum(
-                                        acc,
-                                        reassociate_sums_and_differences(None, term1.clone()),
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_sums_and_differences(None, term1)),
                                     ),
                                     SumOrDifference::Difference => Variant::Difference(
-                                        acc,
-                                        reassociate_sums_and_differences(None, term1.clone()),
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_sums_and_differences(None, term1)),
                                     ),
                                 },
                                 errors: vec![],
-                            })
+                            }
                         } else {
-                            reassociate_sums_and_differences(None, term1.clone())
+                            reassociate_sums_and_differences(None, term1)
                         },
                         SumOrDifference::Sum,
                     )),
-                    term2.clone(),
+                    term2,
                 )
             };
         }
         Variant::Difference(term1, term2) => {
             return if term2.group {
                 if let Some(acc) = acc {
-                    Rc::new(Term {
+                    Term {
                         source_range: span(acc.0.source_range, term2.source_range),
                         group: true,
                         variant: Variant::Difference(
-                            reassociate_sums_and_differences(Some(acc), term1.clone()),
-                            reassociate_sums_and_differences(None, term2.clone()),
+                            Rc::new(reassociate_sums_and_differences(Some(acc), term1)),
+                            Rc::new(reassociate_sums_and_differences(None, term2)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 } else {
-                    Rc::new(Term {
+                    Term {
                         source_range: term.source_range,
                         group: term.group,
                         variant: Variant::Difference(
-                            reassociate_sums_and_differences(None, term1.clone()),
-                            reassociate_sums_and_differences(None, term2.clone()),
+                            Rc::new(reassociate_sums_and_differences(None, term1)),
+                            Rc::new(reassociate_sums_and_differences(None, term2)),
                         ),
                         errors: vec![],
-                    })
+                    }
                 }
             } else {
                 reassociate_sums_and_differences(
                     Some((
                         if let Some((acc, operator)) = acc {
-                            Rc::new(Term {
+                            Term {
                                 source_range: span(acc.source_range, term1.source_range),
                                 group: true,
                                 variant: match operator {
                                     SumOrDifference::Sum => Variant::Sum(
-                                        acc,
-                                        reassociate_sums_and_differences(None, term1.clone()),
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_sums_and_differences(None, term1)),
                                     ),
                                     SumOrDifference::Difference => Variant::Difference(
-                                        acc,
-                                        reassociate_sums_and_differences(None, term1.clone()),
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_sums_and_differences(None, term1)),
                                     ),
                                 },
                                 errors: vec![],
-                            })
+                            }
                         } else {
-                            reassociate_sums_and_differences(None, term1.clone())
+                            reassociate_sums_and_differences(None, term1)
                         },
                         SumOrDifference::Difference,
                     )),
-                    term2.clone(),
+                    term2,
                 )
             };
         }
-        Variant::Product(term1, term2) => Rc::new(Term {
+        Variant::Product(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Product(
-                reassociate_sums_and_differences(None, term1.clone()),
-                reassociate_sums_and_differences(None, term2.clone()),
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::Quotient(term1, term2) => Rc::new(Term {
+        },
+        Variant::Quotient(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Quotient(
-                reassociate_sums_and_differences(None, term1.clone()),
-                reassociate_sums_and_differences(None, term2.clone()),
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::LessThan(term1, term2) => Rc::new(Term {
+        },
+        Variant::LessThan(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::LessThan(
-                reassociate_sums_and_differences(None, term1.clone()),
-                reassociate_sums_and_differences(None, term2.clone()),
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        Variant::LessThanOrEqualTo(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::LessThanOrEqualTo(
-                reassociate_sums_and_differences(None, term1.clone()),
-                reassociate_sums_and_differences(None, term2.clone()),
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::EqualTo(term1, term2) => Rc::new(Term {
+        },
+        Variant::EqualTo(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::EqualTo(
-                reassociate_sums_and_differences(None, term1.clone()),
-                reassociate_sums_and_differences(None, term2.clone()),
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::GreaterThan(term1, term2) => Rc::new(Term {
+        },
+        Variant::GreaterThan(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::GreaterThan(
-                reassociate_sums_and_differences(None, term1.clone()),
-                reassociate_sums_and_differences(None, term2.clone()),
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        Variant::GreaterThanOrEqualTo(term1, term2) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::GreaterThanOrEqualTo(
-                reassociate_sums_and_differences(None, term1.clone()),
-                reassociate_sums_and_differences(None, term2.clone()),
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
             ),
             errors: vec![],
-        }),
-        Variant::If(condition, then_branch, else_branch) => Rc::new(Term {
+        },
+        Variant::If(condition, then_branch, else_branch) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::If(
-                reassociate_sums_and_differences(None, condition.clone()),
-                reassociate_sums_and_differences(None, then_branch.clone()),
-                reassociate_sums_and_differences(None, else_branch.clone()),
+                Rc::new(reassociate_sums_and_differences(None, condition)),
+                Rc::new(reassociate_sums_and_differences(None, then_branch)),
+                Rc::new(reassociate_sums_and_differences(None, else_branch)),
             ),
             errors: vec![],
-        }),
+        },
     };
 
     // We end up here as long as `term` isn't a sum or difference. If we have an accumulator,
     // construct a sum or difference as described above. Otherwise, just return the reduced term.
     if let Some((acc, operator)) = acc {
-        Rc::new(Term {
+        Term {
             source_range: span(acc.source_range, reduced.source_range),
             group: true,
             variant: match operator {
-                SumOrDifference::Sum => Variant::Sum(acc, reduced),
-                SumOrDifference::Difference => Variant::Difference(acc, reduced),
+                SumOrDifference::Sum => Variant::Sum(Rc::new(acc), Rc::new(reduced)),
+                SumOrDifference::Difference => Variant::Difference(Rc::new(acc), Rc::new(reduced)),
             },
             errors: vec![],
-        })
+        }
     } else {
         reduced
     }
