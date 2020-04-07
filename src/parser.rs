@@ -104,7 +104,7 @@ enum Variant<'a> {
 
 // For variables, we store the name of the variable and its source range. The source range allows
 // us to report nice errors when there are multiple variables with the same name.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 struct SourceVariable<'a> {
     source_range: SourceRange,
     name: &'a str,
@@ -112,7 +112,7 @@ struct SourceVariable<'a> {
 
 // For extra type safety, we use the "newtype" pattern here to introduce a new type for source
 // ranges. The goal is to prevent source ranges from accidentally including token indices.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 struct SourceRange((usize, usize)); // Inclusive on the left and exclusive on the right
 
 // This function constructs a `SourceRange` that spans two given `SourceRange`s.
@@ -286,8 +286,8 @@ fn error_factory<'a>(
             )
         } else {
             throw(
-                &if tokens[position].variant
-                    == token::Variant::Terminator(TerminatorType::LineBreak)
+                &if let token::Variant::Terminator(TerminatorType::LineBreak) =
+                    tokens[position].variant
                 {
                     format!("Expected {} at the end of this line:", expectation)
                 } else {
@@ -1841,8 +1841,8 @@ fn parse_group<'a>(
                 );
 
                 Error {
-                    message: if tokens[next].variant
-                        == token::Variant::Terminator(TerminatorType::LineBreak)
+                    message: if let token::Variant::Terminator(TerminatorType::LineBreak) =
+                        tokens[next].variant
                     {
                         if let Some(path) = source_path {
                             format!(
@@ -3854,7 +3854,7 @@ fn check_definition<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
-        assert_fails,
+        assert_fails, assert_same,
         parser::parse,
         term::{
             Term,
@@ -3888,7 +3888,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 4)),
@@ -3903,7 +3903,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["x"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 1)),
@@ -3918,7 +3918,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 1)),
@@ -3945,7 +3945,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 6)),
@@ -3970,7 +3970,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 12)),
@@ -4007,7 +4007,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 23)),
@@ -4042,7 +4042,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 12)),
@@ -4079,7 +4079,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 23)),
@@ -4114,7 +4114,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a", "b"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 6)),
@@ -4139,7 +4139,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["a", "b", "c"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 11)),
@@ -4174,7 +4174,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["f", "x"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 3)),
@@ -4198,7 +4198,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["f", "x", "y"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 5)),
@@ -4231,7 +4231,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["f", "x", "y"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 7)),
@@ -4264,7 +4264,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 46)),
@@ -4327,7 +4327,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 3)),
@@ -4342,7 +4342,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 2)),
@@ -4357,7 +4357,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 2)),
@@ -4375,7 +4375,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 5)),
@@ -4399,7 +4399,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 5)),
@@ -4423,7 +4423,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 5)),
@@ -4447,7 +4447,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 5)),
@@ -4471,7 +4471,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 19)),
@@ -4526,7 +4526,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 5)),
@@ -4550,7 +4550,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 6)),
@@ -4574,7 +4574,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 6)),
@@ -4598,7 +4598,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 5)),
@@ -4622,7 +4622,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 6)),
@@ -4646,7 +4646,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 4)),
@@ -4661,7 +4661,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 4)),
@@ -4676,7 +4676,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 5)),
@@ -4691,7 +4691,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 21)),
@@ -4719,7 +4719,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = ["x"];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 3)),
@@ -4734,7 +4734,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let context = [];
 
-        assert_eq!(
+        assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 58)),

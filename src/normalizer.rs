@@ -402,6 +402,7 @@ pub fn normalize_weak_head<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
+        assert_same,
         normalizer::normalize_weak_head,
         parser::parse,
         term::{
@@ -425,7 +426,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 4)),
@@ -443,7 +444,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 1)),
@@ -467,7 +468,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -485,7 +486,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 48)),
@@ -551,7 +552,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 48)),
@@ -617,7 +618,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -663,7 +664,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((18, 19)),
@@ -681,7 +682,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((4, 5)),
@@ -699,7 +700,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 3)),
@@ -717,7 +718,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 2)),
@@ -735,7 +736,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -753,7 +754,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -771,7 +772,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -789,7 +790,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -807,7 +808,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -825,7 +826,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -843,7 +844,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -861,7 +862,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -879,7 +880,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -897,7 +898,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
@@ -915,7 +916,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 4)),
@@ -933,7 +934,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 4)),
@@ -951,7 +952,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 5)),
@@ -969,7 +970,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((13, 14)),
@@ -987,7 +988,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
+        assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((21, 22)),

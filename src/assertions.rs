@@ -1,0 +1,54 @@
+// This macro is useful for writing tests that deal with errors.
+#[macro_export]
+macro_rules! assert_fails {
+    ($expr:expr, $substr:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let expr = $expr;
+        let substr = $substr;
+
+        // Before we actually format the errors, disable terminal colors.
+        colored::control::set_override(false);
+
+        // Check that `$expr` fails and that the failure contains `$substr`.
+        if let Err(errors) = expr {
+            let mut found_error = false;
+            let mut all_errors_string = "".to_owned();
+
+            for error in errors {
+                let error_string = error.to_string();
+                all_errors_string.push_str(&format!("{}\n", error_string));
+
+                if error_string.contains(substr) {
+                    found_error = true;
+                }
+            }
+
+            assert!(found_error);
+        } else {
+            panic!("The expression was supposed to fail, but it succeeded.");
+        }
+    }};
+}
+
+// This macro is useful for writing equality tests for types that implement `Debug` but not `Eq`.
+#[macro_export]
+macro_rules! assert_same {
+    ($expr1:expr, $expr2:expr $(,)?) => {{
+        // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
+        // accidentally evaluating arguments multiple times. Here we force eager evaluation.
+        let expr1 = $expr1;
+        let expr2 = $expr2;
+
+        // To aid in type inference, the following tells the compiler that the two expressions have
+        // the same type.
+        let mut _dummy = &expr1;
+        _dummy = &expr2;
+
+        // Before we actually format the expression, disable terminal colors.
+        colored::control::set_override(false);
+
+        // Assert that the expressions have the same debug representation.
+        assert_eq!(format!("{:?}", expr1), format!("{:?}", expr2));
+    }};
+}
