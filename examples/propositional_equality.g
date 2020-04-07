@@ -21,7 +21,7 @@ eq_symm : (
   eq a x y ->
   eq a y x
 ) =
-  (a : type) =>
+  a =>
   (x : a) =>
   (y : a) =>
   (x_equals_y : eq a x y) =>
@@ -39,7 +39,7 @@ eq_trans : (
   eq a y z ->
   eq a x z
 ) =
-  (a : type) =>
+  a =>
   (x : a) =>
   (y : a) =>
   (z : a) =>
