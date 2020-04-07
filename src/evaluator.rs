@@ -14,8 +14,9 @@ use crate::{
 use std::{iter::once, rc::Rc};
 
 // This function evaluates a term using a call-by-value strategy.
-pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Result<Rc<Term<'a>>, Error> {
+pub fn evaluate<'a>(term: &Term<'a>) -> Result<Term<'a>, Error> {
     // Repeatedly perform small steps for as long as possible.
+    let mut term = term.clone();
     while let Some(stepped_term) = step(&term) {
         term = stepped_term;
     }
@@ -35,7 +36,7 @@ pub fn evaluate<'a>(mut term: Rc<Term<'a>>) -> Result<Rc<Term<'a>>, Error> {
 // Call this repeatedly to evaluate a term.
 #[allow(clippy::cognitive_complexity)]
 #[allow(clippy::too_many_lines)]
-pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
+pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
     match &term.variant {
         Type
         | Lambda(_, _, _)
@@ -48,18 +49,15 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         | False => None,
         Unifier(subterm) => {
             // If the unifier points to something, step to it. Otherwise, we're stuck.
-            subterm
-                .borrow()
-                .as_ref()
-                .map(|subterm| Rc::new(subterm.clone()))
+            subterm.borrow().as_ref().cloned()
         }
         Application(applicand, argument) => {
             // Try to step the applicand.
             if let Some(stepped_applicand) = step(applicand) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Application(stepped_applicand, argument.clone()),
-                }));
+                    variant: Application(Rc::new(stepped_applicand), argument.clone()),
+                });
             };
 
             // Ensure the applicand is a value.
@@ -69,10 +67,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the argument.
             if let Some(stepped_argument) = step(argument) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Application(applicand.clone(), stepped_argument),
-                }));
+                    variant: Application(applicand.clone(), Rc::new(stepped_argument)),
+                });
             };
 
             // Ensure the argument is a value.
@@ -83,7 +81,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             // Check if the applicand is a lambda.
             if let Lambda(_, _, body) = &applicand.variant {
                 // We got a lambda. Perform beta reduction and continue evaluating.
-                Some(open(body.clone(), 0, argument.clone(), 0))
+                Some(open(body, 0, argument, 0))
             } else {
                 // We didn't get a lambda. We're stuck!
                 None
@@ -99,10 +97,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
                 // Try to step the definition.
                 if let Some(stepped_definition) = step(definition) {
-                    return Some(Rc::new(Term {
+                    return Some(Term {
                         source_range: None,
                         variant: Let(
-                            once((*variable, annotation.clone(), stepped_definition.clone()))
+                            once((*variable, annotation.clone(), Rc::new(stepped_definition)))
                                 .chain(definitions.iter().map(
                                     |(variable, annotation, definition)| {
                                         (*variable, annotation.clone(), definition.clone())
@@ -111,7 +109,7 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                                 .collect(),
                             body.clone(),
                         ),
-                    }));
+                    });
                 };
 
                 // Ensure the definition is a value.
@@ -127,29 +125,29 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
                 // Unfold the definition.
                 let unfolded_definition = open(
-                    definition.clone(),
+                    definition,
                     index,
-                    Rc::new(Term {
+                    &Term {
                         source_range: None,
                         variant: Let(
                             vec![(
                                 variable,
-                                open(
-                                    shift(annotation.clone(), 0, 1),
+                                Rc::new(open(
+                                    &shift(annotation, 0, 1),
                                     index_plus_one,
-                                    body_for_unfolding.clone(),
+                                    &body_for_unfolding,
                                     0,
-                                ),
-                                open(
-                                    shift(definition.clone(), 0, 1),
+                                )),
+                                Rc::new(open(
+                                    &shift(definition, 0, 1),
                                     index_plus_one,
-                                    body_for_unfolding.clone(),
+                                    &body_for_unfolding,
                                     0,
-                                ),
+                                )),
                             )],
                             body_for_unfolding,
                         ),
-                    }),
+                    },
                     0,
                 );
 
@@ -160,32 +158,32 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                     .map(|(variable, annotation, definition)| {
                         (
                             *variable,
-                            open(annotation.clone(), index, unfolded_definition.clone(), 0),
-                            open(definition.clone(), index, unfolded_definition.clone(), 0),
+                            Rc::new(open(annotation, index, &unfolded_definition, 0)),
+                            Rc::new(open(definition, index, &unfolded_definition, 0)),
                         )
                     })
                     .collect();
 
                 // Substitute the unfolded definition in the body.
-                let substituted_body = open(body.clone(), index, unfolded_definition, 0);
+                let substituted_body = open(body, index, &unfolded_definition, 0);
 
                 // Return a let with the substituted definitions and body.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
-                    variant: Let(substituted_definitions, substituted_body),
-                }))
+                    variant: Let(substituted_definitions, Rc::new(substituted_body)),
+                })
             } else {
                 // There are no definitions. Return the body.
-                Some(body.clone())
+                Some((**body).clone())
             }
         }
         Negation(subterm) => {
             // Try to step the subterm.
             if let Some(stepped_subterm) = step(subterm) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Negation(stepped_subterm),
-                }));
+                    variant: Negation(Rc::new(stepped_subterm)),
+                });
             };
 
             // Ensure the subterm is a value.
@@ -196,10 +194,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
             // Check if the subterm is an integer literal.
             if let IntegerLiteral(integer) = &subterm.variant {
                 // We got an integer literals. Perform negation and continue evaluating.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
                     variant: IntegerLiteral(-integer),
-                }))
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
@@ -208,10 +206,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         Sum(term1, term2) => {
             // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Sum(stepped_term1, term2.clone()),
-                }));
+                    variant: Sum(Rc::new(stepped_term1), term2.clone()),
+                });
             };
 
             // Ensure the left subterm is a value.
@@ -221,10 +219,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Sum(term1.clone(), stepped_term2),
-                }));
+                    variant: Sum(term1.clone(), Rc::new(stepped_term2)),
+                });
             };
 
             // Ensure the right subterm is a value.
@@ -237,10 +235,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform addition and continue evaluating.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
                     variant: IntegerLiteral(integer1 + integer2),
-                }))
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
@@ -249,10 +247,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         Difference(term1, term2) => {
             // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Difference(stepped_term1, term2.clone()),
-                }));
+                    variant: Difference(Rc::new(stepped_term1), term2.clone()),
+                });
             };
 
             // Ensure the left subterm is a value.
@@ -262,10 +260,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Difference(term1.clone(), stepped_term2),
-                }));
+                    variant: Difference(term1.clone(), Rc::new(stepped_term2)),
+                });
             };
 
             // Ensure the right subterm is a value.
@@ -278,10 +276,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform subtraction and continue evaluating.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
                     variant: IntegerLiteral(integer1 - integer2),
-                }))
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
@@ -290,10 +288,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         Product(term1, term2) => {
             // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Product(stepped_term1, term2.clone()),
-                }));
+                    variant: Product(Rc::new(stepped_term1), term2.clone()),
+                });
             };
 
             // Ensure the left subterm is a value.
@@ -303,10 +301,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Product(term1.clone(), stepped_term2),
-                }));
+                    variant: Product(term1.clone(), Rc::new(stepped_term2)),
+                });
             };
 
             // Ensure the right subterm is a value.
@@ -319,10 +317,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform multiplication and continue evaluating.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
                     variant: IntegerLiteral(integer1 * integer2),
-                }))
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
@@ -331,10 +329,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         Quotient(term1, term2) => {
             // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Quotient(stepped_term1, term2.clone()),
-                }));
+                    variant: Quotient(Rc::new(stepped_term1), term2.clone()),
+                });
             };
 
             // Ensure the left subterm is a value.
@@ -344,10 +342,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: Quotient(term1.clone(), stepped_term2),
-                }));
+                    variant: Quotient(term1.clone(), Rc::new(stepped_term2)),
+                });
             };
 
             // Ensure the right subterm is a value.
@@ -362,10 +360,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 // We got integer literals. Attempt to perform division.
                 if let Some(quotient) = integer1.checked_div(integer2) {
                     // The division was successful.
-                    Some(Rc::new(Term {
+                    Some(Term {
                         source_range: None,
                         variant: IntegerLiteral(quotient),
-                    }))
+                    })
                 } else {
                     // Division by zero!
                     None
@@ -378,10 +376,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         LessThan(term1, term2) => {
             // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: LessThan(stepped_term1, term2.clone()),
-                }));
+                    variant: LessThan(Rc::new(stepped_term1), term2.clone()),
+                });
             };
 
             // Ensure the left subterm is a value.
@@ -391,10 +389,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: LessThan(term1.clone(), stepped_term2),
-                }));
+                    variant: LessThan(term1.clone(), Rc::new(stepped_term2)),
+                });
             };
 
             // Ensure the right subterm is a value.
@@ -407,10 +405,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform the comparison and continue evaluating.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
                     variant: if integer1 < integer2 { True } else { False },
-                }))
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
@@ -419,10 +417,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         LessThanOrEqualTo(term1, term2) => {
             // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: LessThanOrEqualTo(stepped_term1, term2.clone()),
-                }));
+                    variant: LessThanOrEqualTo(Rc::new(stepped_term1), term2.clone()),
+                });
             };
 
             // Ensure the left subterm is a value.
@@ -432,10 +430,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: LessThanOrEqualTo(term1.clone(), stepped_term2),
-                }));
+                    variant: LessThanOrEqualTo(term1.clone(), Rc::new(stepped_term2)),
+                });
             };
 
             // Ensure the right subterm is a value.
@@ -448,10 +446,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform the comparison and continue evaluating.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
                     variant: if integer1 <= integer2 { True } else { False },
-                }))
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
@@ -460,10 +458,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         EqualTo(term1, term2) => {
             // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: EqualTo(stepped_term1, term2.clone()),
-                }));
+                    variant: EqualTo(Rc::new(stepped_term1), term2.clone()),
+                });
             };
 
             // Ensure the left subterm is a value.
@@ -473,10 +471,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: EqualTo(term1.clone(), stepped_term2),
-                }));
+                    variant: EqualTo(term1.clone(), Rc::new(stepped_term2)),
+                });
             };
 
             // Ensure the right subterm is a value.
@@ -489,10 +487,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform the comparison and continue evaluating.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
                     variant: if integer1 == integer2 { True } else { False },
-                }))
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
@@ -501,10 +499,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         GreaterThan(term1, term2) => {
             // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: GreaterThan(stepped_term1, term2.clone()),
-                }));
+                    variant: GreaterThan(Rc::new(stepped_term1), term2.clone()),
+                });
             };
 
             // Ensure the left subterm is a value.
@@ -514,10 +512,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: GreaterThan(term1.clone(), stepped_term2),
-                }));
+                    variant: GreaterThan(term1.clone(), Rc::new(stepped_term2)),
+                });
             };
 
             // Ensure the right subterm is a value.
@@ -530,10 +528,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform the comparison and continue evaluating.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
                     variant: if integer1 > integer2 { True } else { False },
-                }))
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
@@ -542,10 +540,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         GreaterThanOrEqualTo(term1, term2) => {
             // Try to step the left subterm.
             if let Some(stepped_term1) = step(term1) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: GreaterThanOrEqualTo(stepped_term1, term2.clone()),
-                }));
+                    variant: GreaterThanOrEqualTo(Rc::new(stepped_term1), term2.clone()),
+                });
             };
 
             // Ensure the left subterm is a value.
@@ -555,10 +553,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Try to step the right subterm.
             if let Some(stepped_term2) = step(term2) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: GreaterThanOrEqualTo(term1.clone(), stepped_term2),
-                }));
+                    variant: GreaterThanOrEqualTo(term1.clone(), Rc::new(stepped_term2)),
+                });
             };
 
             // Ensure the right subterm is a value.
@@ -571,10 +569,10 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
                 (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Perform the comparison and continue evaluating.
-                Some(Rc::new(Term {
+                Some(Term {
                     source_range: None,
                     variant: if integer1 >= integer2 { True } else { False },
-                }))
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
@@ -583,10 +581,14 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
         If(condition, then_branch, else_branch) => {
             // Try to step the condition.
             if let Some(stepped_condition) = step(condition) {
-                return Some(Rc::new(Term {
+                return Some(Term {
                     source_range: None,
-                    variant: If(stepped_condition, then_branch.clone(), else_branch.clone()),
-                }));
+                    variant: If(
+                        Rc::new(stepped_condition),
+                        then_branch.clone(),
+                        else_branch.clone(),
+                    ),
+                });
             };
 
             // Ensure the condition is a value.
@@ -596,8 +598,8 @@ pub fn step<'a>(term: &Rc<Term<'a>>) -> Option<Rc<Term<'a>>> {
 
             // Pattern match on the condition.
             match &condition.variant {
-                True => Some(then_branch.clone()),
-                False => Some(else_branch.clone()),
+                True => Some((**then_branch).clone()),
+                False => Some((**else_branch).clone()),
                 _ => None,
             }
         }
@@ -658,7 +660,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((0, 4)),
                 variant: Type,
@@ -674,7 +676,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &context[..]).unwrap();
 
-        evaluate(Rc::new(term)).unwrap();
+        evaluate(&term).unwrap();
     }
 
     #[test]
@@ -684,7 +686,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((0, 39)),
                 variant: Lambda(
@@ -738,7 +740,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((0, 39)),
                 variant: Pi(
@@ -792,7 +794,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((18, 22)),
                 variant: Type,
@@ -807,7 +809,7 @@ mod tests {
         let tokens = tokenize(None, source).unwrap();
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
-        evaluate(Rc::new(term)).unwrap();
+        evaluate(&term).unwrap();
     }
 
     #[test]
@@ -817,7 +819,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((46, 50)),
                 variant: Type,
@@ -832,7 +834,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((0, 3)),
                 variant: Integer,
@@ -847,7 +849,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
@@ -862,7 +864,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&-42).unwrap()),
@@ -877,7 +879,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
@@ -892,7 +894,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
@@ -907,7 +909,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&6).unwrap()),
@@ -922,7 +924,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
@@ -937,7 +939,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: True,
@@ -952,7 +954,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: True,
@@ -967,7 +969,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: False,
@@ -982,7 +984,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: False,
@@ -997,7 +999,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: False,
@@ -1012,7 +1014,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((0, 4)),
                 variant: Boolean,
@@ -1027,7 +1029,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((0, 4)),
                 variant: True,
@@ -1042,7 +1044,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((0, 5)),
                 variant: False,
@@ -1057,7 +1059,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((13, 14)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
@@ -1072,7 +1074,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: Some((21, 22)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&4).unwrap()),
@@ -1094,7 +1096,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &[]).unwrap();
 
         assert_eq!(
-            *evaluate(Rc::new(term)).unwrap(),
+            evaluate(&term).unwrap(),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&120).unwrap()),

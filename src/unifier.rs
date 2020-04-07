@@ -43,8 +43,8 @@ impl<T> Eq for HashableRc<T> {}
 #[allow(clippy::similar_names)]
 #[allow(clippy::too_many_lines)]
 pub fn unify<'a>(
-    term1: Rc<Term<'a>>,
-    term2: Rc<Term<'a>>,
+    term1: &Term<'a>,
+    term2: &Term<'a>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
 ) -> bool {
     // The two terms might not have normal forms, but if they are syntactically equal then we can
@@ -71,7 +71,7 @@ pub fn unify<'a>(
                 }
 
                 // Unify
-                *subterm1.borrow_mut() = Some((*whnf2).clone());
+                *subterm1.borrow_mut() = Some(whnf2);
 
                 // We did it!
                 true
@@ -93,7 +93,7 @@ pub fn unify<'a>(
                 }
 
                 // Unify
-                *subterm2.borrow_mut() = Some((*whnf1).clone());
+                *subterm2.borrow_mut() = Some(whnf1);
 
                 // We did it!
                 true
@@ -113,7 +113,7 @@ pub fn unify<'a>(
             definitions_context.push(None);
 
             // Unify the bodies.
-            let bodies_unify = unify(body1.clone(), body2.clone(), definitions_context);
+            let bodies_unify = unify(body1, body2, definitions_context);
 
             // Restore the context.
             definitions_context.pop();
@@ -122,13 +122,12 @@ pub fn unify<'a>(
             bodies_unify
         }
         (Pi(_, domain1, codomain1), Pi(_, domain2, codomain2)) => {
-            unify(domain1.clone(), domain2.clone(), definitions_context) && {
+            unify(domain1, domain2, definitions_context) && {
                 // Temporarily add the variable to the context.
                 definitions_context.push(None);
 
                 // Unify the codomains.
-                let codomains_unify =
-                    unify(codomain1.clone(), codomain2.clone(), definitions_context);
+                let codomains_unify = unify(codomain1, codomain2, definitions_context);
 
                 // Restore the context.
                 definitions_context.pop();
@@ -138,13 +137,11 @@ pub fn unify<'a>(
             }
         }
         (Application(applicand1, argument1), Application(applicand2, argument2)) => {
-            unify(applicand1.clone(), applicand2.clone(), definitions_context)
-                && unify(argument1.clone(), argument2.clone(), definitions_context)
+            unify(applicand1, applicand2, definitions_context)
+                && unify(argument1, argument2, definitions_context)
         }
         (IntegerLiteral(integer1), IntegerLiteral(integer2)) => integer1 == integer2,
-        (Negation(subterm1), Negation(subterm2)) => {
-            unify(subterm1.clone(), subterm2.clone(), definitions_context)
-        }
+        (Negation(subterm1), Negation(subterm2)) => unify(subterm1, subterm2, definitions_context),
         (Sum(term11, term21), Sum(term12, term22))
         | (Difference(term11, term21), Difference(term12, term22))
         | (Product(term11, term21), Product(term12, term22))
@@ -154,24 +151,15 @@ pub fn unify<'a>(
         | (EqualTo(term11, term21), EqualTo(term12, term22))
         | (GreaterThan(term11, term21), GreaterThan(term12, term22))
         | (GreaterThanOrEqualTo(term11, term21), GreaterThanOrEqualTo(term12, term22)) => {
-            unify(term11.clone(), term12.clone(), definitions_context)
-                && unify(term21.clone(), term22.clone(), definitions_context)
+            unify(term11, term12, definitions_context) && unify(term21, term22, definitions_context)
         }
         (
             If(condition1, then_branch1, else_branch1),
             If(condition2, then_branch2, else_branch2),
         ) => {
-            unify(condition1.clone(), condition2.clone(), definitions_context)
-                && unify(
-                    then_branch1.clone(),
-                    then_branch2.clone(),
-                    definitions_context,
-                )
-                && unify(
-                    else_branch1.clone(),
-                    else_branch2.clone(),
-                    definitions_context,
-                )
+            unify(condition1, condition2, definitions_context)
+                && unify(then_branch1, then_branch2, definitions_context)
+                && unify(else_branch1, else_branch2, definitions_context)
         }
         (Variable(_, _), _)
         | (_, Variable(_, _))
@@ -286,7 +274,7 @@ mod tests {
         type_checker::type_check,
         unifier::{collect_unifiers, unify},
     };
-    use std::{collections::HashSet, rc::Rc};
+    use std::collections::HashSet;
 
     #[test]
     fn unify_unifier_left() {
@@ -301,10 +289,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -320,10 +305,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -339,10 +321,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -358,10 +337,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -377,10 +353,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -396,10 +369,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -415,10 +385,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -434,10 +401,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -453,10 +417,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -472,10 +433,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -491,10 +449,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -510,10 +465,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -529,10 +481,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -548,10 +497,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -567,10 +513,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -586,10 +529,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -605,10 +545,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -624,10 +561,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -643,10 +577,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -662,10 +593,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -681,10 +609,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -700,10 +625,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -719,10 +641,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -738,10 +657,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -757,10 +673,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -776,10 +689,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -795,10 +705,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -814,10 +721,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -833,10 +737,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -852,10 +753,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -871,10 +769,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -890,10 +785,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -909,10 +801,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -928,10 +817,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -947,10 +833,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -966,10 +849,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -985,10 +865,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -1004,10 +881,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -1023,10 +897,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -1042,10 +913,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            false,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
     }
 
     #[test]
@@ -1061,10 +929,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -1080,10 +945,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -1099,10 +961,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -1118,10 +977,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]
@@ -1137,10 +993,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(
-            unify(Rc::new(term1), Rc::new(term2), &mut definitions_context),
-            true,
-        );
+        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
     }
 
     #[test]

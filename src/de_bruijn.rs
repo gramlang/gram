@@ -12,53 +12,53 @@ use std::{cmp::Ordering, collections::HashSet, rc::Rc};
 // variables are considered free. This operation is used to lower a term into a nested scope while
 // preserving its meaning.
 #[allow(clippy::too_many_lines)]
-pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a>> {
+pub fn shift<'a>(term: &Term<'a>, cutoff: usize, amount: usize) -> Term<'a> {
     match &term.variant {
         Unifier(subterm) => {
             if let Some(subterm) = &*subterm.borrow() {
-                shift(Rc::new(subterm.clone()), cutoff, amount)
+                shift(subterm, cutoff, amount)
             } else {
                 term.clone()
             }
         }
-        Type | Integer | IntegerLiteral(_) | Boolean | True | False => term,
+        Type | Integer | IntegerLiteral(_) | Boolean | True | False => term.clone(),
         Variable(variable, index) => {
             if *index >= cutoff {
-                Rc::new(Term {
+                Term {
                     source_range: term.source_range,
                     variant: Variable(variable, index + amount),
-                })
+                }
             } else {
-                term
+                term.clone()
             }
         }
-        Lambda(variable, domain, body) => Rc::new(Term {
+        Lambda(variable, domain, body) => Term {
             source_range: term.source_range,
             variant: Lambda(
                 variable,
-                shift(domain.clone(), cutoff, amount),
-                shift(body.clone(), cutoff + 1, amount),
+                Rc::new(shift(domain, cutoff, amount)),
+                Rc::new(shift(body, cutoff + 1, amount)),
             ),
-        }),
-        Pi(variable, domain, codomain) => Rc::new(Term {
+        },
+        Pi(variable, domain, codomain) => Term {
             source_range: term.source_range,
             variant: Pi(
                 variable,
-                shift(domain.clone(), cutoff, amount),
-                shift(codomain.clone(), cutoff + 1, amount),
+                Rc::new(shift(domain, cutoff, amount)),
+                Rc::new(shift(codomain, cutoff + 1, amount)),
             ),
-        }),
-        Application(applicand, argument) => Rc::new(Term {
+        },
+        Application(applicand, argument) => Term {
             source_range: term.source_range,
             variant: Application(
-                shift(applicand.clone(), cutoff, amount),
-                shift(argument.clone(), cutoff, amount),
+                Rc::new(shift(applicand, cutoff, amount)),
+                Rc::new(shift(argument, cutoff, amount)),
             ),
-        }),
+        },
         Let(definitions, body) => {
             let new_cutoff = cutoff + definitions.len();
 
-            Rc::new(Term {
+            Term {
                 source_range: term.source_range,
                 variant: Let(
                     definitions
@@ -66,90 +66,90 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
                         .map(|(variable, annotation, definition)| {
                             (
                                 *variable,
-                                shift(annotation.clone(), new_cutoff, amount),
-                                shift(definition.clone(), new_cutoff, amount),
+                                Rc::new(shift(annotation, new_cutoff, amount)),
+                                Rc::new(shift(definition, new_cutoff, amount)),
                             )
                         })
                         .collect(),
-                    shift(body.clone(), new_cutoff, amount),
+                    Rc::new(shift(body, new_cutoff, amount)),
                 ),
-            })
+            }
         }
-        Negation(subterm) => Rc::new(Term {
+        Negation(subterm) => Term {
             source_range: term.source_range,
-            variant: Negation(shift(subterm.clone(), cutoff, amount)),
-        }),
-        Sum(term1, term2) => Rc::new(Term {
+            variant: Negation(Rc::new(shift(subterm, cutoff, amount))),
+        },
+        Sum(term1, term2) => Term {
             source_range: term.source_range,
             variant: Sum(
-                shift(term1.clone(), cutoff, amount),
-                shift(term2.clone(), cutoff, amount),
+                Rc::new(shift(term1, cutoff, amount)),
+                Rc::new(shift(term2, cutoff, amount)),
             ),
-        }),
-        Difference(term1, term2) => Rc::new(Term {
+        },
+        Difference(term1, term2) => Term {
             source_range: term.source_range,
             variant: Difference(
-                shift(term1.clone(), cutoff, amount),
-                shift(term2.clone(), cutoff, amount),
+                Rc::new(shift(term1, cutoff, amount)),
+                Rc::new(shift(term2, cutoff, amount)),
             ),
-        }),
-        Product(term1, term2) => Rc::new(Term {
+        },
+        Product(term1, term2) => Term {
             source_range: term.source_range,
             variant: Product(
-                shift(term1.clone(), cutoff, amount),
-                shift(term2.clone(), cutoff, amount),
+                Rc::new(shift(term1, cutoff, amount)),
+                Rc::new(shift(term2, cutoff, amount)),
             ),
-        }),
-        Quotient(term1, term2) => Rc::new(Term {
+        },
+        Quotient(term1, term2) => Term {
             source_range: term.source_range,
             variant: Quotient(
-                shift(term1.clone(), cutoff, amount),
-                shift(term2.clone(), cutoff, amount),
+                Rc::new(shift(term1, cutoff, amount)),
+                Rc::new(shift(term2, cutoff, amount)),
             ),
-        }),
-        LessThan(term1, term2) => Rc::new(Term {
+        },
+        LessThan(term1, term2) => Term {
             source_range: term.source_range,
             variant: LessThan(
-                shift(term1.clone(), cutoff, amount),
-                shift(term2.clone(), cutoff, amount),
+                Rc::new(shift(term1, cutoff, amount)),
+                Rc::new(shift(term2, cutoff, amount)),
             ),
-        }),
-        LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        LessThanOrEqualTo(term1, term2) => Term {
             source_range: term.source_range,
             variant: LessThanOrEqualTo(
-                shift(term1.clone(), cutoff, amount),
-                shift(term2.clone(), cutoff, amount),
+                Rc::new(shift(term1, cutoff, amount)),
+                Rc::new(shift(term2, cutoff, amount)),
             ),
-        }),
-        EqualTo(term1, term2) => Rc::new(Term {
+        },
+        EqualTo(term1, term2) => Term {
             source_range: term.source_range,
             variant: EqualTo(
-                shift(term1.clone(), cutoff, amount),
-                shift(term2.clone(), cutoff, amount),
+                Rc::new(shift(term1, cutoff, amount)),
+                Rc::new(shift(term2, cutoff, amount)),
             ),
-        }),
-        GreaterThan(term1, term2) => Rc::new(Term {
+        },
+        GreaterThan(term1, term2) => Term {
             source_range: term.source_range,
             variant: GreaterThan(
-                shift(term1.clone(), cutoff, amount),
-                shift(term2.clone(), cutoff, amount),
+                Rc::new(shift(term1, cutoff, amount)),
+                Rc::new(shift(term2, cutoff, amount)),
             ),
-        }),
-        GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        GreaterThanOrEqualTo(term1, term2) => Term {
             source_range: term.source_range,
             variant: GreaterThanOrEqualTo(
-                shift(term1.clone(), cutoff, amount),
-                shift(term2.clone(), cutoff, amount),
+                Rc::new(shift(term1, cutoff, amount)),
+                Rc::new(shift(term2, cutoff, amount)),
             ),
-        }),
-        If(condition, then_branch, else_branch) => Rc::new(Term {
+        },
+        If(condition, then_branch, else_branch) => Term {
             source_range: term.source_range,
             variant: If(
-                shift(condition.clone(), cutoff, amount),
-                shift(then_branch.clone(), cutoff, amount),
-                shift(else_branch.clone(), cutoff, amount),
+                Rc::new(shift(condition, cutoff, amount)),
+                Rc::new(shift(then_branch, cutoff, amount)),
+                Rc::new(shift(else_branch, cutoff, amount)),
             ),
-        }),
+        },
     }
 }
 
@@ -160,91 +160,76 @@ pub fn shift<'a>(term: Rc<Term<'a>>, cutoff: usize, amount: usize) -> Rc<Term<'a
 // used to perform beta reduction.
 #[allow(clippy::too_many_lines)]
 pub fn open<'a>(
-    term_to_open: Rc<Term<'a>>,
+    term_to_open: &Term<'a>,
     index_to_replace: usize,
-    term_to_insert: Rc<Term<'a>>,
+    term_to_insert: &Term<'a>,
     shift_amount: usize,
-) -> Rc<Term<'a>> {
+) -> Term<'a> {
     match &term_to_open.variant {
         Unifier(subterm) => {
             if let Some(subterm) = &*subterm.borrow() {
-                open(
-                    Rc::new(subterm.clone()),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                )
+                open(subterm, index_to_replace, term_to_insert, shift_amount)
             } else {
                 term_to_open.clone()
             }
         }
-        Type | Integer | IntegerLiteral(_) | Boolean | True | False => term_to_open,
+        Type | Integer | IntegerLiteral(_) | Boolean | True | False => term_to_open.clone(),
         Variable(variable, index) => match index.cmp(&index_to_replace) {
-            Ordering::Greater => Rc::new(Term {
+            Ordering::Greater => Term {
                 source_range: term_to_open.source_range,
                 variant: Variable(variable, index - 1),
-            }),
-            Ordering::Less => term_to_open,
+            },
+            Ordering::Less => term_to_open.clone(),
             Ordering::Equal => shift(term_to_insert, 0, shift_amount),
         },
-        Lambda(variable, domain, body) => Rc::new(Term {
+        Lambda(variable, domain, body) => Term {
             source_range: term_to_open.source_range,
             variant: Lambda(
                 variable,
-                open(
-                    domain.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    body.clone(),
+                Rc::new(open(domain, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(
+                    body,
                     index_to_replace + 1,
                     term_to_insert,
                     shift_amount + 1,
-                ),
+                )),
             ),
-        }),
-        Pi(variable, domain, codomain) => Rc::new(Term {
+        },
+        Pi(variable, domain, codomain) => Term {
             source_range: term_to_open.source_range,
             variant: Pi(
                 variable,
-                open(
-                    domain.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    codomain.clone(),
+                Rc::new(open(domain, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(
+                    codomain,
                     index_to_replace + 1,
                     term_to_insert,
                     shift_amount + 1,
-                ),
+                )),
             ),
-        }),
-        Application(applicand, argument) => Rc::new(Term {
+        },
+        Application(applicand, argument) => Term {
             source_range: term_to_open.source_range,
             variant: Application(
-                open(
-                    applicand.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    argument.clone(),
+                Rc::new(open(
+                    applicand,
                     index_to_replace,
                     term_to_insert,
                     shift_amount,
-                ),
+                )),
+                Rc::new(open(
+                    argument,
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                )),
             ),
-        }),
+        },
         Let(definitions, body) => {
             let new_index_to_replace = index_to_replace + definitions.len();
             let new_shift_amount = shift_amount + definitions.len();
 
-            Rc::new(Term {
+            Term {
                 source_range: term_to_open.source_range,
                 variant: Let(
                     definitions
@@ -252,215 +237,125 @@ pub fn open<'a>(
                         .map(|(variable, annotation, definition)| {
                             (
                                 *variable,
-                                open(
-                                    annotation.clone(),
+                                Rc::new(open(
+                                    annotation,
                                     new_index_to_replace,
-                                    term_to_insert.clone(),
+                                    term_to_insert,
                                     new_shift_amount,
-                                ),
-                                open(
-                                    definition.clone(),
+                                )),
+                                Rc::new(open(
+                                    definition,
                                     new_index_to_replace,
-                                    term_to_insert.clone(),
+                                    term_to_insert,
                                     new_shift_amount,
-                                ),
+                                )),
                             )
                         })
                         .collect(),
-                    open(
-                        body.clone(),
+                    Rc::new(open(
+                        body,
                         new_index_to_replace,
                         term_to_insert,
                         new_shift_amount,
-                    ),
+                    )),
                 ),
-            })
+            }
         }
-        Negation(subterm) => Rc::new(Term {
+        Negation(subterm) => Term {
             source_range: term_to_open.source_range,
-            variant: Negation(open(
-                subterm.clone(),
+            variant: Negation(Rc::new(open(
+                subterm,
                 index_to_replace,
-                term_to_insert.clone(),
+                term_to_insert,
                 shift_amount,
-            )),
-        }),
-        Sum(term1, term2) => Rc::new(Term {
+            ))),
+        },
+        Sum(term1, term2) => Term {
             source_range: term_to_open.source_range,
             variant: Sum(
-                open(
-                    term1.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    term2.clone(),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                ),
+                Rc::new(open(term1, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(term2, index_to_replace, term_to_insert, shift_amount)),
             ),
-        }),
-        Difference(term1, term2) => Rc::new(Term {
+        },
+        Difference(term1, term2) => Term {
             source_range: term_to_open.source_range,
             variant: Difference(
-                open(
-                    term1.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    term2.clone(),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                ),
+                Rc::new(open(term1, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(term2, index_to_replace, term_to_insert, shift_amount)),
             ),
-        }),
-        Product(term1, term2) => Rc::new(Term {
+        },
+        Product(term1, term2) => Term {
             source_range: term_to_open.source_range,
             variant: Product(
-                open(
-                    term1.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    term2.clone(),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                ),
+                Rc::new(open(term1, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(term2, index_to_replace, term_to_insert, shift_amount)),
             ),
-        }),
-        Quotient(term1, term2) => Rc::new(Term {
+        },
+        Quotient(term1, term2) => Term {
             source_range: term_to_open.source_range,
             variant: Quotient(
-                open(
-                    term1.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    term2.clone(),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                ),
+                Rc::new(open(term1, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(term2, index_to_replace, term_to_insert, shift_amount)),
             ),
-        }),
-        LessThan(term1, term2) => Rc::new(Term {
+        },
+        LessThan(term1, term2) => Term {
             source_range: term_to_open.source_range,
             variant: LessThan(
-                open(
-                    term1.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    term2.clone(),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                ),
+                Rc::new(open(term1, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(term2, index_to_replace, term_to_insert, shift_amount)),
             ),
-        }),
-        LessThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        LessThanOrEqualTo(term1, term2) => Term {
             source_range: term_to_open.source_range,
             variant: LessThanOrEqualTo(
-                open(
-                    term1.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    term2.clone(),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                ),
+                Rc::new(open(term1, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(term2, index_to_replace, term_to_insert, shift_amount)),
             ),
-        }),
-        EqualTo(term1, term2) => Rc::new(Term {
+        },
+        EqualTo(term1, term2) => Term {
             source_range: term_to_open.source_range,
             variant: EqualTo(
-                open(
-                    term1.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    term2.clone(),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                ),
+                Rc::new(open(term1, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(term2, index_to_replace, term_to_insert, shift_amount)),
             ),
-        }),
-        GreaterThan(term1, term2) => Rc::new(Term {
+        },
+        GreaterThan(term1, term2) => Term {
             source_range: term_to_open.source_range,
             variant: GreaterThan(
-                open(
-                    term1.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    term2.clone(),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                ),
+                Rc::new(open(term1, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(term2, index_to_replace, term_to_insert, shift_amount)),
             ),
-        }),
-        GreaterThanOrEqualTo(term1, term2) => Rc::new(Term {
+        },
+        GreaterThanOrEqualTo(term1, term2) => Term {
             source_range: term_to_open.source_range,
             variant: GreaterThanOrEqualTo(
-                open(
-                    term1.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    term2.clone(),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                ),
+                Rc::new(open(term1, index_to_replace, term_to_insert, shift_amount)),
+                Rc::new(open(term2, index_to_replace, term_to_insert, shift_amount)),
             ),
-        }),
-        If(condition, then_branch, else_branch) => Rc::new(Term {
+        },
+        If(condition, then_branch, else_branch) => Term {
             source_range: term_to_open.source_range,
             variant: If(
-                open(
-                    condition.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    then_branch.clone(),
-                    index_to_replace,
-                    term_to_insert.clone(),
-                    shift_amount,
-                ),
-                open(
-                    else_branch.clone(),
+                Rc::new(open(
+                    condition,
                     index_to_replace,
                     term_to_insert,
                     shift_amount,
-                ),
+                )),
+                Rc::new(open(
+                    then_branch,
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                )),
+                Rc::new(open(
+                    else_branch,
+                    index_to_replace,
+                    term_to_insert,
+                    shift_amount,
+                )),
             ),
-        }),
+        },
     }
 }
 
@@ -540,11 +435,11 @@ mod tests {
     #[test]
     fn shift_unifier_none() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Unifier(Rc::new(RefCell::new(None))),
-                }),
+                },
                 0,
                 42,
             ),
@@ -558,14 +453,14 @@ mod tests {
     #[test]
     fn shift_unifier_some() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Unifier(Rc::new(RefCell::new(Some(Term {
                         source_range: None,
                         variant: Variable("x", 0),
                     })))),
-                }),
+                },
                 0,
                 42,
             ),
@@ -579,11 +474,11 @@ mod tests {
     #[test]
     fn shift_type() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Type,
-                }),
+                },
                 0,
                 42,
             ),
@@ -597,11 +492,11 @@ mod tests {
     #[test]
     fn shift_variable_free() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Variable("x", 0),
-                }),
+                },
                 0,
                 42,
             ),
@@ -615,11 +510,11 @@ mod tests {
     #[test]
     fn shift_variable_bound() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Variable("x", 0),
-                }),
+                },
                 1,
                 42,
             ),
@@ -633,8 +528,8 @@ mod tests {
     #[test]
     fn shift_lambda() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Lambda(
                         "a",
@@ -647,7 +542,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
                 42,
             ),
@@ -671,8 +566,8 @@ mod tests {
     #[test]
     fn shift_pi() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Pi(
                         "a",
@@ -685,7 +580,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
                 42,
             ),
@@ -709,8 +604,8 @@ mod tests {
     #[test]
     fn shift_application() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Application(
                         Rc::new(Term {
@@ -722,7 +617,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -745,8 +640,8 @@ mod tests {
     #[test]
     fn shift_let() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Let(
                         vec![
@@ -778,7 +673,7 @@ mod tests {
                             variant: Variable("w", 4),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -821,11 +716,11 @@ mod tests {
     #[test]
     fn shift_integer() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Integer,
-                }),
+                },
                 0,
                 42,
             ),
@@ -839,11 +734,11 @@ mod tests {
     #[test]
     fn shift_integer_literal() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
-                }),
+                },
                 0,
                 42,
             ),
@@ -857,14 +752,14 @@ mod tests {
     #[test]
     fn shift_negation() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Negation(Rc::new(Term {
                         source_range: None,
                         variant: Variable("a", 0),
                     })),
-                }),
+                },
                 0,
                 42,
             ),
@@ -881,8 +776,8 @@ mod tests {
     #[test]
     fn shift_sum() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Sum(
                         Rc::new(Term {
@@ -894,7 +789,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -917,8 +812,8 @@ mod tests {
     #[test]
     fn shift_difference() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Difference(
                         Rc::new(Term {
@@ -930,7 +825,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -953,8 +848,8 @@ mod tests {
     #[test]
     fn shift_product() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Product(
                         Rc::new(Term {
@@ -966,7 +861,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -989,8 +884,8 @@ mod tests {
     #[test]
     fn shift_quotient() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Quotient(
                         Rc::new(Term {
@@ -1002,7 +897,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -1025,8 +920,8 @@ mod tests {
     #[test]
     fn shift_less_than() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: LessThan(
                         Rc::new(Term {
@@ -1038,7 +933,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -1061,8 +956,8 @@ mod tests {
     #[test]
     fn shift_less_than_or_equal_to() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: LessThanOrEqualTo(
                         Rc::new(Term {
@@ -1074,7 +969,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -1097,8 +992,8 @@ mod tests {
     #[test]
     fn shift_equal_to() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: EqualTo(
                         Rc::new(Term {
@@ -1110,7 +1005,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -1133,8 +1028,8 @@ mod tests {
     #[test]
     fn shift_greater_than() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: GreaterThan(
                         Rc::new(Term {
@@ -1146,7 +1041,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -1169,8 +1064,8 @@ mod tests {
     #[test]
     fn shift_greater_than_or_equal_to() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: GreaterThanOrEqualTo(
                         Rc::new(Term {
@@ -1182,7 +1077,7 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -1205,11 +1100,11 @@ mod tests {
     #[test]
     fn shift_boolean() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: Boolean,
-                }),
+                },
                 0,
                 42,
             ),
@@ -1223,11 +1118,11 @@ mod tests {
     #[test]
     fn shift_true() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: True,
-                }),
+                },
                 0,
                 42,
             ),
@@ -1241,11 +1136,11 @@ mod tests {
     #[test]
     fn shift_false() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: False,
-                }),
+                },
                 0,
                 42,
             ),
@@ -1259,8 +1154,8 @@ mod tests {
     #[test]
     fn shift_if() {
         assert_eq!(
-            *shift(
-                Rc::new(Term {
+            shift(
+                &Term {
                     source_range: None,
                     variant: If(
                         Rc::new(Term {
@@ -1276,7 +1171,7 @@ mod tests {
                             variant: Variable("c", 2),
                         }),
                     ),
-                }),
+                },
                 1,
                 42,
             ),
@@ -1303,16 +1198,16 @@ mod tests {
     #[test]
     fn open_unifier_none() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Unifier(Rc::new(RefCell::new(None))),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1325,19 +1220,19 @@ mod tests {
     #[test]
     fn open_unifier_some() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Unifier(Rc::new(RefCell::new(Some(Term {
                         source_range: None,
                         variant: Variable("x", 0),
                     })))),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1350,16 +1245,16 @@ mod tests {
     #[test]
     fn open_type() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Type,
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1372,16 +1267,16 @@ mod tests {
     #[test]
     fn open_variable_match() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Variable("x", 0),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1394,16 +1289,16 @@ mod tests {
     #[test]
     fn open_variable_free() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Variable("x", 1),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1416,16 +1311,16 @@ mod tests {
     #[test]
     fn open_variable_bound() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Variable("x", 0),
-                }),
+                },
                 1,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1438,8 +1333,8 @@ mod tests {
     #[test]
     fn open_lambda() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Lambda(
                         "a",
@@ -1452,12 +1347,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1480,8 +1375,8 @@ mod tests {
     #[test]
     fn open_pi() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Pi(
                         "a",
@@ -1494,12 +1389,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1522,8 +1417,8 @@ mod tests {
     #[test]
     fn open_application() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Application(
                         Rc::new(Term {
@@ -1535,12 +1430,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1562,8 +1457,8 @@ mod tests {
     #[test]
     fn open_let() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Let(
                         vec![
@@ -1595,12 +1490,12 @@ mod tests {
                             variant: Variable("w", 3),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1642,16 +1537,16 @@ mod tests {
     #[test]
     fn open_integer() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Integer,
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1664,16 +1559,16 @@ mod tests {
     #[test]
     fn open_integer_literal() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1686,19 +1581,19 @@ mod tests {
     #[test]
     fn open_negation() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Negation(Rc::new(Term {
                         source_range: None,
                         variant: Variable("a", 0),
                     })),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1714,8 +1609,8 @@ mod tests {
     #[test]
     fn open_sum() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Sum(
                         Rc::new(Term {
@@ -1727,12 +1622,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1754,8 +1649,8 @@ mod tests {
     #[test]
     fn open_difference() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Difference(
                         Rc::new(Term {
@@ -1767,12 +1662,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1794,8 +1689,8 @@ mod tests {
     #[test]
     fn open_product() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Product(
                         Rc::new(Term {
@@ -1807,12 +1702,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1834,8 +1729,8 @@ mod tests {
     #[test]
     fn open_quotient() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Quotient(
                         Rc::new(Term {
@@ -1847,12 +1742,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1874,8 +1769,8 @@ mod tests {
     #[test]
     fn open_less_than() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: LessThan(
                         Rc::new(Term {
@@ -1887,12 +1782,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1914,8 +1809,8 @@ mod tests {
     #[test]
     fn open_less_than_or_equal_to() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: LessThanOrEqualTo(
                         Rc::new(Term {
@@ -1927,12 +1822,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1954,8 +1849,8 @@ mod tests {
     #[test]
     fn open_equal_to() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: EqualTo(
                         Rc::new(Term {
@@ -1967,12 +1862,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -1994,8 +1889,8 @@ mod tests {
     #[test]
     fn open_greater_than() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: GreaterThan(
                         Rc::new(Term {
@@ -2007,12 +1902,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -2034,8 +1929,8 @@ mod tests {
     #[test]
     fn open_greater_than_or_equal_to() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: GreaterThanOrEqualTo(
                         Rc::new(Term {
@@ -2047,12 +1942,12 @@ mod tests {
                             variant: Variable("b", 1),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {
@@ -2074,16 +1969,16 @@ mod tests {
     #[test]
     fn open_boolean() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: Boolean,
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -2096,16 +1991,16 @@ mod tests {
     #[test]
     fn open_true() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: True,
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -2118,16 +2013,16 @@ mod tests {
     #[test]
     fn open_false() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: False,
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("y", 0),
-                }),
+                },
                 0,
             ),
             Term {
@@ -2140,8 +2035,8 @@ mod tests {
     #[test]
     fn open_if() {
         assert_eq!(
-            *open(
-                Rc::new(Term {
+            open(
+                &Term {
                     source_range: None,
                     variant: If(
                         Rc::new(Term {
@@ -2157,12 +2052,12 @@ mod tests {
                             variant: Variable("c", 2),
                         }),
                     ),
-                }),
+                },
                 0,
-                Rc::new(Term {
+                &Term {
                     source_range: None,
                     variant: Variable("x", 4),
-                }),
+                },
                 0,
             ),
             Term {

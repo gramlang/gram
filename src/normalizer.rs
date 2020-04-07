@@ -15,9 +15,9 @@ use std::rc::Rc;
 // when this function is finished, the context is left unmodified.
 #[allow(clippy::too_many_lines)]
 pub fn normalize_weak_head<'a>(
-    term: Rc<Term<'a>>,
+    term: &Term<'a>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
-) -> Rc<Term<'a>> {
+) -> Term<'a> {
     match &term.variant {
         Type
         | Lambda(_, _, _)
@@ -28,12 +28,12 @@ pub fn normalize_weak_head<'a>(
         | True
         | False => {
             // These cases are already in beta normal form.
-            term
+            term.clone()
         }
         Unifier(subterm) => {
             // If the unifier points to something, normalize it. Otherwise, we're stuck.
             if let Some(subterm) = &*subterm.borrow() {
-                normalize_weak_head(Rc::new(subterm.clone()), definitions_context)
+                normalize_weak_head(subterm, definitions_context)
             } else {
                 term.clone()
             }
@@ -45,39 +45,36 @@ pub fn normalize_weak_head<'a>(
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
                     normalize_weak_head(
-                        shift(definition.clone(), 0, *index + 1 - offset),
+                        &shift(definition, 0, *index + 1 - offset),
                         definitions_context,
                     )
                 }
                 None => {
                     // The variable doesn't have a definition. Just return it as a "neutral term".
-                    term
+                    term.clone()
                 }
             }
         }
         Application(applicand, argument) => {
             // Normalize the applicand.
-            let normalized_applicand = normalize_weak_head(applicand.clone(), definitions_context);
+            let normalized_applicand = normalize_weak_head(applicand, definitions_context);
 
             // Check if the applicand reduced to a lambda.
             if let Lambda(_, _, body) = &normalized_applicand.variant {
                 // Perform beta reduction and normalize the result.
-                normalize_weak_head(
-                    open(body.clone(), 0, argument.clone(), 0),
-                    definitions_context,
-                )
+                normalize_weak_head(&open(body, 0, argument, 0), definitions_context)
             } else {
                 // We didn't get a lambda. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: Application(normalized_applicand, argument.clone()),
-                })
+                    variant: Application(Rc::new(normalized_applicand), argument.clone()),
+                }
             }
         }
         Let(definitions, body) => {
             // Substitute the definitions into the body.
             let mut definitions = definitions.clone();
-            let mut body = body.clone();
+            let mut body = (**body).clone();
             for i in 0..definitions.len() {
                 // Compute these once rather than multiple times.
                 let i_index = definitions.len() - 1 - i;
@@ -92,142 +89,142 @@ pub fn normalize_weak_head<'a>(
 
                 // Unfold the definition.
                 let unfolded_definition = open(
-                    definition.clone(),
+                    definition,
                     i_index,
-                    Rc::new(Term {
+                    &Term {
                         source_range: None,
                         variant: Let(
                             vec![(
                                 variable,
-                                open(
-                                    shift(annotation.clone(), 0, 1),
+                                Rc::new(open(
+                                    &shift(annotation, 0, 1),
                                     i_index_plus_one,
-                                    body_for_unfolding.clone(),
+                                    &body_for_unfolding,
                                     0,
-                                ),
-                                open(
-                                    shift(definition.clone(), 0, 1),
+                                )),
+                                Rc::new(open(
+                                    &shift(definition, 0, 1),
                                     i_index_plus_one,
-                                    body_for_unfolding.clone(),
+                                    &body_for_unfolding,
                                     0,
-                                ),
+                                )),
                             )],
                             body_for_unfolding,
                         ),
-                    }),
+                    },
                     0,
                 );
 
                 // Substitute the unfolded definition in subsequent annotations and definitions.
                 for (_, annotation, definition) in definitions.iter_mut().skip(i) {
-                    *annotation = open(annotation.clone(), i_index, unfolded_definition.clone(), 0);
-                    *definition = open(definition.clone(), i_index, unfolded_definition.clone(), 0);
+                    *annotation = Rc::new(open(annotation, i_index, &unfolded_definition, 0));
+                    *definition = Rc::new(open(definition, i_index, &unfolded_definition, 0));
                 }
 
                 // Substitute the unfolded definition in the body.
-                body = open(body.clone(), i_index, unfolded_definition, 0);
+                body = open(&body, i_index, &unfolded_definition, 0);
             }
 
             // Normalize the body [tag:let_not_in_weak_head_normal_form].
-            normalize_weak_head(body, definitions_context)
+            normalize_weak_head(&body, definitions_context)
         }
         Negation(subterm) => {
             // Normalize the subterm.
-            let normalized_subterm = normalize_weak_head(subterm.clone(), definitions_context);
+            let normalized_subterm = normalize_weak_head(subterm, definitions_context);
 
             // Check if the subterm reduced to an integer literal.
             if let IntegerLiteral(integer) = &normalized_subterm.variant {
                 // Perform negation.
-                Rc::new(Term {
+                Term {
                     source_range: None,
                     variant: IntegerLiteral(-integer),
-                })
+                }
             } else {
                 // We didn't get an integer literal. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: Negation(normalized_subterm),
-                })
+                    variant: Negation(Rc::new(normalized_subterm)),
+                }
             }
         }
         Sum(term1, term2) => {
             // Normalize the left subterm.
-            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+            let normalized_term1 = normalize_weak_head(term1, definitions_context);
 
             // Normalize the right subterm.
-            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+            let normalized_term2 = normalize_weak_head(term2, definitions_context);
 
             // Check if the subterms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform addition.
-                Rc::new(Term {
+                Term {
                     source_range: None,
                     variant: IntegerLiteral(integer1 + integer2),
-                })
+                }
             } else {
                 // We didn't get integer literals. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: Sum(normalized_term1, normalized_term2),
-                })
+                    variant: Sum(Rc::new(normalized_term1), Rc::new(normalized_term2)),
+                }
             }
         }
         Difference(term1, term2) => {
             // Normalize the left subterm.
-            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+            let normalized_term1 = normalize_weak_head(term1, definitions_context);
 
             // Normalize the right subterm.
-            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+            let normalized_term2 = normalize_weak_head(term2, definitions_context);
 
             // Check if the subterms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform subtraction.
-                Rc::new(Term {
+                Term {
                     source_range: None,
                     variant: IntegerLiteral(integer1 - integer2),
-                })
+                }
             } else {
                 // We didn't get integer literals. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: Difference(normalized_term1, normalized_term2),
-                })
+                    variant: Difference(Rc::new(normalized_term1), Rc::new(normalized_term2)),
+                }
             }
         }
         Product(term1, term2) => {
             // Normalize the left subterm.
-            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+            let normalized_term1 = normalize_weak_head(term1, definitions_context);
 
             // Normalize the right subterm.
-            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+            let normalized_term2 = normalize_weak_head(term2, definitions_context);
 
             // Check if the subterms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform multiplication.
-                Rc::new(Term {
+                Term {
                     source_range: None,
                     variant: IntegerLiteral(integer1 * integer2),
-                })
+                }
             } else {
                 // We didn't get integer literals. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: Product(normalized_term1, normalized_term2),
-                })
+                    variant: Product(Rc::new(normalized_term1), Rc::new(normalized_term2)),
+                }
             }
         }
         Quotient(term1, term2) => {
             // Normalize the left subterm.
-            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+            let normalized_term1 = normalize_weak_head(term1, definitions_context);
 
             // Normalize the right subterm.
-            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+            let normalized_term2 = normalize_weak_head(term2, definitions_context);
 
             // Check if the subterms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
@@ -236,161 +233,167 @@ pub fn normalize_weak_head<'a>(
                 // Attempt to perform division.
                 if let Some(quotient) = integer1.checked_div(integer2) {
                     // The division was successful.
-                    Rc::new(Term {
+                    Term {
                         source_range: None,
                         variant: IntegerLiteral(quotient),
-                    })
+                    }
                 } else {
                     // Division by zero!
-                    Rc::new(Term {
+                    Term {
                         source_range: None,
-                        variant: Quotient(normalized_term1, normalized_term2),
-                    })
+                        variant: Quotient(Rc::new(normalized_term1), Rc::new(normalized_term2)),
+                    }
                 }
             } else {
                 // We didn't get integer literals. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: Quotient(normalized_term1, normalized_term2),
-                })
+                    variant: Quotient(Rc::new(normalized_term1), Rc::new(normalized_term2)),
+                }
             }
         }
         LessThan(term1, term2) => {
             // Normalize the left subterm.
-            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+            let normalized_term1 = normalize_weak_head(term1, definitions_context);
 
             // Normalize the right subterm.
-            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+            let normalized_term2 = normalize_weak_head(term2, definitions_context);
 
             // Check if the terms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform the comparison.
-                Rc::new(Term {
+                Term {
                     source_range: None,
                     variant: if integer1 < integer2 { True } else { False },
-                })
+                }
             } else {
                 // We didn't get integer literals. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: LessThan(normalized_term1, normalized_term2),
-                })
+                    variant: LessThan(Rc::new(normalized_term1), Rc::new(normalized_term2)),
+                }
             }
         }
         LessThanOrEqualTo(term1, term2) => {
             // Normalize the left subterm.
-            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+            let normalized_term1 = normalize_weak_head(term1, definitions_context);
 
             // Normalize the right subterm.
-            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+            let normalized_term2 = normalize_weak_head(term2, definitions_context);
 
             // Check if the terms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform the comparison.
-                Rc::new(Term {
+                Term {
                     source_range: None,
                     variant: if integer1 <= integer2 { True } else { False },
-                })
+                }
             } else {
                 // We didn't get integer literals. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: LessThanOrEqualTo(normalized_term1, normalized_term2),
-                })
+                    variant: LessThanOrEqualTo(
+                        Rc::new(normalized_term1),
+                        Rc::new(normalized_term2),
+                    ),
+                }
             }
         }
         EqualTo(term1, term2) => {
             // Normalize the left subterm.
-            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+            let normalized_term1 = normalize_weak_head(term1, definitions_context);
 
             // Normalize the right subterm.
-            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+            let normalized_term2 = normalize_weak_head(term2, definitions_context);
 
             // Check if the terms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform the comparison.
-                Rc::new(Term {
+                Term {
                     source_range: None,
                     variant: if integer1 == integer2 { True } else { False },
-                })
+                }
             } else {
                 // We didn't get integer literals. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: EqualTo(normalized_term1, normalized_term2),
-                })
+                    variant: EqualTo(Rc::new(normalized_term1), Rc::new(normalized_term2)),
+                }
             }
         }
         GreaterThan(term1, term2) => {
             // Normalize the left subterm.
-            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+            let normalized_term1 = normalize_weak_head(term1, definitions_context);
 
             // Normalize the right subterm.
-            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+            let normalized_term2 = normalize_weak_head(term2, definitions_context);
 
             // Check if the terms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform the comparison.
-                Rc::new(Term {
+                Term {
                     source_range: None,
                     variant: if integer1 > integer2 { True } else { False },
-                })
+                }
             } else {
                 // We didn't get integer literals. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: GreaterThan(normalized_term1, normalized_term2),
-                })
+                    variant: GreaterThan(Rc::new(normalized_term1), Rc::new(normalized_term2)),
+                }
             }
         }
         GreaterThanOrEqualTo(term1, term2) => {
             // Normalize the left subterm.
-            let normalized_term1 = normalize_weak_head(term1.clone(), definitions_context);
+            let normalized_term1 = normalize_weak_head(term1, definitions_context);
 
             // Normalize the right subterm.
-            let normalized_term2 = normalize_weak_head(term2.clone(), definitions_context);
+            let normalized_term2 = normalize_weak_head(term2, definitions_context);
 
             // Check if the terms reduced to integer literals.
             if let (IntegerLiteral(integer1), IntegerLiteral(integer2)) =
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Perform the comparison.
-                Rc::new(Term {
+                Term {
                     source_range: None,
                     variant: if integer1 >= integer2 { True } else { False },
-                })
+                }
             } else {
                 // We didn't get integer literals. We're done here.
-                Rc::new(Term {
+                Term {
                     source_range: None,
-                    variant: GreaterThanOrEqualTo(normalized_term1, normalized_term2),
-                })
+                    variant: GreaterThanOrEqualTo(
+                        Rc::new(normalized_term1),
+                        Rc::new(normalized_term2),
+                    ),
+                }
             }
         }
         If(condition, then_branch, else_branch) => {
             // Normalize the condition.
-            let normalized_condition = normalize_weak_head(condition.clone(), definitions_context);
+            let normalized_condition = normalize_weak_head(condition, definitions_context);
 
             // Pattern match on the condition.
             match normalized_condition.variant {
-                True => normalize_weak_head(then_branch.clone(), definitions_context),
-                False => normalize_weak_head(else_branch.clone(), definitions_context),
-                _ => Rc::new(Term {
+                True => normalize_weak_head(then_branch, definitions_context),
+                False => normalize_weak_head(else_branch, definitions_context),
+                _ => Term {
                     source_range: None,
                     variant: If(
-                        normalized_condition,
+                        Rc::new(normalized_condition),
                         then_branch.clone(),
                         else_branch.clone(),
                     ),
-                }),
+                },
             }
         }
     }
@@ -423,7 +426,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 4)),
                 variant: Type,
@@ -441,7 +444,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 1)),
                 variant: Variable("x", 0),
@@ -465,7 +468,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: Type,
@@ -483,7 +486,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 48)),
                 variant: Lambda(
@@ -549,7 +552,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 48)),
                 variant: Pi(
@@ -615,7 +618,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: Application(
@@ -661,7 +664,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((18, 19)),
                 variant: Variable("y", 0),
@@ -679,7 +682,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((4, 5)),
                 variant: Variable("y", 0),
@@ -697,7 +700,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 3)),
                 variant: Integer,
@@ -715,7 +718,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 2)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
@@ -733,7 +736,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&-42).unwrap()),
@@ -751,7 +754,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
@@ -769,7 +772,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
@@ -787,7 +790,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&6).unwrap()),
@@ -805,7 +808,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
@@ -823,7 +826,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: True,
@@ -841,7 +844,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: True,
@@ -859,7 +862,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: False,
@@ -877,7 +880,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: False,
@@ -895,7 +898,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: None,
                 variant: False,
@@ -913,7 +916,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 4)),
                 variant: Boolean,
@@ -931,7 +934,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 4)),
                 variant: True,
@@ -949,7 +952,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((0, 5)),
                 variant: False,
@@ -967,7 +970,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((13, 14)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
@@ -985,7 +988,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_eq!(
-            *normalize_weak_head(Rc::new(term), &mut definitions_context),
+            normalize_weak_head(&term, &mut definitions_context),
             Term {
                 source_range: Some((21, 22)),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&4).unwrap()),
