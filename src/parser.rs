@@ -2289,8 +2289,9 @@ fn reassociate_applications<'a>(acc: Option<Rc<Term<'a>>>, term: Rc<Term<'a>>) -
         Variant::ParseError => {
             // This should be unreachable due to [ref:error_check].
             panic!(
-                "{} called on a missing term or parse error.",
+                "{} called on a {}.",
                 "reassociate_applications".code_str(),
+                "ParseError".code_str(),
             )
         }
         Variant::Type
@@ -2512,8 +2513,9 @@ fn reassociate_products_and_quotients<'a>(
         Variant::ParseError => {
             // This should be unreachable due to [ref:error_check].
             panic!(
-                "{} called on a missing term or parse error.",
+                "{} called on a {}.",
                 "reassociate_products_and_quotients".code_str(),
+                "ParseError".code_str(),
             )
         }
         Variant::Type
@@ -2789,8 +2791,9 @@ fn reassociate_sums_and_differences<'a>(
         Variant::ParseError => {
             // This should be unreachable due to [ref:error_check].
             panic!(
-                "{} called on a missing term or parse error.",
+                "{} called on a {}.",
                 "reassociate_sums_and_differences".code_str(),
+                "ParseError".code_str(),
             )
         }
         Variant::Type
@@ -3058,8 +3061,9 @@ fn resolve_variables<'a>(
         Variant::ParseError => {
             // This should be unreachable due to [ref:error_check].
             panic!(
-                "{} called on a missing term or parse error.",
+                "{} called on a {}.",
                 "resolve_variables".code_str(),
+                "ParseError".code_str(),
             )
         }
         Variant::Type => {
