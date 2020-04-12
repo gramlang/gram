@@ -1,16 +1,19 @@
-// This macro is useful for writing tests that deal with errors.
+// This macro is useful for writing tests that deal with errors. It takes an expression of type
+// `Result<_, Vec<Error>>` and a search string, and asserts that the expressions evaluates to an
+// `Err(_)` and that the string representation of at least one of the errors contains the given
+// search string.
 #[macro_export]
 macro_rules! assert_fails {
-    ($expr:expr, $substr:expr $(,)?) => {{
+    ($expr:expr, $search_str:expr $(,)?) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
         let expr = $expr;
-        let substr = $substr;
+        let search_str = $search_str;
 
         // Before we actually format the errors, disable terminal colors.
         colored::control::set_override(false);
 
-        // Check that `$expr` fails and that the failure contains `$substr`.
+        // Check that `$expr` fails and that the failure contains `$search_str`.
         if let Err(errors) = expr {
             let mut found_error = false;
             let mut all_errors_string = "".to_owned();
@@ -19,7 +22,7 @@ macro_rules! assert_fails {
                 let error_string = error.to_string();
                 all_errors_string.push_str(&format!("{}\n", error_string));
 
-                if error_string.contains(substr) {
+                if error_string.contains(search_str) {
                     found_error = true;
                 }
             }
