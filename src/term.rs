@@ -1,7 +1,4 @@
-use crate::{
-    de_bruijn::free_variables,
-    token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
-};
+use crate::token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD};
 use num_bigint::BigInt;
 use std::{
     cell::RefCell,
@@ -160,5 +157,658 @@ fn group<'a>(term: &Term<'a>) -> String {
         | Variant::GreaterThan(_, _)
         | Variant::GreaterThanOrEqualTo(_, _)
         | Variant::If(_, _, _) => format!("({})", term),
+    }
+}
+
+// Compute the free variables of a term. A cutoff determines which variables are considered free.
+// This function includes free variables in type annotations.
+pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSet<usize>) {
+    match &term.variant {
+        Variant::Unifier(subterm) => {
+            if let Some(subterm) = &*subterm.borrow() {
+                free_variables(subterm, cutoff, variables);
+            }
+        }
+        Variant::Type
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => {}
+        Variant::Variable(_, index) => {
+            if *index >= cutoff {
+                variables.insert(*index - cutoff);
+            }
+        }
+        Variant::Lambda(_, domain, body) => {
+            free_variables(domain, cutoff, variables);
+            free_variables(body, cutoff + 1, variables);
+        }
+        Variant::Pi(_, domain, codomain) => {
+            free_variables(domain, cutoff, variables);
+            free_variables(codomain, cutoff + 1, variables);
+        }
+        Variant::Application(applicand, argument) => {
+            free_variables(applicand, cutoff, variables);
+            free_variables(argument, cutoff, variables);
+        }
+        Variant::Let(definitions, body) => {
+            for (_, annotation, definition) in definitions {
+                free_variables(annotation, cutoff + definitions.len(), variables);
+                free_variables(definition, cutoff + definitions.len(), variables);
+            }
+
+            free_variables(body, cutoff + definitions.len(), variables);
+        }
+        Variant::Negation(subterm) => free_variables(subterm, cutoff, variables),
+        Variant::Sum(term1, term2)
+        | Variant::Difference(term1, term2)
+        | Variant::Product(term1, term2)
+        | Variant::Quotient(term1, term2)
+        | Variant::LessThan(term1, term2)
+        | Variant::LessThanOrEqualTo(term1, term2)
+        | Variant::EqualTo(term1, term2)
+        | Variant::GreaterThan(term1, term2)
+        | Variant::GreaterThanOrEqualTo(term1, term2) => {
+            free_variables(term1, cutoff, variables);
+            free_variables(term2, cutoff, variables);
+        }
+        Variant::If(condition, then_branch, else_branch) => {
+            free_variables(condition, cutoff, variables);
+            free_variables(then_branch, cutoff, variables);
+            free_variables(else_branch, cutoff, variables);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        term::free_variables,
+        term::{
+            Term,
+            Variant::{
+                Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
+                Variable,
+            },
+        },
+    };
+    use num_bigint::ToBigInt;
+    use std::{cell::RefCell, collections::HashSet, rc::Rc};
+
+    #[test]
+    fn free_variables_unifier_none() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Unifier(Rc::new(RefCell::new(None))),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_unifier_some() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Unifier(Rc::new(RefCell::new(Some(Term {
+                    source_range: None,
+                    variant: Variable("x", 15),
+                })))),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_type() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Type,
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_variable_free() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Variable("x", 15),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_variable_bound() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Variable("x", 5),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_lambda() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Lambda(
+                    "a",
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&4));
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_pi() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Pi(
+                    "a",
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&4));
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_application() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Application(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_let() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Let(
+                    vec![
+                        (
+                            "x",
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Type,
+                            }),
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Variable("y", 15),
+                            }),
+                        ),
+                        (
+                            "y",
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Type,
+                            }),
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Variable("z", 16),
+                            }),
+                        ),
+                    ],
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("w", 17),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&3));
+        assert!(variables.contains(&4));
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_integer() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Integer,
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_integer_literal() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_negation() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Negation(Rc::new(Term {
+                    source_range: None,
+                    variant: Variable("b", 15),
+                })),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+    }
+
+    #[test]
+    fn free_variables_sum() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Sum(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_difference() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Difference(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_product() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Product(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_quotient() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Quotient(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_less_than() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: LessThan(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_less_than_or_equal_to() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: LessThanOrEqualTo(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_equal_to() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: EqualTo(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_greater_than() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: GreaterThan(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_greater_than_or_equal_to() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: GreaterThanOrEqualTo(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+    }
+
+    #[test]
+    fn free_variables_boolean() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: Boolean,
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_true() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: True,
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_false() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: False,
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.is_empty());
+    }
+
+    #[test]
+    fn free_variables_if() {
+        let mut variables = HashSet::new();
+
+        free_variables(
+            &Term {
+                source_range: None,
+                variant: If(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("c", 17),
+                    }),
+                ),
+            },
+            10,
+            &mut variables,
+        );
+
+        assert!(variables.contains(&5));
+        assert!(variables.contains(&6));
+        assert!(variables.contains(&7));
     }
 }
