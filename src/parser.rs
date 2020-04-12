@@ -1,9 +1,9 @@
 use crate::{
-    de_bruijn::free_variables,
     error::{listing, throw, Error},
     evaluator::is_value,
     format::CodeStr,
     term,
+    term::free_variables,
     token::{self, TerminatorType, Token},
 };
 use colored::Colorize;
