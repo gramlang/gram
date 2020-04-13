@@ -6,151 +6,165 @@ use crate::term::{
         Quotient, Sum, True, Type, Unifier, Variable,
     },
 };
-use std::{cmp::Ordering, rc::Rc};
+use std::{cmp::Ordering, convert::TryFrom, rc::Rc};
 
-// Shifting refers to increasing the De Bruijn indices of free variables. A cutoff determines which
-// variables are considered free. This operation is used to lower a term into a nested scope while
-// preserving its meaning.
+// Shifting refers to adjusting the De Bruijn indices of free variables. A cutoff determines which
+// variables are considered free. This function is used to raise or lower a term into a different
+// scope while preserving its meaning. This is necessarily a partial operation. If the term has any
+// free variables in the range `cutoff <= variable < cutoff - amount`, this operation will fail.
 #[allow(clippy::too_many_lines)]
-pub fn shift<'a>(term: &Term<'a>, cutoff: usize, amount: usize) -> Term<'a> {
+pub fn signed_shift<'a>(term: &Term<'a>, cutoff: usize, amount: isize) -> Option<Term<'a>> {
     match &term.variant {
-        Unifier(subterm) => {
-            if let Some(subterm) = &*subterm.borrow() {
-                shift(subterm, cutoff, amount)
-            } else {
-                term.clone()
-            }
-        }
-        Type | Integer | IntegerLiteral(_) | Boolean | True | False => term.clone(),
+        Unifier(subterm, subterm_shift) => Some(Term {
+            source_range: term.source_range,
+            variant: Unifier(subterm.clone(), subterm_shift + amount),
+        }),
+        Type | Integer | IntegerLiteral(_) | Boolean | True | False => Some(term.clone()),
         Variable(variable, index) => {
             if *index >= cutoff {
-                Term {
-                    source_range: term.source_range,
-                    variant: Variable(variable, index + amount),
+                // These two `unwrap`s are "virtually safe", unless the conversions overflow.
+                if isize::try_from(*index).unwrap() + amount >= isize::try_from(cutoff).unwrap() {
+                    Some(Term {
+                        source_range: term.source_range,
+                        variant: Variable(
+                            variable,
+                            usize::try_from(isize::try_from(*index).unwrap() + amount).unwrap(),
+                        ),
+                    })
+                } else {
+                    None
                 }
             } else {
-                term.clone()
+                Some(term.clone())
             }
         }
-        Lambda(variable, domain, body) => Term {
+        Lambda(variable, domain, body) => Some(Term {
             source_range: term.source_range,
             variant: Lambda(
                 variable,
-                Rc::new(shift(domain, cutoff, amount)),
-                Rc::new(shift(body, cutoff + 1, amount)),
+                Rc::new(signed_shift(domain, cutoff, amount)?),
+                Rc::new(signed_shift(body, cutoff + 1, amount)?),
             ),
-        },
-        Pi(variable, domain, codomain) => Term {
+        }),
+        Pi(variable, domain, codomain) => Some(Term {
             source_range: term.source_range,
             variant: Pi(
                 variable,
-                Rc::new(shift(domain, cutoff, amount)),
-                Rc::new(shift(codomain, cutoff + 1, amount)),
+                Rc::new(signed_shift(domain, cutoff, amount)?),
+                Rc::new(signed_shift(codomain, cutoff + 1, amount)?),
             ),
-        },
-        Application(applicand, argument) => Term {
+        }),
+        Application(applicand, argument) => Some(Term {
             source_range: term.source_range,
             variant: Application(
-                Rc::new(shift(applicand, cutoff, amount)),
-                Rc::new(shift(argument, cutoff, amount)),
+                Rc::new(signed_shift(applicand, cutoff, amount)?),
+                Rc::new(signed_shift(argument, cutoff, amount)?),
             ),
-        },
+        }),
         Let(definitions, body) => {
             let new_cutoff = cutoff + definitions.len();
+            let mut new_definitions = vec![];
+            for (variable, annotation, definition) in definitions {
+                new_definitions.push((
+                    *variable,
+                    Rc::new(signed_shift(annotation, new_cutoff, amount)?),
+                    Rc::new(signed_shift(definition, new_cutoff, amount)?),
+                ));
+            }
 
-            Term {
+            Some(Term {
                 source_range: term.source_range,
                 variant: Let(
-                    definitions
-                        .iter()
-                        .map(|(variable, annotation, definition)| {
-                            (
-                                *variable,
-                                Rc::new(shift(annotation, new_cutoff, amount)),
-                                Rc::new(shift(definition, new_cutoff, amount)),
-                            )
-                        })
-                        .collect(),
-                    Rc::new(shift(body, new_cutoff, amount)),
+                    new_definitions,
+                    Rc::new(signed_shift(body, new_cutoff, amount)?),
                 ),
-            }
+            })
         }
-        Negation(subterm) => Term {
+        Negation(subterm) => Some(Term {
             source_range: term.source_range,
-            variant: Negation(Rc::new(shift(subterm, cutoff, amount))),
-        },
-        Sum(term1, term2) => Term {
+            variant: Negation(Rc::new(signed_shift(subterm, cutoff, amount)?)),
+        }),
+        Sum(term1, term2) => Some(Term {
             source_range: term.source_range,
             variant: Sum(
-                Rc::new(shift(term1, cutoff, amount)),
-                Rc::new(shift(term2, cutoff, amount)),
+                Rc::new(signed_shift(term1, cutoff, amount)?),
+                Rc::new(signed_shift(term2, cutoff, amount)?),
             ),
-        },
-        Difference(term1, term2) => Term {
+        }),
+        Difference(term1, term2) => Some(Term {
             source_range: term.source_range,
             variant: Difference(
-                Rc::new(shift(term1, cutoff, amount)),
-                Rc::new(shift(term2, cutoff, amount)),
+                Rc::new(signed_shift(term1, cutoff, amount)?),
+                Rc::new(signed_shift(term2, cutoff, amount)?),
             ),
-        },
-        Product(term1, term2) => Term {
+        }),
+        Product(term1, term2) => Some(Term {
             source_range: term.source_range,
             variant: Product(
-                Rc::new(shift(term1, cutoff, amount)),
-                Rc::new(shift(term2, cutoff, amount)),
+                Rc::new(signed_shift(term1, cutoff, amount)?),
+                Rc::new(signed_shift(term2, cutoff, amount)?),
             ),
-        },
-        Quotient(term1, term2) => Term {
+        }),
+        Quotient(term1, term2) => Some(Term {
             source_range: term.source_range,
             variant: Quotient(
-                Rc::new(shift(term1, cutoff, amount)),
-                Rc::new(shift(term2, cutoff, amount)),
+                Rc::new(signed_shift(term1, cutoff, amount)?),
+                Rc::new(signed_shift(term2, cutoff, amount)?),
             ),
-        },
-        LessThan(term1, term2) => Term {
+        }),
+        LessThan(term1, term2) => Some(Term {
             source_range: term.source_range,
             variant: LessThan(
-                Rc::new(shift(term1, cutoff, amount)),
-                Rc::new(shift(term2, cutoff, amount)),
+                Rc::new(signed_shift(term1, cutoff, amount)?),
+                Rc::new(signed_shift(term2, cutoff, amount)?),
             ),
-        },
-        LessThanOrEqualTo(term1, term2) => Term {
+        }),
+        LessThanOrEqualTo(term1, term2) => Some(Term {
             source_range: term.source_range,
             variant: LessThanOrEqualTo(
-                Rc::new(shift(term1, cutoff, amount)),
-                Rc::new(shift(term2, cutoff, amount)),
+                Rc::new(signed_shift(term1, cutoff, amount)?),
+                Rc::new(signed_shift(term2, cutoff, amount)?),
             ),
-        },
-        EqualTo(term1, term2) => Term {
+        }),
+        EqualTo(term1, term2) => Some(Term {
             source_range: term.source_range,
             variant: EqualTo(
-                Rc::new(shift(term1, cutoff, amount)),
-                Rc::new(shift(term2, cutoff, amount)),
+                Rc::new(signed_shift(term1, cutoff, amount)?),
+                Rc::new(signed_shift(term2, cutoff, amount)?),
             ),
-        },
-        GreaterThan(term1, term2) => Term {
+        }),
+        GreaterThan(term1, term2) => Some(Term {
             source_range: term.source_range,
             variant: GreaterThan(
-                Rc::new(shift(term1, cutoff, amount)),
-                Rc::new(shift(term2, cutoff, amount)),
+                Rc::new(signed_shift(term1, cutoff, amount)?),
+                Rc::new(signed_shift(term2, cutoff, amount)?),
             ),
-        },
-        GreaterThanOrEqualTo(term1, term2) => Term {
+        }),
+        GreaterThanOrEqualTo(term1, term2) => Some(Term {
             source_range: term.source_range,
             variant: GreaterThanOrEqualTo(
-                Rc::new(shift(term1, cutoff, amount)),
-                Rc::new(shift(term2, cutoff, amount)),
+                Rc::new(signed_shift(term1, cutoff, amount)?),
+                Rc::new(signed_shift(term2, cutoff, amount)?),
             ),
-        },
-        If(condition, then_branch, else_branch) => Term {
+        }),
+        If(condition, then_branch, else_branch) => Some(Term {
             source_range: term.source_range,
             variant: If(
-                Rc::new(shift(condition, cutoff, amount)),
-                Rc::new(shift(then_branch, cutoff, amount)),
-                Rc::new(shift(else_branch, cutoff, amount)),
+                Rc::new(signed_shift(condition, cutoff, amount)?),
+                Rc::new(signed_shift(then_branch, cutoff, amount)?),
+                Rc::new(signed_shift(else_branch, cutoff, amount)?),
             ),
-        },
+        }),
     }
+}
+
+// This is an unsigned version of the `signed_shift` function above. Unlike that function, this one
+// is total.
+pub fn unsigned_shift<'a>(term: &Term<'a>, cutoff: usize, amount: usize) -> Term<'a> {
+    // The inner `unwrap` is "essentially safe" in that it can only fail in the virtually
+    // impossible case of the conversion overflowing. The outer `unwrap` is safe because `amount`
+    // is non-negative.
+    signed_shift(term, cutoff, isize::try_from(amount).unwrap()).unwrap()
 }
 
 // Opening is the act of replacing a free variable by a term and decrementing the De Bruijn indices
@@ -166,7 +180,7 @@ pub fn open<'a>(
     shift_amount: usize,
 ) -> Term<'a> {
     match &term_to_open.variant {
-        Unifier(subterm) => {
+        Unifier(subterm, _) => {
             if let Some(subterm) = &*subterm.borrow() {
                 open(subterm, index_to_replace, term_to_insert, shift_amount)
             } else {
@@ -180,7 +194,7 @@ pub fn open<'a>(
                 variant: Variable(variable, index - 1),
             },
             Ordering::Less => term_to_open.clone(),
-            Ordering::Equal => shift(term_to_insert, 0, shift_amount),
+            Ordering::Equal => unsigned_shift(term_to_insert, 0, shift_amount),
         },
         Lambda(variable, domain, body) => Term {
             source_range: term_to_open.source_range,
@@ -363,7 +377,7 @@ pub fn open<'a>(
 mod tests {
     use crate::{
         assert_same,
-        de_bruijn::{open, shift},
+        de_bruijn::{open, signed_shift, unsigned_shift},
         term::{
             Term,
             Variant::{
@@ -378,48 +392,156 @@ mod tests {
     use std::{cell::RefCell, rc::Rc};
 
     #[test]
-    fn shift_unifier_none() {
+    fn signed_shift_unifier_none() {
         assert_same!(
-            shift(
+            signed_shift(
                 &Term {
                     source_range: None,
-                    variant: Unifier(Rc::new(RefCell::new(None))),
+                    variant: Unifier(Rc::new(RefCell::new(None)), 0),
                 },
                 0,
-                42,
+                -42,
             ),
-            Term {
+            Some(Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(None))),
-            },
+                variant: Unifier(Rc::new(RefCell::new(None)), -42),
+            }),
         );
     }
 
     #[test]
-    fn shift_unifier_some() {
+    fn signed_shift_unifier_some() {
         assert_same!(
-            shift(
+            signed_shift(
                 &Term {
                     source_range: None,
-                    variant: Unifier(Rc::new(RefCell::new(Some(Term {
+                    variant: Unifier(
+                        Rc::new(RefCell::new(Some(Term {
+                            source_range: None,
+                            variant: Variable("x", 0),
+                        }))),
+                        0,
+                    ),
+                },
+                0,
+                -42,
+            ),
+            Some(Term {
+                source_range: None,
+                variant: Unifier(
+                    Rc::new(RefCell::new(Some(Term {
                         source_range: None,
                         variant: Variable("x", 0),
-                    })))),
+                    }))),
+                    -42,
+                ),
+            }),
+        );
+    }
+
+    #[test]
+    fn signed_shift_variable_free() {
+        assert_same!(
+            signed_shift(
+                &Term {
+                    source_range: None,
+                    variant: Variable("x", 10),
+                },
+                5,
+                -3,
+            ),
+            Some(Term {
+                source_range: None,
+                variant: Variable("x", 7),
+            }),
+        );
+    }
+
+    #[test]
+    fn signed_shift_variable_bound() {
+        assert_same!(
+            signed_shift(
+                &Term {
+                    source_range: None,
+                    variant: Variable("x", 4),
+                },
+                5,
+                -3,
+            ),
+            Some(Term {
+                source_range: None,
+                variant: Variable("x", 4),
+            }),
+        );
+    }
+
+    #[test]
+    fn signed_shift_variable_conflict() {
+        assert_same!(
+            signed_shift(
+                &Term {
+                    source_range: None,
+                    variant: Variable("x", 10),
+                },
+                5,
+                -7,
+            ),
+            None,
+        );
+    }
+
+    #[test]
+    fn unsigned_shift_unifier_none() {
+        assert_same!(
+            unsigned_shift(
+                &Term {
+                    source_range: None,
+                    variant: Unifier(Rc::new(RefCell::new(None)), 0),
                 },
                 0,
                 42,
             ),
             Term {
                 source_range: None,
-                variant: Variable("x", 42),
+                variant: Unifier(Rc::new(RefCell::new(None)), 42),
             },
         );
     }
 
     #[test]
-    fn shift_type() {
+    fn unsigned_shift_unifier_some() {
         assert_same!(
-            shift(
+            unsigned_shift(
+                &Term {
+                    source_range: None,
+                    variant: Unifier(
+                        Rc::new(RefCell::new(Some(Term {
+                            source_range: None,
+                            variant: Variable("x", 0),
+                        }))),
+                        0,
+                    ),
+                },
+                0,
+                42,
+            ),
+            Term {
+                source_range: None,
+                variant: Unifier(
+                    Rc::new(RefCell::new(Some(Term {
+                        source_range: None,
+                        variant: Variable("x", 0),
+                    }))),
+                    42,
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn unsigned_shift_type() {
+        assert_same!(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Type,
@@ -435,9 +557,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_variable_free() {
+    fn unsigned_shift_variable_free() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Variable("x", 0),
@@ -453,9 +575,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_variable_bound() {
+    fn unsigned_shift_variable_bound() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Variable("x", 0),
@@ -471,9 +593,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_lambda() {
+    fn unsigned_shift_lambda() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Lambda(
@@ -509,9 +631,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_pi() {
+    fn unsigned_shift_pi() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Pi(
@@ -547,9 +669,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_application() {
+    fn unsigned_shift_application() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Application(
@@ -583,9 +705,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_let() {
+    fn unsigned_shift_let() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Let(
@@ -659,9 +781,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_integer() {
+    fn unsigned_shift_integer() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Integer,
@@ -677,9 +799,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_integer_literal() {
+    fn unsigned_shift_integer_literal() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
@@ -695,9 +817,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_negation() {
+    fn unsigned_shift_negation() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Negation(Rc::new(Term {
@@ -719,9 +841,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_sum() {
+    fn unsigned_shift_sum() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Sum(
@@ -755,9 +877,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_difference() {
+    fn unsigned_shift_difference() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Difference(
@@ -791,9 +913,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_product() {
+    fn unsigned_shift_product() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Product(
@@ -827,9 +949,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_quotient() {
+    fn unsigned_shift_quotient() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Quotient(
@@ -863,9 +985,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_less_than() {
+    fn unsigned_shift_less_than() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: LessThan(
@@ -899,9 +1021,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_less_than_or_equal_to() {
+    fn unsigned_shift_less_than_or_equal_to() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: LessThanOrEqualTo(
@@ -935,9 +1057,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_equal_to() {
+    fn unsigned_shift_equal_to() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: EqualTo(
@@ -971,9 +1093,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_greater_than() {
+    fn unsigned_shift_greater_than() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: GreaterThan(
@@ -1007,9 +1129,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_greater_than_or_equal_to() {
+    fn unsigned_shift_greater_than_or_equal_to() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: GreaterThanOrEqualTo(
@@ -1043,9 +1165,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_boolean() {
+    fn unsigned_shift_boolean() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: Boolean,
@@ -1061,9 +1183,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_true() {
+    fn unsigned_shift_true() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: True,
@@ -1079,9 +1201,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_false() {
+    fn unsigned_shift_false() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: False,
@@ -1097,9 +1219,9 @@ mod tests {
     }
 
     #[test]
-    fn shift_if() {
+    fn unsigned_shift_if() {
         assert_same!(
-            shift(
+            unsigned_shift(
                 &Term {
                     source_range: None,
                     variant: If(
@@ -1146,7 +1268,7 @@ mod tests {
             open(
                 &Term {
                     source_range: None,
-                    variant: Unifier(Rc::new(RefCell::new(None))),
+                    variant: Unifier(Rc::new(RefCell::new(None)), 0),
                 },
                 0,
                 &Term {
@@ -1157,7 +1279,7 @@ mod tests {
             ),
             Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(None))),
+                variant: Unifier(Rc::new(RefCell::new(None)), 0),
             },
         );
     }
@@ -1168,10 +1290,13 @@ mod tests {
             open(
                 &Term {
                     source_range: None,
-                    variant: Unifier(Rc::new(RefCell::new(Some(Term {
-                        source_range: None,
-                        variant: Variable("x", 0),
-                    })))),
+                    variant: Unifier(
+                        Rc::new(RefCell::new(Some(Term {
+                            source_range: None,
+                            variant: Variable("x", 0),
+                        }))),
+                        0,
+                    ),
                 },
                 0,
                 &Term {

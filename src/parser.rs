@@ -3095,7 +3095,7 @@ fn resolve_variables<'a>(
                 // Construct and return a unifier.
                 term::Term {
                     source_range: Some(term.source_range.0),
-                    variant: term::Variant::Unifier(Rc::new(RefCell::new(None))),
+                    variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
                 }
             }
         }
@@ -3137,7 +3137,7 @@ fn resolve_variables<'a>(
                     } else {
                         Rc::new(term::Term {
                             source_range: None,
-                            variant: term::Variant::Unifier(Rc::new(RefCell::new(None))),
+                            variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
                         })
                     },
                     Rc::new(resolve_variables(
@@ -3285,7 +3285,7 @@ fn resolve_variables<'a>(
                     )),
                     None => Rc::new(term::Term {
                         source_range: None,
-                        variant: term::Variant::Unifier(Rc::new(RefCell::new(None))),
+                        variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
                     }),
                 };
 
@@ -3660,7 +3660,9 @@ fn check_definitions<'a>(
         | term::Variant::Boolean
         | term::Variant::True
         | term::Variant::False => {}
-        term::Variant::Unifier(subterm) => {
+        term::Variant::Unifier(subterm, subterm_shift) => {
+            assert_eq!(*subterm_shift, 0);
+
             if let Some(subterm) = &*subterm.borrow() {
                 check_definitions(
                     source_path,
@@ -3922,7 +3924,7 @@ mod tests {
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 1)),
-                variant: Unifier(Rc::new(RefCell::new(None))),
+                variant: Unifier(Rc::new(RefCell::new(None)), 0),
             },
         );
     }
@@ -3953,7 +3955,7 @@ mod tests {
                     "x",
                     Rc::new(Term {
                         source_range: None,
-                        variant: Unifier(Rc::new(RefCell::new(None))),
+                        variant: Unifier(Rc::new(RefCell::new(None)), 0),
                     }),
                     Rc::new(Term {
                         source_range: Some((5, 6)),
@@ -4274,7 +4276,7 @@ mod tests {
                             "x",
                             Rc::new(Term {
                                 source_range: None,
-                                variant: Unifier(Rc::new(RefCell::new(None))),
+                                variant: Unifier(Rc::new(RefCell::new(None)), 0),
                             }),
                             Rc::new(Term {
                                 source_range: Some((4, 26)),

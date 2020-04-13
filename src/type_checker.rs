@@ -1,5 +1,5 @@
 use crate::{
-    de_bruijn::{open, shift},
+    de_bruijn::{open, unsigned_shift},
     error::{throw, Error},
     format::CodeStr,
     parser::PLACEHOLDER_VARIABLE,
@@ -74,11 +74,11 @@ pub fn type_check_rec<'a>(
 
     // The typing rules are syntax-directed, so we pattern-match on the term.
     match &term.variant {
-        Unifier(_) | Type | Integer | Boolean => type_term,
+        Unifier(_, _) | Type | Integer | Boolean => type_term,
         Variable(_, index) => {
             // Shift the type such that it's valid in the current context.
             let (variable_type, offset) = &typing_context[typing_context.len() - 1 - *index];
-            shift(variable_type, 0, *index + 1 - offset)
+            unsigned_shift(variable_type, 0, *index + 1 - offset)
         }
         Lambda(variable, domain, body) => {
             // Infer the type of the domain.
@@ -196,13 +196,13 @@ pub fn type_check_rec<'a>(
             // Construct a unification term for the domain.
             let domain = Rc::new(Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(None))),
+                variant: Unifier(Rc::new(RefCell::new(None)), 0),
             });
 
             // Construct a unification term for the codomain.
             let codomain = Rc::new(Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(None))),
+                variant: Unifier(Rc::new(RefCell::new(None)), 0),
             });
 
             // Construct a pi type for unification.
@@ -352,12 +352,12 @@ pub fn type_check_rec<'a>(
                                 .map(|(variable, annotation, definition)| {
                                     (
                                         *variable,
-                                        Rc::new(shift(
+                                        Rc::new(unsigned_shift(
                                             annotation,
                                             0,
                                             definitions_len_minus_one_minus_i,
                                         )),
-                                        Rc::new(shift(
+                                        Rc::new(unsigned_shift(
                                             definition,
                                             0,
                                             definitions_len_minus_one_minus_i,

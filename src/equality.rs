@@ -1,9 +1,12 @@
-use crate::term::{
-    Term,
-    Variant::{
-        Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo, If,
-        Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi, Product,
-        Quotient, Sum, True, Type, Unifier, Variable,
+use crate::{
+    de_bruijn::signed_shift,
+    term::{
+        Term,
+        Variant::{
+            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
+            Product, Quotient, Sum, True, Type, Unifier, Variable,
+        },
     },
 };
 use std::rc::Rc;
@@ -13,12 +16,20 @@ use std::rc::Rc;
 #[allow(clippy::too_many_lines)]
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     match (&term1.variant, &term2.variant) {
-        (Unifier(subterm1), Unifier(subterm2)) => {
-            Rc::ptr_eq(subterm1, subterm2)
+        (Unifier(subterm1, subterm_shift1), Unifier(subterm2, subterm_shift2)) => {
+            (Rc::ptr_eq(subterm1, subterm2) && subterm_shift1 == subterm_shift2)
                 || if let (Some(subterm1), Some(subterm2)) =
                     (&*subterm1.borrow(), &*subterm2.borrow())
                 {
-                    syntactically_equal(subterm1, subterm2)
+                    if let (Some(subterm1), Some(subterm2)) = (
+                        signed_shift(subterm1, 0, *subterm_shift1),
+                        signed_shift(subterm2, 0, *subterm_shift2),
+                    ) {
+                        syntactically_equal(&subterm1, &subterm2)
+                    } else {
+                        // The term is malformed. The error will be reported during type checking.
+                        false
+                    }
                 } else {
                     // Even in the case where both subterms are `None`, we return `false` here
                     // because we're essentially comparing two different unification variables.
@@ -67,8 +78,8 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
                 && syntactically_equal(then_branch1, then_branch2)
                 && syntactically_equal(else_branch1, else_branch2)
         }
-        (Unifier(_), _)
-        | (_, Unifier(_))
+        (Unifier(_, _), _)
+        | (_, Unifier(_, _))
         | (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _), _)
@@ -117,6 +128,21 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
 #[cfg(test)]
 mod tests {
     use crate::{equality::syntactically_equal, parser::parse, tokenizer::tokenize};
+
+    #[test]
+    fn syntactically_inequal_unifier() {
+        let context = [];
+
+        let source1 = "_";
+        let tokens1 = tokenize(None, source1).unwrap();
+        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+
+        let source2 = "_";
+        let tokens2 = tokenize(None, source2).unwrap();
+        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+
+        assert_eq!(syntactically_equal(&term1, &term2), false);
+    }
 
     #[test]
     fn syntactically_equal_type() {
