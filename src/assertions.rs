@@ -27,7 +27,10 @@ macro_rules! assert_fails {
                 }
             }
 
-            assert!(found_error);
+            assert!(
+                found_error,
+                "The expression failed as expected, but not with the expected error.",
+            );
         } else {
             panic!("The expression was supposed to fail, but it succeeded.");
         }
@@ -54,4 +57,73 @@ macro_rules! assert_same {
         // Assert that the expressions have the same debug representation.
         assert_eq!(format!("{:?}", expr1), format!("{:?}", expr2));
     }};
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{assert_fails, assert_same, error::Error};
+
+    #[test]
+    #[should_panic(expected = "The expression was supposed to fail, but it succeeded.")]
+    fn assert_fails_empty() {
+        let success: Result<usize, Vec<Error>> = Ok(42);
+
+        assert_fails!(success, "search string");
+    }
+
+    #[test]
+    fn assert_fails_match() {
+        let success: Result<usize, Vec<Error>> = Err(vec![
+            Error {
+                message: "foo bar".to_owned(),
+                reason: None,
+            },
+            Error {
+                message: "foo search string bar".to_owned(),
+                reason: None,
+            },
+            Error {
+                message: "foo bar".to_owned(),
+                reason: None,
+            },
+        ]);
+
+        assert_fails!(success, "search string");
+    }
+
+    #[test]
+    #[should_panic(
+        // This comma on the comment at the end of the line below is needed to satisfy the trailing
+        // commas check.
+        expected = "The expression failed as expected, but not with the expected error." // ,
+    )]
+    fn assert_fails_mismatch() {
+        let success: Result<usize, Vec<Error>> = Err(vec![
+            Error {
+                message: "foo bar".to_owned(),
+                reason: None,
+            },
+            Error {
+                message: "foo bar".to_owned(),
+                reason: None,
+            },
+            Error {
+                message: "foo bar".to_owned(),
+                reason: None,
+            },
+        ]);
+
+        assert_fails!(success, "search string");
+    }
+
+    #[test]
+    fn assert_same_match() {
+        assert_same!(42, 42);
+    }
+
+    #[test]
+    #[should_panic(expected = "42")]
+    fn assert_same_mismatch() {
+        assert_same!(42, 43);
+    }
 }
