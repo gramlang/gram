@@ -6,7 +6,7 @@ use num_bigint::BigInt;
 use std::{
     cell::RefCell,
     collections::HashSet,
-    fmt::{Display, Formatter, Result},
+    fmt::{Display, Formatter},
     rc::Rc,
 };
 
@@ -21,7 +21,11 @@ pub struct Term<'a> {
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug)]
 pub enum Variant<'a> {
-    Unifier(Rc<RefCell<Option<Term<'a>>>>, isize), // (subterm, subterm_shift)
+    // For `Unifier` terms, we maintain the invariant that the `subterm`, if it exists, can be
+    // shifted by `subterm_shift` [tag:unifier_shifts_valid]. Note that shifting is a partial
+    // operation, and that's why this invariant doesn't trivially hold.
+    Unifier(Rc<RefCell<Result<Term<'a>, isize>>>, isize), // (subterm/min_shift, subterm_shift)
+
     Type,
     Variable(&'a str, usize),
     Lambda(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
@@ -48,17 +52,21 @@ pub enum Variant<'a> {
 }
 
 impl<'a> Display for Term<'a> {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         write!(f, "{}", self.variant)?;
         Ok(())
     }
 }
 
 impl<'a> Display for Variant<'a> {
-    fn fmt(&self, f: &mut Formatter) -> Result {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             Self::Unifier(subterm, _) => {
-                if let Some(subterm) = &*subterm.borrow() {
+                // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too
+                // long.
+                let borrow = { subterm.borrow().clone() };
+
+                if let Ok(subterm) = borrow {
                     write!(f, "{}", subterm)
                 } else {
                     write!(f, "_")
@@ -132,7 +140,10 @@ impl<'a> Display for Variant<'a> {
 fn group<'a>(term: &Term<'a>) -> String {
     match &term.variant {
         Variant::Unifier(subterm, _) => {
-            if let Some(subterm) = &*subterm.borrow() {
+            // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
+            let borrow = { subterm.borrow().clone() };
+
+            if let Ok(subterm) = borrow {
                 group(&subterm)
             } else {
                 format!("{}", term)
@@ -168,8 +179,11 @@ fn group<'a>(term: &Term<'a>) -> String {
 pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSet<usize>) {
     match &term.variant {
         Variant::Unifier(subterm, subterm_shift) => {
-            if let Some(subterm) = &*subterm.borrow() {
-                if let Some(subterm) = signed_shift(subterm, 0, *subterm_shift) {
+            // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
+            let borrow = { subterm.borrow().clone() };
+
+            if let Ok(subterm) = borrow {
+                if let Some(subterm) = signed_shift(&subterm, 0, *subterm_shift) {
                     free_variables(&subterm, cutoff, variables);
                 } else {
                     // The `signed_shift` failed. This means the term is malformed. The
@@ -253,7 +267,7 @@ mod tests {
         free_variables(
             &Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(None)), 0),
+                variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
             },
             10,
             &mut variables,
@@ -270,7 +284,7 @@ mod tests {
             &Term {
                 source_range: None,
                 variant: Unifier(
-                    Rc::new(RefCell::new(Some(Term {
+                    Rc::new(RefCell::new(Ok(Term {
                         source_range: None,
                         variant: Variable("x", 15),
                     }))),
