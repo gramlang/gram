@@ -1,5 +1,5 @@
 use crate::{
-    de_bruijn::{open, shift},
+    de_bruijn::{open, signed_shift, unsigned_shift},
     error::Error,
     format::CodeStr,
     term::{
@@ -47,9 +47,12 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
         | Boolean
         | True
         | False => None,
-        Unifier(subterm) => {
+        Unifier(subterm, subterm_shift) => {
             // If the unifier points to something, step to it. Otherwise, we're stuck.
-            subterm.borrow().as_ref().cloned()
+            subterm
+                .borrow()
+                .as_ref()
+                .and_then(|subterm| signed_shift(subterm, 0, *subterm_shift))
         }
         Application(applicand, argument) => {
             // Try to step the applicand.
@@ -133,13 +136,13 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                             vec![(
                                 variable,
                                 Rc::new(open(
-                                    &shift(annotation, 0, 1),
+                                    &unsigned_shift(annotation, 0, 1),
                                     index_plus_one,
                                     &body_for_unfolding,
                                     0,
                                 )),
                                 Rc::new(open(
-                                    &shift(definition, 0, 1),
+                                    &unsigned_shift(definition, 0, 1),
                                     index_plus_one,
                                     &body_for_unfolding,
                                     0,
@@ -618,7 +621,7 @@ pub fn is_value<'a>(term: &Term<'a>) -> bool {
         | Boolean
         | True
         | False => true,
-        Unifier(_)
+        Unifier(_, _)
         | Variable(_, _)
         | Application(_, _)
         | Let(_, _)

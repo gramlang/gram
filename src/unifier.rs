@@ -1,4 +1,5 @@
 use crate::{
+    de_bruijn::signed_shift,
     equality::syntactically_equal,
     format::CodeStr,
     normalizer::normalize_weak_head,
@@ -59,8 +60,12 @@ pub fn unify<'a>(
 
     // Unify the weak head normal forms.
     match (&whnf1.variant, &whnf2.variant) {
-        (Unifier(subterm1), Unifier(subterm2)) if Rc::ptr_eq(subterm1, subterm2) => true,
-        (Unifier(subterm1), _) => {
+        (Unifier(subterm1, subterm_shift1), Unifier(subterm2, subterm_shift2))
+            if Rc::ptr_eq(subterm1, subterm2) && subterm_shift1 == subterm_shift2 =>
+        {
+            true
+        }
+        (Unifier(subterm1, subterm_shift1), _) => {
             if subterm1.borrow().is_none() {
                 // Occurs check
                 let mut unifiers = vec![];
@@ -70,11 +75,16 @@ pub fn unify<'a>(
                     return false;
                 }
 
-                // Unify
-                *subterm1.borrow_mut() = Some(whnf2);
+                // Unshift
+                if let Some(unshifted_term) = signed_shift(&whnf2, 0, -*subterm_shift1) {
+                    // Unify
+                    *subterm1.borrow_mut() = Some(unshifted_term);
 
-                // We did it!
-                true
+                    // We did it!
+                    true
+                } else {
+                    false
+                }
             } else {
                 panic!(
                     "Encountered a non-{} unifier after reduction to weak-head normal form",
@@ -82,7 +92,7 @@ pub fn unify<'a>(
                 );
             }
         }
-        (_, Unifier(subterm2)) => {
+        (_, Unifier(subterm2, subterm_shift2)) => {
             if subterm2.borrow().is_none() {
                 // Occurs check
                 let mut unifiers = vec![];
@@ -92,11 +102,16 @@ pub fn unify<'a>(
                     return false;
                 }
 
-                // Unify
-                *subterm2.borrow_mut() = Some(whnf1);
+                // Unshift
+                if let Some(unshifted_term) = signed_shift(&whnf1, 0, -*subterm_shift2) {
+                    // Unify
+                    *subterm2.borrow_mut() = Some(unshifted_term);
 
-                // We did it!
-                true
+                    // We did it!
+                    true
+                } else {
+                    false
+                }
             } else {
                 panic!(
                     "Encountered a non-{} unifier after reduction to weak-head normal form",
@@ -213,15 +228,15 @@ pub fn unify<'a>(
 fn collect_unifiers<'a>(
     term: &Term<'a>,
     depth: usize,
-    unifiers: &mut Vec<(Rc<RefCell<Option<Term<'a>>>>, usize)>,
+    unifiers: &mut Vec<Rc<RefCell<Option<Term<'a>>>>>,
     visited: &mut HashSet<HashableRc<RefCell<Option<Term<'a>>>>>,
 ) {
     match &term.variant {
-        Unifier(unifier) => {
+        Unifier(unifier, _) => {
             if let Some(subterm) = &*unifier.borrow() {
-                collect_unifiers(subterm, depth, unifiers, visited);
+                collect_unifiers(&subterm, depth, unifiers, visited);
             } else if visited.insert(HashableRc(unifier.clone())) {
-                unifiers.push((unifier.clone(), depth));
+                unifiers.push(unifier.clone());
             }
         }
         Type | Variable(_, _) | Integer | IntegerLiteral(_) | Boolean | True | False => {}

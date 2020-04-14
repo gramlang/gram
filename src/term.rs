@@ -1,4 +1,7 @@
-use crate::token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD};
+use crate::{
+    de_bruijn::signed_shift,
+    token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
+};
 use num_bigint::BigInt;
 use std::{
     cell::RefCell,
@@ -18,7 +21,7 @@ pub struct Term<'a> {
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug)]
 pub enum Variant<'a> {
-    Unifier(Rc<RefCell<Option<Term<'a>>>>), // `Some(...)` should not be mutated
+    Unifier(Rc<RefCell<Option<Term<'a>>>>, isize), // (subterm, subterm_shift)
     Type,
     Variable(&'a str, usize),
     Lambda(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
@@ -54,7 +57,7 @@ impl<'a> Display for Term<'a> {
 impl<'a> Display for Variant<'a> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
-            Self::Unifier(subterm) => {
+            Self::Unifier(subterm, _) => {
                 if let Some(subterm) = &*subterm.borrow() {
                     write!(f, "{}", subterm)
                 } else {
@@ -128,7 +131,7 @@ impl<'a> Display for Variant<'a> {
 // parsing ambiguities in any context.
 fn group<'a>(term: &Term<'a>) -> String {
     match &term.variant {
-        Variant::Unifier(subterm) => {
+        Variant::Unifier(subterm, _) => {
             if let Some(subterm) = &*subterm.borrow() {
                 group(&subterm)
             } else {
@@ -164,9 +167,14 @@ fn group<'a>(term: &Term<'a>) -> String {
 // This function includes free variables in type annotations.
 pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSet<usize>) {
     match &term.variant {
-        Variant::Unifier(subterm) => {
+        Variant::Unifier(subterm, subterm_shift) => {
             if let Some(subterm) = &*subterm.borrow() {
-                free_variables(subterm, cutoff, variables);
+                if let Some(subterm) = signed_shift(subterm, 0, *subterm_shift) {
+                    free_variables(&subterm, cutoff, variables);
+                } else {
+                    // The `signed_shift` failed. This means the term is malformed. The
+                    // error will be reported during type checking.
+                }
             }
         }
         Variant::Type
@@ -245,7 +253,7 @@ mod tests {
         free_variables(
             &Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(None))),
+                variant: Unifier(Rc::new(RefCell::new(None)), 0),
             },
             10,
             &mut variables,
@@ -261,10 +269,13 @@ mod tests {
         free_variables(
             &Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(Some(Term {
-                    source_range: None,
-                    variant: Variable("x", 15),
-                })))),
+                variant: Unifier(
+                    Rc::new(RefCell::new(Some(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }))),
+                    0,
+                ),
             },
             10,
             &mut variables,

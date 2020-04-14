@@ -1,5 +1,5 @@
 use crate::{
-    de_bruijn::{open, shift},
+    de_bruijn::{open, signed_shift, unsigned_shift},
     term::{
         Term,
         Variant::{
@@ -30,10 +30,14 @@ pub fn normalize_weak_head<'a>(
             // These cases are already in beta normal form.
             term.clone()
         }
-        Unifier(subterm) => {
+        Unifier(subterm, subterm_shift) => {
             // If the unifier points to something, normalize it. Otherwise, we're stuck.
             if let Some(subterm) = &*subterm.borrow() {
-                normalize_weak_head(subterm, definitions_context)
+                if let Some(subterm) = signed_shift(subterm, 0, *subterm_shift) {
+                    normalize_weak_head(&subterm, definitions_context)
+                } else {
+                    term.clone()
+                }
             } else {
                 term.clone()
             }
@@ -45,7 +49,7 @@ pub fn normalize_weak_head<'a>(
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
                     normalize_weak_head(
-                        &shift(definition, 0, *index + 1 - offset),
+                        &unsigned_shift(definition, 0, *index + 1 - offset),
                         definitions_context,
                     )
                 }
@@ -97,13 +101,13 @@ pub fn normalize_weak_head<'a>(
                             vec![(
                                 variable,
                                 Rc::new(open(
-                                    &shift(annotation, 0, 1),
+                                    &unsigned_shift(annotation, 0, 1),
                                     i_index_plus_one,
                                     &body_for_unfolding,
                                     0,
                                 )),
                                 Rc::new(open(
-                                    &shift(definition, 0, 1),
+                                    &unsigned_shift(definition, 0, 1),
                                     i_index_plus_one,
                                     &body_for_unfolding,
                                     0,
