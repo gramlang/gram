@@ -259,7 +259,7 @@ pub fn tokenize<'a>(
                 tokens.push(Token {
                     source_range: (i, end),
                     variant: Variant::IntegerLiteral(
-                        // This unwrap is safe due to the format integer literals.
+                        // This `unwrap` is safe due to the specification of integer literals.
                         BigInt::parse_bytes(source_contents[i..end].as_bytes(), 10).unwrap(),
                     ),
                 });
