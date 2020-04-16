@@ -628,7 +628,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -668,7 +668,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -699,7 +699,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -730,7 +730,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -770,7 +770,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -864,7 +864,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -895,7 +895,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -920,7 +920,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -945,7 +945,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -970,7 +970,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -995,7 +995,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1020,7 +1020,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1045,7 +1045,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1070,7 +1070,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1095,7 +1095,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1120,7 +1120,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1145,7 +1145,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1170,7 +1170,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1195,7 +1195,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1220,7 +1220,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1245,7 +1245,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1270,7 +1270,7 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 
     #[test]
@@ -1295,6 +1295,6 @@ mod tests {
         let type_tokens = tokenize(None, type_source).unwrap();
         let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term_type_term, &type_term), true);
+        assert!(syntactically_equal(&term_type_term, &type_term));
     }
 }
