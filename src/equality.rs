@@ -15,26 +15,50 @@ use std::rc::Rc;
 #[allow(clippy::similar_names)]
 #[allow(clippy::too_many_lines)]
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
+    // Follow unifiers in the first term.
+    let mut term1 = term1.clone();
+    loop {
+        term1 = if let Unifier(subterm, subterm_shift) = &term1.variant {
+            if let Some(subterm) = &*subterm.borrow() {
+                if let Some(shifted_term) = signed_shift(subterm, 0, *subterm_shift) {
+                    shifted_term
+                } else {
+                    // The `signed_shift` failed. This means the term is malformed. The error will
+                    // be reported during type checking.
+                    return false;
+                }
+            } else {
+                break;
+            }
+        } else {
+            break;
+        };
+    }
+
+    // Follow unifiers in the second term.
+    let mut term2 = term2.clone();
+    loop {
+        term2 = if let Unifier(subterm, subterm_shift) = &term2.variant {
+            if let Some(subterm) = &*subterm.borrow() {
+                if let Some(shifted_term) = signed_shift(subterm, 0, *subterm_shift) {
+                    shifted_term
+                } else {
+                    // The `signed_shift` failed. This means the term is malformed. The error will
+                    // be reported during type checking.
+                    return false;
+                }
+            } else {
+                break;
+            }
+        } else {
+            break;
+        };
+    }
+
+    // Compare the two terms structurally.
     match (&term1.variant, &term2.variant) {
         (Unifier(subterm1, subterm_shift1), Unifier(subterm2, subterm_shift2)) => {
-            (Rc::ptr_eq(subterm1, subterm2) && subterm_shift1 == subterm_shift2)
-                || if let (Some(subterm1), Some(subterm2)) =
-                    (&*subterm1.borrow(), &*subterm2.borrow())
-                {
-                    if let (Some(subterm1), Some(subterm2)) = (
-                        signed_shift(subterm1, 0, *subterm_shift1),
-                        signed_shift(subterm2, 0, *subterm_shift2),
-                    ) {
-                        syntactically_equal(&subterm1, &subterm2)
-                    } else {
-                        // The term is malformed. The error will be reported during type checking.
-                        false
-                    }
-                } else {
-                    // Even in the case where both subterms are `None`, we return `false` here
-                    // because we're essentially comparing two different unification variables.
-                    false
-                }
+            Rc::ptr_eq(subterm1, subterm2) && subterm_shift1 == subterm_shift2
         }
         (Type, Type) | (Integer, Integer) | (Boolean, Boolean) | (True, True) | (False, False) => {
             true
@@ -127,10 +151,110 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{equality::syntactically_equal, parser::parse, tokenizer::tokenize};
+    use crate::{
+        equality::syntactically_equal,
+        parser::parse,
+        term::{
+            Term,
+            Variant::{Unifier, Variable},
+        },
+        tokenizer::tokenize,
+    };
+    use std::{cell::RefCell, rc::Rc};
 
     #[test]
-    fn syntactically_inequal_unifier() {
+    fn syntactically_equal_unifier_left() {
+        let term1 = Term {
+            source_range: None,
+            variant: Unifier(
+                Rc::new(RefCell::new(Some(Term {
+                    source_range: None,
+                    variant: Variable("x", 0),
+                }))),
+                5,
+            ),
+        };
+
+        let term2 = Term {
+            source_range: None,
+            variant: Variable("x", 5),
+        };
+
+        assert!(syntactically_equal(&term1, &term2));
+    }
+
+    #[test]
+    fn syntactically_equal_unifier_right() {
+        let term1 = Term {
+            source_range: None,
+            variant: Variable("x", 5),
+        };
+
+        let term2 = Term {
+            source_range: None,
+            variant: Unifier(
+                Rc::new(RefCell::new(Some(Term {
+                    source_range: None,
+                    variant: Variable("x", 0),
+                }))),
+                5,
+            ),
+        };
+
+        assert!(syntactically_equal(&term1, &term2));
+    }
+
+    #[test]
+    fn syntactically_equal_unifier_same_pointer_same_shift() {
+        let rc = Rc::new(RefCell::new(None));
+
+        let term1 = Term {
+            source_range: None,
+            variant: Unifier(rc.clone(), 5),
+        };
+
+        let term2 = Term {
+            source_range: None,
+            variant: Unifier(rc, 5),
+        };
+
+        assert!(syntactically_equal(&term1, &term2));
+    }
+
+    #[test]
+    fn syntactically_inequal_unifier_same_pointer_different_shift() {
+        let rc = Rc::new(RefCell::new(None));
+
+        let term1 = Term {
+            source_range: None,
+            variant: Unifier(rc.clone(), 5),
+        };
+
+        let term2 = Term {
+            source_range: None,
+            variant: Unifier(rc, 6),
+        };
+
+        assert!(!syntactically_equal(&term1, &term2));
+    }
+
+    #[test]
+    fn syntactically_inequal_unifier_different_pointer_same_shift() {
+        let term1 = Term {
+            source_range: None,
+            variant: Unifier(Rc::new(RefCell::new(None)), 5),
+        };
+
+        let term2 = Term {
+            source_range: None,
+            variant: Unifier(Rc::new(RefCell::new(None)), 5),
+        };
+
+        assert!(!syntactically_equal(&term1, &term2));
+    }
+
+    #[test]
+    fn syntactically_inequal_unifier_explicit() {
         let context = [];
 
         let source1 = "_";
@@ -141,7 +265,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -156,7 +280,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -171,7 +295,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -186,7 +310,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -201,7 +325,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -216,7 +340,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -231,7 +355,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -246,7 +370,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -261,7 +385,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -276,7 +400,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -291,7 +415,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -306,7 +430,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -321,7 +445,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -336,7 +460,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -351,7 +475,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -366,7 +490,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -381,7 +505,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -396,7 +520,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -411,7 +535,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -426,7 +550,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -441,7 +565,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -456,7 +580,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -471,7 +595,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -486,7 +610,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -501,7 +625,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -516,7 +640,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -531,7 +655,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -546,7 +670,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -561,7 +685,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -576,7 +700,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -591,7 +715,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -606,7 +730,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -621,7 +745,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -636,7 +760,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -651,7 +775,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -666,7 +790,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -681,7 +805,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -696,7 +820,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -711,7 +835,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -726,7 +850,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -741,7 +865,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -756,7 +880,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -771,7 +895,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -786,7 +910,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -801,7 +925,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -816,7 +940,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -831,7 +955,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -846,7 +970,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -861,7 +985,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -876,7 +1000,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -891,7 +1015,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -906,7 +1030,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), true);
+        assert!(syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -921,7 +1045,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -936,7 +1060,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 
     #[test]
@@ -951,6 +1075,6 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
 
-        assert_eq!(syntactically_equal(&term1, &term2), false);
+        assert!(!syntactically_equal(&term1, &term2));
     }
 }

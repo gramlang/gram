@@ -304,7 +304,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -320,7 +320,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -336,7 +336,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -352,7 +352,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -368,7 +368,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -400,7 +400,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -416,7 +416,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -432,7 +432,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -448,7 +448,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -464,7 +464,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -480,7 +480,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -496,7 +496,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -512,7 +512,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -528,7 +528,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -544,7 +544,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -560,7 +560,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -576,7 +576,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -592,7 +592,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -608,7 +608,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -624,7 +624,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -640,7 +640,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -656,7 +656,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -672,7 +672,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -688,7 +688,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -704,7 +704,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -720,7 +720,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -736,7 +736,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -752,7 +752,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -768,7 +768,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -784,7 +784,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -800,7 +800,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -816,7 +816,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -832,7 +832,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -848,7 +848,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -864,7 +864,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -880,7 +880,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -896,7 +896,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -912,7 +912,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -928,7 +928,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), false);
+        assert!(!unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -944,7 +944,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -960,7 +960,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -976,7 +976,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -992,7 +992,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
@@ -1008,7 +1008,7 @@ mod tests {
         let tokens2 = tokenize(None, source2).unwrap();
         let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
 
-        assert_eq!(unify(&term1, &term2, &mut definitions_context), true);
+        assert!(unify(&term1, &term2, &mut definitions_context));
     }
 
     #[test]
