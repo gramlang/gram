@@ -66,7 +66,10 @@ pub fn unify<'a>(
             true
         }
         (Unifier(subterm1, subterm_shift1), _) => {
-            if subterm1.borrow().is_none() {
+            // We `clone` the borrowed `subterm1` to avoid holding the dynamic borrow for too long.
+            let borrow = { subterm1.borrow().clone() };
+
+            if let Err(min_shift) = borrow {
                 // Occurs check
                 let mut unifiers = vec![];
                 let mut visited = HashSet::new();
@@ -75,10 +78,15 @@ pub fn unify<'a>(
                     return false;
                 }
 
+                // Ensure the target can be shifted by `min_shift`.
+                if signed_shift(&whnf2, 0, min_shift).is_none() {
+                    return false;
+                }
+
                 // Unshift
                 if let Some(unshifted_term) = signed_shift(&whnf2, 0, -*subterm_shift1) {
                     // Unify
-                    *subterm1.borrow_mut() = Some(unshifted_term);
+                    *subterm1.borrow_mut() = Ok(unshifted_term);
 
                     // We did it!
                     true
@@ -93,7 +101,10 @@ pub fn unify<'a>(
             }
         }
         (_, Unifier(subterm2, subterm_shift2)) => {
-            if subterm2.borrow().is_none() {
+            // We `clone` the borrowed `subterm2` to avoid holding the dynamic borrow for too long.
+            let borrow = { subterm2.borrow().clone() };
+
+            if let Err(min_shift) = borrow {
                 // Occurs check
                 let mut unifiers = vec![];
                 let mut visited = HashSet::new();
@@ -102,10 +113,15 @@ pub fn unify<'a>(
                     return false;
                 }
 
+                // Ensure the target can be shifted by `min_shift`.
+                if signed_shift(&whnf1, 0, min_shift).is_none() {
+                    return false;
+                }
+
                 // Unshift
                 if let Some(unshifted_term) = signed_shift(&whnf1, 0, -*subterm_shift2) {
                     // Unify
-                    *subterm2.borrow_mut() = Some(unshifted_term);
+                    *subterm2.borrow_mut() = Ok(unshifted_term);
 
                     // We did it!
                     true
@@ -228,12 +244,13 @@ pub fn unify<'a>(
 fn collect_unifiers<'a>(
     term: &Term<'a>,
     depth: usize,
-    unifiers: &mut Vec<Rc<RefCell<Option<Term<'a>>>>>,
-    visited: &mut HashSet<HashableRc<RefCell<Option<Term<'a>>>>>,
+    unifiers: &mut Vec<Rc<RefCell<Result<Term<'a>, isize>>>>,
+    visited: &mut HashSet<HashableRc<RefCell<Result<Term<'a>, isize>>>>,
 ) {
     match &term.variant {
         Unifier(unifier, _) => {
-            if let Some(subterm) = &*unifier.borrow() {
+            // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
+            if let Ok(subterm) = { unifier.borrow().clone() } {
                 collect_unifiers(&subterm, depth, unifiers, visited);
             } else if visited.insert(HashableRc(unifier.clone())) {
                 unifiers.push(unifier.clone());

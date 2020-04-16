@@ -196,13 +196,13 @@ pub fn type_check_rec<'a>(
             // Construct a unification term for the domain.
             let domain = Rc::new(Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(None)), 0),
+                variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
             });
 
             // Construct a unification term for the codomain.
             let codomain = Rc::new(Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(None)), 0),
+                variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
             });
 
             // Construct a pi type for unification.
@@ -236,7 +236,7 @@ pub fn type_check_rec<'a>(
             );
 
             // Check that the argument type equals the domain.
-            if !unify(&argument_type, &domain, definitions_context) {
+            if !unify(&domain, &argument_type, definitions_context) {
                 errors.push(throw(
                     &format!(
                         "This has type {}, but the function was expecting an argument of type {}:",

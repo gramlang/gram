@@ -48,11 +48,13 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
         | True
         | False => None,
         Unifier(subterm, subterm_shift) => {
+            // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
+            let borrow = { subterm.borrow().clone() };
+
             // If the unifier points to something, step to it. Otherwise, we're stuck.
-            subterm
-                .borrow()
-                .as_ref()
-                .and_then(|subterm| signed_shift(subterm, 0, *subterm_shift))
+            borrow
+                .ok()
+                .and_then(|subterm| signed_shift(&subterm, 0, *subterm_shift))
         }
         Application(applicand, argument) => {
             // Try to step the applicand.
