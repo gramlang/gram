@@ -146,11 +146,15 @@ tasks:
         cargo run -- check "$file"
       done
 
-      # Run all the examples. Note that `examples/girard_paradox.g` is expected to loop forever, so
-      # for that example we only let it run for 5 seconds and check that it didn't finish earlier.
+      # Run all the examples. Note that `examples/girard_paradox.g` and
+      # `examples/infinite_recursion.g` are expected to loop forever, so for those examples we only
+      # let them run for 5 seconds and check that they didn't finish earlier.
       for file in examples/*.g; do
         echo "Running $file..."
-        if [ "$file" = 'examples/girard_paradox.g' ]; then
+        if
+          [ "$file" = 'examples/girard_paradox.g' ] ||
+          [ "$file" = 'examples/infinite_recursion.g' ]
+        then
           if timeout 5 cargo run -- run "$file"; then
             echo 'This example was supposed to time out.' >&2
             exit 1
