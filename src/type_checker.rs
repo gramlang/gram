@@ -239,7 +239,7 @@ pub fn type_check_rec<'a>(
             if !unify(&argument_type, &domain, definitions_context) {
                 errors.push(throw(
                     &format!(
-                        "This has type {}, but it should have type {}:",
+                        "This has type {}, but the function was expecting an argument of type {}:",
                         argument_type.to_string().code_str(),
                         domain.to_string().code_str(),
                     ),
@@ -309,7 +309,7 @@ pub fn type_check_rec<'a>(
                 if !unify(&definition_type, &annotation, borrowed_definitions_context) {
                     errors.push(throw(
                         &format!(
-                            "This has type {} but it was annotated as {}:",
+                            "This has type {}, but it was expected to have type {}:",
                             definition_type.to_string().code_str(),
                             annotation.to_string().code_str(),
                         ),
@@ -813,7 +813,7 @@ mod tests {
                 &mut typing_context,
                 &mut definitions_context,
             ),
-            "has type `b`, but it should have type `a`",
+            "has type `b`, but the function was expecting an argument of type `a`",
         );
     }
 
