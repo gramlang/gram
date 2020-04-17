@@ -33,11 +33,13 @@
 %token IF
 %token INTEGER
 %token INTEGER_LITERAL
+%token LEFT_CURLY
 %token LEFT_PAREN
 %token LESS_THAN
 %token LESS_THAN_OR_EQUAL
 %token MINUS
 %token PLUS
+%token RIGHT_CURLY
 %token RIGHT_PAREN
 %token SLASH
 %token TERMINATOR
@@ -55,8 +57,11 @@ term: let | jumbo_term;
 type: TYPE;
 variable: IDENTIFIER;
 lambda: IDENTIFIER THICK_ARROW term;
+lambda_implicit: LEFT_CURLY IDENTIFIER RIGHT_CURLY THICK_ARROW term;
 annotated_lambda: LEFT_PAREN IDENTIFIER COLON jumbo_term RIGHT_PAREN THICK_ARROW term;
+annotated_lambda_implicit: LEFT_CURLY IDENTIFIER COLON jumbo_term RIGHT_CURLY THICK_ARROW term;
 pi: LEFT_PAREN IDENTIFIER COLON jumbo_term RIGHT_PAREN THIN_ARROW term;
+pi_implicit: LEFT_CURLY IDENTIFIER COLON jumbo_term RIGHT_CURLY THIN_ARROW term;
 non_dependent_pi: small_term THIN_ARROW term;
 application: atom small_term;
 let: IDENTIFIER let_annotation EQUALS term TERMINATOR term;
@@ -90,4 +95,13 @@ giant_term:
   greater_than |
   greater_than_or_equal_to |
   huge_term;
-jumbo_term: lambda | annotated_lambda | pi | non_dependent_pi | if | giant_term;
+jumbo_term:
+  lambda |
+  lambda_implicit |
+  annotated_lambda |
+  annotated_lambda_implicit |
+  pi |
+  pi_implicit |
+  non_dependent_pi |
+  if |
+  giant_term;

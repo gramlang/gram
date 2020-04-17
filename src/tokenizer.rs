@@ -44,6 +44,12 @@ pub fn tokenize<'a>(
                     variant: Variant::Colon,
                 });
             }
+            '{' => {
+                tokens.push(Token {
+                    source_range: (i, i + 1),
+                    variant: Variant::LeftCurly,
+                });
+            }
             '(' => {
                 tokens.push(Token {
                     source_range: (i, i + 1),
@@ -54,6 +60,12 @@ pub fn tokenize<'a>(
                 tokens.push(Token {
                     source_range: (i, i + 1),
                     variant: Variant::Plus,
+                });
+            }
+            '}' => {
+                tokens.push(Token {
+                    source_range: (i, i + 1),
+                    variant: Variant::RightCurly,
                 });
             }
             ')' => {
@@ -86,6 +98,7 @@ pub fn tokenize<'a>(
                         | Variant::GreaterThan
                         | Variant::GreaterThanOrEqualTo
                         | Variant::If
+                        | Variant::LeftCurly
                         | Variant::LeftParen
                         | Variant::LessThan
                         | Variant::LessThanOrEqualTo
@@ -102,6 +115,7 @@ pub fn tokenize<'a>(
                         | Variant::Identifier(_)
                         | Variant::Integer
                         | Variant::IntegerLiteral(_)
+                        | Variant::RightCurly
                         | Variant::RightParen
                         | Variant::Terminator(TerminatorType::Semicolon)
                         | Variant::True
@@ -328,6 +342,7 @@ pub fn tokenize<'a>(
                     | Variant::LessThanOrEqualTo
                     | Variant::Minus
                     | Variant::Plus
+                    | Variant::RightCurly
                     | Variant::RightParen
                     | Variant::Slash
                     | Variant::Then
@@ -339,6 +354,7 @@ pub fn tokenize<'a>(
                     | Variant::If
                     | Variant::Integer
                     | Variant::IntegerLiteral(_)
+                    | Variant::LeftCurly
                     | Variant::LeftParen
                     | Variant::Terminator(TerminatorType::Semicolon)
                     | Variant::True
@@ -531,6 +547,17 @@ mod tests {
     }
 
     #[test]
+    fn tokenize_left_curly() {
+        assert_same!(
+            tokenize(None, "{").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::LeftCurly,
+            }],
+        );
+    }
+
+    #[test]
     fn tokenize_left_paren() {
         assert_same!(
             tokenize(None, "(").unwrap(),
@@ -581,6 +608,17 @@ mod tests {
             vec![Token {
                 source_range: (0, 1),
                 variant: Variant::Plus,
+            }],
+        );
+    }
+
+    #[test]
+    fn tokenize_right_curly() {
+        assert_same!(
+            tokenize(None, "}").unwrap(),
+            vec![Token {
+                source_range: (0, 1),
+                variant: Variant::RightCurly,
             }],
         );
     }

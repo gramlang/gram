@@ -63,18 +63,20 @@ pub fn signed_shift<'a>(term: &Term<'a>, cutoff: usize, amount: isize) -> Option
                 Some(term.clone())
             }
         }
-        Lambda(variable, domain, body) => Some(Term {
+        Lambda(variable, implicit, domain, body) => Some(Term {
             source_range: term.source_range,
             variant: Lambda(
                 variable,
+                *implicit,
                 Rc::new(signed_shift(domain, cutoff, amount)?),
                 Rc::new(signed_shift(body, cutoff + 1, amount)?),
             ),
         }),
-        Pi(variable, domain, codomain) => Some(Term {
+        Pi(variable, implicit, domain, codomain) => Some(Term {
             source_range: term.source_range,
             variant: Pi(
                 variable,
+                *implicit,
                 Rc::new(signed_shift(domain, cutoff, amount)?),
                 Rc::new(signed_shift(codomain, cutoff + 1, amount)?),
             ),
@@ -231,10 +233,11 @@ pub fn open<'a>(
             Ordering::Less => term_to_open.clone(),
             Ordering::Equal => unsigned_shift(term_to_insert, 0, shift_amount),
         },
-        Lambda(variable, domain, body) => Term {
+        Lambda(variable, implicit, domain, body) => Term {
             source_range: term_to_open.source_range,
             variant: Lambda(
                 variable,
+                *implicit,
                 Rc::new(open(domain, index_to_replace, term_to_insert, shift_amount)),
                 Rc::new(open(
                     body,
@@ -244,10 +247,11 @@ pub fn open<'a>(
                 )),
             ),
         },
-        Pi(variable, domain, codomain) => Term {
+        Pi(variable, implicit, domain, codomain) => Term {
             source_range: term_to_open.source_range,
             variant: Pi(
                 variable,
+                *implicit,
                 Rc::new(open(domain, index_to_replace, term_to_insert, shift_amount)),
                 Rc::new(open(
                     codomain,
@@ -623,6 +627,7 @@ mod tests {
                     source_range: None,
                     variant: Lambda(
                         "a",
+                        false,
                         Rc::new(Term {
                             source_range: None,
                             variant: Variable("b", 0),
@@ -640,6 +645,7 @@ mod tests {
                 source_range: None,
                 variant: Lambda(
                     "a",
+                    false,
                     Rc::new(Term {
                         source_range: None,
                         variant: Variable("b", 42),
@@ -661,6 +667,7 @@ mod tests {
                     source_range: None,
                     variant: Pi(
                         "a",
+                        false,
                         Rc::new(Term {
                             source_range: None,
                             variant: Variable("b", 0),
@@ -678,6 +685,7 @@ mod tests {
                 source_range: None,
                 variant: Pi(
                     "a",
+                    false,
                     Rc::new(Term {
                         source_range: None,
                         variant: Variable("b", 42),
@@ -1431,6 +1439,7 @@ mod tests {
                     source_range: None,
                     variant: Lambda(
                         "a",
+                        false,
                         Rc::new(Term {
                             source_range: None,
                             variant: Variable("b", 0),
@@ -1452,6 +1461,7 @@ mod tests {
                 source_range: None,
                 variant: Lambda(
                     "a",
+                    false,
                     Rc::new(Term {
                         source_range: None,
                         variant: Variable("x", 4),
@@ -1473,6 +1483,7 @@ mod tests {
                     source_range: None,
                     variant: Pi(
                         "a",
+                        false,
                         Rc::new(Term {
                             source_range: None,
                             variant: Variable("b", 0),
@@ -1494,6 +1505,7 @@ mod tests {
                 source_range: None,
                 variant: Pi(
                     "a",
+                    false,
                     Rc::new(Term {
                         source_range: None,
                         variant: Variable("x", 4),

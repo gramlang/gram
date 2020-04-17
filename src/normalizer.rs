@@ -20,8 +20,8 @@ pub fn normalize_weak_head<'a>(
 ) -> Term<'a> {
     match &term.variant {
         Type
-        | Lambda(_, _, _)
-        | Pi(_, _, _)
+        | Lambda(_, _, _, _)
+        | Pi(_, _, _, _)
         | Integer
         | IntegerLiteral(_)
         | Boolean
@@ -67,7 +67,7 @@ pub fn normalize_weak_head<'a>(
             let normalized_applicand = normalize_weak_head(applicand, definitions_context);
 
             // Check if the applicand reduced to a lambda.
-            if let Lambda(_, _, body) = &normalized_applicand.variant {
+            if let Lambda(_, _, _, body) = &normalized_applicand.variant {
                 // Perform beta reduction and normalize the result.
                 normalize_weak_head(&open(body, 0, argument, 0), definitions_context)
             } else {
@@ -499,6 +499,7 @@ mod tests {
                 source_range: Some((0, 48)),
                 variant: Lambda(
                     "x",
+                    false,
                     Rc::new(Term {
                         source_range: Some((5, 24)),
                         variant: Application(
@@ -506,6 +507,7 @@ mod tests {
                                 source_range: Some((5, 22)),
                                 variant: Lambda(
                                     "y",
+                                    false,
                                     Rc::new(Term {
                                         source_range: Some((11, 15)),
                                         variant: Type,
@@ -529,6 +531,7 @@ mod tests {
                                 source_range: Some((29, 46)),
                                 variant: Lambda(
                                     "z",
+                                    false,
                                     Rc::new(Term {
                                         source_range: Some((35, 39)),
                                         variant: Type,
@@ -565,6 +568,7 @@ mod tests {
                 source_range: Some((0, 48)),
                 variant: Pi(
                     "x",
+                    false,
                     Rc::new(Term {
                         source_range: Some((5, 24)),
                         variant: Application(
@@ -572,6 +576,7 @@ mod tests {
                                 source_range: Some((5, 22)),
                                 variant: Lambda(
                                     "y",
+                                    false,
                                     Rc::new(Term {
                                         source_range: Some((11, 15)),
                                         variant: Type,
@@ -595,6 +600,7 @@ mod tests {
                                 source_range: Some((29, 46)),
                                 variant: Lambda(
                                     "z",
+                                    false,
                                     Rc::new(Term {
                                         source_range: Some((35, 39)),
                                         variant: Type,
@@ -641,6 +647,7 @@ mod tests {
                                 source_range: Some((23, 40)),
                                 variant: Lambda(
                                     "z",
+                                    false,
                                     Rc::new(Term {
                                         source_range: Some((29, 33)),
                                         variant: Type,

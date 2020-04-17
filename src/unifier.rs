@@ -139,21 +139,23 @@ pub fn unify<'a>(
             true
         }
         (Variable(_, index1), Variable(_, index2)) => index1 == index2,
-        (Lambda(_, _, body1), Lambda(_, _, body2)) => {
-            // Temporarily add the variable to the context.
-            definitions_context.push(None);
+        (Lambda(_, implicit1, _, body1), Lambda(_, implicit2, _, body2)) => {
+            implicit1 == implicit2 && {
+                // Temporarily add the variable to the context.
+                definitions_context.push(None);
 
-            // Unify the bodies.
-            let bodies_unify = unify(body1, body2, definitions_context);
+                // Unify the bodies.
+                let bodies_unify = unify(body1, body2, definitions_context);
 
-            // Restore the context.
-            definitions_context.pop();
+                // Restore the context.
+                definitions_context.pop();
 
-            // Return whether unification succeeded.
-            bodies_unify
+                // Return whether unification succeeded.
+                bodies_unify
+            }
         }
-        (Pi(_, domain1, codomain1), Pi(_, domain2, codomain2)) => {
-            unify(domain1, domain2, definitions_context) && {
+        (Pi(_, implicit1, domain1, codomain1), Pi(_, implicit2, domain2, codomain2)) => {
+            implicit1 == implicit2 && unify(domain1, domain2, definitions_context) && {
                 // Temporarily add the variable to the context.
                 definitions_context.push(None);
 
@@ -194,10 +196,10 @@ pub fn unify<'a>(
         }
         (Variable(_, _), _)
         | (_, Variable(_, _))
-        | (Lambda(_, _, _), _)
-        | (_, Lambda(_, _, _))
-        | (Pi(_, _, _), _)
-        | (_, Pi(_, _, _))
+        | (Lambda(_, _, _, _), _)
+        | (_, Lambda(_, _, _, _))
+        | (Pi(_, _, _, _), _)
+        | (_, Pi(_, _, _, _))
         | (Application(_, _), _)
         | (_, Application(_, _))
         | (Integer, _)
@@ -257,11 +259,11 @@ fn collect_unifiers<'a>(
             }
         }
         Type | Variable(_, _) | Integer | IntegerLiteral(_) | Boolean | True | False => {}
-        Lambda(_, domain, body) => {
+        Lambda(_, _, domain, body) => {
             collect_unifiers(domain, depth, unifiers, visited);
             collect_unifiers(body, depth + 1, unifiers, visited);
         }
-        Pi(_, domain, codomain) => {
+        Pi(_, _, domain, codomain) => {
             collect_unifiers(domain, depth, unifiers, visited);
             collect_unifiers(codomain, depth + 1, unifiers, visited);
         }

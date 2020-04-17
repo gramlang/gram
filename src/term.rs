@@ -28,8 +28,8 @@ pub enum Variant<'a> {
 
     Type,
     Variable(&'a str, usize),
-    Lambda(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
-    Pi(&'a str, Rc<Term<'a>>, Rc<Term<'a>>),
+    Lambda(&'a str, bool, Rc<Term<'a>>, Rc<Term<'a>>), // (variable, implicit, domain, body)
+    Pi(&'a str, bool, Rc<Term<'a>>, Rc<Term<'a>>),     // (variable, implicit, domain, codomain)
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
     #[allow(clippy::type_complexity)]
     Let(Vec<(&'a str, Rc<Term<'a>>, Rc<Term<'a>>)>, Rc<Term<'a>>),
@@ -74,15 +74,25 @@ impl<'a> Display for Variant<'a> {
             }
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
             Self::Variable(variable, _) => write!(f, "{}", variable),
-            Self::Lambda(variable, domain, body) => {
-                write!(f, "({} : {}) => {}", variable, domain, body)
+            Self::Lambda(variable, implicit, domain, body) => {
+                if *implicit {
+                    write!(f, "{{{} : {}}} => {}", variable, domain, body)
+                } else {
+                    write!(f, "({} : {}) => {}", variable, domain, body)
+                }
             }
-            Self::Pi(variable, domain, codomain) => {
+            Self::Pi(variable, implicit, domain, codomain) => {
                 let mut variables = HashSet::new();
                 free_variables(codomain, 0, &mut variables);
 
                 if variables.contains(&0) {
-                    write!(f, "({} : {}) -> {}", variable, domain, codomain)
+                    if *implicit {
+                        write!(f, "{{{} : {}}} -> {}", variable, domain, codomain)
+                    } else {
+                        write!(f, "({} : {}) -> {}", variable, domain, codomain)
+                    }
+                } else if *implicit {
+                    write!(f, "{{{}}} -> {}", domain, codomain)
                 } else {
                     match domain.variant {
                         Self::Application(_, _) => write!(f, "{} -> {}", domain, codomain),
@@ -156,8 +166,8 @@ fn group<'a>(term: &Term<'a>) -> String {
         | Variant::Boolean
         | Variant::True
         | Variant::False => format!("{}", term),
-        Variant::Lambda(_, _, _)
-        | Variant::Pi(_, _, _)
+        Variant::Lambda(_, _, _, _)
+        | Variant::Pi(_, _, _, _)
         | Variant::Application(_, _)
         | Variant::Let(_, _)
         | Variant::Negation(_)
@@ -202,11 +212,11 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
                 variables.insert(*index - cutoff);
             }
         }
-        Variant::Lambda(_, domain, body) => {
+        Variant::Lambda(_, _, domain, body) => {
             free_variables(domain, cutoff, variables);
             free_variables(body, cutoff + 1, variables);
         }
-        Variant::Pi(_, domain, codomain) => {
+        Variant::Pi(_, _, domain, codomain) => {
             free_variables(domain, cutoff, variables);
             free_variables(codomain, cutoff + 1, variables);
         }
@@ -355,6 +365,7 @@ mod tests {
                 source_range: None,
                 variant: Lambda(
                     "a",
+                    false,
                     Rc::new(Term {
                         source_range: None,
                         variant: Variable("b", 15),
@@ -382,6 +393,7 @@ mod tests {
                 source_range: None,
                 variant: Pi(
                     "a",
+                    false,
                     Rc::new(Term {
                         source_range: None,
                         variant: Variable("b", 15),
