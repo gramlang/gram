@@ -164,10 +164,6 @@ pub fn type_check_rec<'a>(
                 errors,
             );
 
-            // Restore the context.
-            definitions_context.pop();
-            typing_context.pop();
-
             // Check that the type of the codomain is the type of all types.
             if !unify(&codomain_type, &type_term, definitions_context) {
                 errors.push(throw(
@@ -178,6 +174,10 @@ pub fn type_check_rec<'a>(
                         .map(|source_range| (source_contents, source_range)),
                 ));
             }
+
+            // Restore the context.
+            definitions_context.pop();
+            typing_context.pop();
 
             // The type of a pi type is the type of all types.
             type_term
