@@ -1,5 +1,5 @@
 use crate::{
-    de_bruijn::signed_shift,
+    de_bruijn::unsigned_shift,
     token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
 };
 use num_bigint::BigInt;
@@ -21,10 +21,7 @@ pub struct Term<'a> {
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug)]
 pub enum Variant<'a> {
-    // For `Unifier` terms, we maintain the invariant that the `subterm`, if it exists, can be
-    // shifted by `subterm_shift` [tag:unifier_shifts_valid]. Note that shifting is a partial
-    // operation, and that's why this invariant doesn't trivially hold.
-    Unifier(Rc<RefCell<Result<Term<'a>, isize>>>, isize), // (subterm/min_shift, subterm_shift)
+    Unifier(Rc<RefCell<Option<Term<'a>>>>, usize), // (subterm, subterm_shift)
 
     Type,
     Variable(&'a str, usize),
@@ -61,19 +58,22 @@ impl<'a> Display for Term<'a> {
 impl<'a> Display for Variant<'a> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
-            Self::Unifier(subterm, _) => {
+            Self::Unifier(subterm_rc, subterm_shift) => {
                 // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too
                 // long.
-                let borrow = { subterm.borrow().clone() };
-
-                if let Ok(subterm) = borrow {
-                    write!(f, "{}", subterm)
+                if let Some(subterm) = { subterm_rc.borrow().clone() } {
+                    write!(
+                        f,
+                        "{}[{:p}]",
+                        unsigned_shift(&subterm, 0, *subterm_shift),
+                        *subterm_rc,
+                    )
                 } else {
-                    write!(f, "_")
+                    write!(f, "_[{:p}^{}]", *subterm_rc, subterm_shift)
                 }
             }
             Self::Type => write!(f, "{}", TYPE_KEYWORD),
-            Self::Variable(variable, _) => write!(f, "{}", variable),
+            Self::Variable(variable, index) => write!(f, "{}@{}", variable, index),
             Self::Lambda(variable, implicit, domain, body) => {
                 if *implicit {
                     write!(f, "{{{} : {}}} => {}", variable, domain, body)
@@ -149,12 +149,10 @@ impl<'a> Display for Variant<'a> {
 // parsing ambiguities in any context.
 fn group<'a>(term: &Term<'a>) -> String {
     match &term.variant {
-        Variant::Unifier(subterm, _) => {
+        Variant::Unifier(subterm, subterm_shift) => {
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            let borrow = { subterm.borrow().clone() };
-
-            if let Ok(subterm) = borrow {
-                group(&subterm)
+            if let Some(subterm) = { subterm.borrow().clone() } {
+                group(&unsigned_shift(&subterm, 0, *subterm_shift))
             } else {
                 format!("{}", term)
             }
@@ -190,15 +188,12 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
     match &term.variant {
         Variant::Unifier(subterm, subterm_shift) => {
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            let borrow = { subterm.borrow().clone() };
-
-            if let Ok(subterm) = borrow {
-                if let Some(subterm) = signed_shift(&subterm, 0, *subterm_shift) {
-                    free_variables(&subterm, cutoff, variables);
-                } else {
-                    // The `signed_shift` failed. This means the term is malformed. The
-                    // error will be reported during type checking.
-                }
+            if let Some(subterm) = { subterm.borrow().clone() } {
+                free_variables(
+                    &unsigned_shift(&subterm, 0, *subterm_shift),
+                    cutoff,
+                    variables,
+                );
             }
         }
         Variant::Type
@@ -277,7 +272,7 @@ mod tests {
         free_variables(
             &Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                variant: Unifier(Rc::new(RefCell::new(None)), 0),
             },
             10,
             &mut variables,
@@ -294,7 +289,7 @@ mod tests {
             &Term {
                 source_range: None,
                 variant: Unifier(
-                    Rc::new(RefCell::new(Ok(Term {
+                    Rc::new(RefCell::new(Some(Term {
                         source_range: None,
                         variant: Variable("x", 15),
                     }))),
