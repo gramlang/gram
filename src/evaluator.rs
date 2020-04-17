@@ -39,8 +39,8 @@ pub fn evaluate<'a>(term: &Term<'a>) -> Result<Term<'a>, Error> {
 pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
     match &term.variant {
         Type
-        | Lambda(_, _, _)
-        | Pi(_, _, _)
+        | Lambda(_, _, _, _)
+        | Pi(_, _, _, _)
         | Variable(_, _)
         | Integer
         | IntegerLiteral(_)
@@ -84,7 +84,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
             }
 
             // Check if the applicand is a lambda.
-            if let Lambda(_, _, body) = &applicand.variant {
+            if let Lambda(_, _, _, body) = &applicand.variant {
                 // We got a lambda. Perform beta reduction and continue evaluating.
                 Some(open(body, 0, argument, 0))
             } else {
@@ -616,8 +616,8 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
 pub fn is_value<'a>(term: &Term<'a>) -> bool {
     match term.variant {
         Type
-        | Lambda(_, _, _)
-        | Pi(_, _, _)
+        | Lambda(_, _, _, _)
+        | Pi(_, _, _, _)
         | Integer
         | IntegerLiteral(_)
         | Boolean
@@ -697,10 +697,12 @@ mod tests {
                 source_range: Some((0, 39)),
                 variant: Lambda(
                     "f",
+                    false,
                     Rc::new(Term {
                         source_range: Some((5, 17)),
                         variant: Pi(
                             "_",
+                            false,
                             Rc::new(Term {
                                 source_range: Some((5, 9)),
                                 variant: Type,
@@ -715,6 +717,7 @@ mod tests {
                         source_range: Some((22, 39)),
                         variant: Lambda(
                             "x",
+                            false,
                             Rc::new(Term {
                                 source_range: Some((27, 31)),
                                 variant: Type,
@@ -751,10 +754,12 @@ mod tests {
                 source_range: Some((0, 39)),
                 variant: Pi(
                     "f",
+                    false,
                     Rc::new(Term {
                         source_range: Some((5, 17)),
                         variant: Pi(
                             "_",
+                            false,
                             Rc::new(Term {
                                 source_range: Some((5, 9)),
                                 variant: Type,
@@ -769,6 +774,7 @@ mod tests {
                         source_range: Some((22, 39)),
                         variant: Pi(
                             "x",
+                            false,
                             Rc::new(Term {
                                 source_range: Some((27, 31)),
                                 variant: Type,

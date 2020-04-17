@@ -80,7 +80,7 @@ pub fn type_check_rec<'a>(
             let (variable_type, offset) = &typing_context[typing_context.len() - 1 - *index];
             unsigned_shift(variable_type, 0, *index + 1 - offset)
         }
-        Lambda(variable, domain, body) => {
+        Lambda(variable, implicit, domain, body) => {
             // Infer the type of the domain.
             let domain_type = type_check_rec(
                 source_path,
@@ -124,10 +124,10 @@ pub fn type_check_rec<'a>(
             // Construct and return the pi type.
             Term {
                 source_range: term.source_range,
-                variant: Pi(variable, domain.clone(), Rc::new(codomain)),
+                variant: Pi(variable, *implicit, domain.clone(), Rc::new(codomain)),
             }
         }
-        Pi(_, domain, codomain) => {
+        Pi(_, _, domain, codomain) => {
             // Infer the type of the domain.
             let domain_type = type_check_rec(
                 source_path,
@@ -208,7 +208,12 @@ pub fn type_check_rec<'a>(
             // Construct a pi type for unification.
             let pi_type = Rc::new(Term {
                 source_range: None,
-                variant: Pi(PLACEHOLDER_VARIABLE, domain.clone(), codomain.clone()),
+                variant: Pi(
+                    PLACEHOLDER_VARIABLE,
+                    false,
+                    domain.clone(),
+                    codomain.clone(),
+                ),
             });
 
             // Make sure the type of the applicand is a pi type.

@@ -75,8 +75,8 @@ enum Variant<'a> {
     ParseError,
     Type,
     Variable(SourceVariable<'a>),
-    Lambda(SourceVariable<'a>, Option<Rc<Term<'a>>>, Rc<Term<'a>>),
-    Pi(SourceVariable<'a>, Rc<Term<'a>>, Rc<Term<'a>>),
+    Lambda(SourceVariable<'a>, bool, Option<Rc<Term<'a>>>, Rc<Term<'a>>),
+    Pi(SourceVariable<'a>, bool, Rc<Term<'a>>, Rc<Term<'a>>),
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
     Let(
         SourceVariable<'a>,
@@ -156,8 +156,11 @@ enum Nonterminal {
     Type,
     Variable,
     Lambda,
+    LambdaImplicit,
     AnnotatedLambda,
+    AnnotatedLambdaImplicit,
     Pi,
+    PiImplicit,
     NonDependentPi,
     Application,
     Let,
@@ -657,6 +660,78 @@ fn parse_lambda<'a>(
                         source_range: token_source_range(tokens, start),
                         name: variable,
                     },
+                    false,
+                    None,
+                    Rc::new(body),
+                ),
+                errors: vec![],
+            },
+            next,
+            confident_next,
+        ),
+    )
+}
+
+// Parse a lambda with an implicit argument.
+fn parse_lambda_implicit<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize, bool) {
+    // Check the cache.
+    let cache_key = cache_check!(cache, LambdaImplicit, start);
+
+    // Consume the left curly brace.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        LeftCurly,
+        &format!("{}", token::Variant::LeftCurly.to_string().code_str()),
+    );
+
+    // Consume the variable.
+    let (variable, next) =
+        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
+
+    // Consume the right curly brace.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        RightCurly,
+        &format!("{}", token::Variant::RightCurly.to_string().code_str()),
+    );
+
+    // Consume the arrow.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        ThickArrow,
+        &format!("{}", token::Variant::ThickArrow.to_string().code_str()),
+    );
+
+    // Parse the body.
+    let (body, next, confident_next) = parse_term(cache, tokens, next);
+
+    // Construct and return the term.
+    cache_return!(
+        cache,
+        cache_key,
+        (
+            Term {
+                source_range: span(token_source_range(tokens, start), body.source_range),
+                group: false,
+                variant: Variant::Lambda(
+                    SourceVariable {
+                        source_range: token_source_range(tokens, start),
+                        name: variable,
+                    },
+                    true,
                     None,
                     Rc::new(body),
                 ),
@@ -741,6 +816,92 @@ fn parse_annotated_lambda<'a>(
                         source_range: variable_source_range,
                         name: variable,
                     },
+                    false,
+                    Some(Rc::new(domain)),
+                    Rc::new(body),
+                ),
+                errors: vec![],
+            },
+            next,
+            confident_next,
+        ),
+    )
+}
+
+// Parse an annotated lambda with an implicit argument.
+fn parse_annotated_lambda_implicit<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize, bool) {
+    // Check the cache.
+    let cache_key = cache_check!(cache, AnnotatedLambdaImplicit, start);
+
+    // Consume the left curly brace.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        LeftCurly,
+        &format!("{}", token::Variant::LeftCurly.to_string().code_str()),
+    );
+
+    // Consume the variable.
+    let variable_source_range = token_source_range(tokens, next);
+    let (variable, next) =
+        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
+
+    // Consume the colon.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        Colon,
+        &format!("{}", token::Variant::Colon.to_string().code_str()),
+    );
+
+    // Parse the domain.
+    let (domain, next, _) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
+
+    // Consume the right curly brace.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        RightCurly,
+        &format!("{}", token::Variant::RightCurly.to_string().code_str()),
+    );
+
+    // Consume the arrow.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        ThickArrow,
+        &format!("{}", token::Variant::ThickArrow.to_string().code_str()),
+    );
+
+    // Parse the body.
+    let (body, next, confident_next) = parse_term(cache, tokens, next);
+
+    // Construct and return the term.
+    cache_return!(
+        cache,
+        cache_key,
+        (
+            Term {
+                source_range: span(token_source_range(tokens, start), body.source_range),
+                group: false,
+                variant: Variant::Lambda(
+                    SourceVariable {
+                        source_range: variable_source_range,
+                        name: variable,
+                    },
+                    true,
                     Some(Rc::new(domain)),
                     Rc::new(body),
                 ),
@@ -825,6 +986,92 @@ fn parse_pi<'a>(
                         source_range: variable_source_range,
                         name: variable,
                     },
+                    false,
+                    Rc::new(domain),
+                    Rc::new(codomain),
+                ),
+                errors: vec![],
+            },
+            next,
+            confident_next,
+        ),
+    )
+}
+
+// Parse a pi type with an implicit argument.
+fn parse_pi_implicit<'a>(
+    cache: &mut Cache<'a>,
+    tokens: &'a [Token<'a>],
+    start: usize,
+) -> (Term<'a>, usize, bool) {
+    // Check the cache.
+    let cache_key = cache_check!(cache, PiImplicit, start);
+
+    // Consume the left curly brace.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        start,
+        LeftCurly,
+        &format!("{}", token::Variant::LeftCurly.to_string().code_str()),
+    );
+
+    // Consume the variable.
+    let variable_source_range = token_source_range(tokens, next);
+    let (variable, next) =
+        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
+
+    // Consume the colon.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        Colon,
+        &format!("{}", token::Variant::Colon.to_string().code_str()),
+    );
+
+    // Parse the domain.
+    let (domain, next, _) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
+
+    // Consume the right curly brace.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        RightCurly,
+        &format!("{}", token::Variant::RightCurly.to_string().code_str()),
+    );
+
+    // Consume the arrow.
+    let next = consume_token0!(
+        cache,
+        cache_key,
+        tokens,
+        next,
+        ThinArrow,
+        &format!("{}", token::Variant::ThinArrow.to_string().code_str()),
+    );
+
+    // Parse the codomain.
+    let (codomain, next, confident_next) = parse_term(cache, tokens, next);
+
+    // Construct and return the term.
+    cache_return!(
+        cache,
+        cache_key,
+        (
+            Term {
+                source_range: span(token_source_range(tokens, start), codomain.source_range),
+                group: false,
+                variant: Variant::Pi(
+                    SourceVariable {
+                        source_range: variable_source_range,
+                        name: variable,
+                    },
+                    true,
                     Rc::new(domain),
                     Rc::new(codomain),
                 ),
@@ -874,6 +1121,7 @@ fn parse_non_dependent_pi<'a>(
                         source_range: empty_source_range(tokens, start),
                         name: PLACEHOLDER_VARIABLE,
                     },
+                    false,
                     Rc::new(domain),
                     Rc::new(codomain),
                 ),
@@ -2110,6 +2358,13 @@ fn parse_jumbo_term<'a>(
     // Try to parse a lambda.
     try_return!(cache, cache_key, parse_lambda(cache, tokens, start));
 
+    // Try to parse a lambda with an implicit argument.
+    try_return!(
+        cache,
+        cache_key,
+        parse_lambda_implicit(cache, tokens, start),
+    );
+
     // Try to parse an annotated lambda.
     try_return!(
         cache,
@@ -2117,8 +2372,18 @@ fn parse_jumbo_term<'a>(
         parse_annotated_lambda(cache, tokens, start),
     );
 
+    // Try to parse an annotated lambda with an implicit argument.
+    try_return!(
+        cache,
+        cache_key,
+        parse_annotated_lambda_implicit(cache, tokens, start),
+    );
+
     // Try to parse a pi type.
     try_return!(cache, cache_key, parse_pi(cache, tokens, start));
+
+    // Try to parse a pi type with an implicit argument.
+    try_return!(cache, cache_key, parse_pi_implicit(cache, tokens, start));
 
     // Try to parse a non-dependent pi type.
     try_return!(
@@ -2229,14 +2494,14 @@ fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term
         | Variant::Boolean
         | Variant::True
         | Variant::False => {}
-        Variant::Lambda(_, domain, body) => {
+        Variant::Lambda(_, _, domain, body) => {
             if let Some(domain) = domain {
                 collect_error_factories(error_factories, domain);
             }
 
             collect_error_factories(error_factories, body);
         }
-        Variant::Pi(_, domain, codomain) => {
+        Variant::Pi(_, _, domain, codomain) => {
             collect_error_factories(error_factories, domain);
             collect_error_factories(error_factories, codomain);
         }
@@ -2301,11 +2566,12 @@ fn reassociate_applications<'a>(acc: Option<Term<'a>>, term: &Term<'a>) -> Term<
         | Variant::Boolean
         | Variant::True
         | Variant::False => term.clone(),
-        Variant::Lambda(variable, domain, body) => Term {
+        Variant::Lambda(variable, implicit, domain, body) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Lambda(
                 *variable,
+                *implicit,
                 domain
                     .as_ref()
                     .map(|domain| Rc::new(reassociate_applications(None, domain))),
@@ -2313,11 +2579,12 @@ fn reassociate_applications<'a>(acc: Option<Term<'a>>, term: &Term<'a>) -> Term<
             ),
             errors: vec![],
         },
-        Variant::Pi(variable, domain, codomain) => Term {
+        Variant::Pi(variable, implicit, domain, codomain) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Pi(
                 *variable,
+                *implicit,
                 Rc::new(reassociate_applications(None, domain)),
                 Rc::new(reassociate_applications(None, codomain)),
             ),
@@ -2525,11 +2792,12 @@ fn reassociate_products_and_quotients<'a>(
         | Variant::Boolean
         | Variant::True
         | Variant::False => term.clone(),
-        Variant::Lambda(variable, domain, body) => Term {
+        Variant::Lambda(variable, implicit, domain, body) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Lambda(
                 *variable,
+                *implicit,
                 domain
                     .as_ref()
                     .map(|domain| Rc::new(reassociate_products_and_quotients(None, domain))),
@@ -2537,11 +2805,12 @@ fn reassociate_products_and_quotients<'a>(
             ),
             errors: vec![],
         },
-        Variant::Pi(variable, domain, codomain) => Term {
+        Variant::Pi(variable, implicit, domain, codomain) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Pi(
                 *variable,
+                *implicit,
                 Rc::new(reassociate_products_and_quotients(None, domain)),
                 Rc::new(reassociate_products_and_quotients(None, codomain)),
             ),
@@ -2803,11 +3072,12 @@ fn reassociate_sums_and_differences<'a>(
         | Variant::Boolean
         | Variant::True
         | Variant::False => term.clone(),
-        Variant::Lambda(variable, domain, body) => Term {
+        Variant::Lambda(variable, implicit, domain, body) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Lambda(
                 *variable,
+                *implicit,
                 domain
                     .as_ref()
                     .map(|domain| Rc::new(reassociate_sums_and_differences(None, domain))),
@@ -2815,11 +3085,12 @@ fn reassociate_sums_and_differences<'a>(
             ),
             errors: vec![],
         },
-        Variant::Pi(variable, domain, codomain) => Term {
+        Variant::Pi(variable, implicit, domain, codomain) => Term {
             source_range: term.source_range,
             group: term.group,
             variant: Variant::Pi(
                 *variable,
+                *implicit,
                 Rc::new(reassociate_sums_and_differences(None, domain)),
                 Rc::new(reassociate_sums_and_differences(None, codomain)),
             ),
@@ -3099,7 +3370,7 @@ fn resolve_variables<'a>(
                 }
             }
         }
-        Variant::Lambda(variable, domain, body) => {
+        Variant::Lambda(variable, implicit, domain, body) => {
             // Resolve variables in the domain if it exists.
             let resolved_domain = domain.as_ref().map(|domain| {
                 resolve_variables(source_path, source_contents, domain, depth, context, errors)
@@ -3132,6 +3403,7 @@ fn resolve_variables<'a>(
                 source_range: Some(term.source_range.0),
                 variant: term::Variant::Lambda(
                     variable.name,
+                    *implicit,
                     if let Some(resolved_domain) = resolved_domain {
                         Rc::new(resolved_domain)
                     } else {
@@ -3151,7 +3423,7 @@ fn resolve_variables<'a>(
                 ),
             }
         }
-        Variant::Pi(variable, domain, codomain) => {
+        Variant::Pi(variable, implicit, domain, codomain) => {
             // Resolve variables in the domain.
             let resolved_domain =
                 resolve_variables(source_path, source_contents, domain, depth, context, errors);
@@ -3183,6 +3455,7 @@ fn resolve_variables<'a>(
                 source_range: Some(term.source_range.0),
                 variant: term::Variant::Pi(
                     variable.name,
+                    *implicit,
                     Rc::new(resolved_domain),
                     Rc::new(resolve_variables(
                         source_path,
@@ -3682,7 +3955,7 @@ fn check_definitions<'a>(
                 }
             }
         }
-        term::Variant::Lambda(_, domain, body) => {
+        term::Variant::Lambda(_, _, domain, body) => {
             check_definitions(source_path, source_contents, domain, depth, context, errors);
             check_definitions(
                 source_path,
@@ -3693,7 +3966,7 @@ fn check_definitions<'a>(
                 errors,
             );
         }
-        term::Variant::Pi(_, domain, codomain) => {
+        term::Variant::Pi(_, _, domain, codomain) => {
             check_definitions(source_path, source_contents, domain, depth, context, errors);
             check_definitions(
                 source_path,
@@ -3961,12 +4234,39 @@ mod tests {
                 source_range: Some((0, 6)),
                 variant: Lambda(
                     "x",
+                    false,
                     Rc::new(Term {
                         source_range: None,
                         variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
                     }),
                     Rc::new(Term {
                         source_range: Some((5, 6)),
+                        variant: Variable("x", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_lambda_implicit() {
+        let source = "{x} => x";
+        let tokens = tokenize(None, source).unwrap();
+        let context = [];
+
+        assert_same!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 8)),
+                variant: Lambda(
+                    "x",
+                    true,
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((7, 8)),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -3986,6 +4286,33 @@ mod tests {
                 source_range: Some((0, 12)),
                 variant: Lambda(
                     "x",
+                    false,
+                    Rc::new(Term {
+                        source_range: Some((5, 6)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((11, 12)),
+                        variant: Variable("x", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_annotated_lambda_implicit() {
+        let source = "{x : a} => x";
+        let tokens = tokenize(None, source).unwrap();
+        let context = ["a"];
+
+        assert_same!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 12)),
+                variant: Lambda(
+                    "x",
+                    true,
                     Rc::new(Term {
                         source_range: Some((5, 6)),
                         variant: Variable("a", 0),
@@ -4023,6 +4350,7 @@ mod tests {
                 source_range: Some((0, 23)),
                 variant: Lambda(
                     "_",
+                    false,
                     Rc::new(Term {
                         source_range: Some((5, 6)),
                         variant: Variable("a", 0),
@@ -4031,6 +4359,7 @@ mod tests {
                         source_range: Some((11, 23)),
                         variant: Lambda(
                             "_",
+                            false,
                             Rc::new(Term {
                                 source_range: Some((16, 17)),
                                 variant: Variable("a", 1),
@@ -4058,6 +4387,33 @@ mod tests {
                 source_range: Some((0, 12)),
                 variant: Pi(
                     "x",
+                    false,
+                    Rc::new(Term {
+                        source_range: Some((5, 6)),
+                        variant: Variable("a", 0),
+                    }),
+                    Rc::new(Term {
+                        source_range: Some((11, 12)),
+                        variant: Variable("x", 0),
+                    }),
+                ),
+            },
+        );
+    }
+
+    #[test]
+    fn parse_pi_implicit() {
+        let source = "{x : a} -> x";
+        let tokens = tokenize(None, source).unwrap();
+        let context = ["a"];
+
+        assert_same!(
+            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            Term {
+                source_range: Some((0, 12)),
+                variant: Pi(
+                    "x",
+                    true,
                     Rc::new(Term {
                         source_range: Some((5, 6)),
                         variant: Variable("a", 0),
@@ -4095,6 +4451,7 @@ mod tests {
                 source_range: Some((0, 23)),
                 variant: Pi(
                     "_",
+                    false,
                     Rc::new(Term {
                         source_range: Some((5, 6)),
                         variant: Variable("a", 0),
@@ -4103,6 +4460,7 @@ mod tests {
                         source_range: Some((11, 23)),
                         variant: Pi(
                             "_",
+                            false,
                             Rc::new(Term {
                                 source_range: Some((16, 17)),
                                 variant: Variable("a", 1),
@@ -4130,6 +4488,7 @@ mod tests {
                 source_range: Some((0, 6)),
                 variant: Pi(
                     "_",
+                    false,
                     Rc::new(Term {
                         source_range: Some((0, 1)),
                         variant: Variable("a", 1),
@@ -4155,6 +4514,7 @@ mod tests {
                 source_range: Some((0, 11)),
                 variant: Pi(
                     "_",
+                    false,
                     Rc::new(Term {
                         source_range: Some((0, 1)),
                         variant: Variable("a", 2),
@@ -4163,6 +4523,7 @@ mod tests {
                         source_range: Some((5, 11)),
                         variant: Pi(
                             "_",
+                            false,
                             Rc::new(Term {
                                 source_range: Some((5, 6)),
                                 variant: Variable("b", 2),
@@ -4293,6 +4654,7 @@ mod tests {
                                         source_range: Some((4, 21)),
                                         variant: Lambda(
                                             "_",
+                                            false,
                                             Rc::new(Term {
                                                 source_range: Some((10, 14)),
                                                 variant: Type,
@@ -4750,6 +5112,7 @@ mod tests {
                 source_range: Some((0, 58)),
                 variant: Lambda(
                     "a",
+                    false,
                     Rc::new(Term {
                         source_range: Some((5, 9)),
                         variant: Type,
@@ -4758,6 +5121,7 @@ mod tests {
                         source_range: Some((14, 58)),
                         variant: Lambda(
                             "b",
+                            false,
                             Rc::new(Term {
                                 source_range: Some((19, 23)),
                                 variant: Type,
@@ -4766,10 +5130,12 @@ mod tests {
                                 source_range: Some((28, 58)),
                                 variant: Lambda(
                                     "f",
+                                    false,
                                     Rc::new(Term {
                                         source_range: Some((33, 39)),
                                         variant: Pi(
                                             "_",
+                                            false,
                                             Rc::new(Term {
                                                 source_range: Some((33, 34)),
                                                 variant: Variable("a", 1),
@@ -4784,6 +5150,7 @@ mod tests {
                                         source_range: Some((44, 58)),
                                         variant: Lambda(
                                             "x",
+                                            false,
                                             Rc::new(Term {
                                                 source_range: Some((49, 50)),
                                                 variant: Variable("a", 2),
