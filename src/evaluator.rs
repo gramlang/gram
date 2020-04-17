@@ -1,5 +1,5 @@
 use crate::{
-    de_bruijn::{open, signed_shift, unsigned_shift},
+    de_bruijn::{open, unsigned_shift},
     error::Error,
     format::CodeStr,
     term::{
@@ -48,13 +48,9 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
         | True
         | False => None,
         Unifier(subterm, subterm_shift) => {
-            // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            let borrow = { subterm.borrow().clone() };
-
-            // If the unifier points to something, step to it. Otherwise, we're stuck.
-            borrow
-                .ok()
-                .and_then(|subterm| signed_shift(&subterm, 0, *subterm_shift))
+            // If the unifier points to something, step to it. Otherwise, we're stuck. We `clone`
+            // the borrowed `subterm` to avoid holding the dynamic borrow for too long.
+            { subterm.borrow().clone() }.map(|subterm| unsigned_shift(&subterm, 0, *subterm_shift))
         }
         Application(applicand, argument) => {
             // Try to step the applicand.

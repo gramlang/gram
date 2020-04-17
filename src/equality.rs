@@ -1,5 +1,5 @@
 use crate::{
-    de_bruijn::signed_shift,
+    de_bruijn::unsigned_shift,
     term::{
         Term,
         Variant::{
@@ -20,16 +20,8 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     loop {
         term1 = if let Unifier(subterm, subterm_shift) = &term1.variant {
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            let borrow = { subterm.borrow().clone() };
-
-            if let Ok(subterm) = borrow {
-                if let Some(shifted_term) = signed_shift(&subterm, 0, *subterm_shift) {
-                    shifted_term
-                } else {
-                    // The `signed_shift` failed. This means the term is malformed. The error will
-                    // be reported during type checking.
-                    return false;
-                }
+            if let Some(subterm) = { subterm.borrow().clone() } {
+                unsigned_shift(&subterm, 0, *subterm_shift)
             } else {
                 break;
             }
@@ -43,16 +35,8 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     loop {
         term2 = if let Unifier(subterm, subterm_shift) = &term2.variant {
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            let borrow = { subterm.borrow().clone() };
-
-            if let Ok(subterm) = borrow {
-                if let Some(shifted_term) = signed_shift(&subterm, 0, *subterm_shift) {
-                    shifted_term
-                } else {
-                    // The `signed_shift` failed. This means the term is malformed. The error will
-                    // be reported during type checking.
-                    return false;
-                }
+            if let Some(subterm) = { subterm.borrow().clone() } {
+                unsigned_shift(&subterm, 0, *subterm_shift)
             } else {
                 break;
             }
@@ -177,7 +161,7 @@ mod tests {
         let term1 = Term {
             source_range: None,
             variant: Unifier(
-                Rc::new(RefCell::new(Ok(Term {
+                Rc::new(RefCell::new(Some(Term {
                     source_range: None,
                     variant: Variable("x", 0),
                 }))),
@@ -203,7 +187,7 @@ mod tests {
         let term2 = Term {
             source_range: None,
             variant: Unifier(
-                Rc::new(RefCell::new(Ok(Term {
+                Rc::new(RefCell::new(Some(Term {
                     source_range: None,
                     variant: Variable("x", 0),
                 }))),
@@ -216,7 +200,7 @@ mod tests {
 
     #[test]
     fn syntactically_equal_unifier_same_pointer_same_shift() {
-        let rc = Rc::new(RefCell::new(Err(0)));
+        let rc = Rc::new(RefCell::new(None));
 
         let term1 = Term {
             source_range: None,
@@ -233,7 +217,7 @@ mod tests {
 
     #[test]
     fn syntactically_inequal_unifier_same_pointer_different_shift() {
-        let rc = Rc::new(RefCell::new(Err(0)));
+        let rc = Rc::new(RefCell::new(None));
 
         let term1 = Term {
             source_range: None,
@@ -252,12 +236,12 @@ mod tests {
     fn syntactically_inequal_unifier_different_pointer_same_shift() {
         let term1 = Term {
             source_range: None,
-            variant: Unifier(Rc::new(RefCell::new(Err(0))), 5),
+            variant: Unifier(Rc::new(RefCell::new(None)), 5),
         };
 
         let term2 = Term {
             source_range: None,
-            variant: Unifier(Rc::new(RefCell::new(Err(0))), 5),
+            variant: Unifier(Rc::new(RefCell::new(None)), 5),
         };
 
         assert!(!syntactically_equal(&term1, &term2));

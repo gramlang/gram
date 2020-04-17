@@ -6,11 +6,7 @@ use crate::term::{
         Quotient, Sum, True, Type, Unifier, Variable,
     },
 };
-use std::{
-    cmp::{min, Ordering},
-    convert::TryFrom,
-    rc::Rc,
-};
+use std::{cmp::Ordering, convert::TryFrom, rc::Rc};
 
 // Shifting refers to adjusting the De Bruijn indices of free variables. A cutoff determines which
 // variables are considered free. This function is used to raise or lower a term into a different
@@ -23,25 +19,27 @@ pub fn signed_shift<'a>(term: &Term<'a>, cutoff: usize, amount: isize) -> Option
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
             let borrow = { subterm.borrow().clone() };
 
-            match borrow {
-                Ok(subterm) => {
-                    signed_shift(
-                        // The `unwrap` is safe due to [ref:unifier_shifts_valid].
-                        &signed_shift(&subterm, 0, *subterm_shift).unwrap(),
-                        cutoff,
-                        amount,
-                    )
-                }
-                Err(min_shift) => {
-                    let new_shift = subterm_shift + amount;
+            if let Some(subterm) = borrow {
+                signed_shift(&unsigned_shift(&subterm, 0, *subterm_shift), cutoff, amount)
+            } else if *subterm_shift >= cutoff {
+                // This `unwrap` is "virtually safe", unless the conversion overflows.
+                let signed_subterm_shift = isize::try_from(*subterm_shift).unwrap();
 
-                    *subterm.borrow_mut() = Err(min(min_shift, new_shift));
-
+                // Adjust the shift if it results in a non-negative quantity.
+                if signed_subterm_shift >= -amount {
                     Some(Term {
                         source_range: term.source_range,
-                        variant: Unifier(subterm.clone(), new_shift),
+                        variant: Unifier(
+                            subterm.clone(),
+                            // This `unwrap` is safe due to the check above.
+                            usize::try_from(signed_subterm_shift + amount).unwrap(),
+                        ),
                     })
+                } else {
+                    None
                 }
+            } else {
+                Some(term.clone())
             }
         }
         Type | Integer | IntegerLiteral(_) | Boolean | True | False => Some(term.clone()),
@@ -189,8 +187,8 @@ pub fn signed_shift<'a>(term: &Term<'a>, cutoff: usize, amount: isize) -> Option
 // is total.
 pub fn unsigned_shift<'a>(term: &Term<'a>, cutoff: usize, amount: usize) -> Term<'a> {
     // The inner `unwrap` is "essentially safe" in that it can only fail in the virtually
-    // impossible case of the conversion overflowing. The outer `unwrap` is safe due to
-    // [ref:unifier_shifts_valid].
+    // impossible case of the conversion overflowing. The outer `unwrap` is safe because `amount`
+    // is non-negative.
     signed_shift(term, cutoff, isize::try_from(amount).unwrap()).unwrap()
 }
 
@@ -211,16 +209,15 @@ pub fn open<'a>(
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
             let borrow = { subterm.borrow().clone() };
 
-            if let Ok(subterm) = borrow {
+            if let Some(subterm) = borrow {
                 open(
-                    // The `unwrap` is safe due to [ref:unifier_shifts_valid].
-                    &signed_shift(&subterm, 0, *subterm_shift).unwrap(),
+                    &unsigned_shift(&subterm, 0, *subterm_shift),
                     index_to_replace,
                     term_to_insert,
                     shift_amount,
                 )
             } else {
-                // The `unwrap` is safe because shifting an unresolved unifier is always safe.
+                // The `unwrap` is NOT justified!
                 signed_shift(term_to_open, 0, -1).unwrap()
             }
         }
@@ -431,20 +428,35 @@ mod tests {
     use std::{cell::RefCell, rc::Rc};
 
     #[test]
-    fn signed_shift_unifier_none() {
+    fn signed_shift_unifier_none_valid() {
         assert_same!(
             signed_shift(
                 &Term {
                     source_range: None,
-                    variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                    variant: Unifier(Rc::new(RefCell::new(None)), 10),
+                },
+                0,
+                -4,
+            ),
+            Some(Term {
+                source_range: None,
+                variant: Unifier(Rc::new(RefCell::new(None)), 6),
+            }),
+        );
+    }
+
+    #[test]
+    fn signed_shift_unifier_none_invalid() {
+        assert_same!(
+            signed_shift(
+                &Term {
+                    source_range: None,
+                    variant: Unifier(Rc::new(RefCell::new(None)), 0),
                 },
                 0,
                 -42,
             ),
-            Some(Term {
-                source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(Err(-42))), -42),
-            }),
+            None,
         );
     }
 
@@ -455,7 +467,7 @@ mod tests {
                 &Term {
                     source_range: None,
                     variant: Unifier(
-                        Rc::new(RefCell::new(Ok(Term {
+                        Rc::new(RefCell::new(Some(Term {
                             source_range: None,
                             variant: Variable("x", 10),
                         }))),
@@ -529,14 +541,14 @@ mod tests {
             unsigned_shift(
                 &Term {
                     source_range: None,
-                    variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                    variant: Unifier(Rc::new(RefCell::new(None)), 0),
                 },
                 0,
                 42,
             ),
             Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(Err(0))), 42),
+                variant: Unifier(Rc::new(RefCell::new(None)), 42),
             },
         );
     }
@@ -548,7 +560,7 @@ mod tests {
                 &Term {
                     source_range: None,
                     variant: Unifier(
-                        Rc::new(RefCell::new(Ok(Term {
+                        Rc::new(RefCell::new(Some(Term {
                             source_range: None,
                             variant: Variable("x", 0),
                         }))),
@@ -1299,7 +1311,7 @@ mod tests {
             open(
                 &Term {
                     source_range: None,
-                    variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                    variant: Unifier(Rc::new(RefCell::new(None)), 10),
                 },
                 0,
                 &Term {
@@ -1310,7 +1322,7 @@ mod tests {
             ),
             Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(Err(-1))), -1),
+                variant: Unifier(Rc::new(RefCell::new(None)), 9),
             },
         );
     }
@@ -1322,7 +1334,7 @@ mod tests {
                 &Term {
                     source_range: None,
                     variant: Unifier(
-                        Rc::new(RefCell::new(Ok(Term {
+                        Rc::new(RefCell::new(Some(Term {
                             source_range: None,
                             variant: Variable("x", 0),
                         }))),
