@@ -1,5 +1,5 @@
 use crate::{
-    de_bruijn::{open, signed_shift, unsigned_shift},
+    de_bruijn::{open, unsigned_shift},
     term::{
         Term,
         Variant::{
@@ -35,12 +35,11 @@ pub fn normalize_weak_head<'a>(
             let borrow = { subterm.borrow().clone() };
 
             // If the unifier points to something, normalize it. Otherwise, we're stuck.
-            if let Ok(subterm) = borrow {
-                if let Some(subterm) = signed_shift(&subterm, 0, *subterm_shift) {
-                    normalize_weak_head(&subterm, definitions_context)
-                } else {
-                    term.clone()
-                }
+            if let Some(subterm) = borrow {
+                normalize_weak_head(
+                    &unsigned_shift(&subterm, 0, *subterm_shift),
+                    definitions_context,
+                )
             } else {
                 term.clone()
             }

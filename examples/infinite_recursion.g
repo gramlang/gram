@@ -1,2 +1,2 @@
-f = x => f x
+f = (x : bool) => f x
 f true
