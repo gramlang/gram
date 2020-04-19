@@ -16,7 +16,8 @@ use crate::{
 use scopeguard::defer;
 use std::{cell::RefCell, path::Path, rc::Rc};
 
-// This is the top-level type checking function. Invariants:
+// This is the top-level type checking function. It returns the pair `(elaborated_term, type)`.
+// Invariants:
 // - The two contexts have the same length.
 // - When this function is finished, the contexts are left unmodified.
 pub fn type_check<'a>(
@@ -25,10 +26,10 @@ pub fn type_check<'a>(
     term: &Term<'a>,
     typing_context: &mut Vec<(Rc<Term<'a>>, usize)>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
-) -> Result<Term<'a>, Vec<Error>> {
+) -> Result<(Term<'a>, Term<'a>), Vec<Error>> {
     let mut errors = vec![];
 
-    let result = type_check_rec(
+    let (elaborated_term, term_type) = type_check_rec(
         source_path,
         source_contents,
         term,
@@ -38,13 +39,14 @@ pub fn type_check<'a>(
     );
 
     if errors.is_empty() {
-        Ok(result)
+        Ok((elaborated_term, term_type))
     } else {
         Err(errors)
     }
 }
 
 // This helper function is the workhorse of the `type_check` function above.
+#[allow(clippy::cognitive_complexity)]
 #[allow(clippy::too_many_lines)]
 pub fn type_check_rec<'a>(
     source_path: Option<&'a Path>,
@@ -53,7 +55,7 @@ pub fn type_check_rec<'a>(
     typing_context: &mut Vec<(Rc<Term<'a>>, usize)>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
     errors: &mut Vec<Error>,
-) -> Term<'a> {
+) -> (Term<'a>, Term<'a>) {
     // Construct the type of all types once here rather than constructing it many times later.
     let type_term = Term {
         source_range: None,
@@ -73,16 +75,19 @@ pub fn type_check_rec<'a>(
     };
 
     // The typing rules are syntax-directed, so we pattern-match on the term.
-    match &term.variant {
-        Unifier(_, _) | Type | Integer | Boolean => type_term,
+    let (elaborated_term, elaborated_type) = match &term.variant {
+        Unifier(_, _) | Type | Integer | Boolean => (term.clone(), type_term.clone()),
         Variable(_, index) => {
             // Shift the type such that it's valid in the current context.
             let (variable_type, offset) = &typing_context[typing_context.len() - 1 - *index];
-            unsigned_shift(variable_type, 0, *index + 1 - offset)
+            (
+                term.clone(),
+                unsigned_shift(variable_type, 0, *index + 1 - offset),
+            )
         }
         Lambda(variable, implicit, domain, body) => {
             // Infer the type of the domain.
-            let domain_type = type_check_rec(
+            let (domain, domain_type) = type_check_rec(
                 source_path,
                 source_contents,
                 domain,
@@ -104,11 +109,11 @@ pub fn type_check_rec<'a>(
 
             // Temporarily add the variable's type to the context for the purpose of inferring the
             // codomain.
-            typing_context.push((domain.clone(), 0));
+            typing_context.push((Rc::new(domain.clone()), 0));
             definitions_context.push(None);
 
             // Infer the codomain.
-            let codomain = type_check_rec(
+            let (body, codomain) = type_check_rec(
                 source_path,
                 source_contents,
                 body,
@@ -121,15 +126,21 @@ pub fn type_check_rec<'a>(
             definitions_context.pop();
             typing_context.pop();
 
-            // Construct and return the pi type.
-            Term {
-                source_range: term.source_range,
-                variant: Pi(variable, *implicit, domain.clone(), Rc::new(codomain)),
-            }
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: Lambda(variable, *implicit, Rc::new(domain.clone()), Rc::new(body)),
+                },
+                Term {
+                    source_range: term.source_range,
+                    variant: Pi(variable, *implicit, Rc::new(domain), Rc::new(codomain)),
+                },
+            )
         }
-        Pi(_, _, domain, codomain) => {
+        Pi(variable, implicit, domain, codomain) => {
             // Infer the type of the domain.
-            let domain_type = type_check_rec(
+            let (domain, domain_type) = type_check_rec(
                 source_path,
                 source_contents,
                 domain,
@@ -151,11 +162,11 @@ pub fn type_check_rec<'a>(
 
             // Temporarily add the variable's type to the context for the purpose of inferring the
             // type of the codomain.
-            typing_context.push((domain.clone(), 0));
+            typing_context.push((Rc::new(domain.clone()), 0));
             definitions_context.push(None);
 
             // Infer the type of the codomain.
-            let codomain_type = type_check_rec(
+            let (codomain, codomain_type) = type_check_rec(
                 source_path,
                 source_contents,
                 codomain,
@@ -179,12 +190,18 @@ pub fn type_check_rec<'a>(
             definitions_context.pop();
             typing_context.pop();
 
-            // The type of a pi type is the type of all types.
-            type_term
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: Pi(variable, *implicit, Rc::new(domain), Rc::new(codomain)),
+                },
+                type_term.clone(),
+            )
         }
         Application(applicand, argument) => {
             // Infer the type of the applicand.
-            let applicand_type = type_check_rec(
+            let (applicand, applicand_type) = type_check_rec(
                 source_path,
                 source_contents,
                 applicand,
@@ -196,13 +213,13 @@ pub fn type_check_rec<'a>(
             // Construct a unification term for the domain.
             let domain = Rc::new(Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                variant: Unifier(Rc::new(RefCell::new(None)), 0),
             });
 
             // Construct a unification term for the codomain.
             let codomain = Rc::new(Term {
                 source_range: None,
-                variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                variant: Unifier(Rc::new(RefCell::new(None)), 0),
             });
 
             // Construct a pi type for unification.
@@ -231,7 +248,7 @@ pub fn type_check_rec<'a>(
             };
 
             // Infer the type of the argument.
-            let argument_type = type_check_rec(
+            let (argument, argument_type) = type_check_rec(
                 source_path,
                 source_contents,
                 argument,
@@ -255,8 +272,14 @@ pub fn type_check_rec<'a>(
                 ));
             }
 
-            // Construct and return the codomain specialized to the argument.
-            open(&codomain, 0, argument, 0)
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: Application(Rc::new(applicand), Rc::new(argument.clone())),
+                },
+                open(&codomain, 0, &argument, 0),
+            )
         }
         Let(definitions, body) => {
             // When the function returns, remove the variables from the context that we are
@@ -295,43 +318,49 @@ pub fn type_check_rec<'a>(
             }
 
             // Infer/check the types of the definitions.
-            for (_, annotation, definition) in definitions.iter() {
-                // Temporarily borrow from the scope guard.
-                let mut guard = context_cell.borrow_mut();
-                let ((borrowed_typing_context, borrowed_definitions_context), _) = &mut (*guard);
+            let definitions: Vec<_> = definitions
+                .iter()
+                .map(|(variable, annotation, definition)| {
+                    // Temporarily borrow from the scope guard.
+                    let mut guard = context_cell.borrow_mut();
+                    let ((borrowed_typing_context, borrowed_definitions_context), _) =
+                        &mut (*guard);
 
-                // Infer the type of the definition.
-                let definition_type = type_check_rec(
-                    source_path,
-                    source_contents,
-                    definition,
-                    borrowed_typing_context,
-                    borrowed_definitions_context,
-                    errors,
-                );
-
-                // Check the type against the annotation.
-                if !unify(&definition_type, &annotation, borrowed_definitions_context) {
-                    errors.push(throw(
-                        &format!(
-                            "This has type {}, but it was expected to have type {}:",
-                            definition_type.to_string().code_str(),
-                            annotation.to_string().code_str(),
-                        ),
+                    // Infer the type of the definition.
+                    let (definition, definition_type) = type_check_rec(
                         source_path,
-                        definition
-                            .source_range
-                            .map(|source_range| (source_contents, source_range)),
-                    ));
-                }
-            }
+                        source_contents,
+                        definition,
+                        borrowed_typing_context,
+                        borrowed_definitions_context,
+                        errors,
+                    );
+
+                    // Check the type against the annotation.
+                    if !unify(&definition_type, &annotation, borrowed_definitions_context) {
+                        errors.push(throw(
+                            &format!(
+                                "This has type {}, but it was expected to have type {}:",
+                                definition_type.to_string().code_str(),
+                                annotation.to_string().code_str(),
+                            ),
+                            source_path,
+                            definition
+                                .source_range
+                                .map(|source_range| (source_contents, source_range)),
+                        ));
+                    }
+
+                    (*variable, annotation.clone(), Rc::new(definition))
+                })
+                .collect();
 
             // Temporarily borrow from the scope guard.
             let mut guard = context_cell.borrow_mut();
             let ((borrowed_typing_context, borrowed_definitions_context), _) = &mut (*guard);
 
             // Infer the type of the body.
-            let body_type = type_check_rec(
+            let (body, body_type) = type_check_rec(
                 source_path,
                 source_contents,
                 body,
@@ -340,53 +369,59 @@ pub fn type_check_rec<'a>(
                 errors,
             );
 
-            // Return the opened type of the body.
-            (0..definitions.len()).fold(body_type, |acc, i| {
-                // Compute this once rather than multiple times.
-                let definitions_len_minus_one_minus_i = definitions.len() - 1 - i;
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: Let(definitions.clone(), Rc::new(body.clone())),
+                },
+                (0..definitions.len()).fold(body_type, |acc, i| {
+                    // Compute this once rather than multiple times.
+                    let definitions_len_minus_one_minus_i = definitions.len() - 1 - i;
 
-                // Open the body.
-                open(
-                    &acc,
-                    0,
-                    &Term {
-                        source_range: None,
-                        variant: Let(
-                            definitions
-                                .iter()
-                                .map(|(variable, annotation, definition)| {
-                                    (
-                                        *variable,
-                                        Rc::new(unsigned_shift(
-                                            annotation,
-                                            0,
-                                            definitions_len_minus_one_minus_i,
-                                        )),
-                                        Rc::new(unsigned_shift(
-                                            definition,
-                                            0,
-                                            definitions_len_minus_one_minus_i,
-                                        )),
-                                    )
-                                })
-                                .collect(),
-                            Rc::new(Term {
-                                source_range: None,
-                                variant: Variable(
-                                    definitions[definitions_len_minus_one_minus_i].0,
-                                    i,
-                                ),
-                            }),
-                        ),
-                    },
-                    0,
-                )
-            })
+                    // Open the body.
+                    open(
+                        &acc,
+                        0,
+                        &Term {
+                            source_range: None,
+                            variant: Let(
+                                definitions
+                                    .iter()
+                                    .map(|(variable, annotation, definition)| {
+                                        (
+                                            *variable,
+                                            Rc::new(unsigned_shift(
+                                                annotation,
+                                                0,
+                                                definitions_len_minus_one_minus_i,
+                                            )),
+                                            Rc::new(unsigned_shift(
+                                                definition,
+                                                0,
+                                                definitions_len_minus_one_minus_i,
+                                            )),
+                                        )
+                                    })
+                                    .collect(),
+                                Rc::new(Term {
+                                    source_range: None,
+                                    variant: Variable(
+                                        definitions[definitions_len_minus_one_minus_i].0,
+                                        i,
+                                    ),
+                                }),
+                            ),
+                        },
+                        0,
+                    )
+                }),
+            )
         }
-        IntegerLiteral(_) => integer_term,
+        IntegerLiteral(_) => (term.clone(), integer_term),
         Negation(subterm) => {
             // Infer the type of the subterm.
-            let subterm_type = type_check_rec(
+            let (subterm, subterm_type) = type_check_rec(
                 source_path,
                 source_contents,
                 subterm,
@@ -410,15 +445,18 @@ pub fn type_check_rec<'a>(
                 ));
             };
 
-            // Return the type of integers.
-            integer_term
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: Negation(Rc::new(subterm)),
+                },
+                integer_term,
+            )
         }
-        Sum(term1, term2)
-        | Difference(term1, term2)
-        | Product(term1, term2)
-        | Quotient(term1, term2) => {
+        Sum(term1, term2) => {
             // Infer the type of the left subterm.
-            let term1_type = type_check_rec(
+            let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
                 term1,
@@ -443,7 +481,7 @@ pub fn type_check_rec<'a>(
             };
 
             // Infer the type of the right subterm.
-            let term2_type = type_check_rec(
+            let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
                 term2,
@@ -467,16 +505,18 @@ pub fn type_check_rec<'a>(
                 ));
             };
 
-            // Return the type of integers.
-            integer_term
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: Sum(Rc::new(term1), Rc::new(term2)),
+                },
+                integer_term,
+            )
         }
-        LessThan(term1, term2)
-        | LessThanOrEqualTo(term1, term2)
-        | EqualTo(term1, term2)
-        | GreaterThan(term1, term2)
-        | GreaterThanOrEqualTo(term1, term2) => {
+        Difference(term1, term2) => {
             // Infer the type of the left subterm.
-            let term1_type = type_check_rec(
+            let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
                 term1,
@@ -501,7 +541,7 @@ pub fn type_check_rec<'a>(
             };
 
             // Infer the type of the right subterm.
-            let term2_type = type_check_rec(
+            let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
                 term2,
@@ -525,12 +565,438 @@ pub fn type_check_rec<'a>(
                 ));
             };
 
-            // Return the type of Booleans.
-            boolean_term
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: Difference(Rc::new(term1), Rc::new(term2)),
+                },
+                integer_term,
+            )
+        }
+        Product(term1, term2) => {
+            // Infer the type of the left subterm.
+            let (term1, term1_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term1,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the left subterm is the type of integers.
+            if !unify(&term1_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term1_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term1
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Infer the type of the right subterm.
+            let (term2, term2_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term2,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the right subterm is the type of integers.
+            if !unify(&term2_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term2_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term2
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: Product(Rc::new(term1), Rc::new(term2)),
+                },
+                integer_term,
+            )
+        }
+        Quotient(term1, term2) => {
+            // Infer the type of the left subterm.
+            let (term1, term1_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term1,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the left subterm is the type of integers.
+            if !unify(&term1_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term1_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term1
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Infer the type of the right subterm.
+            let (term2, term2_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term2,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the right subterm is the type of integers.
+            if !unify(&term2_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term2_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term2
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: Quotient(Rc::new(term1), Rc::new(term2)),
+                },
+                integer_term,
+            )
+        }
+        LessThan(term1, term2) => {
+            // Infer the type of the left subterm.
+            let (term1, term1_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term1,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the left subterm is the type of integers.
+            if !unify(&term1_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term1_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term1
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Infer the type of the right subterm.
+            let (term2, term2_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term2,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the right subterm is the type of integers.
+            if !unify(&term2_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term2_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term2
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: LessThan(Rc::new(term1), Rc::new(term2)),
+                },
+                boolean_term,
+            )
+        }
+        LessThanOrEqualTo(term1, term2) => {
+            // Infer the type of the left subterm.
+            let (term1, term1_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term1,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the left subterm is the type of integers.
+            if !unify(&term1_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term1_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term1
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Infer the type of the right subterm.
+            let (term2, term2_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term2,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the right subterm is the type of integers.
+            if !unify(&term2_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term2_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term2
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: LessThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
+                },
+                boolean_term,
+            )
+        }
+        EqualTo(term1, term2) => {
+            // Infer the type of the left subterm.
+            let (term1, term1_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term1,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the left subterm is the type of integers.
+            if !unify(&term1_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term1_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term1
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Infer the type of the right subterm.
+            let (term2, term2_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term2,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the right subterm is the type of integers.
+            if !unify(&term2_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term2_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term2
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: EqualTo(Rc::new(term1), Rc::new(term2)),
+                },
+                boolean_term,
+            )
+        }
+        GreaterThan(term1, term2) => {
+            // Infer the type of the left subterm.
+            let (term1, term1_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term1,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the left subterm is the type of integers.
+            if !unify(&term1_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term1_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term1
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Infer the type of the right subterm.
+            let (term2, term2_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term2,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the right subterm is the type of integers.
+            if !unify(&term2_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term2_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term2
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: GreaterThan(Rc::new(term1), Rc::new(term2)),
+                },
+                boolean_term,
+            )
+        }
+        GreaterThanOrEqualTo(term1, term2) => {
+            // Infer the type of the left subterm.
+            let (term1, term1_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term1,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the left subterm is the type of integers.
+            if !unify(&term1_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term1_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term1
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Infer the type of the right subterm.
+            let (term2, term2_type) = type_check_rec(
+                source_path,
+                source_contents,
+                term2,
+                typing_context,
+                definitions_context,
+                errors,
+            );
+
+            // Check that the type of the right subterm is the type of integers.
+            if !unify(&term2_type, &integer_term, definitions_context) {
+                errors.push(throw(
+                    &format!(
+                        "This has type {}, but it should have type {}:",
+                        term2_type.to_string().code_str(),
+                        integer_term.to_string().code_str(),
+                    ),
+                    source_path,
+                    term2
+                        .source_range
+                        .map(|source_range| (source_contents, source_range)),
+                ));
+            };
+
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: GreaterThanOrEqualTo(Rc::new(term1), Rc::new(term2)),
+                },
+                boolean_term,
+            )
         }
         If(condition, then_branch, else_branch) => {
             // Infer the type of the condition.
-            let condition_type = type_check_rec(
+            let (condition, condition_type) = type_check_rec(
                 source_path,
                 source_contents,
                 condition,
@@ -555,7 +1021,7 @@ pub fn type_check_rec<'a>(
             };
 
             // Infer the type of the then branch.
-            let then_branch_type = type_check_rec(
+            let (then_branch, then_branch_type) = type_check_rec(
                 source_path,
                 source_contents,
                 then_branch,
@@ -565,7 +1031,7 @@ pub fn type_check_rec<'a>(
             );
 
             // Infer the type of the else branch.
-            let else_branch_type = type_check_rec(
+            let (else_branch, else_branch_type) = type_check_rec(
                 source_path,
                 source_contents,
                 else_branch,
@@ -589,11 +1055,23 @@ pub fn type_check_rec<'a>(
                 ));
             };
 
-            // Return the type of the branches.
-            then_branch_type
+            // Return the new term and type.
+            (
+                Term {
+                    source_range: term.source_range,
+                    variant: If(
+                        Rc::new(condition),
+                        Rc::new(then_branch),
+                        Rc::new(else_branch),
+                    ),
+                },
+                then_branch_type,
+            )
         }
-        True | False => boolean_term,
-    }
+        True | False => (term.clone(), boolean_term),
+    };
+
+    (elaborated_term, elaborated_type)
 }
 
 #[cfg(test)]
@@ -621,7 +1099,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -661,7 +1139,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -692,7 +1170,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -723,7 +1201,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -763,7 +1241,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -844,7 +1322,7 @@ mod tests {
         let mut definitions_context = vec![None, None];
         let term_source = "
           (
-            (a : type) => (P: (x : a) -> type) => (f : (x : a) -> P x) => (x : a) => f x # ,
+            (a : type) => (P: a -> type) => (f : (x : a) -> P x) => (x : a) => f x # ,
           ) (
             ((t : type) => t) foo # ,
           ) (
@@ -857,7 +1335,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -888,7 +1366,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -913,7 +1391,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -938,7 +1416,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -963,7 +1441,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -988,7 +1466,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1013,7 +1491,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1038,7 +1516,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1063,7 +1541,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1088,7 +1566,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1113,7 +1591,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1138,7 +1616,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1163,7 +1641,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1188,7 +1666,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1213,7 +1691,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1238,7 +1716,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1263,7 +1741,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,
@@ -1288,7 +1766,7 @@ mod tests {
 
         let term_tokens = tokenize(None, term_source).unwrap();
         let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
-        let term_type_term = type_check(
+        let (_, term_type_term) = type_check(
             None,
             term_source,
             &term_term,

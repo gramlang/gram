@@ -1,7 +1,6 @@
 use crate::{
     de_bruijn::signed_shift,
     equality::syntactically_equal,
-    format::CodeStr,
     normalizer::normalize_weak_head,
     term::{
         Term,
@@ -15,6 +14,7 @@ use crate::{
 use std::{
     cell::RefCell,
     collections::HashSet,
+    convert::TryFrom,
     hash::{Hash, Hasher},
     ptr,
     rc::Rc,
@@ -22,7 +22,7 @@ use std::{
 
 // This struct is a "newtype" for `Rc` that implements `Eq` and `Hash` based on the underlying
 // pointer, rather than the value being pointed to.
-struct HashableRc<T>(Rc<T>);
+pub struct HashableRc<T>(Rc<T>);
 
 impl<T> Hash for HashableRc<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -65,75 +65,43 @@ pub fn unify<'a>(
         {
             true
         }
-        (Unifier(subterm1, subterm_shift1), _) => {
-            // We `clone` the borrowed `subterm1` to avoid holding the dynamic borrow for too long.
-            let borrow = { subterm1.borrow().clone() };
-
-            if let Err(min_shift) = borrow {
-                // Occurs check
-                let mut unifiers = vec![];
-                let mut visited = HashSet::new();
-                collect_unifiers(&whnf2, 0, &mut unifiers, &mut visited);
-                if visited.contains(&HashableRc(subterm1.clone())) {
-                    return false;
-                }
-
-                // Ensure the target can be shifted by `min_shift`.
-                if signed_shift(&whnf2, 0, min_shift).is_none() {
-                    return false;
-                }
-
-                // Unshift
-                if let Some(unshifted_term) = signed_shift(&whnf2, 0, -*subterm_shift1) {
-                    // Unify
-                    *subterm1.borrow_mut() = Ok(unshifted_term);
-
-                    // We did it!
-                    true
-                } else {
-                    false
-                }
-            } else {
-                panic!(
-                    "Encountered a non-{} unifier after reduction to weak-head normal form",
-                    "None".code_str(),
-                );
+        // The `unwrap` is "virtually safe", unless the conversion overflows.
+        (Unifier(subterm1, subterm_shift1), _)
+            if signed_shift(&whnf2, 0, -isize::try_from(*subterm_shift1).unwrap()).is_some() =>
+        {
+            // Occurs check
+            let mut unifiers = vec![];
+            let mut visited = HashSet::new();
+            collect_unifiers(&whnf2, 0, &mut unifiers, &mut visited);
+            if visited.contains(&HashableRc(subterm1.clone())) {
+                return false;
             }
+
+            // Unify. The `unwrap` is "virtually safe", unless the conversion overflows.
+            *subterm1.borrow_mut() =
+                signed_shift(&whnf2, 0, -isize::try_from(*subterm_shift1).unwrap());
+
+            // We did it!
+            true
         }
-        (_, Unifier(subterm2, subterm_shift2)) => {
-            // We `clone` the borrowed `subterm2` to avoid holding the dynamic borrow for too long.
-            let borrow = { subterm2.borrow().clone() };
-
-            if let Err(min_shift) = borrow {
-                // Occurs check
-                let mut unifiers = vec![];
-                let mut visited = HashSet::new();
-                collect_unifiers(&whnf1, 0, &mut unifiers, &mut visited);
-                if visited.contains(&HashableRc(subterm2.clone())) {
-                    return false;
-                }
-
-                // Ensure the target can be shifted by `min_shift`.
-                if signed_shift(&whnf1, 0, min_shift).is_none() {
-                    return false;
-                }
-
-                // Unshift
-                if let Some(unshifted_term) = signed_shift(&whnf1, 0, -*subterm_shift2) {
-                    // Unify
-                    *subterm2.borrow_mut() = Ok(unshifted_term);
-
-                    // We did it!
-                    true
-                } else {
-                    false
-                }
-            } else {
-                panic!(
-                    "Encountered a non-{} unifier after reduction to weak-head normal form",
-                    "None".code_str(),
-                );
+        // The `unwrap` is "virtually safe", unless the conversion overflows.
+        (_, Unifier(subterm2, subterm_shift2))
+            if signed_shift(&whnf1, 0, -isize::try_from(*subterm_shift2).unwrap()).is_some() =>
+        {
+            // Occurs check
+            let mut unifiers = vec![];
+            let mut visited = HashSet::new();
+            collect_unifiers(&whnf1, 0, &mut unifiers, &mut visited);
+            if visited.contains(&HashableRc(subterm2.clone())) {
+                return false;
             }
+
+            // Unify. The `unwrap` is "virtually safe", unless the conversion overflows.
+            *subterm2.borrow_mut() =
+                signed_shift(&whnf1, 0, -isize::try_from(*subterm_shift2).unwrap());
+
+            // We did it!
+            true
         }
         (Type, Type) | (Integer, Integer) | (Boolean, Boolean) | (True, True) | (False, False) => {
             true
@@ -194,7 +162,9 @@ pub fn unify<'a>(
                 && unify(then_branch1, then_branch2, definitions_context)
                 && unify(else_branch1, else_branch2, definitions_context)
         }
-        (Variable(_, _), _)
+        (Unifier(_, _), _)
+        | (_, Unifier(_, _))
+        | (Variable(_, _), _)
         | (_, Variable(_, _))
         | (Lambda(_, _, _, _), _)
         | (_, Lambda(_, _, _, _))
@@ -243,18 +213,20 @@ pub fn unify<'a>(
 
 // This function collects all the unresolved unifiers in a term. The unifiers are deduplicated and
 // returned in the order they are first encountered in the term.
-fn collect_unifiers<'a>(
+#[allow(clippy::type_complexity)]
+pub fn collect_unifiers<'a>(
     term: &Term<'a>,
     depth: usize,
-    unifiers: &mut Vec<Rc<RefCell<Result<Term<'a>, isize>>>>,
-    visited: &mut HashSet<HashableRc<RefCell<Result<Term<'a>, isize>>>>,
+    unifiers: &mut Vec<Rc<RefCell<Option<Term<'a>>>>>,
+    visited: &mut HashSet<HashableRc<RefCell<Option<Term<'a>>>>>,
 ) {
     match &term.variant {
         Unifier(unifier, _) => {
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            if let Ok(subterm) = { unifier.borrow().clone() } {
+            if let Some(subterm) = { unifier.borrow().clone() } {
                 collect_unifiers(&subterm, depth, unifiers, visited);
             } else if visited.insert(HashableRc(unifier.clone())) {
+                // This `unwrap` is "virtually safe", unless the conversion overflows.
                 unifiers.push(unifier.clone());
             }
         }
@@ -304,11 +276,14 @@ fn collect_unifiers<'a>(
 mod tests {
     use crate::{
         parser::parse,
+        term::{
+            Term,
+            Variant::{Application, Unifier, Variable},
+        },
         tokenizer::tokenize,
-        type_checker::type_check,
         unifier::{collect_unifiers, unify},
     };
-    use std::collections::HashSet;
+    use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
     #[test]
     fn unify_unifier_left() {
@@ -1047,21 +1022,21 @@ mod tests {
 
     #[test]
     fn collect_unifiers_unifier_deduplication() {
-        let parsing_context = [];
-        let mut typing_context = vec![];
-        let mut definitions_context = vec![];
+        let rc = Rc::new(RefCell::new(None));
 
-        let source = "(x => x) _";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
-        let _ = type_check(
-            None,
-            source,
-            &term,
-            &mut typing_context,
-            &mut definitions_context,
-        )
-        .unwrap();
+        let term = Term {
+            source_range: None,
+            variant: Application(
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Unifier(rc.clone(), 0),
+                }),
+                Rc::new(Term {
+                    source_range: None,
+                    variant: Unifier(rc.clone(), 0),
+                }),
+            ),
+        };
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();
@@ -1087,21 +1062,16 @@ mod tests {
 
     #[test]
     fn collect_unifiers_resolved() {
-        let parsing_context = [];
-        let mut typing_context = vec![];
-        let mut definitions_context = vec![];
-
-        let source = "(x => x) type";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
-        let _ = type_check(
-            None,
-            source,
-            &term,
-            &mut typing_context,
-            &mut definitions_context,
-        )
-        .unwrap();
+        let term = Term {
+            source_range: None,
+            variant: Unifier(
+                Rc::new(RefCell::new(Some(Term {
+                    source_range: None,
+                    variant: Variable("x", 0),
+                }))),
+                0,
+            ),
+        };
 
         let mut unifiers = vec![];
         let mut visited = HashSet::new();

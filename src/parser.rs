@@ -3366,7 +3366,7 @@ fn resolve_variables<'a>(
                 // Construct and return a unifier.
                 term::Term {
                     source_range: Some(term.source_range.0),
-                    variant: term::Variant::Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                    variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
                 }
             }
         }
@@ -3409,7 +3409,7 @@ fn resolve_variables<'a>(
                     } else {
                         Rc::new(term::Term {
                             source_range: None,
-                            variant: term::Variant::Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                            variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
                         })
                     },
                     Rc::new(resolve_variables(
@@ -3541,7 +3541,9 @@ fn resolve_variables<'a>(
 
             // Resolve variables in the definitions and annotations.
             let mut resolved_definitions = vec![];
-            for (inner_variable, inner_annotation, inner_definition) in &definitions {
+            for (i, (inner_variable, inner_annotation, inner_definition)) in
+                definitions.iter().enumerate()
+            {
                 // Temporarily borrow from the scope guard.
                 let mut guard = context_cell.borrow_mut();
                 let (borrowed_context, _) = &mut (*guard);
@@ -3558,7 +3560,10 @@ fn resolve_variables<'a>(
                     )),
                     None => Rc::new(term::Term {
                         source_range: None,
-                        variant: term::Variant::Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                        variant: term::Variant::Unifier(
+                            Rc::new(RefCell::new(None)),
+                            definitions.len() - i,
+                        ),
                     }),
                 };
 
@@ -3937,22 +3942,15 @@ fn check_definitions<'a>(
             assert_eq!(*subterm_shift, 0);
 
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            let borrow = { subterm.borrow().clone() };
-
-            match borrow {
-                Ok(subterm) => {
-                    check_definitions(
-                        source_path,
-                        source_contents,
-                        &subterm,
-                        depth,
-                        context,
-                        errors,
-                    );
-                }
-                Err(min_shift) => {
-                    assert_eq!(min_shift, 0);
-                }
+            if let Some(subterm) = { subterm.borrow().clone() } {
+                check_definitions(
+                    source_path,
+                    source_contents,
+                    &subterm,
+                    depth,
+                    context,
+                    errors,
+                );
             }
         }
         term::Variant::Lambda(_, _, domain, body) => {
@@ -4205,7 +4203,7 @@ mod tests {
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some((0, 1)),
-                variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                variant: Unifier(Rc::new(RefCell::new(None)), 0),
             },
         );
     }
@@ -4237,7 +4235,7 @@ mod tests {
                     false,
                     Rc::new(Term {
                         source_range: None,
-                        variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                        variant: Unifier(Rc::new(RefCell::new(None)), 0),
                     }),
                     Rc::new(Term {
                         source_range: Some((5, 6)),
@@ -4263,7 +4261,7 @@ mod tests {
                     true,
                     Rc::new(Term {
                         source_range: None,
-                        variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                        variant: Unifier(Rc::new(RefCell::new(None)), 0),
                     }),
                     Rc::new(Term {
                         source_range: Some((7, 8)),
@@ -4645,7 +4643,7 @@ mod tests {
                             "x",
                             Rc::new(Term {
                                 source_range: None,
-                                variant: Unifier(Rc::new(RefCell::new(Err(0))), 0),
+                                variant: Unifier(Rc::new(RefCell::new(None)), 2),
                             }),
                             Rc::new(Term {
                                 source_range: Some((4, 26)),

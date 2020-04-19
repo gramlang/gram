@@ -161,7 +161,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
     // Type check the term.
     let mut typing_context = vec![];
     let mut definitions_context = vec![];
-    let _ = type_check(
+    let (elaborated_term, elaborated_type) = type_check(
         Some(source_path),
         &source_contents,
         &term,
@@ -170,9 +170,18 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
     )
     .map_err(collect_errors)?;
 
-    // Evaluate the term.
-    if !check_only {
-        let value = evaluate(&term)?;
+    // Evaluate the term if applicable.
+    if check_only {
+        println!(
+            "Elaborated term:\n\n{}",
+            elaborated_term.to_string().code_str(),
+        );
+        println!(
+            "\nElaborated type:\n\n{}",
+            elaborated_type.to_string().code_str(),
+        );
+    } else {
+        let value = evaluate(&elaborated_term)?;
         println!("{}", value.to_string().code_str());
     }
 
