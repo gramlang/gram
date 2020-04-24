@@ -79,10 +79,10 @@ pub fn type_check_rec<'a>(
         Unifier(_, _) | Type | Integer | Boolean => (term.clone(), type_term.clone()),
         Variable(_, index) => {
             // Shift the type such that it's valid in the current context.
-            let (variable_type, offset) = &typing_context[typing_context.len() - 1 - *index];
+            let (variable_type, offset) = &typing_context[typing_context.len() - 1 - index];
             (
                 term.clone(),
-                unsigned_shift(variable_type, 0, *index + 1 - offset),
+                unsigned_shift(variable_type, 0, index + 1 - offset),
             )
         }
         Lambda(variable, implicit, domain, body) => {

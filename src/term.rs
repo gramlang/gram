@@ -199,7 +199,7 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
         | Variant::False => {}
         Variant::Variable(_, index) => {
             if *index >= cutoff {
-                variables.insert(*index - cutoff);
+                variables.insert(index - cutoff);
             }
         }
         Variant::Lambda(_, _, domain, body) => {
