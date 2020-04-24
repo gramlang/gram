@@ -22,7 +22,6 @@ pub struct Term<'a> {
 #[derive(Clone, Debug)]
 pub enum Variant<'a> {
     Unifier(Rc<RefCell<Option<Term<'a>>>>, usize), // (subterm, subterm_shift)
-
     Type,
     Variable(&'a str, usize),
     Lambda(&'a str, bool, Rc<Term<'a>>, Rc<Term<'a>>), // (variable, implicit, domain, body)

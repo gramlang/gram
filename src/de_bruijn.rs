@@ -217,8 +217,9 @@ pub fn open<'a>(
                     shift_amount,
                 )
             } else {
-                // The `unwrap` is NOT justified!
-                signed_shift(term_to_open, 0, -1).unwrap()
+                // This `unwrap` is justified because it is always safe to shift a term when the
+                // `amount` is greater than or equal to the negation of the `cutoff`.
+                signed_shift(term_to_open, 1, -1).unwrap()
             }
         }
         Type | Integer | IntegerLiteral(_) | Boolean | True | False => term_to_open.clone(),
