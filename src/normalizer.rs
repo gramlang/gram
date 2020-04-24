@@ -46,12 +46,12 @@ pub fn normalize_weak_head<'a>(
         }
         Variable(_, index) => {
             // Look up the definition in the context.
-            match &definitions_context[definitions_context.len() - 1 - *index] {
+            match &definitions_context[definitions_context.len() - 1 - index] {
                 Some((definition, offset)) => {
                     // Shift the definition so it's valid in the current context and then normalize
                     // it.
                     normalize_weak_head(
-                        &unsigned_shift(definition, 0, *index + 1 - offset),
+                        &unsigned_shift(definition, 0, index + 1 - offset),
                         definitions_context,
                     )
                 }
