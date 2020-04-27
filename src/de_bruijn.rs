@@ -6,7 +6,7 @@ use crate::term::{
         Quotient, Sum, True, Type, Unifier, Variable,
     },
 };
-use std::{convert::TryFrom, rc::Rc};
+use std::{cell::RefCell, convert::TryFrom, rc::Rc};
 
 // Shifting refers to adjusting the De Bruijn indices of free variables. A cutoff determines which
 // variables are considered free. This function is used to raise or lower a term into a different
@@ -19,7 +19,7 @@ pub fn signed_shift<'a>(term: &Term<'a>, cutoff: usize, amount: isize) -> Option
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
             if let Some(subterm) = { subterm.borrow().clone() } {
                 signed_shift(&unsigned_shift(&subterm, 0, *subterm_shift), cutoff, amount)
-            } else if *subterm_shift > cutoff {
+            } else if *subterm_shift >= cutoff {
                 // This `unwrap` is "virtually safe", unless the conversion overflows.
                 let new_shift = isize::try_from(*subterm_shift).unwrap() + amount;
 
@@ -214,19 +214,35 @@ pub fn open<'a>(
                     shift_amount,
                 )
             } else {
-                // This `unwrap` is justified because a unifier must have a shift of at least 1 in
-                // order for its shift to be decremented here.
-                signed_shift(term_to_open, index_to_replace, -1).unwrap()
+                Term {
+                    source_range: term_to_open.source_range,
+                    variant: Unifier(
+                        Rc::new(RefCell::new(None)),
+                        if *subterm_shift > index_to_replace {
+                            subterm_shift - 1
+                        } else {
+                            *subterm_shift
+                        },
+                    ),
+                }
             }
         }
         Type | Integer | IntegerLiteral(_) | Boolean | True | False => term_to_open.clone(),
-        Variable(_, index) => {
+        Variable(variable, index) => {
             if *index == index_to_replace {
                 unsigned_shift(term_to_insert, 0, shift_amount)
             } else {
-                // This `unwrap` is justified because it could only fail if `index` and
-                // `index_to_replace` are both 0, but then we'd be in the other branch.
-                signed_shift(term_to_open, index_to_replace, -1).unwrap()
+                Term {
+                    source_range: term_to_open.source_range,
+                    variant: Variable(
+                        variable,
+                        if *index > index_to_replace {
+                            index - 1
+                        } else {
+                            *index
+                        },
+                    ),
+                }
             }
         }
         Lambda(variable, implicit, domain, body) => Term {
