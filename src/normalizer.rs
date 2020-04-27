@@ -31,11 +31,9 @@ pub fn normalize_weak_head<'a>(
             term.clone()
         }
         Unifier(subterm, subterm_shift) => {
-            // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            let borrow = { subterm.borrow().clone() };
-
-            // If the unifier points to something, normalize it. Otherwise, we're stuck.
-            if let Some(subterm) = borrow {
+            // If the unifier points to something, normalize it. Otherwise, we're stuck. We `clone`
+            // the borrowed `subterm` to avoid holding the dynamic borrow for too long.
+            if let Some(subterm) = { subterm.borrow().clone() } {
                 normalize_weak_head(
                     &unsigned_shift(&subterm, 0, *subterm_shift),
                     definitions_context,
