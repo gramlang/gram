@@ -1,5 +1,5 @@
 // This macro is useful for writing tests that deal with errors. It takes an expression of type
-// `Result<_, Vec<Error>>` and a search string, and asserts that the expressions evaluates to an
+// `Result<_, Vec<Error>>` and a search string and asserts that the expressions evaluates to an
 // `Err(_)` and that the string representation of at least one of the errors contains the given
 // search string.
 #[macro_export]
@@ -38,6 +38,7 @@ macro_rules! assert_fails {
 }
 
 // This macro is useful for writing equality tests for types that implement `Debug` but not `Eq`.
+// It asserts that the debug representations of the two given expressions match.
 #[macro_export]
 macro_rules! assert_same {
     ($expr1:expr, $expr2:expr $(,)?) => {{
