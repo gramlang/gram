@@ -21,14 +21,38 @@ pub struct Term<'a> {
 // Each term has a "variant" describing what kind of term it is.
 #[derive(Clone, Debug)]
 pub enum Variant<'a> {
-    Unifier(Rc<RefCell<Option<Term<'a>>>>, usize), // (subterm, subterm_shift)
+    // Unifiers are used to represent unknown subterms prior to type inference. A term may contain
+    // multiple unifiers that actually represent the same unknown subterm shifted by different
+    // amounts. The fields are (subterm, subterm_shift).
+    Unifier(Rc<RefCell<Option<Term<'a>>>>, usize),
+
+    // This is the type of all types. It's its own type.
     Type,
+
+    // A variable is a placeholder for a value which is bound by a lambda, pi type, or let. The
+    // fields are (variable_name, de_bruijn_index).
     Variable(&'a str, usize),
-    Lambda(&'a str, bool, Rc<Term<'a>>, Rc<Term<'a>>), // (variable, implicit, domain, body)
-    Pi(&'a str, bool, Rc<Term<'a>>, Rc<Term<'a>>),     // (variable, implicit, domain, codomain)
+
+    // A lambda is an anonymous function. The body is assumed to be in a context in which the
+    // variable has already been added. The fields are (variable_name, implicit, domain, body).
+    Lambda(&'a str, bool, Rc<Term<'a>>, Rc<Term<'a>>),
+
+    // A pi type is a dependent function type. The body is assumed to be in a context in which the
+    // variable has already been added. The fields are (variable_name, implicit, domain, body).
+    Pi(&'a str, bool, Rc<Term<'a>>, Rc<Term<'a>>),
+
+    // An application is a function call. The fields are (applicand, argument).
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
+
+    // A let is used to introduce local definitions. The annotations, definitions, and body are all
+    // assumed to be in a context in which the variables (with their respective annotations and
+    // definitions) have already been added. This allows for recursive definitions. The fields are
+    // `([(variable_name, annotation, definition)], body)`.
     #[allow(clippy::type_complexity)]
     Let(Vec<(&'a str, Rc<Term<'a>>, Rc<Term<'a>>)>, Rc<Term<'a>>),
+
+    // The above constructs form the core language. To make the language usable, we introduce
+    // several standard constructs for doing arithmetic and logical operations below.
     Integer,
     IntegerLiteral(BigInt),
     Negation(Rc<Term<'a>>),
