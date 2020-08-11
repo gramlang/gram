@@ -27,7 +27,7 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {
     fn source<'a>(&'a self) -> Option<&(dyn error::Error + 'static)> {
-        self.reason.as_ref().map(|e| &**e)
+        self.reason.as_deref()
     }
 }
 
