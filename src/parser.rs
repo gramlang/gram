@@ -3404,14 +3404,15 @@ fn resolve_variables<'a>(
                 variant: term::Variant::Lambda(
                     variable.name,
                     *implicit,
-                    if let Some(resolved_domain) = resolved_domain {
-                        Rc::new(resolved_domain)
-                    } else {
-                        Rc::new(term::Term {
-                            source_range: None,
-                            variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
-                        })
-                    },
+                    resolved_domain.map_or_else(
+                        || {
+                            Rc::new(term::Term {
+                                source_range: None,
+                                variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
+                            })
+                        },
+                        Rc::new,
+                    ),
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
