@@ -10,8 +10,6 @@ homepage = "https://github.com/gramlang/gram"
 repository = "https://github.com/gramlang/gram"
 readme = "README.md"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 atty = "0.2"
 colored = "1"
