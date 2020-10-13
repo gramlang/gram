@@ -33,14 +33,15 @@ pub fn normalize_weak_head<'a>(
         Unifier(subterm, subterm_shift) => {
             // If the unifier points to something, normalize it. Otherwise, we're stuck. We `clone`
             // the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            if let Some(subterm) = { subterm.borrow().clone() } {
-                normalize_weak_head(
-                    &unsigned_shift(&subterm, 0, *subterm_shift),
-                    definitions_context,
-                )
-            } else {
-                term.clone()
-            }
+            { subterm.borrow().clone() }.map_or_else(
+                || term.clone(),
+                |subterm| {
+                    normalize_weak_head(
+                        &unsigned_shift(&subterm, 0, *subterm_shift),
+                        definitions_context,
+                    )
+                },
+            )
         }
         Variable(_, index) => {
             // Look up the definition in the context.
@@ -235,19 +236,22 @@ pub fn normalize_weak_head<'a>(
                 (&normalized_term1.variant, &normalized_term2.variant)
             {
                 // Attempt to perform division.
-                if let Some(quotient) = integer1.checked_div(integer2) {
-                    // The division was successful.
-                    Term {
-                        source_range: None,
-                        variant: IntegerLiteral(quotient),
-                    }
-                } else {
-                    // Division by zero!
-                    Term {
-                        source_range: None,
-                        variant: Quotient(Rc::new(normalized_term1), Rc::new(normalized_term2)),
-                    }
-                }
+                integer1.checked_div(integer2).map_or_else(
+                    || {
+                        // Division by zero!
+                        Term {
+                            source_range: None,
+                            variant: Quotient(Rc::new(normalized_term1), Rc::new(normalized_term2)),
+                        }
+                    },
+                    |quotient| {
+                        // The division was successful.
+                        Term {
+                            source_range: None,
+                            variant: IntegerLiteral(quotient),
+                        }
+                    },
+                )
             } else {
                 // We didn't get integer literals. We're done here.
                 Term {

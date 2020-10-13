@@ -206,15 +206,8 @@ pub fn open<'a>(
     match &term_to_open.variant {
         Unifier(subterm, subterm_shift) => {
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            if let Some(subterm) = { subterm.borrow().clone() } {
-                open(
-                    &unsigned_shift(&subterm, 0, *subterm_shift),
-                    index_to_replace,
-                    term_to_insert,
-                    shift_amount,
-                )
-            } else {
-                Term {
+            { subterm.borrow().clone() }.map_or_else(
+                || Term {
                     source_range: term_to_open.source_range,
                     variant: Unifier(
                         Rc::new(RefCell::new(None)),
@@ -224,8 +217,16 @@ pub fn open<'a>(
                             *subterm_shift
                         },
                     ),
-                }
-            }
+                },
+                |subterm| {
+                    open(
+                        &unsigned_shift(&subterm, 0, *subterm_shift),
+                        index_to_replace,
+                        term_to_insert,
+                        shift_amount,
+                    )
+                },
+            )
         }
         Type | Integer | IntegerLiteral(_) | Boolean | True | False => term_to_open.clone(),
         Variable(variable, index) => {

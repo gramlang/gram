@@ -359,16 +359,10 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                 (&term1.variant, &term2.variant)
             {
                 // We got integer literals. Attempt to perform division.
-                if let Some(quotient) = integer1.checked_div(integer2) {
-                    // The division was successful.
-                    Some(Term {
-                        source_range: None,
-                        variant: IntegerLiteral(quotient),
-                    })
-                } else {
-                    // Division by zero!
-                    None
-                }
+                integer1.checked_div(integer2).map(|quotient| Term {
+                    source_range: None,
+                    variant: IntegerLiteral(quotient),
+                })
             } else {
                 // We didn't get integer literals. We're stuck!
                 None
