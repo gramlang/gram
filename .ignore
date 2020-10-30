@@ -1,5 +1,5 @@
 # Keep this file in sync with `.gitignore`.
-artifacts/
-release/
-target/
-main.g
+/artifacts/
+/main.g
+/release/
+/target/
