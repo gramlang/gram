@@ -191,8 +191,8 @@ enum Nonterminal {
 }
 
 // A cache is a map from nonterminal and position to term, a new position, and a boolean indicating
-// whether we're confident in the new position. If the term is either the `Missing` case or the
-// `ParseError` case, the new position should equal the given position.
+// whether we're confident in the new position. If the term is the `ParseError` variant, the new
+// position should equal the given position.
 type Cache<'a> = HashMap<(Nonterminal, usize), (Term<'a>, usize, bool)>;
 
 // This macro should be called at the beginning of every parsing function to do a cache lookup and
