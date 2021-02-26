@@ -165,7 +165,7 @@ impl<'a> Display for Variant<'a> {
 
 // Convert a term to a string with surrounding parentheses, except for simple terms that cause no
 // parsing ambiguities in any context.
-fn group<'a>(term: &Term<'a>) -> String {
+fn group(term: &Term) -> String {
     match &term.variant {
         Variant::Unifier(subterm, _) => {
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.

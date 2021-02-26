@@ -603,7 +603,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
 
 // This function returns whether a term is a value. Note that a neutral term (e.g., a variable) is
 // not considered a value.
-pub fn is_value<'a>(term: &Term<'a>) -> bool {
+pub fn is_value(term: &Term) -> bool {
     match term.variant {
         Type
         | Lambda(_, _, _, _)
