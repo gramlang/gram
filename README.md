@@ -1,6 +1,6 @@
 # The Gram Programming Language
 
-[![Build status](https://github.com/gramlang/gram/workflows/Continuous%20integration/badge.svg?branch=master)](https://github.com/gramlang/gram/actions?query=branch%3Amaster)
+[![Build status](https://github.com/gramlang/gram/workflows/Continuous%20integration/badge.svg?branch=main)](https://github.com/gramlang/gram/actions?query=branch%3Amain)
 
 [Gram](https://www.gram.org) is a programming language for distributed systems.
 
@@ -11,7 +11,7 @@
 If you are running macOS or a GNU-based Linux on an x86-64 CPU, you can install Gram with this command:
 
 ```sh
-curl https://raw.githubusercontent.com/gramlang/gram/master/install.sh -LSfs | sh
+curl https://raw.githubusercontent.com/gramlang/gram/main/install.sh -LSfs | sh
 ```
 
 The same command can be used again to update Gram to the latest version.
@@ -28,7 +28,7 @@ The installation script supports the following environment variables:
 For example, the following will install Gram into the working directory:
 
 ```sh
-curl https://raw.githubusercontent.com/gramlang/gram/master/install.sh -LSfs | PREFIX=. sh
+curl https://raw.githubusercontent.com/gramlang/gram/main/install.sh -LSfs | PREFIX=. sh
 ```
 
 ### Manual installation
