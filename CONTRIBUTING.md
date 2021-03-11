@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in contributing to Gram! You can contribute by filing [issues](https://github.com/gramlang/gram/issues) and submitting [pull requests](https://github.com/gramlang/gram/pulls). Please observe our [code of conduct](https://github.com/gramlang/gram/blob/master/CODE_OF_CONDUCT.md).
+Thank you for your interest in contributing to Gram! You can contribute by filing [issues](https://github.com/gramlang/gram/issues) and submitting [pull requests](https://github.com/gramlang/gram/pulls). Please observe our [code of conduct](https://github.com/gramlang/gram/blob/main/CODE_OF_CONDUCT.md).
 
 If you submit a pull request, please ensure your change passes the [GitHub Actions](https://github.com/gramlang/gram/actions) CI checks. This will be apparent from the required status check(s) in the pull request.
 
