@@ -258,9 +258,9 @@ macro_rules! try_eval {
         // Extract the result or fail fast.
         if let Variant::ParseError = value.0.variant {
             cache_return!($cache, cache_key, value)
-        } else {
-            value
         }
+
+        value
     }};
 }
 
