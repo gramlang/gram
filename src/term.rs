@@ -268,16 +268,12 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        term::free_variables,
-        term::{
-            Term,
-            Variant::{
-                Application, Boolean, Difference, EqualTo, False, GreaterThan,
-                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
-                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
-                Variable,
-            },
+    use crate::term::{
+        free_variables, Term,
+        Variant::{
+            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
+            Product, Quotient, Sum, True, Type, Unifier, Variable,
         },
     };
     use num_bigint::ToBigInt;
