@@ -268,16 +268,548 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
 
 #[cfg(test)]
 mod tests {
-    use crate::term::{
-        free_variables, Term,
-        Variant::{
-            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
-            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
-            Product, Quotient, Sum, True, Type, Unifier, Variable,
+    use crate::{
+        term::{
+            free_variables, Term,
+            Variant::{
+                Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
+                Variable,
+            },
         },
+        token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
     };
     use num_bigint::ToBigInt;
     use std::{cell::RefCell, collections::HashSet, rc::Rc};
+
+    #[test]
+    fn term_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Term {
+                    source_range: None,
+                    variant: Unifier(Rc::new(RefCell::new(None)), 0),
+                },
+            ),
+            "_",
+        );
+    }
+
+    #[test]
+    fn variant_unifier_no_subterm_display() {
+        assert_eq!(format!("{}", Unifier(Rc::new(RefCell::new(None)), 0)), "_");
+    }
+
+    #[test]
+    fn variant_unifier_subterm_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Unifier(
+                    Rc::new(RefCell::new(Some(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }))),
+                    0,
+                ),
+            ),
+            "x",
+        );
+    }
+
+    #[test]
+    fn variant_type_display() {
+        assert_eq!(format!("{}", Type), TYPE_KEYWORD);
+    }
+
+    #[test]
+    fn variant_variable_display() {
+        assert_eq!(format!("{}", Variable("x", 15)), "x");
+    }
+
+    #[test]
+    fn variant_lambda_explicit_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Lambda(
+                    "a",
+                    false,
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("c", 15),
+                    }),
+                ),
+            ),
+            "(a : b) => c",
+        );
+    }
+
+    #[test]
+    fn variant_lambda_implicit_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Lambda(
+                    "a",
+                    true,
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("c", 15),
+                    }),
+                ),
+            ),
+            "{a : b} => c",
+        );
+    }
+
+    #[test]
+    fn variant_pi_dependent_explicit_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Pi(
+                    "x",
+                    false,
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("a", 1),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 0),
+                    }),
+                ),
+            ),
+            "(x : a) -> x",
+        );
+    }
+
+    #[test]
+    fn variant_pi_dependent_implicit_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Pi(
+                    "x",
+                    true,
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("a", 1),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 0),
+                    }),
+                ),
+            ),
+            "{x : a} -> x",
+        );
+    }
+
+    #[test]
+    fn variant_pi_non_dependent_implicit_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Pi(
+                    "x",
+                    true,
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("a", 1),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 2),
+                    }),
+                ),
+            ),
+            "{a} -> b",
+        );
+    }
+
+    #[test]
+    fn variant_pi_non_dependent_explicit_left_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Pi(
+                    "x",
+                    false,
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Pi(
+                            "y",
+                            false,
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Variable("a", 2),
+                            }),
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Variable("b", 3),
+                            }),
+                        ),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("c", 3),
+                    }),
+                ),
+            ),
+            "(a -> b) -> c",
+        );
+    }
+
+    #[test]
+    fn variant_pi_non_dependent_explicit_right_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Pi(
+                    "x",
+                    false,
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("a", 1),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Pi(
+                            "y",
+                            false,
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Variable("b", 2),
+                            }),
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Variable("c", 3),
+                            }),
+                        ),
+                    }),
+                ),
+            ),
+            "a -> b -> c",
+        );
+    }
+
+    #[test]
+    fn variant_application_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Application(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("a", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                ),
+            ),
+            "a b",
+        );
+    }
+
+    #[test]
+    fn variant_let_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Let(
+                    vec![
+                        (
+                            "x",
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Type,
+                            }),
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Variable("y", 15),
+                            }),
+                        ),
+                        (
+                            "y",
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Type,
+                            }),
+                            Rc::new(Term {
+                                source_range: None,
+                                variant: Variable("z", 16),
+                            }),
+                        ),
+                    ],
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("w", 17),
+                    }),
+                ),
+            ),
+            "x : type = y; y : type = z; w",
+        );
+    }
+
+    #[test]
+    fn variant_integer_display() {
+        assert_eq!(format!("{}", Integer), INTEGER_KEYWORD);
+    }
+
+    #[test]
+    fn variant_integer_literal_display() {
+        assert_eq!(
+            format!("{}", IntegerLiteral(ToBigInt::to_bigint(&42).unwrap())),
+            "42",
+        );
+    }
+
+    #[test]
+    fn variant_negation_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Negation(Rc::new(Term {
+                    source_range: None,
+                    variant: Variable("b", 15),
+                })),
+            ),
+            "-b",
+        );
+    }
+
+    #[test]
+    fn variant_sum_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Sum(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("y", 16),
+                    }),
+                ),
+            ),
+            "x + y",
+        );
+    }
+
+    #[test]
+    fn variant_difference_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Difference(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("y", 16),
+                    }),
+                ),
+            ),
+            "x - y",
+        );
+    }
+
+    #[test]
+    fn variant_product_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Product(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("y", 16),
+                    }),
+                ),
+            ),
+            "x * y",
+        );
+    }
+
+    #[test]
+    fn variant_quotient_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Quotient(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("y", 16),
+                    }),
+                ),
+            ),
+            "x / y",
+        );
+    }
+
+    #[test]
+    fn variant_less_than_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                LessThan(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("y", 16),
+                    }),
+                ),
+            ),
+            "x < y",
+        );
+    }
+
+    #[test]
+    fn variant_less_than_or_equal_to_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                LessThanOrEqualTo(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("y", 16),
+                    }),
+                ),
+            ),
+            "x <= y",
+        );
+    }
+
+    #[test]
+    fn variant_equal_to_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                EqualTo(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("y", 16),
+                    }),
+                ),
+            ),
+            "x == y",
+        );
+    }
+
+    #[test]
+    fn variant_greater_than_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                GreaterThan(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("y", 16),
+                    }),
+                ),
+            ),
+            "x > y",
+        );
+    }
+
+    #[test]
+    fn variant_greater_than_or_equal_to_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                GreaterThanOrEqualTo(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("x", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("y", 16),
+                    }),
+                ),
+            ),
+            "x >= y",
+        );
+    }
+
+    #[test]
+    fn variant_boolean_display() {
+        assert_eq!(format!("{}", Boolean), BOOLEAN_KEYWORD);
+    }
+
+    #[test]
+    fn variant_true_display() {
+        assert_eq!(format!("{}", True), TRUE_KEYWORD);
+    }
+
+    #[test]
+    fn variant_false_display() {
+        assert_eq!(format!("{}", False), FALSE_KEYWORD);
+    }
+
+    #[test]
+    fn variant_if_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                If(
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("a", 15),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("b", 16),
+                    }),
+                    Rc::new(Term {
+                        source_range: None,
+                        variant: Variable("c", 17),
+                    }),
+                ),
+            ),
+            "if a then b else c",
+        );
+    }
 
     #[test]
     fn free_variables_unifier_none() {
@@ -837,7 +1369,7 @@ mod tests {
                 variant: If(
                     Rc::new(Term {
                         source_range: None,
-                        variant: Variable("b", 15),
+                        variant: Variable("a", 15),
                     }),
                     Rc::new(Term {
                         source_range: None,
