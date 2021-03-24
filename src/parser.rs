@@ -55,6 +55,96 @@ pub const PLACEHOLDER_VARIABLE: &str = "_";
 // `Error`, which may contain a long string message.
 type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
 
+// This function constructs a generic error factory that just complains about a particular token or
+// the end of the source file.
+fn error_factory<'a>(
+    tokens: &'a [Token<'a>],
+    position: usize,
+    expectation: &str,
+) -> ErrorFactory<'a> {
+    let source_range = token_source_range(tokens, position);
+    let expectation = expectation.to_owned();
+
+    Rc::new(move |source_path, source_contents| {
+        if tokens.is_empty() {
+            throw(
+                &format!("Expected {}, but the file is empty.", expectation),
+                source_path,
+                Some((source_contents, source_range.0)),
+            )
+        } else if position == tokens.len() {
+            throw(
+                &format!("Expected {} at the end of the file.", expectation),
+                source_path,
+                Some((source_contents, source_range.0)),
+            )
+        } else {
+            throw(
+                &if let token::Variant::Terminator(TerminatorType::LineBreak) =
+                    tokens[position].variant
+                {
+                    format!("Expected {} at the end of this line:", expectation)
+                } else {
+                    format!(
+                        "Expected {}, but encountered {}.",
+                        expectation,
+                        tokens[position].to_string().code_str(),
+                    )
+                },
+                source_path,
+                Some((source_contents, source_range.0)),
+            )
+        }
+    })
+}
+
+// For extra type safety, we use the "newtype" pattern here to introduce a new type for source
+// ranges. The goal is to prevent source ranges from accidentally including token indices.
+#[derive(Clone, Copy, Debug)]
+struct SourceRange((usize, usize)); // Inclusive on the left and exclusive on the right
+
+// This function constructs a `SourceRange` that spans two given `SourceRange`s.
+fn span(x: SourceRange, y: SourceRange) -> SourceRange {
+    SourceRange {
+        0: (min((x.0).0, (y.0).0), max((x.0).1, (y.0).1)),
+    }
+}
+
+// This function computes the source range for a token, or the empty range at the end of the source
+// file in the case where the given position is at the end of the token stream.
+fn token_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
+    if position == tokens.len() {
+        SourceRange {
+            0: tokens
+                .last()
+                .map_or((0, 0), |token| (token.source_range.1, token.source_range.1)),
+        }
+    } else {
+        SourceRange {
+            0: tokens[position].source_range,
+        }
+    }
+}
+
+// This function computes an empty source range at the beginning of a token, or the empty range at
+// the end of the source file in the case where the given position is at the end of the token
+// stream.
+fn empty_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
+    let range_start = (token_source_range(tokens, position).0).0;
+
+    SourceRange {
+        0: (range_start, range_start),
+    }
+}
+
+// For variables, we store the name of the variable and its source range. The source range allows
+// us to report nice errors when there are multiple variables with the same name.
+#[derive(Clone, Copy, Debug)]
+struct SourceVariable<'a> {
+    source_range: SourceRange,
+    name: &'a str,
+}
+
 // The token stream is parsed into an abstract syntax tree (AST). This struct represents a node in
 // an AST. This is similar to `term::Term`, except:
 // - It doesn't contain De Bruijn indices.
@@ -102,50 +192,14 @@ enum Variant<'a> {
     If(Rc<Term<'a>>, Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
-// For variables, we store the name of the variable and its source range. The source range allows
-// us to report nice errors when there are multiple variables with the same name.
-#[derive(Clone, Copy, Debug)]
-struct SourceVariable<'a> {
-    source_range: SourceRange,
-    name: &'a str,
-}
-
-// For extra type safety, we use the "newtype" pattern here to introduce a new type for source
-// ranges. The goal is to prevent source ranges from accidentally including token indices.
-#[derive(Clone, Copy, Debug)]
-struct SourceRange((usize, usize)); // Inclusive on the left and exclusive on the right
-
-// This function constructs a `SourceRange` that spans two given `SourceRange`s.
-fn span(x: SourceRange, y: SourceRange) -> SourceRange {
-    SourceRange {
-        0: (min((x.0).0, (y.0).0), max((x.0).1, (y.0).1)),
-    }
-}
-
-// This function computes the source range for a token, or the empty range at the end of the source
-// file in the case where the given position is at the end of the token stream.
-fn token_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
-    if position == tokens.len() {
-        SourceRange {
-            0: tokens
-                .last()
-                .map_or((0, 0), |token| (token.source_range.1, token.source_range.1)),
-        }
-    } else {
-        SourceRange {
-            0: tokens[position].source_range,
-        }
-    }
-}
-
-// This function computes an empty source range at the beginning of a token, or the empty range at
-// the end of the source file in the case where the given position is at the end of the token
-// stream.
-fn empty_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
-    let range_start = (token_source_range(tokens, position).0).0;
-
-    SourceRange {
-        0: (range_start, range_start),
+// This function constructs an error term that just complains about a particular token or the end of
+// the source file.
+fn error_term<'a>(tokens: &'a [Token<'a>], position: usize, expectation: &str) -> Term<'a> {
+    Term {
+        source_range: empty_source_range(tokens, position),
+        group: false,
+        variant: Variant::ParseError,
+        errors: vec![error_factory(tokens, position, expectation)],
     }
 }
 
@@ -262,60 +316,6 @@ macro_rules! try_eval {
 
         value
     }};
-}
-
-// This function constructs a generic error factory that just complains about a particular token or
-// the end of the source file.
-fn error_factory<'a>(
-    tokens: &'a [Token<'a>],
-    position: usize,
-    expectation: &str,
-) -> ErrorFactory<'a> {
-    let source_range = token_source_range(tokens, position);
-    let expectation = expectation.to_owned();
-
-    Rc::new(move |source_path, source_contents| {
-        if tokens.is_empty() {
-            throw(
-                &format!("Expected {}, but the file is empty.", expectation),
-                source_path,
-                Some((source_contents, source_range.0)),
-            )
-        } else if position == tokens.len() {
-            throw(
-                &format!("Expected {} at the end of the file.", expectation),
-                source_path,
-                Some((source_contents, source_range.0)),
-            )
-        } else {
-            throw(
-                &if let token::Variant::Terminator(TerminatorType::LineBreak) =
-                    tokens[position].variant
-                {
-                    format!("Expected {} at the end of this line:", expectation)
-                } else {
-                    format!(
-                        "Expected {}, but encountered {}.",
-                        expectation,
-                        tokens[position].to_string().code_str(),
-                    )
-                },
-                source_path,
-                Some((source_contents, source_range.0)),
-            )
-        }
-    })
-}
-
-// This function constructs an error term that just complains about a particular token or the end of
-// the source file.
-fn error_term<'a>(tokens: &'a [Token<'a>], position: usize, expectation: &str) -> Term<'a> {
-    Term {
-        source_range: empty_source_range(tokens, position),
-        group: false,
-        variant: Variant::ParseError,
-        errors: vec![error_factory(tokens, position, expectation)],
-    }
 }
 
 // This macro consumes a single token (with no arguments) and evaluates to the position of the next
@@ -526,6 +526,1733 @@ macro_rules! expect_token1 {
 
         (argument_option, next)
     }};
+}
+
+// This function finds all the error factories within a term.
+fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term: &Term<'a>) {
+    match &term.variant {
+        Variant::ParseError
+        | Variant::Type
+        | Variant::Variable(_)
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => {}
+        Variant::Lambda(_, _, domain, body) => {
+            if let Some(domain) = domain {
+                collect_error_factories(error_factories, domain);
+            }
+
+            collect_error_factories(error_factories, body);
+        }
+        Variant::Pi(_, _, domain, codomain) => {
+            collect_error_factories(error_factories, domain);
+            collect_error_factories(error_factories, codomain);
+        }
+        Variant::Application(applicand, argument) => {
+            collect_error_factories(error_factories, applicand);
+            collect_error_factories(error_factories, argument);
+        }
+        Variant::Let(_, annotation, definition, body) => {
+            if let Some(annotation) = annotation {
+                collect_error_factories(error_factories, annotation);
+            }
+
+            collect_error_factories(error_factories, definition);
+            collect_error_factories(error_factories, body);
+        }
+        Variant::Negation(subterm) => {
+            collect_error_factories(error_factories, subterm);
+        }
+        Variant::Sum(term1, term2)
+        | Variant::Difference(term1, term2)
+        | Variant::Product(term1, term2)
+        | Variant::Quotient(term1, term2)
+        | Variant::LessThan(term1, term2)
+        | Variant::LessThanOrEqualTo(term1, term2)
+        | Variant::EqualTo(term1, term2)
+        | Variant::GreaterThan(term1, term2)
+        | Variant::GreaterThanOrEqualTo(term1, term2) => {
+            collect_error_factories(error_factories, term1);
+            collect_error_factories(error_factories, term2);
+        }
+        Variant::If(condition, then_branch, else_branch) => {
+            collect_error_factories(error_factories, condition);
+            collect_error_factories(error_factories, then_branch);
+            collect_error_factories(error_factories, else_branch);
+        }
+    };
+
+    for error_factory in &term.errors {
+        error_factories.push(error_factory.clone());
+    }
+}
+
+// Flip the associativity of applications from right to left.
+#[allow(clippy::too_many_lines)]
+fn reassociate_applications<'a>(acc: Option<Term<'a>>, term: &Term<'a>) -> Term<'a> {
+    // In every case except the application case, if we have a value for the accumulator, we want
+    // to construct an application with the accumulator as the applicand and the reduced term as
+    // the argument. In the application case, we build up the accumulator.
+    let reduced = match &term.variant {
+        Variant::ParseError => {
+            // This should be unreachable due to [ref:error_check].
+            panic!(
+                "{} called on a {}.",
+                "reassociate_applications".code_str(),
+                "ParseError".code_str(),
+            )
+        }
+        Variant::Type
+        | Variant::Variable(_)
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => term.clone(),
+        Variant::Lambda(variable, implicit, domain, body) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Lambda(
+                *variable,
+                *implicit,
+                domain
+                    .as_ref()
+                    .map(|domain| Rc::new(reassociate_applications(None, domain))),
+                Rc::new(reassociate_applications(None, body)),
+            ),
+            errors: vec![],
+        },
+        Variant::Pi(variable, implicit, domain, codomain) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Pi(
+                *variable,
+                *implicit,
+                Rc::new(reassociate_applications(None, domain)),
+                Rc::new(reassociate_applications(None, codomain)),
+            ),
+            errors: vec![],
+        },
+        Variant::Application(applicand, argument) => {
+            return if argument.group {
+                if let Some(acc) = acc {
+                    Term {
+                        source_range: span(acc.source_range, argument.source_range),
+                        group: true,
+                        variant: Variant::Application(
+                            Rc::new(reassociate_applications(Some(acc), applicand)),
+                            Rc::new(reassociate_applications(None, argument)),
+                        ),
+                        errors: vec![],
+                    }
+                } else {
+                    Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: Variant::Application(
+                            Rc::new(reassociate_applications(None, applicand)),
+                            Rc::new(reassociate_applications(None, argument)),
+                        ),
+                        errors: vec![],
+                    }
+                }
+            } else {
+                reassociate_applications(
+                    Some(if let Some(acc) = acc {
+                        Term {
+                            source_range: span(acc.source_range, applicand.source_range),
+                            group: true,
+                            variant: Variant::Application(
+                                Rc::new(acc),
+                                Rc::new(reassociate_applications(None, applicand)),
+                            ),
+                            errors: vec![],
+                        }
+                    } else {
+                        reassociate_applications(None, applicand)
+                    }),
+                    argument,
+                )
+            };
+        }
+        Variant::Let(variable, annotation, definition, body) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Let(
+                *variable,
+                annotation
+                    .as_ref()
+                    .map(|annotation| Rc::new(reassociate_applications(None, annotation))),
+                Rc::new(reassociate_applications(None, definition)),
+                Rc::new(reassociate_applications(None, body)),
+            ),
+            errors: vec![],
+        },
+        Variant::Negation(subterm) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Negation(Rc::new(reassociate_applications(None, subterm))),
+            errors: vec![],
+        },
+        Variant::Sum(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Sum(
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::Difference(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Difference(
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::Product(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Product(
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::Quotient(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Quotient(
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::LessThan(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThan(
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::LessThanOrEqualTo(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThanOrEqualTo(
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::EqualTo(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::EqualTo(
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::GreaterThan(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThan(
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::GreaterThanOrEqualTo(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThanOrEqualTo(
+                Rc::new(reassociate_applications(None, term1)),
+                Rc::new(reassociate_applications(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::If(condition, then_branch, else_branch) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::If(
+                Rc::new(reassociate_applications(None, condition)),
+                Rc::new(reassociate_applications(None, then_branch)),
+                Rc::new(reassociate_applications(None, else_branch)),
+            ),
+            errors: vec![],
+        },
+    };
+
+    // We end up here as long as `term` isn't an application. If we have an accumulator, construct
+    // an application as described above. Otherwise, just return the reduced term.
+    if let Some(acc) = acc {
+        Term {
+            source_range: span(acc.source_range, reduced.source_range),
+            group: true,
+            variant: Variant::Application(Rc::new(acc), Rc::new(reduced)),
+            errors: vec![],
+        }
+    } else {
+        reduced
+    }
+}
+
+// When reassociating products and quotients to be left-associative, this enum is used to record how
+// each term is used.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+enum ProductOrQuotient {
+    Product,
+    Quotient,
+}
+
+// Flip the associativity of products and quotients from right to left.
+#[allow(clippy::too_many_lines)]
+fn reassociate_products_and_quotients<'a>(
+    acc: Option<(Term<'a>, ProductOrQuotient)>,
+    term: &Term<'a>,
+) -> Term<'a> {
+    // In every case except the product and quotient cases, if we have a value for the accumulator,
+    // we want to construct a product or quotient with the accumulator as the left subterm and the
+    // reduced term as the right subterm. In the product and quotient cases, we build up the
+    // accumulator.
+    let reduced = match &term.variant {
+        Variant::ParseError => {
+            // This should be unreachable due to [ref:error_check].
+            panic!(
+                "{} called on a {}.",
+                "reassociate_products_and_quotients".code_str(),
+                "ParseError".code_str(),
+            )
+        }
+        Variant::Type
+        | Variant::Variable(_)
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => term.clone(),
+        Variant::Lambda(variable, implicit, domain, body) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Lambda(
+                *variable,
+                *implicit,
+                domain
+                    .as_ref()
+                    .map(|domain| Rc::new(reassociate_products_and_quotients(None, domain))),
+                Rc::new(reassociate_products_and_quotients(None, body)),
+            ),
+            errors: vec![],
+        },
+        Variant::Pi(variable, implicit, domain, codomain) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Pi(
+                *variable,
+                *implicit,
+                Rc::new(reassociate_products_and_quotients(None, domain)),
+                Rc::new(reassociate_products_and_quotients(None, codomain)),
+            ),
+            errors: vec![],
+        },
+        Variant::Application(applicand, argument) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Application(
+                Rc::new(reassociate_products_and_quotients(None, applicand)),
+                Rc::new(reassociate_products_and_quotients(None, argument)),
+            ),
+            errors: vec![],
+        },
+        Variant::Let(variable, annotation, definition, body) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Let(
+                *variable,
+                annotation.as_ref().map(|annotation| {
+                    Rc::new(reassociate_products_and_quotients(None, annotation))
+                }),
+                Rc::new(reassociate_products_and_quotients(None, definition)),
+                Rc::new(reassociate_products_and_quotients(None, body)),
+            ),
+            errors: vec![],
+        },
+        Variant::Negation(subterm) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Negation(Rc::new(reassociate_products_and_quotients(None, subterm))),
+            errors: vec![],
+        },
+        Variant::Sum(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Sum(
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::Difference(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Difference(
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::Product(term1, term2) => {
+            return if term2.group {
+                if let Some(acc) = acc {
+                    Term {
+                        source_range: span(acc.0.source_range, term2.source_range),
+                        group: true,
+                        variant: Variant::Product(
+                            Rc::new(reassociate_products_and_quotients(Some(acc), term1)),
+                            Rc::new(reassociate_products_and_quotients(None, term2)),
+                        ),
+                        errors: vec![],
+                    }
+                } else {
+                    Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: Variant::Product(
+                            Rc::new(reassociate_products_and_quotients(None, term1)),
+                            Rc::new(reassociate_products_and_quotients(None, term2)),
+                        ),
+                        errors: vec![],
+                    }
+                }
+            } else {
+                reassociate_products_and_quotients(
+                    Some((
+                        if let Some((acc, operator)) = acc {
+                            Term {
+                                source_range: span(acc.source_range, term1.source_range),
+                                group: true,
+                                variant: match operator {
+                                    ProductOrQuotient::Product => Variant::Product(
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_products_and_quotients(None, term1)),
+                                    ),
+                                    ProductOrQuotient::Quotient => Variant::Quotient(
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_products_and_quotients(None, term1)),
+                                    ),
+                                },
+                                errors: vec![],
+                            }
+                        } else {
+                            reassociate_products_and_quotients(None, term1)
+                        },
+                        ProductOrQuotient::Product,
+                    )),
+                    term2,
+                )
+            };
+        }
+        Variant::Quotient(term1, term2) => {
+            return if term2.group {
+                if let Some(acc) = acc {
+                    Term {
+                        source_range: span(acc.0.source_range, term2.source_range),
+                        group: true,
+                        variant: Variant::Quotient(
+                            Rc::new(reassociate_products_and_quotients(Some(acc), term1)),
+                            Rc::new(reassociate_products_and_quotients(None, term2)),
+                        ),
+                        errors: vec![],
+                    }
+                } else {
+                    Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: Variant::Quotient(
+                            Rc::new(reassociate_products_and_quotients(None, term1)),
+                            Rc::new(reassociate_products_and_quotients(None, term2)),
+                        ),
+                        errors: vec![],
+                    }
+                }
+            } else {
+                reassociate_products_and_quotients(
+                    Some((
+                        if let Some((acc, operator)) = acc {
+                            Term {
+                                source_range: span(acc.source_range, term1.source_range),
+                                group: true,
+                                variant: match operator {
+                                    ProductOrQuotient::Product => Variant::Product(
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_products_and_quotients(None, term1)),
+                                    ),
+                                    ProductOrQuotient::Quotient => Variant::Quotient(
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_products_and_quotients(None, term1)),
+                                    ),
+                                },
+                                errors: vec![],
+                            }
+                        } else {
+                            reassociate_products_and_quotients(None, term1)
+                        },
+                        ProductOrQuotient::Quotient,
+                    )),
+                    term2,
+                )
+            };
+        }
+        Variant::LessThan(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThan(
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::LessThanOrEqualTo(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThanOrEqualTo(
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::EqualTo(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::EqualTo(
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::GreaterThan(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThan(
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::GreaterThanOrEqualTo(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThanOrEqualTo(
+                Rc::new(reassociate_products_and_quotients(None, term1)),
+                Rc::new(reassociate_products_and_quotients(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::If(condition, then_branch, else_branch) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::If(
+                Rc::new(reassociate_products_and_quotients(None, condition)),
+                Rc::new(reassociate_products_and_quotients(None, then_branch)),
+                Rc::new(reassociate_products_and_quotients(None, else_branch)),
+            ),
+            errors: vec![],
+        },
+    };
+
+    // We end up here as long as `term` isn't a product or quotient. If we have an accumulator,
+    // construct a product or quotient as described above. Otherwise, just return the reduced term.
+    if let Some((acc, operator)) = acc {
+        Term {
+            source_range: span(acc.source_range, reduced.source_range),
+            group: true,
+            variant: match operator {
+                ProductOrQuotient::Product => Variant::Product(Rc::new(acc), Rc::new(reduced)),
+                ProductOrQuotient::Quotient => Variant::Quotient(Rc::new(acc), Rc::new(reduced)),
+            },
+            errors: vec![],
+        }
+    } else {
+        reduced
+    }
+}
+
+// When reassociating sums and differences to be left-associative, this enum is used to record how
+// each term is used.
+#[derive(Eq, Ord, PartialEq, PartialOrd)]
+enum SumOrDifference {
+    Sum,
+    Difference,
+}
+
+// Flip the associativity of sums and differences from right to left.
+#[allow(clippy::too_many_lines)]
+fn reassociate_sums_and_differences<'a>(
+    acc: Option<(Term<'a>, SumOrDifference)>,
+    term: &Term<'a>,
+) -> Term<'a> {
+    // In every case except the sum and difference cases, if we have a value for the accumulator,
+    // we want to construct a sum or difference with the accumulator as the left subterm and the
+    // reduced term as the right subterm. In the sum and difference cases, we build up the
+    // accumulator.
+    let reduced = match &term.variant {
+        Variant::ParseError => {
+            // This should be unreachable due to [ref:error_check].
+            panic!(
+                "{} called on a {}.",
+                "reassociate_sums_and_differences".code_str(),
+                "ParseError".code_str(),
+            )
+        }
+        Variant::Type
+        | Variant::Variable(_)
+        | Variant::Integer
+        | Variant::IntegerLiteral(_)
+        | Variant::Boolean
+        | Variant::True
+        | Variant::False => term.clone(),
+        Variant::Lambda(variable, implicit, domain, body) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Lambda(
+                *variable,
+                *implicit,
+                domain
+                    .as_ref()
+                    .map(|domain| Rc::new(reassociate_sums_and_differences(None, domain))),
+                Rc::new(reassociate_sums_and_differences(None, body)),
+            ),
+            errors: vec![],
+        },
+        Variant::Pi(variable, implicit, domain, codomain) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Pi(
+                *variable,
+                *implicit,
+                Rc::new(reassociate_sums_and_differences(None, domain)),
+                Rc::new(reassociate_sums_and_differences(None, codomain)),
+            ),
+            errors: vec![],
+        },
+        Variant::Application(applicand, argument) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Application(
+                Rc::new(reassociate_sums_and_differences(None, applicand)),
+                Rc::new(reassociate_sums_and_differences(None, argument)),
+            ),
+            errors: vec![],
+        },
+        Variant::Let(variable, annotation, definition, body) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Let(
+                *variable,
+                annotation
+                    .as_ref()
+                    .map(|annotation| Rc::new(reassociate_sums_and_differences(None, annotation))),
+                Rc::new(reassociate_sums_and_differences(None, definition)),
+                Rc::new(reassociate_sums_and_differences(None, body)),
+            ),
+            errors: vec![],
+        },
+        Variant::Negation(subterm) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Negation(Rc::new(reassociate_sums_and_differences(None, subterm))),
+            errors: vec![],
+        },
+        Variant::Sum(term1, term2) => {
+            return if term2.group {
+                if let Some(acc) = acc {
+                    Term {
+                        source_range: span(acc.0.source_range, term2.source_range),
+                        group: true,
+                        variant: Variant::Sum(
+                            Rc::new(reassociate_sums_and_differences(Some(acc), term1)),
+                            Rc::new(reassociate_sums_and_differences(None, term2)),
+                        ),
+                        errors: vec![],
+                    }
+                } else {
+                    Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: Variant::Sum(
+                            Rc::new(reassociate_sums_and_differences(None, term1)),
+                            Rc::new(reassociate_sums_and_differences(None, term2)),
+                        ),
+                        errors: vec![],
+                    }
+                }
+            } else {
+                reassociate_sums_and_differences(
+                    Some((
+                        if let Some((acc, operator)) = acc {
+                            Term {
+                                source_range: span(acc.source_range, term1.source_range),
+                                group: true,
+                                variant: match operator {
+                                    SumOrDifference::Sum => Variant::Sum(
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_sums_and_differences(None, term1)),
+                                    ),
+                                    SumOrDifference::Difference => Variant::Difference(
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_sums_and_differences(None, term1)),
+                                    ),
+                                },
+                                errors: vec![],
+                            }
+                        } else {
+                            reassociate_sums_and_differences(None, term1)
+                        },
+                        SumOrDifference::Sum,
+                    )),
+                    term2,
+                )
+            };
+        }
+        Variant::Difference(term1, term2) => {
+            return if term2.group {
+                if let Some(acc) = acc {
+                    Term {
+                        source_range: span(acc.0.source_range, term2.source_range),
+                        group: true,
+                        variant: Variant::Difference(
+                            Rc::new(reassociate_sums_and_differences(Some(acc), term1)),
+                            Rc::new(reassociate_sums_and_differences(None, term2)),
+                        ),
+                        errors: vec![],
+                    }
+                } else {
+                    Term {
+                        source_range: term.source_range,
+                        group: term.group,
+                        variant: Variant::Difference(
+                            Rc::new(reassociate_sums_and_differences(None, term1)),
+                            Rc::new(reassociate_sums_and_differences(None, term2)),
+                        ),
+                        errors: vec![],
+                    }
+                }
+            } else {
+                reassociate_sums_and_differences(
+                    Some((
+                        if let Some((acc, operator)) = acc {
+                            Term {
+                                source_range: span(acc.source_range, term1.source_range),
+                                group: true,
+                                variant: match operator {
+                                    SumOrDifference::Sum => Variant::Sum(
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_sums_and_differences(None, term1)),
+                                    ),
+                                    SumOrDifference::Difference => Variant::Difference(
+                                        Rc::new(acc),
+                                        Rc::new(reassociate_sums_and_differences(None, term1)),
+                                    ),
+                                },
+                                errors: vec![],
+                            }
+                        } else {
+                            reassociate_sums_and_differences(None, term1)
+                        },
+                        SumOrDifference::Difference,
+                    )),
+                    term2,
+                )
+            };
+        }
+        Variant::Product(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Product(
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::Quotient(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::Quotient(
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::LessThan(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThan(
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::LessThanOrEqualTo(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::LessThanOrEqualTo(
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::EqualTo(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::EqualTo(
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::GreaterThan(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThan(
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::GreaterThanOrEqualTo(term1, term2) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::GreaterThanOrEqualTo(
+                Rc::new(reassociate_sums_and_differences(None, term1)),
+                Rc::new(reassociate_sums_and_differences(None, term2)),
+            ),
+            errors: vec![],
+        },
+        Variant::If(condition, then_branch, else_branch) => Term {
+            source_range: term.source_range,
+            group: term.group,
+            variant: Variant::If(
+                Rc::new(reassociate_sums_and_differences(None, condition)),
+                Rc::new(reassociate_sums_and_differences(None, then_branch)),
+                Rc::new(reassociate_sums_and_differences(None, else_branch)),
+            ),
+            errors: vec![],
+        },
+    };
+
+    // We end up here as long as `term` isn't a sum or difference. If we have an accumulator,
+    // construct a sum or difference as described above. Otherwise, just return the reduced term.
+    if let Some((acc, operator)) = acc {
+        Term {
+            source_range: span(acc.source_range, reduced.source_range),
+            group: true,
+            variant: match operator {
+                SumOrDifference::Sum => Variant::Sum(Rc::new(acc), Rc::new(reduced)),
+                SumOrDifference::Difference => Variant::Difference(Rc::new(acc), Rc::new(reduced)),
+            },
+            errors: vec![],
+        }
+    } else {
+        reduced
+    }
+}
+
+// Resolve variables into De Bruijn indices.
+#[allow(clippy::too_many_lines)]
+fn resolve_variables<'a>(
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    term: &Term<'a>,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
+    errors: &mut Vec<Error>,
+) -> term::Term<'a> {
+    match &term.variant {
+        Variant::ParseError => {
+            // This should be unreachable due to [ref:error_check].
+            panic!(
+                "{} called on a {}.",
+                "resolve_variables".code_str(),
+                "ParseError".code_str(),
+            )
+        }
+        Variant::Type => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Type,
+            }
+        }
+        Variant::Variable(variable) => {
+            // Check if the variable is in scope.
+            if let Some(variable_depth) = context.get(variable.name) {
+                // Calculate the De Bruijn index for the variable and return it.
+                term::Term {
+                    source_range: Some(term.source_range.0),
+                    variant: term::Variant::Variable(variable.name, depth - 1 - variable_depth),
+                }
+            } else {
+                // The variable isn't in scope. If it's the placeholder variable, don't worry about
+                // it; we'll construct a unifier below. Otherwise report an error.
+                if variable.name != PLACEHOLDER_VARIABLE {
+                    errors.push(throw(
+                        &format!("Variable {} not in scope.", variable.name.code_str()),
+                        source_path,
+                        Some((source_contents, variable.source_range.0)),
+                    ));
+                }
+
+                // Construct and return a unifier.
+                term::Term {
+                    source_range: Some(term.source_range.0),
+                    variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
+                }
+            }
+        }
+        Variant::Lambda(variable, implicit, domain, body) => {
+            // Resolve variables in the domain if it exists.
+            let resolved_domain = domain.as_ref().map(|domain| {
+                resolve_variables(source_path, source_contents, domain, depth, context, errors)
+            });
+
+            // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
+            // don't add it to the context.
+            if variable.name != PLACEHOLDER_VARIABLE {
+                // Report an error if the variable is already in the context.
+                if context.contains_key(variable.name) {
+                    errors.push(throw(
+                        &format!("Variable {} already exists.", variable.name.code_str()),
+                        source_path,
+                        Some((source_contents, variable.source_range.0)),
+                    ));
+                }
+
+                // Add the variable to the context.
+                context.insert(variable.name, depth);
+            }
+
+            // Remove the variable from the context (if it was added) when the function
+            // returns.
+            let context_cell = RefCell::new(context);
+            defer! {{ context_cell.borrow_mut().remove(variable.name); }};
+
+            // Construct the lambda.
+            let mut guard = context_cell.borrow_mut();
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Lambda(
+                    variable.name,
+                    *implicit,
+                    resolved_domain.map_or_else(
+                        || {
+                            Rc::new(term::Term {
+                                source_range: None,
+                                variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
+                            })
+                        },
+                        Rc::new,
+                    ),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        body,
+                        depth + 1,
+                        &mut *guard,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::Pi(variable, implicit, domain, codomain) => {
+            // Resolve variables in the domain.
+            let resolved_domain =
+                resolve_variables(source_path, source_contents, domain, depth, context, errors);
+
+            // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
+            // don't add it to the context.
+            if variable.name != PLACEHOLDER_VARIABLE {
+                // Report an error if the variable is already in the context.
+                if context.contains_key(variable.name) {
+                    errors.push(throw(
+                        &format!("Variable {} already exists.", variable.name.code_str()),
+                        source_path,
+                        Some((source_contents, variable.source_range.0)),
+                    ));
+                }
+
+                // Add the variable to the context.
+                context.insert(variable.name, depth);
+            }
+
+            // Remove the variable from the context (if it was added) when the function
+            // returns.
+            let context_cell = RefCell::new(context);
+            defer! {{ context_cell.borrow_mut().remove(variable.name); }};
+
+            // Construct the pi type.
+            let mut guard = context_cell.borrow_mut();
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Pi(
+                    variable.name,
+                    *implicit,
+                    Rc::new(resolved_domain),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        codomain,
+                        depth + 1,
+                        &mut *guard,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::Application(applicand, argument) => {
+            // Just resolve variables in the applicand and the argument.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Application(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        applicand,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        argument,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::Let(_, _, _, _) => {
+            // Collect the definitions from nested lets.
+            let mut definitions = vec![];
+            let innermost_body = collect_definitions(&mut definitions, Rc::new(term.clone()));
+
+            // When the function returns, remove the variables from the context that we are
+            // temporarily adding.
+            let context_cell = RefCell::new((context, vec![]));
+            defer! {{
+                let mut guard = context_cell.borrow_mut();
+                let (borrowed_context, borrowed_variables_added) = &mut (*guard);
+
+                for variable_added in borrowed_variables_added {
+                    borrowed_context.remove(*variable_added);
+                }
+            }};
+
+            // Add the definitions to the context.
+            for (i, (inner_variable, _, _)) in definitions.iter().enumerate() {
+                // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts,
+                // and don't add it to the context.
+                if inner_variable.name != PLACEHOLDER_VARIABLE {
+                    // Temporarily borrow from the scope guard.
+                    let mut guard = context_cell.borrow_mut();
+                    let (borrowed_context, borrowed_variables_added) = &mut (*guard);
+
+                    // Report an error if the variable is already in the context.
+                    if borrowed_context.contains_key(inner_variable.name) {
+                        errors.push(throw(
+                            &format!(
+                                "Variable {} already exists.",
+                                inner_variable.name.code_str(),
+                            ),
+                            source_path,
+                            Some((source_contents, inner_variable.source_range.0)),
+                        ));
+                    }
+
+                    // Add the variable to the context.
+                    borrowed_context.insert(inner_variable.name, depth + i);
+                    borrowed_variables_added.push(inner_variable.name);
+                }
+            }
+
+            // The depth for the annotations, definitions, and innermost body will be as follows:
+            let new_depth = depth + definitions.len();
+
+            // Resolve variables in the definitions and annotations.
+            let mut resolved_definitions = vec![];
+            for (i, (inner_variable, inner_annotation, inner_definition)) in
+                definitions.iter().enumerate()
+            {
+                // Temporarily borrow from the scope guard.
+                let mut guard = context_cell.borrow_mut();
+                let (borrowed_context, _) = &mut (*guard);
+
+                // Resolve variables in the annotation.
+                let resolved_annotation = match inner_annotation {
+                    Some(annotation) => Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        annotation,
+                        new_depth,
+                        borrowed_context,
+                        errors,
+                    )),
+                    None => Rc::new(term::Term {
+                        source_range: None,
+                        variant: term::Variant::Unifier(
+                            Rc::new(RefCell::new(None)),
+                            definitions.len() - i,
+                        ),
+                    }),
+                };
+
+                // Resolve variables in the definition.
+                let resolved_definition = resolve_variables(
+                    source_path,
+                    source_contents,
+                    inner_definition,
+                    new_depth,
+                    borrowed_context,
+                    errors,
+                );
+
+                // Add the definition to the vector.
+                resolved_definitions.push((
+                    inner_variable.name,
+                    resolved_annotation,
+                    Rc::new(resolved_definition),
+                ));
+            }
+
+            // Temporarily borrow from the scope guard.
+            let mut guard = context_cell.borrow_mut();
+            let (borrowed_context, _) = &mut (*guard);
+
+            // Resolve definitions in the body and construct the let.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Let(
+                    resolved_definitions,
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        &innermost_body,
+                        new_depth,
+                        borrowed_context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::Integer => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Integer,
+            }
+        }
+        Variant::IntegerLiteral(integer) => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::IntegerLiteral(integer.clone()),
+            }
+        }
+        Variant::Negation(subterm) => {
+            // Just resolve variables in the subterm.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Negation(Rc::new(resolve_variables(
+                    source_path,
+                    source_contents,
+                    subterm,
+                    depth,
+                    context,
+                    errors,
+                ))),
+            }
+        }
+        Variant::Sum(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Sum(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term1,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term2,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::Difference(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Difference(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term1,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term2,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::Product(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Product(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term1,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term2,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::Quotient(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Quotient(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term1,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term2,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::LessThan(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::LessThan(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term1,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term2,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::LessThanOrEqualTo(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::LessThanOrEqualTo(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term1,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term2,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::EqualTo(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::EqualTo(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term1,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term2,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::GreaterThan(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::GreaterThan(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term1,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term2,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::GreaterThanOrEqualTo(term1, term2) => {
+            // Just resolve variables in the subterms.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::GreaterThanOrEqualTo(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term1,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        term2,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+        Variant::Boolean => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::Boolean,
+            }
+        }
+        Variant::True => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::True,
+            }
+        }
+        Variant::False => {
+            // There are no variables to resolve here.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::False,
+            }
+        }
+        Variant::If(condition, then_branch, else_branch) => {
+            // Just resolve variables in the condition and branches.
+            term::Term {
+                source_range: Some(term.source_range.0),
+                variant: term::Variant::If(
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        condition,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        then_branch,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                    Rc::new(resolve_variables(
+                        source_path,
+                        source_contents,
+                        else_branch,
+                        depth,
+                        context,
+                        errors,
+                    )),
+                ),
+            }
+        }
+    }
+}
+
+// Recurse into nested lets to collect their definitions and return the innermost body.
+#[allow(clippy::type_complexity)]
+fn collect_definitions<'a>(
+    definitions: &mut Vec<(SourceVariable<'a>, Option<Rc<Term<'a>>>, Rc<Term<'a>>)>,
+    term: Rc<Term<'a>>,
+) -> Rc<Term<'a>> {
+    match &term.variant {
+        Variant::Let(variable, annotation, definition, body) => {
+            definitions.push((*variable, annotation.clone(), definition.clone()));
+            collect_definitions(definitions, body.clone())
+        }
+        _ => term,
+    }
+}
+
+// This function checks that definitions are evaluated before they are used.
+#[allow(clippy::too_many_lines)]
+fn check_definitions<'a>(
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    term: &term::Term<'a>,
+    depth: usize,
+    context: &mut HashMap<&'a str, usize>,
+    errors: &mut Vec<Error>,
+) {
+    match &term.variant {
+        term::Variant::Type
+        | term::Variant::Variable(_, _)
+        | term::Variant::Integer
+        | term::Variant::IntegerLiteral(_)
+        | term::Variant::Boolean
+        | term::Variant::True
+        | term::Variant::False => {}
+        term::Variant::Unifier(subterm, subterm_shift) => {
+            assert_eq!(*subterm_shift, 0);
+
+            // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
+            if let Some(subterm) = { subterm.borrow().clone() } {
+                check_definitions(
+                    source_path,
+                    source_contents,
+                    &subterm,
+                    depth,
+                    context,
+                    errors,
+                );
+            }
+        }
+        term::Variant::Lambda(_, _, domain, body) => {
+            check_definitions(source_path, source_contents, domain, depth, context, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                body,
+                depth + 1,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Pi(_, _, domain, codomain) => {
+            check_definitions(source_path, source_contents, domain, depth, context, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                codomain,
+                depth + 1,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Application(applicand, argument) => {
+            check_definitions(
+                source_path,
+                source_contents,
+                applicand,
+                depth,
+                context,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                argument,
+                depth,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Let(definitions, body) => {
+            let new_depth = depth + definitions.len();
+
+            for i in 0..definitions.len() {
+                if !is_value(&definitions[i].2) {
+                    let mut visited = HashSet::new();
+
+                    check_definition(
+                        source_path,
+                        source_contents,
+                        definitions,
+                        new_depth,
+                        i,
+                        i,
+                        &mut visited,
+                        errors,
+                    );
+                }
+            }
+
+            check_definitions(
+                source_path,
+                source_contents,
+                body,
+                new_depth,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Negation(subterm) => {
+            check_definitions(
+                source_path,
+                source_contents,
+                subterm,
+                depth,
+                context,
+                errors,
+            );
+        }
+        term::Variant::Sum(term1, term2)
+        | term::Variant::Difference(term1, term2)
+        | term::Variant::Product(term1, term2)
+        | term::Variant::Quotient(term1, term2)
+        | term::Variant::LessThan(term1, term2)
+        | term::Variant::LessThanOrEqualTo(term1, term2)
+        | term::Variant::EqualTo(term1, term2)
+        | term::Variant::GreaterThan(term1, term2)
+        | term::Variant::GreaterThanOrEqualTo(term1, term2) => {
+            check_definitions(source_path, source_contents, term1, depth, context, errors);
+            check_definitions(source_path, source_contents, term2, depth, context, errors);
+        }
+        term::Variant::If(condition, then_branch, else_branch) => {
+            check_definitions(
+                source_path,
+                source_contents,
+                condition,
+                depth,
+                context,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                then_branch,
+                depth,
+                context,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                else_branch,
+                depth,
+                context,
+                errors,
+            );
+        }
+    }
+}
+
+// This function checks that all the free variables in a definition will stand for values by the
+// time the definition is evaluated.
+#[allow(clippy::too_many_arguments)]
+#[allow(clippy::type_complexity)]
+fn check_definition<'a>(
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    definitions: &[(&'a str, Rc<term::Term<'a>>, Rc<term::Term<'a>>)],
+    definitions_depth: usize, // Assumes the definitions have already been added to the context
+    start_index: usize,       // [0, definitions.len())
+    current_index: usize,     // [0, definitions.len())
+    visited: &mut HashSet<usize>,
+    errors: &mut Vec<Error>,
+) {
+    // Collect the free variables of the definition.
+    let mut variables = HashSet::new();
+    free_variables(&definitions[current_index].2, 0, &mut variables);
+
+    // For each free variable bound by the let, check the corresponding definition.
+    for variable in variables {
+        if variable < definitions.len() {
+            // Compute this once rather than multiple times.
+            let definition_index = definitions.len() - 1 - variable;
+
+            // Check if we've visited this definition before.
+            if visited.insert(definition_index) {
+                // If the definition is a value, recurse on it. Otherwise, ensure the definition
+                // will be evaluated before the original definition.
+                if is_value(&definitions[definition_index].2) {
+                    check_definition(
+                        source_path,
+                        source_contents,
+                        definitions,
+                        definitions_depth,
+                        start_index,
+                        definition_index,
+                        visited,
+                        errors,
+                    );
+                } else if definition_index >= start_index {
+                    errors.push(throw(
+                        &format!(
+                            "The definition of {} references {} (directly or indirectly), \
+                                    which will not be available in time during evaluation.",
+                            definitions[start_index].0.code_str(),
+                            definitions[definition_index].0.code_str(),
+                        ),
+                        source_path,
+                        definitions[start_index]
+                            .2
+                            .source_range
+                            .map(|source_range| (source_contents, source_range)),
+                    ));
+                }
+            }
+        }
+    }
+}
+
+// This is the top-level parsing function. All the parsed terms are guaranteed to have a non-`None`
+// `source_range`. The parser also guarantees that all variables are bound, except of course the
+// ones in the initial context. Variable shadowing is not allowed.
+pub fn parse<'a>(
+    source_path: Option<&'a Path>,
+    source_contents: &'a str,
+    tokens: &'a [Token<'a>],
+    context: &[&'a str],
+) -> Result<term::Term<'a>, Vec<Error>> {
+    // Construct a hash table to memoize parsing results.
+    let mut cache = Cache::new();
+
+    // Parse the term.
+    let (term, next, _) = parse_term(&mut cache, tokens, 0);
+
+    // Collect the parsing error factories.
+    let mut error_factories = vec![];
+    collect_error_factories(&mut error_factories, &term);
+
+    // Check if the parse was successful but we didn't consume all the tokens.
+    if error_factories.is_empty() && next != tokens.len() {
+        // Complain about the first unparsed token.
+        error_factories.push(error_factory(tokens, next, "the end of the file"));
+    }
+
+    // Fail if there were any errors [tag:error_check].
+    if !error_factories.is_empty() {
+        return Err(error_factories
+            .into_iter()
+            .map(|error_factory| error_factory(source_path, source_contents))
+            .collect());
+    }
+
+    // Flip the associativity of applications with non-grouped arguments from right to left.
+    let reassociated_term = reassociate_sums_and_differences(
+        None,
+        &reassociate_products_and_quotients(None, &reassociate_applications(None, &term)),
+    );
+
+    // Construct a mutable context.
+    let mut context: HashMap<&'a str, usize> = context
+        .iter()
+        .enumerate()
+        .map(|(i, variable)| (*variable, i))
+        .collect();
+
+    // Construct a vector to hold any errors that might be detected below.
+    let mut errors = vec![];
+
+    // Resolve variables.
+    let resolved_term = resolve_variables(
+        source_path,
+        source_contents,
+        &reassociated_term,
+        context.len(),
+        &mut context,
+        &mut errors,
+    );
+
+    // Check that definitions will be evaluated before they are used.
+    check_definitions(
+        source_path,
+        source_contents,
+        &resolved_term,
+        context.len(),
+        &mut context,
+        &mut errors,
+    );
+
+    // Return the term if there are no errors. Otherwise return the errors.
+    if errors.is_empty() {
+        Ok(resolved_term)
+    } else {
+        Err(errors)
+    }
 }
 
 // Parse a term.
@@ -2404,1733 +4131,6 @@ fn parse_jumbo_term<'a>(
         cache_key,
         (error_term(tokens, start, "an expression"), start, false),
     )
-}
-
-// This is the top-level parsing function. All the parsed terms are guaranteed to have a non-`None`
-// `source_range`. The parser also guarantees that all variables are bound, except of course the
-// ones in the initial context. Variable shadowing is not allowed.
-pub fn parse<'a>(
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
-    tokens: &'a [Token<'a>],
-    context: &[&'a str],
-) -> Result<term::Term<'a>, Vec<Error>> {
-    // Construct a hash table to memoize parsing results.
-    let mut cache = Cache::new();
-
-    // Parse the term.
-    let (term, next, _) = parse_term(&mut cache, tokens, 0);
-
-    // Collect the parsing error factories.
-    let mut error_factories = vec![];
-    collect_error_factories(&mut error_factories, &term);
-
-    // Check if the parse was successful but we didn't consume all the tokens.
-    if error_factories.is_empty() && next != tokens.len() {
-        // Complain about the first unparsed token.
-        error_factories.push(error_factory(tokens, next, "the end of the file"));
-    }
-
-    // Fail if there were any errors [tag:error_check].
-    if !error_factories.is_empty() {
-        return Err(error_factories
-            .into_iter()
-            .map(|error_factory| error_factory(source_path, source_contents))
-            .collect());
-    }
-
-    // Flip the associativity of applications with non-grouped arguments from right to left.
-    let reassociated_term = reassociate_sums_and_differences(
-        None,
-        &reassociate_products_and_quotients(None, &reassociate_applications(None, &term)),
-    );
-
-    // Construct a mutable context.
-    let mut context: HashMap<&'a str, usize> = context
-        .iter()
-        .enumerate()
-        .map(|(i, variable)| (*variable, i))
-        .collect();
-
-    // Construct a vector to hold any errors that might be detected below.
-    let mut errors = vec![];
-
-    // Resolve variables.
-    let resolved_term = resolve_variables(
-        source_path,
-        source_contents,
-        &reassociated_term,
-        context.len(),
-        &mut context,
-        &mut errors,
-    );
-
-    // Check that definitions will be evaluated before they are used.
-    check_definitions(
-        source_path,
-        source_contents,
-        &resolved_term,
-        context.len(),
-        &mut context,
-        &mut errors,
-    );
-
-    // Return the term if there are no errors. Otherwise return the errors.
-    if errors.is_empty() {
-        Ok(resolved_term)
-    } else {
-        Err(errors)
-    }
-}
-
-// This function finds all the error factories within a term.
-fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term: &Term<'a>) {
-    match &term.variant {
-        Variant::ParseError
-        | Variant::Type
-        | Variant::Variable(_)
-        | Variant::Integer
-        | Variant::IntegerLiteral(_)
-        | Variant::Boolean
-        | Variant::True
-        | Variant::False => {}
-        Variant::Lambda(_, _, domain, body) => {
-            if let Some(domain) = domain {
-                collect_error_factories(error_factories, domain);
-            }
-
-            collect_error_factories(error_factories, body);
-        }
-        Variant::Pi(_, _, domain, codomain) => {
-            collect_error_factories(error_factories, domain);
-            collect_error_factories(error_factories, codomain);
-        }
-        Variant::Application(applicand, argument) => {
-            collect_error_factories(error_factories, applicand);
-            collect_error_factories(error_factories, argument);
-        }
-        Variant::Let(_, annotation, definition, body) => {
-            if let Some(annotation) = annotation {
-                collect_error_factories(error_factories, annotation);
-            }
-
-            collect_error_factories(error_factories, definition);
-            collect_error_factories(error_factories, body);
-        }
-        Variant::Negation(subterm) => {
-            collect_error_factories(error_factories, subterm);
-        }
-        Variant::Sum(term1, term2)
-        | Variant::Difference(term1, term2)
-        | Variant::Product(term1, term2)
-        | Variant::Quotient(term1, term2)
-        | Variant::LessThan(term1, term2)
-        | Variant::LessThanOrEqualTo(term1, term2)
-        | Variant::EqualTo(term1, term2)
-        | Variant::GreaterThan(term1, term2)
-        | Variant::GreaterThanOrEqualTo(term1, term2) => {
-            collect_error_factories(error_factories, term1);
-            collect_error_factories(error_factories, term2);
-        }
-        Variant::If(condition, then_branch, else_branch) => {
-            collect_error_factories(error_factories, condition);
-            collect_error_factories(error_factories, then_branch);
-            collect_error_factories(error_factories, else_branch);
-        }
-    };
-
-    for error_factory in &term.errors {
-        error_factories.push(error_factory.clone());
-    }
-}
-
-// Flip the associativity of applications from right to left.
-#[allow(clippy::too_many_lines)]
-fn reassociate_applications<'a>(acc: Option<Term<'a>>, term: &Term<'a>) -> Term<'a> {
-    // In every case except the application case, if we have a value for the accumulator, we want
-    // to construct an application with the accumulator as the applicand and the reduced term as
-    // the argument. In the application case, we build up the accumulator.
-    let reduced = match &term.variant {
-        Variant::ParseError => {
-            // This should be unreachable due to [ref:error_check].
-            panic!(
-                "{} called on a {}.",
-                "reassociate_applications".code_str(),
-                "ParseError".code_str(),
-            )
-        }
-        Variant::Type
-        | Variant::Variable(_)
-        | Variant::Integer
-        | Variant::IntegerLiteral(_)
-        | Variant::Boolean
-        | Variant::True
-        | Variant::False => term.clone(),
-        Variant::Lambda(variable, implicit, domain, body) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Lambda(
-                *variable,
-                *implicit,
-                domain
-                    .as_ref()
-                    .map(|domain| Rc::new(reassociate_applications(None, domain))),
-                Rc::new(reassociate_applications(None, body)),
-            ),
-            errors: vec![],
-        },
-        Variant::Pi(variable, implicit, domain, codomain) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Pi(
-                *variable,
-                *implicit,
-                Rc::new(reassociate_applications(None, domain)),
-                Rc::new(reassociate_applications(None, codomain)),
-            ),
-            errors: vec![],
-        },
-        Variant::Application(applicand, argument) => {
-            return if argument.group {
-                if let Some(acc) = acc {
-                    Term {
-                        source_range: span(acc.source_range, argument.source_range),
-                        group: true,
-                        variant: Variant::Application(
-                            Rc::new(reassociate_applications(Some(acc), applicand)),
-                            Rc::new(reassociate_applications(None, argument)),
-                        ),
-                        errors: vec![],
-                    }
-                } else {
-                    Term {
-                        source_range: term.source_range,
-                        group: term.group,
-                        variant: Variant::Application(
-                            Rc::new(reassociate_applications(None, applicand)),
-                            Rc::new(reassociate_applications(None, argument)),
-                        ),
-                        errors: vec![],
-                    }
-                }
-            } else {
-                reassociate_applications(
-                    Some(if let Some(acc) = acc {
-                        Term {
-                            source_range: span(acc.source_range, applicand.source_range),
-                            group: true,
-                            variant: Variant::Application(
-                                Rc::new(acc),
-                                Rc::new(reassociate_applications(None, applicand)),
-                            ),
-                            errors: vec![],
-                        }
-                    } else {
-                        reassociate_applications(None, applicand)
-                    }),
-                    argument,
-                )
-            };
-        }
-        Variant::Let(variable, annotation, definition, body) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Let(
-                *variable,
-                annotation
-                    .as_ref()
-                    .map(|annotation| Rc::new(reassociate_applications(None, annotation))),
-                Rc::new(reassociate_applications(None, definition)),
-                Rc::new(reassociate_applications(None, body)),
-            ),
-            errors: vec![],
-        },
-        Variant::Negation(subterm) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Negation(Rc::new(reassociate_applications(None, subterm))),
-            errors: vec![],
-        },
-        Variant::Sum(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Sum(
-                Rc::new(reassociate_applications(None, term1)),
-                Rc::new(reassociate_applications(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::Difference(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Difference(
-                Rc::new(reassociate_applications(None, term1)),
-                Rc::new(reassociate_applications(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::Product(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Product(
-                Rc::new(reassociate_applications(None, term1)),
-                Rc::new(reassociate_applications(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::Quotient(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Quotient(
-                Rc::new(reassociate_applications(None, term1)),
-                Rc::new(reassociate_applications(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::LessThan(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::LessThan(
-                Rc::new(reassociate_applications(None, term1)),
-                Rc::new(reassociate_applications(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::LessThanOrEqualTo(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::LessThanOrEqualTo(
-                Rc::new(reassociate_applications(None, term1)),
-                Rc::new(reassociate_applications(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::EqualTo(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::EqualTo(
-                Rc::new(reassociate_applications(None, term1)),
-                Rc::new(reassociate_applications(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::GreaterThan(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::GreaterThan(
-                Rc::new(reassociate_applications(None, term1)),
-                Rc::new(reassociate_applications(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::GreaterThanOrEqualTo(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::GreaterThanOrEqualTo(
-                Rc::new(reassociate_applications(None, term1)),
-                Rc::new(reassociate_applications(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::If(condition, then_branch, else_branch) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::If(
-                Rc::new(reassociate_applications(None, condition)),
-                Rc::new(reassociate_applications(None, then_branch)),
-                Rc::new(reassociate_applications(None, else_branch)),
-            ),
-            errors: vec![],
-        },
-    };
-
-    // We end up here as long as `term` isn't an application. If we have an accumulator, construct
-    // an application as described above. Otherwise, just return the reduced term.
-    if let Some(acc) = acc {
-        Term {
-            source_range: span(acc.source_range, reduced.source_range),
-            group: true,
-            variant: Variant::Application(Rc::new(acc), Rc::new(reduced)),
-            errors: vec![],
-        }
-    } else {
-        reduced
-    }
-}
-
-// When reassociating products and quotients to be left-associative, this enum is used to record how
-// each term is used.
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
-enum ProductOrQuotient {
-    Product,
-    Quotient,
-}
-
-// Flip the associativity of products and quotients from right to left.
-#[allow(clippy::too_many_lines)]
-fn reassociate_products_and_quotients<'a>(
-    acc: Option<(Term<'a>, ProductOrQuotient)>,
-    term: &Term<'a>,
-) -> Term<'a> {
-    // In every case except the product and quotient cases, if we have a value for the accumulator,
-    // we want to construct a product or quotient with the accumulator as the left subterm and the
-    // reduced term as the right subterm. In the product and quotient cases, we build up the
-    // accumulator.
-    let reduced = match &term.variant {
-        Variant::ParseError => {
-            // This should be unreachable due to [ref:error_check].
-            panic!(
-                "{} called on a {}.",
-                "reassociate_products_and_quotients".code_str(),
-                "ParseError".code_str(),
-            )
-        }
-        Variant::Type
-        | Variant::Variable(_)
-        | Variant::Integer
-        | Variant::IntegerLiteral(_)
-        | Variant::Boolean
-        | Variant::True
-        | Variant::False => term.clone(),
-        Variant::Lambda(variable, implicit, domain, body) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Lambda(
-                *variable,
-                *implicit,
-                domain
-                    .as_ref()
-                    .map(|domain| Rc::new(reassociate_products_and_quotients(None, domain))),
-                Rc::new(reassociate_products_and_quotients(None, body)),
-            ),
-            errors: vec![],
-        },
-        Variant::Pi(variable, implicit, domain, codomain) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Pi(
-                *variable,
-                *implicit,
-                Rc::new(reassociate_products_and_quotients(None, domain)),
-                Rc::new(reassociate_products_and_quotients(None, codomain)),
-            ),
-            errors: vec![],
-        },
-        Variant::Application(applicand, argument) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Application(
-                Rc::new(reassociate_products_and_quotients(None, applicand)),
-                Rc::new(reassociate_products_and_quotients(None, argument)),
-            ),
-            errors: vec![],
-        },
-        Variant::Let(variable, annotation, definition, body) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Let(
-                *variable,
-                annotation.as_ref().map(|annotation| {
-                    Rc::new(reassociate_products_and_quotients(None, annotation))
-                }),
-                Rc::new(reassociate_products_and_quotients(None, definition)),
-                Rc::new(reassociate_products_and_quotients(None, body)),
-            ),
-            errors: vec![],
-        },
-        Variant::Negation(subterm) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Negation(Rc::new(reassociate_products_and_quotients(None, subterm))),
-            errors: vec![],
-        },
-        Variant::Sum(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Sum(
-                Rc::new(reassociate_products_and_quotients(None, term1)),
-                Rc::new(reassociate_products_and_quotients(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::Difference(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Difference(
-                Rc::new(reassociate_products_and_quotients(None, term1)),
-                Rc::new(reassociate_products_and_quotients(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::Product(term1, term2) => {
-            return if term2.group {
-                if let Some(acc) = acc {
-                    Term {
-                        source_range: span(acc.0.source_range, term2.source_range),
-                        group: true,
-                        variant: Variant::Product(
-                            Rc::new(reassociate_products_and_quotients(Some(acc), term1)),
-                            Rc::new(reassociate_products_and_quotients(None, term2)),
-                        ),
-                        errors: vec![],
-                    }
-                } else {
-                    Term {
-                        source_range: term.source_range,
-                        group: term.group,
-                        variant: Variant::Product(
-                            Rc::new(reassociate_products_and_quotients(None, term1)),
-                            Rc::new(reassociate_products_and_quotients(None, term2)),
-                        ),
-                        errors: vec![],
-                    }
-                }
-            } else {
-                reassociate_products_and_quotients(
-                    Some((
-                        if let Some((acc, operator)) = acc {
-                            Term {
-                                source_range: span(acc.source_range, term1.source_range),
-                                group: true,
-                                variant: match operator {
-                                    ProductOrQuotient::Product => Variant::Product(
-                                        Rc::new(acc),
-                                        Rc::new(reassociate_products_and_quotients(None, term1)),
-                                    ),
-                                    ProductOrQuotient::Quotient => Variant::Quotient(
-                                        Rc::new(acc),
-                                        Rc::new(reassociate_products_and_quotients(None, term1)),
-                                    ),
-                                },
-                                errors: vec![],
-                            }
-                        } else {
-                            reassociate_products_and_quotients(None, term1)
-                        },
-                        ProductOrQuotient::Product,
-                    )),
-                    term2,
-                )
-            };
-        }
-        Variant::Quotient(term1, term2) => {
-            return if term2.group {
-                if let Some(acc) = acc {
-                    Term {
-                        source_range: span(acc.0.source_range, term2.source_range),
-                        group: true,
-                        variant: Variant::Quotient(
-                            Rc::new(reassociate_products_and_quotients(Some(acc), term1)),
-                            Rc::new(reassociate_products_and_quotients(None, term2)),
-                        ),
-                        errors: vec![],
-                    }
-                } else {
-                    Term {
-                        source_range: term.source_range,
-                        group: term.group,
-                        variant: Variant::Quotient(
-                            Rc::new(reassociate_products_and_quotients(None, term1)),
-                            Rc::new(reassociate_products_and_quotients(None, term2)),
-                        ),
-                        errors: vec![],
-                    }
-                }
-            } else {
-                reassociate_products_and_quotients(
-                    Some((
-                        if let Some((acc, operator)) = acc {
-                            Term {
-                                source_range: span(acc.source_range, term1.source_range),
-                                group: true,
-                                variant: match operator {
-                                    ProductOrQuotient::Product => Variant::Product(
-                                        Rc::new(acc),
-                                        Rc::new(reassociate_products_and_quotients(None, term1)),
-                                    ),
-                                    ProductOrQuotient::Quotient => Variant::Quotient(
-                                        Rc::new(acc),
-                                        Rc::new(reassociate_products_and_quotients(None, term1)),
-                                    ),
-                                },
-                                errors: vec![],
-                            }
-                        } else {
-                            reassociate_products_and_quotients(None, term1)
-                        },
-                        ProductOrQuotient::Quotient,
-                    )),
-                    term2,
-                )
-            };
-        }
-        Variant::LessThan(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::LessThan(
-                Rc::new(reassociate_products_and_quotients(None, term1)),
-                Rc::new(reassociate_products_and_quotients(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::LessThanOrEqualTo(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::LessThanOrEqualTo(
-                Rc::new(reassociate_products_and_quotients(None, term1)),
-                Rc::new(reassociate_products_and_quotients(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::EqualTo(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::EqualTo(
-                Rc::new(reassociate_products_and_quotients(None, term1)),
-                Rc::new(reassociate_products_and_quotients(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::GreaterThan(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::GreaterThan(
-                Rc::new(reassociate_products_and_quotients(None, term1)),
-                Rc::new(reassociate_products_and_quotients(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::GreaterThanOrEqualTo(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::GreaterThanOrEqualTo(
-                Rc::new(reassociate_products_and_quotients(None, term1)),
-                Rc::new(reassociate_products_and_quotients(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::If(condition, then_branch, else_branch) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::If(
-                Rc::new(reassociate_products_and_quotients(None, condition)),
-                Rc::new(reassociate_products_and_quotients(None, then_branch)),
-                Rc::new(reassociate_products_and_quotients(None, else_branch)),
-            ),
-            errors: vec![],
-        },
-    };
-
-    // We end up here as long as `term` isn't a product or quotient. If we have an accumulator,
-    // construct a product or quotient as described above. Otherwise, just return the reduced term.
-    if let Some((acc, operator)) = acc {
-        Term {
-            source_range: span(acc.source_range, reduced.source_range),
-            group: true,
-            variant: match operator {
-                ProductOrQuotient::Product => Variant::Product(Rc::new(acc), Rc::new(reduced)),
-                ProductOrQuotient::Quotient => Variant::Quotient(Rc::new(acc), Rc::new(reduced)),
-            },
-            errors: vec![],
-        }
-    } else {
-        reduced
-    }
-}
-
-// When reassociating sums and differences to be left-associative, this enum is used to record how
-// each term is used.
-#[derive(Eq, Ord, PartialEq, PartialOrd)]
-enum SumOrDifference {
-    Sum,
-    Difference,
-}
-
-// Flip the associativity of sums and differences from right to left.
-#[allow(clippy::too_many_lines)]
-fn reassociate_sums_and_differences<'a>(
-    acc: Option<(Term<'a>, SumOrDifference)>,
-    term: &Term<'a>,
-) -> Term<'a> {
-    // In every case except the sum and difference cases, if we have a value for the accumulator,
-    // we want to construct a sum or difference with the accumulator as the left subterm and the
-    // reduced term as the right subterm. In the sum and difference cases, we build up the
-    // accumulator.
-    let reduced = match &term.variant {
-        Variant::ParseError => {
-            // This should be unreachable due to [ref:error_check].
-            panic!(
-                "{} called on a {}.",
-                "reassociate_sums_and_differences".code_str(),
-                "ParseError".code_str(),
-            )
-        }
-        Variant::Type
-        | Variant::Variable(_)
-        | Variant::Integer
-        | Variant::IntegerLiteral(_)
-        | Variant::Boolean
-        | Variant::True
-        | Variant::False => term.clone(),
-        Variant::Lambda(variable, implicit, domain, body) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Lambda(
-                *variable,
-                *implicit,
-                domain
-                    .as_ref()
-                    .map(|domain| Rc::new(reassociate_sums_and_differences(None, domain))),
-                Rc::new(reassociate_sums_and_differences(None, body)),
-            ),
-            errors: vec![],
-        },
-        Variant::Pi(variable, implicit, domain, codomain) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Pi(
-                *variable,
-                *implicit,
-                Rc::new(reassociate_sums_and_differences(None, domain)),
-                Rc::new(reassociate_sums_and_differences(None, codomain)),
-            ),
-            errors: vec![],
-        },
-        Variant::Application(applicand, argument) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Application(
-                Rc::new(reassociate_sums_and_differences(None, applicand)),
-                Rc::new(reassociate_sums_and_differences(None, argument)),
-            ),
-            errors: vec![],
-        },
-        Variant::Let(variable, annotation, definition, body) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Let(
-                *variable,
-                annotation
-                    .as_ref()
-                    .map(|annotation| Rc::new(reassociate_sums_and_differences(None, annotation))),
-                Rc::new(reassociate_sums_and_differences(None, definition)),
-                Rc::new(reassociate_sums_and_differences(None, body)),
-            ),
-            errors: vec![],
-        },
-        Variant::Negation(subterm) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Negation(Rc::new(reassociate_sums_and_differences(None, subterm))),
-            errors: vec![],
-        },
-        Variant::Sum(term1, term2) => {
-            return if term2.group {
-                if let Some(acc) = acc {
-                    Term {
-                        source_range: span(acc.0.source_range, term2.source_range),
-                        group: true,
-                        variant: Variant::Sum(
-                            Rc::new(reassociate_sums_and_differences(Some(acc), term1)),
-                            Rc::new(reassociate_sums_and_differences(None, term2)),
-                        ),
-                        errors: vec![],
-                    }
-                } else {
-                    Term {
-                        source_range: term.source_range,
-                        group: term.group,
-                        variant: Variant::Sum(
-                            Rc::new(reassociate_sums_and_differences(None, term1)),
-                            Rc::new(reassociate_sums_and_differences(None, term2)),
-                        ),
-                        errors: vec![],
-                    }
-                }
-            } else {
-                reassociate_sums_and_differences(
-                    Some((
-                        if let Some((acc, operator)) = acc {
-                            Term {
-                                source_range: span(acc.source_range, term1.source_range),
-                                group: true,
-                                variant: match operator {
-                                    SumOrDifference::Sum => Variant::Sum(
-                                        Rc::new(acc),
-                                        Rc::new(reassociate_sums_and_differences(None, term1)),
-                                    ),
-                                    SumOrDifference::Difference => Variant::Difference(
-                                        Rc::new(acc),
-                                        Rc::new(reassociate_sums_and_differences(None, term1)),
-                                    ),
-                                },
-                                errors: vec![],
-                            }
-                        } else {
-                            reassociate_sums_and_differences(None, term1)
-                        },
-                        SumOrDifference::Sum,
-                    )),
-                    term2,
-                )
-            };
-        }
-        Variant::Difference(term1, term2) => {
-            return if term2.group {
-                if let Some(acc) = acc {
-                    Term {
-                        source_range: span(acc.0.source_range, term2.source_range),
-                        group: true,
-                        variant: Variant::Difference(
-                            Rc::new(reassociate_sums_and_differences(Some(acc), term1)),
-                            Rc::new(reassociate_sums_and_differences(None, term2)),
-                        ),
-                        errors: vec![],
-                    }
-                } else {
-                    Term {
-                        source_range: term.source_range,
-                        group: term.group,
-                        variant: Variant::Difference(
-                            Rc::new(reassociate_sums_and_differences(None, term1)),
-                            Rc::new(reassociate_sums_and_differences(None, term2)),
-                        ),
-                        errors: vec![],
-                    }
-                }
-            } else {
-                reassociate_sums_and_differences(
-                    Some((
-                        if let Some((acc, operator)) = acc {
-                            Term {
-                                source_range: span(acc.source_range, term1.source_range),
-                                group: true,
-                                variant: match operator {
-                                    SumOrDifference::Sum => Variant::Sum(
-                                        Rc::new(acc),
-                                        Rc::new(reassociate_sums_and_differences(None, term1)),
-                                    ),
-                                    SumOrDifference::Difference => Variant::Difference(
-                                        Rc::new(acc),
-                                        Rc::new(reassociate_sums_and_differences(None, term1)),
-                                    ),
-                                },
-                                errors: vec![],
-                            }
-                        } else {
-                            reassociate_sums_and_differences(None, term1)
-                        },
-                        SumOrDifference::Difference,
-                    )),
-                    term2,
-                )
-            };
-        }
-        Variant::Product(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Product(
-                Rc::new(reassociate_sums_and_differences(None, term1)),
-                Rc::new(reassociate_sums_and_differences(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::Quotient(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::Quotient(
-                Rc::new(reassociate_sums_and_differences(None, term1)),
-                Rc::new(reassociate_sums_and_differences(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::LessThan(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::LessThan(
-                Rc::new(reassociate_sums_and_differences(None, term1)),
-                Rc::new(reassociate_sums_and_differences(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::LessThanOrEqualTo(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::LessThanOrEqualTo(
-                Rc::new(reassociate_sums_and_differences(None, term1)),
-                Rc::new(reassociate_sums_and_differences(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::EqualTo(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::EqualTo(
-                Rc::new(reassociate_sums_and_differences(None, term1)),
-                Rc::new(reassociate_sums_and_differences(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::GreaterThan(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::GreaterThan(
-                Rc::new(reassociate_sums_and_differences(None, term1)),
-                Rc::new(reassociate_sums_and_differences(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::GreaterThanOrEqualTo(term1, term2) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::GreaterThanOrEqualTo(
-                Rc::new(reassociate_sums_and_differences(None, term1)),
-                Rc::new(reassociate_sums_and_differences(None, term2)),
-            ),
-            errors: vec![],
-        },
-        Variant::If(condition, then_branch, else_branch) => Term {
-            source_range: term.source_range,
-            group: term.group,
-            variant: Variant::If(
-                Rc::new(reassociate_sums_and_differences(None, condition)),
-                Rc::new(reassociate_sums_and_differences(None, then_branch)),
-                Rc::new(reassociate_sums_and_differences(None, else_branch)),
-            ),
-            errors: vec![],
-        },
-    };
-
-    // We end up here as long as `term` isn't a sum or difference. If we have an accumulator,
-    // construct a sum or difference as described above. Otherwise, just return the reduced term.
-    if let Some((acc, operator)) = acc {
-        Term {
-            source_range: span(acc.source_range, reduced.source_range),
-            group: true,
-            variant: match operator {
-                SumOrDifference::Sum => Variant::Sum(Rc::new(acc), Rc::new(reduced)),
-                SumOrDifference::Difference => Variant::Difference(Rc::new(acc), Rc::new(reduced)),
-            },
-            errors: vec![],
-        }
-    } else {
-        reduced
-    }
-}
-
-// Resolve variables into De Bruijn indices.
-#[allow(clippy::too_many_lines)]
-fn resolve_variables<'a>(
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
-    term: &Term<'a>,
-    depth: usize,
-    context: &mut HashMap<&'a str, usize>,
-    errors: &mut Vec<Error>,
-) -> term::Term<'a> {
-    match &term.variant {
-        Variant::ParseError => {
-            // This should be unreachable due to [ref:error_check].
-            panic!(
-                "{} called on a {}.",
-                "resolve_variables".code_str(),
-                "ParseError".code_str(),
-            )
-        }
-        Variant::Type => {
-            // There are no variables to resolve here.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Type,
-            }
-        }
-        Variant::Variable(variable) => {
-            // Check if the variable is in scope.
-            if let Some(variable_depth) = context.get(variable.name) {
-                // Calculate the De Bruijn index for the variable and return it.
-                term::Term {
-                    source_range: Some(term.source_range.0),
-                    variant: term::Variant::Variable(variable.name, depth - 1 - variable_depth),
-                }
-            } else {
-                // The variable isn't in scope. If it's the placeholder variable, don't worry about
-                // it; we'll construct a unifier below. Otherwise report an error.
-                if variable.name != PLACEHOLDER_VARIABLE {
-                    errors.push(throw(
-                        &format!("Variable {} not in scope.", variable.name.code_str()),
-                        source_path,
-                        Some((source_contents, variable.source_range.0)),
-                    ));
-                }
-
-                // Construct and return a unifier.
-                term::Term {
-                    source_range: Some(term.source_range.0),
-                    variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
-                }
-            }
-        }
-        Variant::Lambda(variable, implicit, domain, body) => {
-            // Resolve variables in the domain if it exists.
-            let resolved_domain = domain.as_ref().map(|domain| {
-                resolve_variables(source_path, source_contents, domain, depth, context, errors)
-            });
-
-            // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
-            // don't add it to the context.
-            if variable.name != PLACEHOLDER_VARIABLE {
-                // Report an error if the variable is already in the context.
-                if context.contains_key(variable.name) {
-                    errors.push(throw(
-                        &format!("Variable {} already exists.", variable.name.code_str()),
-                        source_path,
-                        Some((source_contents, variable.source_range.0)),
-                    ));
-                }
-
-                // Add the variable to the context.
-                context.insert(variable.name, depth);
-            }
-
-            // Remove the variable from the context (if it was added) when the function
-            // returns.
-            let context_cell = RefCell::new(context);
-            defer! {{ context_cell.borrow_mut().remove(variable.name); }};
-
-            // Construct the lambda.
-            let mut guard = context_cell.borrow_mut();
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Lambda(
-                    variable.name,
-                    *implicit,
-                    resolved_domain.map_or_else(
-                        || {
-                            Rc::new(term::Term {
-                                source_range: None,
-                                variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
-                            })
-                        },
-                        Rc::new,
-                    ),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        body,
-                        depth + 1,
-                        &mut *guard,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::Pi(variable, implicit, domain, codomain) => {
-            // Resolve variables in the domain.
-            let resolved_domain =
-                resolve_variables(source_path, source_contents, domain, depth, context, errors);
-
-            // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
-            // don't add it to the context.
-            if variable.name != PLACEHOLDER_VARIABLE {
-                // Report an error if the variable is already in the context.
-                if context.contains_key(variable.name) {
-                    errors.push(throw(
-                        &format!("Variable {} already exists.", variable.name.code_str()),
-                        source_path,
-                        Some((source_contents, variable.source_range.0)),
-                    ));
-                }
-
-                // Add the variable to the context.
-                context.insert(variable.name, depth);
-            }
-
-            // Remove the variable from the context (if it was added) when the function
-            // returns.
-            let context_cell = RefCell::new(context);
-            defer! {{ context_cell.borrow_mut().remove(variable.name); }};
-
-            // Construct the pi type.
-            let mut guard = context_cell.borrow_mut();
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Pi(
-                    variable.name,
-                    *implicit,
-                    Rc::new(resolved_domain),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        codomain,
-                        depth + 1,
-                        &mut *guard,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::Application(applicand, argument) => {
-            // Just resolve variables in the applicand and the argument.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Application(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        applicand,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        argument,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::Let(_, _, _, _) => {
-            // Collect the definitions from nested lets.
-            let mut definitions = vec![];
-            let innermost_body = collect_definitions(&mut definitions, Rc::new(term.clone()));
-
-            // When the function returns, remove the variables from the context that we are
-            // temporarily adding.
-            let context_cell = RefCell::new((context, vec![]));
-            defer! {{
-                let mut guard = context_cell.borrow_mut();
-                let (borrowed_context, borrowed_variables_added) = &mut (*guard);
-
-                for variable_added in borrowed_variables_added {
-                    borrowed_context.remove(*variable_added);
-                }
-            }};
-
-            // Add the definitions to the context.
-            for (i, (inner_variable, _, _)) in definitions.iter().enumerate() {
-                // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts,
-                // and don't add it to the context.
-                if inner_variable.name != PLACEHOLDER_VARIABLE {
-                    // Temporarily borrow from the scope guard.
-                    let mut guard = context_cell.borrow_mut();
-                    let (borrowed_context, borrowed_variables_added) = &mut (*guard);
-
-                    // Report an error if the variable is already in the context.
-                    if borrowed_context.contains_key(inner_variable.name) {
-                        errors.push(throw(
-                            &format!(
-                                "Variable {} already exists.",
-                                inner_variable.name.code_str(),
-                            ),
-                            source_path,
-                            Some((source_contents, inner_variable.source_range.0)),
-                        ));
-                    }
-
-                    // Add the variable to the context.
-                    borrowed_context.insert(inner_variable.name, depth + i);
-                    borrowed_variables_added.push(inner_variable.name);
-                }
-            }
-
-            // The depth for the annotations, definitions, and innermost body will be as follows:
-            let new_depth = depth + definitions.len();
-
-            // Resolve variables in the definitions and annotations.
-            let mut resolved_definitions = vec![];
-            for (i, (inner_variable, inner_annotation, inner_definition)) in
-                definitions.iter().enumerate()
-            {
-                // Temporarily borrow from the scope guard.
-                let mut guard = context_cell.borrow_mut();
-                let (borrowed_context, _) = &mut (*guard);
-
-                // Resolve variables in the annotation.
-                let resolved_annotation = match inner_annotation {
-                    Some(annotation) => Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        annotation,
-                        new_depth,
-                        borrowed_context,
-                        errors,
-                    )),
-                    None => Rc::new(term::Term {
-                        source_range: None,
-                        variant: term::Variant::Unifier(
-                            Rc::new(RefCell::new(None)),
-                            definitions.len() - i,
-                        ),
-                    }),
-                };
-
-                // Resolve variables in the definition.
-                let resolved_definition = resolve_variables(
-                    source_path,
-                    source_contents,
-                    inner_definition,
-                    new_depth,
-                    borrowed_context,
-                    errors,
-                );
-
-                // Add the definition to the vector.
-                resolved_definitions.push((
-                    inner_variable.name,
-                    resolved_annotation,
-                    Rc::new(resolved_definition),
-                ));
-            }
-
-            // Temporarily borrow from the scope guard.
-            let mut guard = context_cell.borrow_mut();
-            let (borrowed_context, _) = &mut (*guard);
-
-            // Resolve definitions in the body and construct the let.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Let(
-                    resolved_definitions,
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        &innermost_body,
-                        new_depth,
-                        borrowed_context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::Integer => {
-            // There are no variables to resolve here.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Integer,
-            }
-        }
-        Variant::IntegerLiteral(integer) => {
-            // There are no variables to resolve here.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::IntegerLiteral(integer.clone()),
-            }
-        }
-        Variant::Negation(subterm) => {
-            // Just resolve variables in the subterm.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Negation(Rc::new(resolve_variables(
-                    source_path,
-                    source_contents,
-                    subterm,
-                    depth,
-                    context,
-                    errors,
-                ))),
-            }
-        }
-        Variant::Sum(term1, term2) => {
-            // Just resolve variables in the subterms.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Sum(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term1,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term2,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::Difference(term1, term2) => {
-            // Just resolve variables in the subterms.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Difference(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term1,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term2,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::Product(term1, term2) => {
-            // Just resolve variables in the subterms.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Product(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term1,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term2,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::Quotient(term1, term2) => {
-            // Just resolve variables in the subterms.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Quotient(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term1,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term2,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::LessThan(term1, term2) => {
-            // Just resolve variables in the subterms.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::LessThan(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term1,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term2,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::LessThanOrEqualTo(term1, term2) => {
-            // Just resolve variables in the subterms.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::LessThanOrEqualTo(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term1,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term2,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::EqualTo(term1, term2) => {
-            // Just resolve variables in the subterms.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::EqualTo(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term1,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term2,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::GreaterThan(term1, term2) => {
-            // Just resolve variables in the subterms.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::GreaterThan(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term1,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term2,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::GreaterThanOrEqualTo(term1, term2) => {
-            // Just resolve variables in the subterms.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::GreaterThanOrEqualTo(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term1,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        term2,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-        Variant::Boolean => {
-            // There are no variables to resolve here.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::Boolean,
-            }
-        }
-        Variant::True => {
-            // There are no variables to resolve here.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::True,
-            }
-        }
-        Variant::False => {
-            // There are no variables to resolve here.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::False,
-            }
-        }
-        Variant::If(condition, then_branch, else_branch) => {
-            // Just resolve variables in the condition and branches.
-            term::Term {
-                source_range: Some(term.source_range.0),
-                variant: term::Variant::If(
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        condition,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        then_branch,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                    Rc::new(resolve_variables(
-                        source_path,
-                        source_contents,
-                        else_branch,
-                        depth,
-                        context,
-                        errors,
-                    )),
-                ),
-            }
-        }
-    }
-}
-
-// Recurse into nested lets to collect their definitions and return the innermost body.
-#[allow(clippy::type_complexity)]
-fn collect_definitions<'a>(
-    definitions: &mut Vec<(SourceVariable<'a>, Option<Rc<Term<'a>>>, Rc<Term<'a>>)>,
-    term: Rc<Term<'a>>,
-) -> Rc<Term<'a>> {
-    match &term.variant {
-        Variant::Let(variable, annotation, definition, body) => {
-            definitions.push((*variable, annotation.clone(), definition.clone()));
-            collect_definitions(definitions, body.clone())
-        }
-        _ => term,
-    }
-}
-
-// This function checks that definitions are evaluated before they are used.
-#[allow(clippy::too_many_lines)]
-fn check_definitions<'a>(
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
-    term: &term::Term<'a>,
-    depth: usize,
-    context: &mut HashMap<&'a str, usize>,
-    errors: &mut Vec<Error>,
-) {
-    match &term.variant {
-        term::Variant::Type
-        | term::Variant::Variable(_, _)
-        | term::Variant::Integer
-        | term::Variant::IntegerLiteral(_)
-        | term::Variant::Boolean
-        | term::Variant::True
-        | term::Variant::False => {}
-        term::Variant::Unifier(subterm, subterm_shift) => {
-            assert_eq!(*subterm_shift, 0);
-
-            // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
-            if let Some(subterm) = { subterm.borrow().clone() } {
-                check_definitions(
-                    source_path,
-                    source_contents,
-                    &subterm,
-                    depth,
-                    context,
-                    errors,
-                );
-            }
-        }
-        term::Variant::Lambda(_, _, domain, body) => {
-            check_definitions(source_path, source_contents, domain, depth, context, errors);
-            check_definitions(
-                source_path,
-                source_contents,
-                body,
-                depth + 1,
-                context,
-                errors,
-            );
-        }
-        term::Variant::Pi(_, _, domain, codomain) => {
-            check_definitions(source_path, source_contents, domain, depth, context, errors);
-            check_definitions(
-                source_path,
-                source_contents,
-                codomain,
-                depth + 1,
-                context,
-                errors,
-            );
-        }
-        term::Variant::Application(applicand, argument) => {
-            check_definitions(
-                source_path,
-                source_contents,
-                applicand,
-                depth,
-                context,
-                errors,
-            );
-            check_definitions(
-                source_path,
-                source_contents,
-                argument,
-                depth,
-                context,
-                errors,
-            );
-        }
-        term::Variant::Let(definitions, body) => {
-            let new_depth = depth + definitions.len();
-
-            for i in 0..definitions.len() {
-                if !is_value(&definitions[i].2) {
-                    let mut visited = HashSet::new();
-
-                    check_definition(
-                        source_path,
-                        source_contents,
-                        definitions,
-                        new_depth,
-                        i,
-                        i,
-                        &mut visited,
-                        errors,
-                    );
-                }
-            }
-
-            check_definitions(
-                source_path,
-                source_contents,
-                body,
-                new_depth,
-                context,
-                errors,
-            );
-        }
-        term::Variant::Negation(subterm) => {
-            check_definitions(
-                source_path,
-                source_contents,
-                subterm,
-                depth,
-                context,
-                errors,
-            );
-        }
-        term::Variant::Sum(term1, term2)
-        | term::Variant::Difference(term1, term2)
-        | term::Variant::Product(term1, term2)
-        | term::Variant::Quotient(term1, term2)
-        | term::Variant::LessThan(term1, term2)
-        | term::Variant::LessThanOrEqualTo(term1, term2)
-        | term::Variant::EqualTo(term1, term2)
-        | term::Variant::GreaterThan(term1, term2)
-        | term::Variant::GreaterThanOrEqualTo(term1, term2) => {
-            check_definitions(source_path, source_contents, term1, depth, context, errors);
-            check_definitions(source_path, source_contents, term2, depth, context, errors);
-        }
-        term::Variant::If(condition, then_branch, else_branch) => {
-            check_definitions(
-                source_path,
-                source_contents,
-                condition,
-                depth,
-                context,
-                errors,
-            );
-            check_definitions(
-                source_path,
-                source_contents,
-                then_branch,
-                depth,
-                context,
-                errors,
-            );
-            check_definitions(
-                source_path,
-                source_contents,
-                else_branch,
-                depth,
-                context,
-                errors,
-            );
-        }
-    }
-}
-
-// This function checks that all the free variables in a definition will stand for values by the
-// time the definition is evaluated.
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::type_complexity)]
-fn check_definition<'a>(
-    source_path: Option<&'a Path>,
-    source_contents: &'a str,
-    definitions: &[(&'a str, Rc<term::Term<'a>>, Rc<term::Term<'a>>)],
-    definitions_depth: usize, // Assumes the definitions have already been added to the context
-    start_index: usize,       // [0, definitions.len())
-    current_index: usize,     // [0, definitions.len())
-    visited: &mut HashSet<usize>,
-    errors: &mut Vec<Error>,
-) {
-    // Collect the free variables of the definition.
-    let mut variables = HashSet::new();
-    free_variables(&definitions[current_index].2, 0, &mut variables);
-
-    // For each free variable bound by the let, check the corresponding definition.
-    for variable in variables {
-        if variable < definitions.len() {
-            // Compute this once rather than multiple times.
-            let definition_index = definitions.len() - 1 - variable;
-
-            // Check if we've visited this definition before.
-            if visited.insert(definition_index) {
-                // If the definition is a value, recurse on it. Otherwise, ensure the definition
-                // will be evaluated before the original definition.
-                if is_value(&definitions[definition_index].2) {
-                    check_definition(
-                        source_path,
-                        source_contents,
-                        definitions,
-                        definitions_depth,
-                        start_index,
-                        definition_index,
-                        visited,
-                        errors,
-                    );
-                } else if definition_index >= start_index {
-                    errors.push(throw(
-                        &format!(
-                            "The definition of {} references {} (directly or indirectly), \
-                                    which will not be available in time during evaluation.",
-                            definitions[start_index].0.code_str(),
-                            definitions[definition_index].0.code_str(),
-                        ),
-                        source_path,
-                        definitions[start_index]
-                            .2
-                            .source_range
-                            .map(|source_range| (source_contents, source_range)),
-                    ));
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]
