@@ -285,6 +285,8 @@ mod tests {
 
     #[test]
     fn term_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -299,11 +301,15 @@ mod tests {
 
     #[test]
     fn variant_unifier_no_subterm_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Unifier(Rc::new(RefCell::new(None)), 0)), "_");
     }
 
     #[test]
     fn variant_unifier_subterm_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -321,16 +327,22 @@ mod tests {
 
     #[test]
     fn variant_type_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Type), TYPE_KEYWORD);
     }
 
     #[test]
     fn variant_variable_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variable("x", 15)), "x");
     }
 
     #[test]
     fn variant_lambda_explicit_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -353,6 +365,8 @@ mod tests {
 
     #[test]
     fn variant_lambda_implicit_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -375,6 +389,8 @@ mod tests {
 
     #[test]
     fn variant_pi_dependent_explicit_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -397,6 +413,8 @@ mod tests {
 
     #[test]
     fn variant_pi_dependent_implicit_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -419,6 +437,8 @@ mod tests {
 
     #[test]
     fn variant_pi_non_dependent_implicit_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -441,6 +461,8 @@ mod tests {
 
     #[test]
     fn variant_pi_non_dependent_explicit_left_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -474,6 +496,8 @@ mod tests {
 
     #[test]
     fn variant_pi_non_dependent_explicit_right_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -507,6 +531,8 @@ mod tests {
 
     #[test]
     fn variant_application_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -527,6 +553,8 @@ mod tests {
 
     #[test]
     fn variant_let_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -567,11 +595,15 @@ mod tests {
 
     #[test]
     fn variant_integer_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Integer), INTEGER_KEYWORD);
     }
 
     #[test]
     fn variant_integer_literal_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!("{}", IntegerLiteral(ToBigInt::to_bigint(&42).unwrap())),
             "42",
@@ -580,6 +612,8 @@ mod tests {
 
     #[test]
     fn variant_negation_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -594,6 +628,8 @@ mod tests {
 
     #[test]
     fn variant_sum_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -614,6 +650,8 @@ mod tests {
 
     #[test]
     fn variant_difference_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -634,6 +672,8 @@ mod tests {
 
     #[test]
     fn variant_product_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -654,6 +694,8 @@ mod tests {
 
     #[test]
     fn variant_quotient_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -674,6 +716,8 @@ mod tests {
 
     #[test]
     fn variant_less_than_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -694,6 +738,8 @@ mod tests {
 
     #[test]
     fn variant_less_than_or_equal_to_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -714,6 +760,8 @@ mod tests {
 
     #[test]
     fn variant_equal_to_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -734,6 +782,8 @@ mod tests {
 
     #[test]
     fn variant_greater_than_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -754,6 +804,8 @@ mod tests {
 
     #[test]
     fn variant_greater_than_or_equal_to_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -774,21 +826,29 @@ mod tests {
 
     #[test]
     fn variant_boolean_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Boolean), BOOLEAN_KEYWORD);
     }
 
     #[test]
     fn variant_true_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", True), TRUE_KEYWORD);
     }
 
     #[test]
     fn variant_false_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", False), FALSE_KEYWORD);
     }
 
     #[test]
     fn variant_if_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
