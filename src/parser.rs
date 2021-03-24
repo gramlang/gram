@@ -147,10 +147,13 @@ struct SourceVariable<'a> {
 
 // The token stream is parsed into an abstract syntax tree (AST). This struct represents a node in
 // an AST. This is similar to `term::Term`, except:
-// - It doesn't contain De Bruijn indices.
+// - It uses a different type for source ranges for extra type safety.
 // - It has a `group` field (see [ref:group_flag]).
-// - It has source ranges for variable bindings.
-// - `Variant<'a>` has an extra case for parse errors.
+// - It has an `errors` field for accumulating parse errors.
+// - Variables don't contain De Bruijn indices.
+// - Variable bindings have source ranges.
+// - `Variant` doesn't have the `Unifier` case.
+// - `Variant` has an extra case for parse errors.
 #[derive(Clone)]
 struct Term<'a> {
     source_range: SourceRange,
@@ -164,7 +167,7 @@ struct Term<'a> {
 enum Variant<'a> {
     ParseError,
     Type,
-    Variable(SourceVariable<'a>),
+    Variable(&'a str),
     Lambda(SourceVariable<'a>, bool, Option<Rc<Term<'a>>>, Rc<Term<'a>>),
     Pi(SourceVariable<'a>, bool, Rc<Term<'a>>, Rc<Term<'a>>),
     Application(Rc<Term<'a>>, Rc<Term<'a>>),
@@ -1391,20 +1394,20 @@ fn resolve_variables<'a>(
         }
         Variant::Variable(variable) => {
             // Check if the variable is in scope.
-            if let Some(variable_depth) = context.get(variable.name) {
+            if let Some(variable_depth) = context.get(variable) {
                 // Calculate the De Bruijn index for the variable and return it.
                 term::Term {
                     source_range: Some(term.source_range.0),
-                    variant: term::Variant::Variable(variable.name, depth - 1 - variable_depth),
+                    variant: term::Variant::Variable(variable, depth - 1 - variable_depth),
                 }
             } else {
                 // The variable isn't in scope. If it's the placeholder variable, don't worry about
                 // it; we'll construct a unifier below. Otherwise report an error.
-                if variable.name != PLACEHOLDER_VARIABLE {
+                if *variable != PLACEHOLDER_VARIABLE {
                     errors.push(throw(
-                        &format!("Variable {} not in scope.", variable.name.code_str()),
+                        &format!("Variable {} not in scope.", variable.code_str()),
                         source_path,
-                        Some((source_contents, variable.source_range.0)),
+                        Some((source_contents, term.source_range.0)),
                     ));
                 }
 
@@ -2336,10 +2339,7 @@ fn parse_variable<'a>(
             Term {
                 source_range: variable_source_range,
                 group: false,
-                variant: Variant::Variable(SourceVariable {
-                    source_range: variable_source_range,
-                    name: variable
-                }),
+                variant: Variant::Variable(variable),
                 errors: vec![],
             },
             next,
