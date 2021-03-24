@@ -113,6 +113,8 @@ mod tests {
 
     #[test]
     fn token_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -127,66 +129,92 @@ mod tests {
 
     #[test]
     fn variant_asterisk_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Asterisk), "*");
     }
 
     #[test]
     fn variant_boolean_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Boolean), BOOLEAN_KEYWORD);
     }
 
     #[test]
     fn variant_colon_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Colon), ":");
     }
 
     #[test]
     fn variant_double_equals_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::DoubleEquals), "==");
     }
 
     #[test]
     fn variant_else_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Else), ELSE_KEYWORD);
     }
 
     #[test]
     fn variant_equals_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Equals), "=");
     }
 
     #[test]
     fn variant_false_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::False), FALSE_KEYWORD);
     }
 
     #[test]
     fn variant_greater_than_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::GreaterThan), ">");
     }
 
     #[test]
     fn variant_greater_than_or_equal_to_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::GreaterThanOrEqualTo), ">=");
     }
 
     #[test]
     fn variant_identifier_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Identifier("foo")), "foo");
     }
 
     #[test]
     fn variant_if_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::If), IF_KEYWORD);
     }
 
     #[test]
     fn variant_integer_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Integer), INTEGER_KEYWORD);
     }
 
     #[test]
     fn variant_integer_literal_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!(
                 "{}",
@@ -198,51 +226,71 @@ mod tests {
 
     #[test]
     fn variant_left_curly_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::LeftCurly), "{");
     }
 
     #[test]
     fn variant_left_paren_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::LeftParen), "(");
     }
 
     #[test]
     fn variant_less_than_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::LessThan), "<");
     }
 
     #[test]
     fn variant_less_than_or_equal_to_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::LessThanOrEqualTo), "<=");
     }
 
     #[test]
     fn variant_minus_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Minus), "-");
     }
 
     #[test]
     fn variant_plus_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Plus), "+");
     }
 
     #[test]
     fn variant_right_curly_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::RightCurly), "}");
     }
 
     #[test]
     fn variant_right_paren_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::RightParen), ")");
     }
 
     #[test]
     fn variant_slash_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Slash), "/");
     }
 
     #[test]
     fn variant_terminator_line_break_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!("{}", Variant::Terminator(TerminatorType::LineBreak)),
             "\\n",
@@ -251,6 +299,8 @@ mod tests {
 
     #[test]
     fn variant_terminator_semicolon_display() {
+        colored::control::set_override(false);
+
         assert_eq!(
             format!("{}", Variant::Terminator(TerminatorType::Semicolon)),
             ";",
@@ -259,26 +309,36 @@ mod tests {
 
     #[test]
     fn variant_then_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Then), THEN_KEYWORD);
     }
 
     #[test]
     fn variant_thick_arrow_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::ThickArrow), "=>");
     }
 
     #[test]
     fn variant_thin_arrow_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::ThinArrow), "->");
     }
 
     #[test]
     fn variant_true_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::True), TRUE_KEYWORD);
     }
 
     #[test]
     fn variant_type_display() {
+        colored::control::set_override(false);
+
         assert_eq!(format!("{}", Variant::Type), TYPE_KEYWORD);
     }
 }

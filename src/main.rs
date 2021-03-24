@@ -1,3 +1,5 @@
+#![deny(warnings)]
+
 mod assertions;
 mod de_bruijn;
 mod equality;
