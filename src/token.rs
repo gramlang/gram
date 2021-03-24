@@ -102,3 +102,183 @@ impl<'a> Display for Variant<'a> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::token::{
+        TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD,
+        INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+    };
+    use num_bigint::ToBigInt;
+
+    #[test]
+    fn token_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Token {
+                    source_range: (0, 0),
+                    variant: Variant::Asterisk,
+                },
+            ),
+            "*",
+        );
+    }
+
+    #[test]
+    fn variant_asterisk_display() {
+        assert_eq!(format!("{}", Variant::Asterisk), "*");
+    }
+
+    #[test]
+    fn variant_boolean_display() {
+        assert_eq!(format!("{}", Variant::Boolean), BOOLEAN_KEYWORD);
+    }
+
+    #[test]
+    fn variant_colon_display() {
+        assert_eq!(format!("{}", Variant::Colon), ":");
+    }
+
+    #[test]
+    fn variant_double_equals_display() {
+        assert_eq!(format!("{}", Variant::DoubleEquals), "==");
+    }
+
+    #[test]
+    fn variant_else_display() {
+        assert_eq!(format!("{}", Variant::Else), ELSE_KEYWORD);
+    }
+
+    #[test]
+    fn variant_equals_display() {
+        assert_eq!(format!("{}", Variant::Equals), "=");
+    }
+
+    #[test]
+    fn variant_false_display() {
+        assert_eq!(format!("{}", Variant::False), FALSE_KEYWORD);
+    }
+
+    #[test]
+    fn variant_greater_than_display() {
+        assert_eq!(format!("{}", Variant::GreaterThan), ">");
+    }
+
+    #[test]
+    fn variant_greater_than_or_equal_to_display() {
+        assert_eq!(format!("{}", Variant::GreaterThanOrEqualTo), ">=");
+    }
+
+    #[test]
+    fn variant_identifier_display() {
+        assert_eq!(format!("{}", Variant::Identifier("foo")), "foo");
+    }
+
+    #[test]
+    fn variant_if_display() {
+        assert_eq!(format!("{}", Variant::If), IF_KEYWORD);
+    }
+
+    #[test]
+    fn variant_integer_display() {
+        assert_eq!(format!("{}", Variant::Integer), INTEGER_KEYWORD);
+    }
+
+    #[test]
+    fn variant_integer_literal_display() {
+        assert_eq!(
+            format!(
+                "{}",
+                Variant::IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+            ),
+            "42",
+        );
+    }
+
+    #[test]
+    fn variant_left_curly_display() {
+        assert_eq!(format!("{}", Variant::LeftCurly), "{");
+    }
+
+    #[test]
+    fn variant_left_paren_display() {
+        assert_eq!(format!("{}", Variant::LeftParen), "(");
+    }
+
+    #[test]
+    fn variant_less_than_display() {
+        assert_eq!(format!("{}", Variant::LessThan), "<");
+    }
+
+    #[test]
+    fn variant_less_than_or_equal_to_display() {
+        assert_eq!(format!("{}", Variant::LessThanOrEqualTo), "<=");
+    }
+
+    #[test]
+    fn variant_minus_display() {
+        assert_eq!(format!("{}", Variant::Minus), "-");
+    }
+
+    #[test]
+    fn variant_plus_display() {
+        assert_eq!(format!("{}", Variant::Plus), "+");
+    }
+
+    #[test]
+    fn variant_right_curly_display() {
+        assert_eq!(format!("{}", Variant::RightCurly), "}");
+    }
+
+    #[test]
+    fn variant_right_paren_display() {
+        assert_eq!(format!("{}", Variant::RightParen), ")");
+    }
+
+    #[test]
+    fn variant_slash_display() {
+        assert_eq!(format!("{}", Variant::Slash), "/");
+    }
+
+    #[test]
+    fn variant_terminator_line_break_display() {
+        assert_eq!(
+            format!("{}", Variant::Terminator(TerminatorType::LineBreak)),
+            "\\n",
+        );
+    }
+
+    #[test]
+    fn variant_terminator_semicolon_display() {
+        assert_eq!(
+            format!("{}", Variant::Terminator(TerminatorType::Semicolon)),
+            ";",
+        );
+    }
+
+    #[test]
+    fn variant_then_display() {
+        assert_eq!(format!("{}", Variant::Then), THEN_KEYWORD);
+    }
+
+    #[test]
+    fn variant_thick_arrow_display() {
+        assert_eq!(format!("{}", Variant::ThickArrow), "=>");
+    }
+
+    #[test]
+    fn variant_thin_arrow_display() {
+        assert_eq!(format!("{}", Variant::ThinArrow), "->");
+    }
+
+    #[test]
+    fn variant_true_display() {
+        assert_eq!(format!("{}", Variant::True), TRUE_KEYWORD);
+    }
+
+    #[test]
+    fn variant_type_display() {
+        assert_eq!(format!("{}", Variant::Type), TYPE_KEYWORD);
+    }
+}
