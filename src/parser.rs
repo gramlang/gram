@@ -323,7 +323,7 @@ macro_rules! try_eval {
 
 // This macro consumes a single token (with no arguments) and evaluates to the position of the next
 // token. It returns early if the token isn't there.
-macro_rules! consume_token0 {
+macro_rules! consume_token_0 {
     (
         $cache:ident,
         $cache_key:expr,
@@ -363,7 +363,7 @@ macro_rules! consume_token0 {
 
 // This macro consumes a single token (with one argument) and evaluates to the argument paired with
 // the position of the next token. It returns early if the token isn't there.
-macro_rules! consume_token1 {
+macro_rules! consume_token_1 {
     (
         $cache:ident,
         $cache_key:expr,
@@ -406,7 +406,7 @@ macro_rules! consume_token1 {
 // nested parenthesized groupings) or a terminator or the end of the current parenthesized group is
 // reached. This macro evaluates to a pair consisting of a Boolean indicating whether the token was
 // found and the position of the subsequent token.
-macro_rules! expect_token0 {
+macro_rules! expect_token_0 {
     (
         $tokens:expr,
         $next:expr,
@@ -471,7 +471,7 @@ macro_rules! expect_token0 {
 // nested parenthesized groupings) or a terminator or the end of the current parenthesized group is
 // reached. This macro evaluates to a pair consisting of a Boolean indicating whether the token was
 // found and the position of the subsequent token.
-macro_rules! expect_token1 {
+macro_rules! expect_token_1 {
     (
         $tokens:expr,
         $next:expr,
@@ -2291,7 +2291,7 @@ fn parse_type<'a>(
     let cache_key = cache_check!(cache, Type, start);
 
     // Consume the keyword.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2329,7 +2329,7 @@ fn parse_variable<'a>(
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, start);
     let (variable, next) =
-        consume_token1!(cache, cache_key, tokens, start, Identifier, "a variable");
+        consume_token_1!(cache, cache_key, tokens, start, Identifier, "a variable");
 
     // Construct and return the term.
     cache_return!(
@@ -2359,10 +2359,10 @@ fn parse_lambda<'a>(
 
     // Consume the variable.
     let (variable, next) =
-        consume_token1!(cache, cache_key, tokens, start, Identifier, "a variable");
+        consume_token_1!(cache, cache_key, tokens, start, Identifier, "a variable");
 
     // Consume the arrow.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2409,7 +2409,7 @@ fn parse_lambda_implicit<'a>(
     let cache_key = cache_check!(cache, LambdaImplicit, start);
 
     // Consume the left curly brace.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2420,10 +2420,10 @@ fn parse_lambda_implicit<'a>(
 
     // Consume the variable.
     let (variable, next) =
-        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
+        consume_token_1!(cache, cache_key, tokens, next, Identifier, "a variable");
 
     // Consume the right curly brace.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2433,7 +2433,7 @@ fn parse_lambda_implicit<'a>(
     );
 
     // Consume the arrow.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2480,7 +2480,7 @@ fn parse_annotated_lambda<'a>(
     let cache_key = cache_check!(cache, AnnotatedLambda, start);
 
     // Consume the left parenthesis.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2492,10 +2492,10 @@ fn parse_annotated_lambda<'a>(
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, next);
     let (variable, next) =
-        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
+        consume_token_1!(cache, cache_key, tokens, next, Identifier, "a variable");
 
     // Consume the colon.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2508,7 +2508,7 @@ fn parse_annotated_lambda<'a>(
     let (domain, next, _) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2518,7 +2518,7 @@ fn parse_annotated_lambda<'a>(
     );
 
     // Consume the arrow.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2565,7 +2565,7 @@ fn parse_annotated_lambda_implicit<'a>(
     let cache_key = cache_check!(cache, AnnotatedLambdaImplicit, start);
 
     // Consume the left curly brace.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2577,10 +2577,10 @@ fn parse_annotated_lambda_implicit<'a>(
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, next);
     let (variable, next) =
-        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
+        consume_token_1!(cache, cache_key, tokens, next, Identifier, "a variable");
 
     // Consume the colon.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2593,7 +2593,7 @@ fn parse_annotated_lambda_implicit<'a>(
     let (domain, next, _) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right curly brace.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2603,7 +2603,7 @@ fn parse_annotated_lambda_implicit<'a>(
     );
 
     // Consume the arrow.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2650,7 +2650,7 @@ fn parse_pi<'a>(
     let cache_key = cache_check!(cache, Pi, start);
 
     // Consume the left parenthesis.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2662,10 +2662,10 @@ fn parse_pi<'a>(
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, next);
     let (variable, next) =
-        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
+        consume_token_1!(cache, cache_key, tokens, next, Identifier, "a variable");
 
     // Consume the colon.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2678,7 +2678,7 @@ fn parse_pi<'a>(
     let (domain, next, _) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right parenthesis.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2688,7 +2688,7 @@ fn parse_pi<'a>(
     );
 
     // Consume the arrow.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2735,7 +2735,7 @@ fn parse_pi_implicit<'a>(
     let cache_key = cache_check!(cache, PiImplicit, start);
 
     // Consume the left curly brace.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2747,10 +2747,10 @@ fn parse_pi_implicit<'a>(
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, next);
     let (variable, next) =
-        consume_token1!(cache, cache_key, tokens, next, Identifier, "a variable");
+        consume_token_1!(cache, cache_key, tokens, next, Identifier, "a variable");
 
     // Consume the colon.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2763,7 +2763,7 @@ fn parse_pi_implicit<'a>(
     let (domain, next, _) = try_eval!(cache, cache_key, parse_jumbo_term(cache, tokens, next));
 
     // Consume the right curly brace.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2773,7 +2773,7 @@ fn parse_pi_implicit<'a>(
     );
 
     // Consume the arrow.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2823,7 +2823,7 @@ fn parse_non_dependent_pi<'a>(
     let (domain, next, _) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the arrow.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -2907,13 +2907,13 @@ fn parse_let<'a>(
     // Consume the variable.
     let variable_source_range = token_source_range(tokens, start);
     let (variable, next) =
-        consume_token1!(cache, cache_key, tokens, start, Identifier, "a variable");
+        consume_token_1!(cache, cache_key, tokens, start, Identifier, "a variable");
 
     // Parse the annotation, if there is one.
     let (annotation, next, annotation_confident_next) = if next < tokens.len() {
         if let token::Variant::Colon = tokens[next].variant {
             // Consume the colon.
-            let next = consume_token0!(
+            let next = consume_token_0!(
                 cache,
                 cache_key,
                 tokens,
@@ -2944,7 +2944,7 @@ fn parse_let<'a>(
     let (equals_found, next) = if annotation.is_some() {
         // Since we have an annotation, we can be confident we're parsing a let (if it were a lambda
         // or a pi type, it would have been parsed already). Find the equals sign and proceed.
-        expect_token0!(
+        expect_token_0!(
             tokens,
             next,
             errors,
@@ -2957,7 +2957,7 @@ fn parse_let<'a>(
         // actually a let. So bail out if we don't find the equals sign.
         (
             true,
-            consume_token0!(
+            consume_token_0!(
                 cache,
                 cache_key,
                 tokens,
@@ -2986,7 +2986,7 @@ fn parse_let<'a>(
     };
 
     // Consume the terminator.
-    let (terminator_type, next) = expect_token1!(
+    let (terminator_type, next) = expect_token_1!(
         tokens,
         next,
         errors,
@@ -3052,7 +3052,7 @@ fn parse_integer<'a>(
     let cache_key = cache_check!(cache, Integer, start);
 
     // Consume the keyword.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3088,7 +3088,7 @@ fn parse_integer_literal<'a>(
     let cache_key = cache_check!(cache, IntegerLiteral, start);
 
     // Consume the integer.
-    let (integer, next) = consume_token1!(
+    let (integer, next) = consume_token_1!(
         cache,
         cache_key,
         tokens,
@@ -3124,7 +3124,7 @@ fn parse_negation<'a>(
     let cache_key = cache_check!(cache, Negation, start);
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3166,7 +3166,7 @@ fn parse_sum<'a>(
     let (term1, next, _) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3208,7 +3208,7 @@ fn parse_difference<'a>(
     let (term1, next, _) = try_eval!(cache, cache_key, parse_large_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3250,7 +3250,7 @@ fn parse_product<'a>(
     let (term1, next, _) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3292,7 +3292,7 @@ fn parse_quotient<'a>(
     let (term1, next, _) = try_eval!(cache, cache_key, parse_small_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3334,7 +3334,7 @@ fn parse_less_than<'a>(
     let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3376,7 +3376,7 @@ fn parse_less_than_or_equal_to<'a>(
     let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3421,7 +3421,7 @@ fn parse_equal_to<'a>(
     let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3463,7 +3463,7 @@ fn parse_greater_than<'a>(
     let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3505,7 +3505,7 @@ fn parse_greater_than_or_equal_to<'a>(
     let (term1, next, _) = try_eval!(cache, cache_key, parse_huge_term(cache, tokens, start));
 
     // Consume the operator.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3547,7 +3547,7 @@ fn parse_boolean<'a>(
     let cache_key = cache_check!(cache, Boolean, start);
 
     // Consume the keyword.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3583,7 +3583,7 @@ fn parse_true<'a>(
     let cache_key = cache_check!(cache, True, start);
 
     // Consume the keyword.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3619,7 +3619,7 @@ fn parse_false<'a>(
     let cache_key = cache_check!(cache, False, start);
 
     // Consume the keyword.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3655,7 +3655,7 @@ fn parse_if<'a>(
     let cache_key = cache_check!(cache, If, start);
 
     // Consume the `if` keyword.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3671,7 +3671,7 @@ fn parse_if<'a>(
     let mut errors = vec![];
 
     // Consume the `then` keyword.
-    let (found_then, next) = expect_token0!(
+    let (found_then, next) = expect_token_0!(
         tokens,
         next,
         errors,
@@ -3698,7 +3698,7 @@ fn parse_if<'a>(
     };
 
     // Consume the `else` keyword.
-    let (found_else, next) = expect_token0!(
+    let (found_else, next) = expect_token_0!(
         tokens,
         next,
         errors,
@@ -3756,7 +3756,7 @@ fn parse_group<'a>(
     let cache_key = cache_check!(cache, Group, start);
 
     // Consume the left parenthesis.
-    let next = consume_token0!(
+    let next = consume_token_0!(
         cache,
         cache_key,
         tokens,
@@ -3768,13 +3768,13 @@ fn parse_group<'a>(
     // Parse the inner term.
     let (term, next, confident_next) = try_eval!(cache, cache_key, parse_term(cache, tokens, next));
 
-    // Consume the right parenthesis. Here we use `expect_token0!` rather than `consume_token0!`
+    // Consume the right parenthesis. Here we use `expect_token_0!` rather than `consume_token_0!`
     // because we know we're parsing a group at this point. If it were a lambda or a pi type, it
     // would have been parsed already. We're going to construct a more informative error than what
-    // `expect_token0!` gives us, so we create a phony `errors` vector just for this macro
+    // `expect_token_0!` gives us, so we create a phony `errors` vector just for this macro
     // invocation.
     let mut phony_errors = vec![];
-    let (found, next) = expect_token0!(
+    let (found, next) = expect_token_0!(
         tokens,
         next,
         phony_errors,
