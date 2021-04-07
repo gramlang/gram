@@ -822,6 +822,6 @@ mod tests {
 
     #[test]
     fn tokenize_unexpected_code_point() {
-        assert_fails!(tokenize(None, "$"), "Unexpected symbol");
+        assert_fails!(tokenize(None, "$"), "Unexpected symbol `$`.");
     }
 }
