@@ -269,7 +269,6 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
 #[cfg(test)]
 mod tests {
     use crate::{
-        assert_equal,
         term::{
             free_variables, Term,
             Variant::{
@@ -286,7 +285,7 @@ mod tests {
 
     #[test]
     fn term_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Term {
@@ -300,12 +299,12 @@ mod tests {
 
     #[test]
     fn variant_unifier_no_subterm_display() {
-        assert_equal!(format!("{}", Unifier(Rc::new(RefCell::new(None)), 0)), "_");
+        assert_eq!(format!("{}", Unifier(Rc::new(RefCell::new(None)), 0)), "_");
     }
 
     #[test]
     fn variant_unifier_subterm_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Unifier(
@@ -322,17 +321,17 @@ mod tests {
 
     #[test]
     fn variant_type_display() {
-        assert_equal!(format!("{}", Type), TYPE_KEYWORD);
+        assert_eq!(format!("{}", Type), TYPE_KEYWORD);
     }
 
     #[test]
     fn variant_variable_display() {
-        assert_equal!(format!("{}", Variable("x", 15)), "x");
+        assert_eq!(format!("{}", Variable("x", 15)), "x");
     }
 
     #[test]
     fn variant_lambda_explicit_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Lambda(
@@ -354,7 +353,7 @@ mod tests {
 
     #[test]
     fn variant_lambda_implicit_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Lambda(
@@ -376,7 +375,7 @@ mod tests {
 
     #[test]
     fn variant_pi_dependent_explicit_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Pi(
@@ -398,7 +397,7 @@ mod tests {
 
     #[test]
     fn variant_pi_dependent_implicit_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Pi(
@@ -420,7 +419,7 @@ mod tests {
 
     #[test]
     fn variant_pi_non_dependent_implicit_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Pi(
@@ -442,7 +441,7 @@ mod tests {
 
     #[test]
     fn variant_pi_non_dependent_explicit_left_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Pi(
@@ -475,7 +474,7 @@ mod tests {
 
     #[test]
     fn variant_pi_non_dependent_explicit_right_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Pi(
@@ -508,7 +507,7 @@ mod tests {
 
     #[test]
     fn variant_application_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Application(
@@ -528,7 +527,7 @@ mod tests {
 
     #[test]
     fn variant_let_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Let(
@@ -568,12 +567,12 @@ mod tests {
 
     #[test]
     fn variant_integer_display() {
-        assert_equal!(format!("{}", Integer), INTEGER_KEYWORD);
+        assert_eq!(format!("{}", Integer), INTEGER_KEYWORD);
     }
 
     #[test]
     fn variant_integer_literal_display() {
-        assert_equal!(
+        assert_eq!(
             format!("{}", IntegerLiteral(ToBigInt::to_bigint(&42).unwrap())),
             "42",
         );
@@ -581,7 +580,7 @@ mod tests {
 
     #[test]
     fn variant_negation_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Negation(Rc::new(Term {
@@ -595,7 +594,7 @@ mod tests {
 
     #[test]
     fn variant_sum_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Sum(
@@ -615,7 +614,7 @@ mod tests {
 
     #[test]
     fn variant_difference_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Difference(
@@ -635,7 +634,7 @@ mod tests {
 
     #[test]
     fn variant_product_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Product(
@@ -655,7 +654,7 @@ mod tests {
 
     #[test]
     fn variant_quotient_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 Quotient(
@@ -675,7 +674,7 @@ mod tests {
 
     #[test]
     fn variant_less_than_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 LessThan(
@@ -695,7 +694,7 @@ mod tests {
 
     #[test]
     fn variant_less_than_or_equal_to_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 LessThanOrEqualTo(
@@ -715,7 +714,7 @@ mod tests {
 
     #[test]
     fn variant_equal_to_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 EqualTo(
@@ -735,7 +734,7 @@ mod tests {
 
     #[test]
     fn variant_greater_than_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 GreaterThan(
@@ -755,7 +754,7 @@ mod tests {
 
     #[test]
     fn variant_greater_than_or_equal_to_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 GreaterThanOrEqualTo(
@@ -775,22 +774,22 @@ mod tests {
 
     #[test]
     fn variant_boolean_display() {
-        assert_equal!(format!("{}", Boolean), BOOLEAN_KEYWORD);
+        assert_eq!(format!("{}", Boolean), BOOLEAN_KEYWORD);
     }
 
     #[test]
     fn variant_true_display() {
-        assert_equal!(format!("{}", True), TRUE_KEYWORD);
+        assert_eq!(format!("{}", True), TRUE_KEYWORD);
     }
 
     #[test]
     fn variant_false_display() {
-        assert_equal!(format!("{}", False), FALSE_KEYWORD);
+        assert_eq!(format!("{}", False), FALSE_KEYWORD);
     }
 
     #[test]
     fn variant_if_display() {
-        assert_equal!(
+        assert_eq!(
             format!(
                 "{}",
                 If(
