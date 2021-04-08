@@ -22,7 +22,6 @@ use crate::{
     tokenizer::tokenize,
     type_checker::type_check,
 };
-use atty::Stream;
 use clap::{
     App,
     AppSettings::{ArgRequiredElseHelp, ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
@@ -220,10 +219,6 @@ fn shell_completion(shell: &str) -> Result<(), Error> {
 
 // Program entrypoint
 fn entry() -> Result<(), Error> {
-    // Determine whether to print colored output based on whether STDOUT is connected to a
-    // terminal.
-    colored::control::set_override(atty::is(Stream::Stdout));
-
     // Parse command-line arguments.
     let matches = cli().get_matches();
 

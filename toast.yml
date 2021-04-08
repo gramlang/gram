@@ -86,7 +86,7 @@ tasks:
     command: |
       set -euo pipefail
       . $HOME/.cargo/env
-      NO_COLOR=true cargo test -- --test-threads=1 # [ref:sequential_tests]
+      NO_COLOR=true cargo test -- --test-threads=1 # [tag:colorless_tests] [tag:sequential_tests]
 
   lint:
     description: Run the linters.
@@ -97,6 +97,7 @@ tasks:
       - grammar.y # Checked by `bison` for shift/reduce and reduce/reduce conflicts
       - install.sh # Linted by ShellCheck
       - release.sh # Linted by ShellCheck
+      - toast.yml # Contains tags checked by `tagref`
     user: user
     command: |
       set -euo pipefail
