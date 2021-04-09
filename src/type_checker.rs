@@ -1,6 +1,6 @@
 use crate::{
     de_bruijn::{open, unsigned_shift},
-    error::{throw, Error},
+    error::{listing, throw, Error},
     format::CodeStr,
     parser::PLACEHOLDER_VARIABLE,
     term::{
@@ -98,12 +98,14 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the domain is the type of all types.
             if !unify(&domain_type, &type_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     "This is not a type:",
                     source_path,
                     domain
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             }
 
@@ -151,12 +153,14 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the domain is the type of all types.
             if !unify(&domain_type, &type_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     "This is not a type:",
                     source_path,
                     domain
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             }
 
@@ -177,12 +181,14 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the codomain is the type of all types.
             if !unify(&codomain_type, &type_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     "This is not a type:",
                     source_path,
                     codomain
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             }
 
@@ -235,7 +241,7 @@ pub fn type_check_rec<'a>(
 
             // Make sure the type of the applicand is a pi type.
             if !unify(&pi_type, &applicand_type, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {} when a function was expected:",
                         applicand_type.to_string().code_str(),
@@ -243,7 +249,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     applicand
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -259,7 +267,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the argument type equals the domain.
             if !unify(&domain, &argument_type, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but the function was expecting an argument of type {}:",
                         argument_type.to_string().code_str(),
@@ -268,7 +276,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     argument
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             }
 
@@ -338,7 +348,7 @@ pub fn type_check_rec<'a>(
 
                     // Check the type against the annotation.
                     if !unify(&definition_type, &annotation, borrowed_definitions_context) {
-                        errors.push(throw(
+                        errors.push(throw::<Error>(
                             &format!(
                                 "This has type {}, but it was expected to have type {}:",
                                 definition_type.to_string().code_str(),
@@ -347,7 +357,9 @@ pub fn type_check_rec<'a>(
                             source_path,
                             definition
                                 .source_range
-                                .map(|source_range| (source_contents, source_range)),
+                                .map(|source_range| listing(source_contents, source_range))
+                                .as_deref(),
+                            None,
                         ));
                     }
 
@@ -432,7 +444,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the subterm is the type of integers.
             if !unify(&subterm_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         subterm_type.to_string().code_str(),
@@ -441,7 +453,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     subterm
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -467,7 +481,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(&term1_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -476,7 +490,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -492,7 +508,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(&term2_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -501,7 +517,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -527,7 +545,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(&term1_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -536,7 +554,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -552,7 +572,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(&term2_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -561,7 +581,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -587,7 +609,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(&term1_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -596,7 +618,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -612,7 +636,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(&term2_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -621,7 +645,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -647,7 +673,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(&term1_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -656,7 +682,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -672,7 +700,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(&term2_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -681,7 +709,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -707,7 +737,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(&term1_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -716,7 +746,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -732,7 +764,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(&term2_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -741,7 +773,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -767,7 +801,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(&term1_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -776,7 +810,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -792,7 +828,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(&term2_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -801,7 +837,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -827,7 +865,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(&term1_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -836,7 +874,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -852,7 +892,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(&term2_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -861,7 +901,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -887,7 +929,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(&term1_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -896,7 +938,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -912,7 +956,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(&term2_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -921,7 +965,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -947,7 +993,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the left subterm is the type of integers.
             if !unify(&term1_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term1_type.to_string().code_str(),
@@ -956,7 +1002,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -972,7 +1020,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the right subterm is the type of integers.
             if !unify(&term2_type, &integer_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         term2_type.to_string().code_str(),
@@ -981,7 +1029,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -1007,7 +1057,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the type of the condition is the type of Booleans.
             if !unify(&condition_type, &boolean_term, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "This has type {}, but it should have type {}:",
                         condition_type.to_string().code_str(),
@@ -1016,7 +1066,9 @@ pub fn type_check_rec<'a>(
                     source_path,
                     condition
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 
@@ -1042,7 +1094,7 @@ pub fn type_check_rec<'a>(
 
             // Check that the types of the two branches are definitionally equal.
             if !unify(&then_branch_type, &else_branch_type, definitions_context) {
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!(
                         "The two branches of this conditional don\u{2019}t match. The first branch \
                             has type {}, but the second branch has type {}.",
@@ -1051,7 +1103,9 @@ pub fn type_check_rec<'a>(
                     ),
                     source_path,
                     term.source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| listing(source_contents, source_range))
+                        .as_deref(),
+                    None,
                 ));
             };
 

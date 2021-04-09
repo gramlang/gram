@@ -15,7 +15,7 @@ mod type_checker;
 mod unifier;
 
 use crate::{
-    error::{lift, Error},
+    error::{throw, Error},
     evaluator::evaluate,
     format::CodeStr,
     parser::parse,
@@ -147,10 +147,17 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
     };
 
     // Read the file.
-    let source_contents = read_to_string(source_path).map_err(lift(format!(
-        "Error when reading file {}.",
-        source_path.to_string_lossy().code_str(),
-    )))?;
+    let source_contents = read_to_string(source_path).map_err(|error| {
+        throw(
+            &format!(
+                "Error when reading file {}.",
+                source_path.to_string_lossy().code_str(),
+            ),
+            None,
+            None,
+            Some(error),
+        )
+    })?;
 
     // Tokenize the source.
     let tokens = tokenize(Some(source_path), &source_contents).map_err(collect_errors)?;

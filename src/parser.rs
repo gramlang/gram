@@ -67,19 +67,21 @@ fn error_factory<'a>(
 
     Rc::new(move |source_path, source_contents| {
         if tokens.is_empty() {
-            throw(
+            throw::<Error>(
                 &format!("Expected {}, but the file is empty.", expectation),
                 source_path,
-                Some((source_contents, source_range.0)),
+                Some(&listing(source_contents, source_range.0)),
+                None,
             )
         } else if position == tokens.len() {
-            throw(
+            throw::<Error>(
                 &format!("Expected {} at the end of the file.", expectation),
                 source_path,
-                Some((source_contents, source_range.0)),
+                Some(&listing(source_contents, source_range.0)),
+                None,
             )
         } else {
-            throw(
+            throw::<Error>(
                 &if let token::Variant::Terminator(TerminatorType::LineBreak) =
                     tokens[position].variant
                 {
@@ -92,7 +94,8 @@ fn error_factory<'a>(
                     )
                 },
                 source_path,
-                Some((source_contents, source_range.0)),
+                Some(&listing(source_contents, source_range.0)),
+                None,
             )
         }
     })
@@ -1404,10 +1407,11 @@ fn resolve_variables<'a>(
                 // The variable isn't in scope. If it's the placeholder variable, don't worry about
                 // it; we'll construct a unifier below. Otherwise report an error.
                 if *variable != PLACEHOLDER_VARIABLE {
-                    errors.push(throw(
+                    errors.push(throw::<Error>(
                         &format!("Variable {} not in scope.", variable.code_str()),
                         source_path,
-                        Some((source_contents, term.source_range.0)),
+                        Some(&listing(source_contents, term.source_range.0)),
+                        None,
                     ));
                 }
 
@@ -1429,10 +1433,11 @@ fn resolve_variables<'a>(
             if variable.name != PLACEHOLDER_VARIABLE {
                 // Report an error if the variable is already in the context.
                 if context.contains_key(variable.name) {
-                    errors.push(throw(
+                    errors.push(throw::<Error>(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some((source_contents, variable.source_range.0)),
+                        Some(&listing(source_contents, variable.source_range.0)),
+                        None,
                     ));
                 }
 
@@ -1482,10 +1487,11 @@ fn resolve_variables<'a>(
             if variable.name != PLACEHOLDER_VARIABLE {
                 // Report an error if the variable is already in the context.
                 if context.contains_key(variable.name) {
-                    errors.push(throw(
+                    errors.push(throw::<Error>(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some((source_contents, variable.source_range.0)),
+                        Some(&listing(source_contents, variable.source_range.0)),
+                        None,
                     ));
                 }
 
@@ -1569,13 +1575,14 @@ fn resolve_variables<'a>(
 
                     // Report an error if the variable is already in the context.
                     if borrowed_context.contains_key(inner_variable.name) {
-                        errors.push(throw(
+                        errors.push(throw::<Error>(
                             &format!(
                                 "Variable {} already exists.",
                                 inner_variable.name.code_str(),
                             ),
                             source_path,
-                            Some((source_contents, inner_variable.source_range.0)),
+                            Some(&listing(source_contents, inner_variable.source_range.0)),
+                            None,
                         ));
                     }
 
@@ -2162,7 +2169,7 @@ fn check_definition<'a>(
                         errors,
                     );
                 } else if definition_index >= start_index {
-                    errors.push(throw(
+                    errors.push(throw::<Error>(
                         &format!(
                             "The definition of {} references {} (directly or indirectly), \
                                     which will not be available in time during evaluation.",
@@ -2173,7 +2180,9 @@ fn check_definition<'a>(
                         definitions[start_index]
                             .2
                             .source_range
-                            .map(|source_range| (source_contents, source_range)),
+                            .map(|source_range| listing(source_contents, source_range))
+                            .as_deref(),
+                        None,
                     ));
                 }
             }
@@ -3795,25 +3804,20 @@ fn parse_group<'a>(
 
             // Check if we're at the end of the file.
             if next == tokens.len() {
-                throw(
+                throw::<Error>(
                     "This parenthesis was never closed:",
                     source_path,
-                    Some((source_contents, left_parenthesis_source_range.0)),
+                    Some(&listing(source_contents, left_parenthesis_source_range.0)),
+                    None,
                 )
             } else {
-                let left_parenthesis_listing = listing(
-                    source_contents,
-                    (left_parenthesis_source_range.0).0,
-                    (left_parenthesis_source_range.0).1,
-                );
+                let left_parenthesis_listing =
+                    listing(source_contents, left_parenthesis_source_range.0);
 
                 let unexpected_token_source_range = token_source_range(tokens, next);
 
-                let unexpected_token_listing = listing(
-                    source_contents,
-                    (unexpected_token_source_range.0).0,
-                    (unexpected_token_source_range.0).1,
-                );
+                let unexpected_token_listing =
+                    listing(source_contents, unexpected_token_source_range.0);
 
                 Error {
                     message: if let token::Variant::Terminator(TerminatorType::LineBreak) =

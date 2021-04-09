@@ -18,7 +18,13 @@ pub struct Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if let Some(reason) = &self.reason {
-            write!(f, "{} Reason: {}", self.message, reason)
+            write!(
+                f,
+                "{}\n\n{} {}",
+                self.message,
+                "Reason:".blue().bold(),
+                reason,
+            )
         } else {
             write!(f, "{}", self.message)
         }
@@ -31,26 +37,17 @@ impl error::Error for Error {
     }
 }
 
-// This function constructs an `Error` that may occur at a specific location in a source file.
-pub fn throw(
+// This function constructs a nicely formatted error.
+pub fn throw<T: error::Error + 'static>(
     message: &str,
     source_path: Option<&Path>,
-
-    // The range is inclusive on the left and exclusive on the right.
-    source: Option<(&str, (usize, usize))>,
+    listing: Option<&str>,
+    reason: Option<T>,
 ) -> Error {
-    {
-        // Render the relevant lines from the source if applicable.
-        let listing = source.map_or_else(
-            || "".to_owned(),
-            |(source_contents, source_range)| {
-                listing(source_contents, source_range.0, source_range.1)
-            },
-        );
-
-        // Now we have everything we need to construct the error.
-        Error {
-            message: if let Some(path) = source_path {
+    #[allow(clippy::option_map_or_none)]
+    Error {
+        message: if let Some(path) = source_path {
+            if let Some(listing) = listing {
                 if listing.is_empty() {
                     format!(
                         "{} {} {}",
@@ -67,30 +64,31 @@ pub fn throw(
                         listing,
                     )
                 }
-            } else if listing.is_empty() {
+            } else {
+                format!(
+                    "{} {} {}",
+                    "[Error]".red().bold(),
+                    format!("[{}]", path.to_string_lossy().code_str()).magenta(),
+                    message,
+                )
+            }
+        } else if let Some(listing) = listing {
+            if listing.is_empty() {
                 format!("{} {}", "[Error]".red().bold(), message)
             } else {
                 format!("{} {}\n\n{}", "[Error]".red().bold(), message, listing)
-            },
-            reason: None,
-        }
-    }
-}
+            }
+        } else {
+            format!("{} {}", "[Error]".red().bold(), message)
+        },
 
-// This function constructs an `Error` from a message and a reason. It's written in a curried style
-// so it can be used in a higher-order fashion, e.g.,
-// `foo.map_err(lift("Error doing foo."))`.
-pub fn lift<T: Into<String>, U: error::Error + 'static>(message: T) -> impl FnOnce(U) -> Error {
-    let message = message.into();
-    move |error: U| Error {
-        message,
-        reason: Some(Rc::new(error)),
+        reason: reason.map_or(None, |reason| Some(Rc::new(reason))),
     }
 }
 
 // This function renders the relevant lines of a source file given the source file contents and a
 // range. The range is inclusive on the left and exclusive on the right.
-pub fn listing(source_contents: &str, range_start: usize, range_end: usize) -> String {
+pub fn listing(source_contents: &str, source_range: (usize, usize)) -> String {
     // Remember the relevant lines and the position of the start of the next line.
     let mut lines = vec![];
     let mut pos = 0_usize;
@@ -104,12 +102,12 @@ pub fn listing(source_contents: &str, range_start: usize, range_end: usize) -> S
         pos += line.len() + 1;
 
         // If we're past the lines of interest, we're done.
-        if line_start >= range_end {
+        if line_start >= source_range.1 {
             break;
         }
 
         // If we haven't reached the lines of interest yet, skip to the next line.
-        if pos <= range_start {
+        if pos <= source_range.0 {
             continue;
         }
 
@@ -118,13 +116,13 @@ pub fn listing(source_contents: &str, range_start: usize, range_end: usize) -> S
         let trimmed_line = line.trim_end();
 
         // Highlight the relevant part of the line.
-        let (section_start, section_end) = if range_start > line_start {
+        let (section_start, section_end) = if source_range.0 > line_start {
             (
-                min(range_start - line_start, trimmed_line.len()),
-                min(range_end - line_start, trimmed_line.len()),
+                min(source_range.0 - line_start, trimmed_line.len()),
+                min(source_range.1 - line_start, trimmed_line.len()),
             )
         } else {
-            let end = min(range_end - line_start, trimmed_line.len());
+            let end = min(source_range.1 - line_start, trimmed_line.len());
             let start = trimmed_line
                 .find(|c: char| !c.is_whitespace())
                 .unwrap_or(end);
@@ -202,120 +200,222 @@ pub fn listing(source_contents: &str, range_start: usize, range_end: usize) -> S
 
 #[cfg(test)]
 mod tests {
-    use crate::error::{lift, throw, Error};
-    use std::path::Path;
+    use crate::{
+        assert_same,
+        error::{listing, throw, Error},
+    };
+    use std::{path::Path, rc::Rc};
 
     #[test]
-    fn throw_no_path_missing_range() {
-        let error = throw("An error occurred.", None, None);
-
-        assert_eq!(error.message, "[Error] An error occurred.");
-    }
-
-    #[test]
-    fn throw_no_path_empty_range() {
-        let error = throw("An error occurred.", None, Some(("", (0, 0))));
-
-        assert_eq!(error.message, "[Error] An error occurred.");
-    }
-
-    #[test]
-    fn throw_with_path_missing_range() {
-        let error = throw("An error occurred.", Some(Path::new("foo.g")), None);
-
-        assert_eq!(error.message, "[Error] [`foo.g`] An error occurred.");
-    }
-
-    #[test]
-    fn throw_with_path_empty_range() {
-        let error = throw(
-            "An error occurred.",
-            Some(Path::new("foo.g")),
-            Some(("", (0, 0))),
-        );
-
-        assert_eq!(error.message, "[Error] [`foo.g`] An error occurred.");
-    }
-
-    #[test]
-    fn throw_no_path_single_line_full_range() {
-        let error = throw("An error occurred.", None, Some(("foo", (0, 3))));
-
+    fn error_no_reason_display() {
         assert_eq!(
-            error.message,
-            "[Error] An error occurred.\n\n1 \u{2502} foo\n    \u{203e}\u{203e}\u{203e}",
+            format!(
+                "{}",
+                Error {
+                    message: "Something went wrong.".to_owned(),
+                    reason: None,
+                },
+            ),
+            "Something went wrong.",
         );
     }
 
     #[test]
-    fn throw_with_path_single_line_full_range() {
-        let error = throw(
-            "An error occurred.",
-            Some(Path::new("foo.g")),
-            Some(("foo", (0, 3))),
-        );
-
+    fn error_with_reason_display() {
         assert_eq!(
-            error.message,
-            "[Error] [`foo.g`] An error occurred.\n\n1 \u{2502} foo\n    \u{203e}\u{203e}\u{203e}",
+            format!(
+                "{}",
+                Error {
+                    message: "Something went wrong.".to_owned(),
+                    reason: Some(Rc::new(Error {
+                        message: "Something deeper went wrong.".to_owned(),
+                        reason: None,
+                    })),
+                },
+            ),
+            "\
+            Something went wrong.\n\
+            \n\
+            Reason: Something deeper went wrong.\
+            ",
         );
     }
 
     #[test]
-    fn throw_no_path_multiple_lines_full_range() {
-        let error = throw("An error occurred.", None, Some(("foo\nbar\nbaz", (0, 11))));
+    fn throw_no_source_path_listing_reason() {
+        assert_same!(
+            throw::<Error>("An error occurred.", None, None, None),
+            Error {
+                message: "[Error] An error occurred.".to_owned(),
+                reason: None,
+            },
+        );
+    }
 
+    #[test]
+    fn throw_with_source_path_no_listing_reason() {
+        assert_same!(
+            throw::<Error>("An error occurred.", Some(Path::new("foo")), None, None),
+            Error {
+                message: "[Error] [`foo`] An error occurred.".to_owned(),
+                reason: None,
+            },
+        );
+    }
+
+    #[test]
+    fn throw_with_listing_no_source_path_reason() {
+        assert_same!(
+            throw::<Error>("An error occurred.", None, Some("It happened here."), None),
+            Error {
+                message: "\
+                    [Error] An error occurred.\n\
+                    \n\
+                    It happened here.\
+                "
+                .to_owned(),
+                reason: None,
+            },
+        );
+    }
+
+    #[test]
+    fn throw_with_reason_no_source_path_listing() {
+        let reason = throw::<Error>("An deeper error occurred.", None, None, None);
+
+        assert_same!(
+            throw::<Error>("An error occurred.", None, None, Some(reason.clone())),
+            Error {
+                message: "[Error] An error occurred.".to_owned(),
+                reason: Some(Rc::new(reason)),
+            },
+        );
+    }
+
+    #[test]
+    fn throw_with_source_path_listing_no_reason() {
+        assert_same!(
+            throw::<Error>(
+                "An error occurred.",
+                Some(Path::new("foo")),
+                Some("It happened here."),
+                None,
+            ),
+            Error {
+                message: "\
+                    [Error] [`foo`] An error occurred.\n\
+                    \n\
+                    It happened here.\
+                "
+                .to_owned(),
+                reason: None,
+            },
+        );
+    }
+
+    #[test]
+    fn throw_with_listing_reason_no_source_path() {
+        let reason = throw::<Error>("An deeper error occurred.", None, None, None);
+
+        assert_same!(
+            throw::<Error>(
+                "An error occurred.",
+                None,
+                Some("It happened here."),
+                Some(reason.clone()),
+            ),
+            Error {
+                message: "\
+                    [Error] An error occurred.\n\
+                    \n\
+                    It happened here.\
+                "
+                .to_owned(),
+                reason: Some(Rc::new(reason)),
+            },
+        );
+    }
+
+    #[test]
+    fn throw_with_source_path_reason_no_listing() {
+        let reason = throw::<Error>("An deeper error occurred.", None, None, None);
+
+        assert_same!(
+            throw::<Error>(
+                "An error occurred.",
+                Some(Path::new("foo")),
+                None,
+                Some(reason.clone()),
+            ),
+            Error {
+                message: "[Error] [`foo`] An error occurred.".to_owned(),
+                reason: Some(Rc::new(reason)),
+            },
+        );
+    }
+
+    #[test]
+    fn throw_with_source_path_listing_reason() {
+        let reason = throw::<Error>("An deeper error occurred.", None, None, None);
+
+        assert_same!(
+            throw::<Error>(
+                "An error occurred.",
+                Some(Path::new("foo")),
+                Some("It happened here."),
+                Some(reason.clone()),
+            ),
+            Error {
+                message: "\
+                    [Error] [`foo`] An error occurred.\n\
+                    \n\
+                    It happened here.\
+                "
+                .to_owned(),
+                reason: Some(Rc::new(reason)),
+            },
+        );
+    }
+
+    #[test]
+    fn listing_empty() {
+        assert_eq!(listing("", (0, 0)), "");
+    }
+
+    #[test]
+    fn listing_single_line_full_range() {
+        assert_eq!(listing("foo bar", (0, 7)), "1 │ foo bar\n    ‾‾‾‾‾‾‾");
+    }
+
+    #[test]
+    fn listing_single_line_partial_range() {
+        assert_eq!(listing("foo bar", (1, 6)), "1 │ foo bar\n     ‾‾‾‾‾");
+    }
+
+    #[test]
+    fn listing_multiple_lines_full_range() {
         assert_eq!(
-            error.message,
-            "[Error] An error occurred.\n\n1 \u{2502} foo\n  \u{250a} \u{203e}\u{203e}\u{203e}\n2 \
-                \u{2502} bar\n  \u{250a} \u{203e}\u{203e}\u{203e}\n3 \u{2502} baz\n    \u{203e}\
-                \u{203e}\u{203e}",
+            listing("foo\nbar\nbaz\nqux", (0, 15)),
+            "1 │ foo\n  ┊ ‾‾‾\n2 │ bar\n  ┊ ‾‾‾\n3 │ baz\n  ┊ ‾‾‾\n4 │ qux\n    ‾‾‾",
         );
     }
 
     #[test]
-    fn throw_no_path_multiple_lines_partial_range() {
-        let error = throw(
-            "An error occurred.",
-            None,
-            Some(("foo\nbar\nbaz\nqux", (5, 11))),
-        );
-
+    fn listing_multiple_lines_partial_range() {
         assert_eq!(
-            error.message,
-            "[Error] An error occurred.\n\n2 \u{2502} bar\n  \u{250a}  \u{203e}\u{203e}\n3 \
-                \u{2502} baz\n    \u{203e}\u{203e}\u{203e}",
+            listing("foo\nbar\nbaz\nqux", (5, 9)),
+            "2 │ bar\n  ┊  ‾‾\n3 │ baz\n    ‾",
         );
     }
 
     #[test]
-    fn throw_no_path_many_lines_partial_range() {
-        let error = throw(
-            "An error occurred.",
-            None,
-            Some((
+    fn listing_many_lines_partial_range() {
+        assert_eq!(
+            listing(
                 "foo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux\nfoo\nbar\nbaz\nqux",
                 (33, 42),
-            )),
+            ),
+            " 9 │ foo\n   ┊  ‾‾\n10 │ bar\n   ┊ ‾‾‾\n11 │ baz\n     ‾‾",
         );
-
-        assert_eq!(
-            error.message,
-            "[Error] An error occurred.\n\n 9 \u{2502} foo\n   \u{250a}  \u{203e}\u{203e}\n10 \
-                \u{2502} bar\n   \u{250a} \u{203e}\u{203e}\u{203e}\n11 \u{2502} baz\n     \u{203e}\
-                \u{203e}",
-        );
-    }
-
-    #[test]
-    fn lift_simple() {
-        let error = lift("An error occurred.")(Error {
-            message: "This is why.".to_owned(),
-            reason: None,
-        });
-
-        assert_eq!(error.message, "An error occurred.");
-
-        assert_eq!(error.reason.unwrap().to_string(), "This is why.");
     }
 }
