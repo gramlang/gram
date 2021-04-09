@@ -116,12 +116,6 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
 
 // Run a program.
 fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
-    // Read the source file.
-    let source_contents = read_to_string(source_path).map_err(lift(format!(
-        "Error when reading file {}.",
-        source_path.to_string_lossy().code_str(),
-    )))?;
-
     // Here is a helper function for mapping a `Vec<Error>` to a single `Error`.
     let collect_errors = |errors: Vec<Error>| Error {
         message: errors
@@ -152,10 +146,16 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
         reason: None,
     };
 
-    // Tokenize the source file.
+    // Read the file.
+    let source_contents = read_to_string(source_path).map_err(lift(format!(
+        "Error when reading file {}.",
+        source_path.to_string_lossy().code_str(),
+    )))?;
+
+    // Tokenize the source.
     let tokens = tokenize(Some(source_path), &source_contents).map_err(collect_errors)?;
 
-    // Parse the term.
+    // Parse the tokens.
     let term =
         parse(Some(source_path), &source_contents, &tokens[..], &[]).map_err(collect_errors)?;
 
