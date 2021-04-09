@@ -1,5 +1,5 @@
 use crate::{
-    error::{throw, Error},
+    error::{listing, throw, Error},
     format::CodeStr,
     token::{
         TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD,
@@ -310,10 +310,11 @@ pub fn tokenize<'a>(
                 let end = cursor.next_boundary(source_contents, 0).unwrap().unwrap();
 
                 // Now that we've computed the grapheme cluster, construct and report the error.
-                errors.push(throw(
+                errors.push(throw::<Error>(
                     &format!("Unexpected symbol {}.", &source_contents[i..end].code_str()),
                     source_path,
-                    Some((source_contents, (i, end))),
+                    Some(&listing(source_contents, (i, end))),
+                    None,
                 ));
             }
         }
