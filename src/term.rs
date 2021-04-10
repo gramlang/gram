@@ -140,25 +140,15 @@ impl<'a> Display for Variant<'a> {
             Self::IntegerLiteral(integer) => write!(f, "{}", integer),
             Self::Negation(subterm) => write!(f, "-{}", group(subterm)),
             Self::Sum(term1, term2) => write!(f, "{} + {}", group(term1), group(term2)),
-            Self::Difference(term1, term2) => {
-                write!(f, "{} - {}", group(term1), group(term2))
-            }
+            Self::Difference(term1, term2) => write!(f, "{} - {}", group(term1), group(term2)),
             Self::Product(term1, term2) => write!(f, "{} * {}", group(term1), group(term2)),
-            Self::Quotient(term1, term2) => {
-                write!(f, "{} / {}", group(term1), group(term2))
-            }
-            Self::LessThan(term1, term2) => {
-                write!(f, "{} < {}", group(term1), group(term2))
-            }
+            Self::Quotient(term1, term2) => write!(f, "{} / {}", group(term1), group(term2)),
+            Self::LessThan(term1, term2) => write!(f, "{} < {}", group(term1), group(term2)),
             Self::LessThanOrEqualTo(term1, term2) => {
                 write!(f, "{} <= {}", group(term1), group(term2))
             }
-            Self::EqualTo(term1, term2) => {
-                write!(f, "{} == {}", group(term1), group(term2))
-            }
-            Self::GreaterThan(term1, term2) => {
-                write!(f, "{} > {}", group(term1), group(term2))
-            }
+            Self::EqualTo(term1, term2) => write!(f, "{} == {}", group(term1), group(term2)),
+            Self::GreaterThan(term1, term2) => write!(f, "{} > {}", group(term1), group(term2)),
             Self::GreaterThanOrEqualTo(term1, term2) => {
                 write!(f, "{} >= {}", group(term1), group(term2))
             }
@@ -168,7 +158,9 @@ impl<'a> Display for Variant<'a> {
             Self::If(condition, then_branch, else_branch) => write!(
                 f,
                 "if {} then {} else {}",
-                condition, then_branch, else_branch,
+                condition,
+                then_branch,
+                else_branch,
             ),
         }
     }
