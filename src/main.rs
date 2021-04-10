@@ -22,11 +22,7 @@ use crate::{
     tokenizer::tokenize,
     type_checker::type_check,
 };
-use clap::{
-    App,
-    AppSettings::{ArgRequiredElseHelp, ColoredHelp, UnifiedHelpMessage, VersionlessSubcommands},
-    Arg, Shell, SubCommand,
-};
+use clap::{App, AppSettings, Arg, Shell, SubCommand};
 use std::{fs::read_to_string, io::stdout, path::Path, process::exit, thread};
 
 // The program version
@@ -60,10 +56,11 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
              "
             .trim(),
         )
-        .setting(ArgRequiredElseHelp) // [tag:arg_required_else_help]
-        .setting(ColoredHelp)
-        .setting(UnifiedHelpMessage)
-        .setting(VersionlessSubcommands)
+        .setting(AppSettings::ArgRequiredElseHelp) // [tag:arg_required_else_help]
+        .setting(AppSettings::ColoredHelp)
+        .setting(AppSettings::NextLineHelp)
+        .setting(AppSettings::UnifiedHelpMessage)
+        .setting(AppSettings::VersionlessSubcommands)
         .arg(
             Arg::with_name(PATH_OPTION)
                 .value_name("PATH")
