@@ -36,13 +36,13 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 const BIN_NAME: &str = "gram";
 
 // Command-line option and subcommand names
-const PATH_OPTION: &str = "path";
+const PATH_ARG: &str = "path";
 const CHECK_SUBCOMMAND: &str = "check";
-const CHECK_SUBCOMMAND_PATH_OPTION: &str = "check-path";
+const CHECK_SUBCOMMAND_PATH_ARG: &str = "check-path";
 const RUN_SUBCOMMAND: &str = "run";
-const RUN_SUBCOMMAND_PATH_OPTION: &str = "run-path";
+const RUN_SUBCOMMAND_PATH_ARG: &str = "run-path";
 const SHELL_COMPLETION_SUBCOMMAND: &str = "shell-completion";
-const SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION: &str = "shell-completion-shell";
+const SHELL_COMPLETION_SUBCOMMAND_SHELL_ARG: &str = "shell-completion-shell";
 
 // The stack size in bytes.
 const STACK_SIZE: usize = 16 * 1024 * 1024; // 16 mebibytes (MiB)
@@ -65,7 +65,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
         .setting(UnifiedHelpMessage)
         .setting(VersionlessSubcommands)
         .arg(
-            Arg::with_name(PATH_OPTION)
+            Arg::with_name(PATH_ARG)
                 .value_name("PATH")
                 .help("Sets the path of the program entrypoint"),
         )
@@ -73,7 +73,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
             SubCommand::with_name(CHECK_SUBCOMMAND)
                 .about("Checks a program")
                 .arg(
-                    Arg::with_name(CHECK_SUBCOMMAND_PATH_OPTION)
+                    Arg::with_name(CHECK_SUBCOMMAND_PATH_ARG)
                         .value_name("PATH")
                         .help("Sets the path of the program entrypoint")
                         .required(true), // [tag:check_subcommand_shell_required],
@@ -83,7 +83,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
             SubCommand::with_name(RUN_SUBCOMMAND)
                 .about("Runs a program")
                 .arg(
-                    Arg::with_name(RUN_SUBCOMMAND_PATH_OPTION)
+                    Arg::with_name(RUN_SUBCOMMAND_PATH_ARG)
                         .value_name("PATH")
                         .help("Sets the path of the program entrypoint")
                         .required(true), // [tag:run_subcommand_shell_required],
@@ -99,7 +99,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                     .trim(),
                 )
                 .arg(
-                    Arg::with_name(SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION)
+                    Arg::with_name(SHELL_COMPLETION_SUBCOMMAND_SHELL_ARG)
                         .value_name("SHELL")
                         .help("Bash, Fish, Zsh, PowerShell, or Elvish")
                         .required(true), // [tag:shell_completion_subcommand_shell_required],
@@ -223,7 +223,7 @@ fn entry() -> Result<(), Error> {
     let matches = cli().get_matches();
 
     // Check if the user provided a path as the first argument.
-    if let Some(source_path) = matches.value_of(PATH_OPTION) {
+    if let Some(source_path) = matches.value_of(PATH_ARG) {
         // We got a path. Run the program at that path.
         run(Path::new(source_path), false)?;
     } else {
@@ -236,7 +236,7 @@ fn entry() -> Result<(), Error> {
                     matches
                         .subcommand_matches(CHECK_SUBCOMMAND)
                         .unwrap() // [ref:check_subcommand]
-                        .value_of(CHECK_SUBCOMMAND_PATH_OPTION)
+                        .value_of(CHECK_SUBCOMMAND_PATH_ARG)
                         // [ref:check_subcommand_shell_required]
                         .unwrap(),
                 );
@@ -252,7 +252,7 @@ fn entry() -> Result<(), Error> {
                     matches
                         .subcommand_matches(RUN_SUBCOMMAND)
                         .unwrap() // [ref:run_subcommand]
-                        .value_of(RUN_SUBCOMMAND_PATH_OPTION)
+                        .value_of(RUN_SUBCOMMAND_PATH_ARG)
                         // [ref:run_subcommand_shell_required]
                         .unwrap(),
                 );
@@ -267,7 +267,7 @@ fn entry() -> Result<(), Error> {
                     matches
                         .subcommand_matches(SHELL_COMPLETION_SUBCOMMAND)
                         .unwrap() // [ref:shell_completion_subcommand]
-                        .value_of(SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION)
+                        .value_of(SHELL_COMPLETION_SUBCOMMAND_SHELL_ARG)
                         // [ref:shell_completion_subcommand_shell_required]
                         .unwrap(),
                 )?;
