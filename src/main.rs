@@ -52,6 +52,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
     App::new("Gram")
         .version(VERSION)
         .version_short("v")
+        .author("Stephan Boyer <stephan@stephanboyer.com>")
         .about(
             " \
              Gram is programming language for distributed systems. Visit https://www.gram.org for \
