@@ -480,7 +480,7 @@ mod tests {
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
-                    end: BOOLEAN_KEYWORD.len()
+                    end: BOOLEAN_KEYWORD.len(),
                 },
                 variant: Variant::Boolean,
             }],
@@ -516,7 +516,7 @@ mod tests {
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
-                    end: ELSE_KEYWORD.len()
+                    end: ELSE_KEYWORD.len(),
                 },
                 variant: Variant::Else,
             }],
@@ -541,7 +541,7 @@ mod tests {
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
-                    end: FALSE_KEYWORD.len()
+                    end: FALSE_KEYWORD.len(),
                 },
                 variant: Variant::False,
             }],
@@ -588,7 +588,7 @@ mod tests {
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
-                    end: IF_KEYWORD.len()
+                    end: IF_KEYWORD.len(),
                 },
                 variant: Variant::If,
             }],
@@ -602,7 +602,7 @@ mod tests {
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
-                    end: INTEGER_KEYWORD.len()
+                    end: INTEGER_KEYWORD.len(),
                 },
                 variant: Variant::Integer,
             }],
@@ -788,7 +788,7 @@ mod tests {
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
-                    end: THEN_KEYWORD.len()
+                    end: THEN_KEYWORD.len(),
                 },
                 variant: Variant::Then,
             }],
@@ -824,7 +824,7 @@ mod tests {
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
-                    end: TRUE_KEYWORD.len()
+                    end: TRUE_KEYWORD.len(),
                 },
                 variant: Variant::True,
             }],
@@ -838,7 +838,7 @@ mod tests {
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
-                    end: TYPE_KEYWORD.len()
+                    end: TYPE_KEYWORD.len(),
                 },
                 variant: Variant::Type,
             }],
