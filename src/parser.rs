@@ -4657,14 +4657,14 @@ mod tests {
                                             Rc::new(Term {
                                                 source_range: Some(SourceRange {
                                                     start: 10,
-                                                    end: 14
+                                                    end: 14,
                                                 }),
                                                 variant: Type,
                                             }),
                                             Rc::new(Term {
                                                 source_range: Some(SourceRange {
                                                     start: 19,
-                                                    end: 20
+                                                    end: 20,
                                                 }),
                                                 variant: Variable("y", 1),
                                             }),
@@ -4877,7 +4877,7 @@ mod tests {
                                             Rc::new(Term {
                                                 source_range: Some(SourceRange {
                                                     start: 13,
-                                                    end: 14
+                                                    end: 14,
                                                 }),
                                                 variant: IntegerLiteral(
                                                     ToBigInt::to_bigint(&4).unwrap(),
@@ -4886,7 +4886,7 @@ mod tests {
                                             Rc::new(Term {
                                                 source_range: Some(SourceRange {
                                                     start: 17,
-                                                    end: 18
+                                                    end: 18,
                                                 }),
                                                 variant: IntegerLiteral(
                                                     ToBigInt::to_bigint(&5).unwrap(),
@@ -5150,14 +5150,14 @@ mod tests {
                                             Rc::new(Term {
                                                 source_range: Some(SourceRange {
                                                     start: 33,
-                                                    end: 34
+                                                    end: 34,
                                                 }),
                                                 variant: Variable("a", 1),
                                             }),
                                             Rc::new(Term {
                                                 source_range: Some(SourceRange {
                                                     start: 38,
-                                                    end: 39
+                                                    end: 39,
                                                 }),
                                                 variant: Variable("b", 1),
                                             }),
@@ -5171,27 +5171,27 @@ mod tests {
                                             Rc::new(Term {
                                                 source_range: Some(SourceRange {
                                                     start: 49,
-                                                    end: 50
+                                                    end: 50,
                                                 }),
                                                 variant: Variable("a", 2),
                                             }),
                                             Rc::new(Term {
                                                 source_range: Some(SourceRange {
                                                     start: 55,
-                                                    end: 58
+                                                    end: 58,
                                                 }),
                                                 variant: Application(
                                                     Rc::new(Term {
                                                         source_range: Some(SourceRange {
                                                             start: 55,
-                                                            end: 56
+                                                            end: 56,
                                                         }),
                                                         variant: Variable("f", 1),
                                                     }),
                                                     Rc::new(Term {
                                                         source_range: Some(SourceRange {
                                                             start: 57,
-                                                            end: 58
+                                                            end: 58,
                                                         }),
                                                         variant: Variable("x", 0),
                                                     }),
