@@ -411,6 +411,7 @@ pub fn normalize_weak_head<'a>(
 mod tests {
     use crate::{
         assert_same,
+        error::SourceRange,
         normalizer::normalize_weak_head,
         parser::parse,
         term::{
@@ -437,7 +438,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((0, 4)),
+                source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: Type,
             },
         );
@@ -455,7 +456,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((0, 1)),
+                source_range: Some(SourceRange { start: 0, end: 1 }),
                 variant: Variable("x", 0),
             },
         );
@@ -497,54 +498,54 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((0, 48)),
+                source_range: Some(SourceRange { start: 0, end: 48 }),
                 variant: Lambda(
                     "x",
                     false,
                     Rc::new(Term {
-                        source_range: Some((5, 24)),
+                        source_range: Some(SourceRange { start: 5, end: 24 }),
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((5, 22)),
+                                source_range: Some(SourceRange { start: 5, end: 22 }),
                                 variant: Lambda(
                                     "y",
                                     false,
                                     Rc::new(Term {
-                                        source_range: Some((11, 15)),
+                                        source_range: Some(SourceRange { start: 11, end: 15 }),
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((20, 21)),
+                                        source_range: Some(SourceRange { start: 20, end: 21 }),
                                         variant: Variable("y", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
-                                source_range: Some((23, 24)),
+                                source_range: Some(SourceRange { start: 23, end: 24 }),
                                 variant: Variable("p", 1),
                             }),
                         ),
                     }),
                     Rc::new(Term {
-                        source_range: Some((29, 48)),
+                        source_range: Some(SourceRange { start: 29, end: 48 }),
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((29, 46)),
+                                source_range: Some(SourceRange { start: 29, end: 46 }),
                                 variant: Lambda(
                                     "z",
                                     false,
                                     Rc::new(Term {
-                                        source_range: Some((35, 39)),
+                                        source_range: Some(SourceRange { start: 35, end: 39 }),
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((44, 45)),
+                                        source_range: Some(SourceRange { start: 44, end: 45 }),
                                         variant: Variable("z", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
-                                source_range: Some((47, 48)),
+                                source_range: Some(SourceRange { start: 47, end: 48 }),
                                 variant: Variable("q", 1),
                             }),
                         ),
@@ -566,54 +567,54 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((0, 48)),
+                source_range: Some(SourceRange { start: 0, end: 48 }),
                 variant: Pi(
                     "x",
                     false,
                     Rc::new(Term {
-                        source_range: Some((5, 24)),
+                        source_range: Some(SourceRange { start: 5, end: 24 }),
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((5, 22)),
+                                source_range: Some(SourceRange { start: 5, end: 22 }),
                                 variant: Lambda(
                                     "y",
                                     false,
                                     Rc::new(Term {
-                                        source_range: Some((11, 15)),
+                                        source_range: Some(SourceRange { start: 11, end: 15 }),
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((20, 21)),
+                                        source_range: Some(SourceRange { start: 20, end: 21 }),
                                         variant: Variable("y", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
-                                source_range: Some((23, 24)),
+                                source_range: Some(SourceRange { start: 23, end: 24 }),
                                 variant: Variable("p", 1),
                             }),
                         ),
                     }),
                     Rc::new(Term {
-                        source_range: Some((29, 48)),
+                        source_range: Some(SourceRange { start: 29, end: 48 }),
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((29, 46)),
+                                source_range: Some(SourceRange { start: 29, end: 46 }),
                                 variant: Lambda(
                                     "z",
                                     false,
                                     Rc::new(Term {
-                                        source_range: Some((35, 39)),
+                                        source_range: Some(SourceRange { start: 35, end: 39 }),
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((44, 45)),
+                                        source_range: Some(SourceRange { start: 44, end: 45 }),
                                         variant: Variable("z", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
-                                source_range: Some((47, 48)),
+                                source_range: Some(SourceRange { start: 47, end: 48 }),
                                 variant: Variable("q", 1),
                             }),
                         ),
@@ -638,29 +639,29 @@ mod tests {
                 source_range: None,
                 variant: Application(
                     Rc::new(Term {
-                        source_range: Some((19, 20)),
+                        source_range: Some(SourceRange { start: 19, end: 20 }),
                         variant: Variable("y", 1),
                     }),
                     Rc::new(Term {
-                        source_range: Some((23, 42)),
+                        source_range: Some(SourceRange { start: 23, end: 42 }),
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((23, 40)),
+                                source_range: Some(SourceRange { start: 23, end: 40 }),
                                 variant: Lambda(
                                     "z",
                                     false,
                                     Rc::new(Term {
-                                        source_range: Some((29, 33)),
+                                        source_range: Some(SourceRange { start: 29, end: 33 }),
                                         variant: Type,
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((38, 39)),
+                                        source_range: Some(SourceRange { start: 38, end: 39 }),
                                         variant: Variable("z", 0),
                                     }),
                                 ),
                             }),
                             Rc::new(Term {
-                                source_range: Some((41, 42)),
+                                source_range: Some(SourceRange { start: 41, end: 42 }),
                                 variant: Variable("w", 0),
                             }),
                         ),
@@ -682,7 +683,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((18, 19)),
+                source_range: Some(SourceRange { start: 18, end: 19 }),
                 variant: Variable("y", 0),
             },
         );
@@ -700,7 +701,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((4, 5)),
+                source_range: Some(SourceRange { start: 4, end: 5 }),
                 variant: Variable("y", 0),
             },
         );
@@ -718,7 +719,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((0, 3)),
+                source_range: Some(SourceRange { start: 0, end: 3 }),
                 variant: Integer,
             },
         );
@@ -736,7 +737,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((0, 2)),
+                source_range: Some(SourceRange { start: 0, end: 2 }),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
             },
         );
@@ -934,7 +935,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((0, 4)),
+                source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: Boolean,
             },
         );
@@ -952,7 +953,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((0, 4)),
+                source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: True,
             },
         );
@@ -970,7 +971,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: False,
             },
         );
@@ -988,7 +989,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((13, 14)),
+                source_range: Some(SourceRange { start: 13, end: 14 }),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
             },
         );
@@ -1006,7 +1007,7 @@ mod tests {
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
             Term {
-                source_range: Some((21, 22)),
+                source_range: Some(SourceRange { start: 21, end: 22 }),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&4).unwrap()),
             },
         );

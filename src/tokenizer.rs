@@ -1,5 +1,5 @@
 use crate::{
-    error::{listing, throw, Error},
+    error::{listing, throw, Error, SourceRange},
     format::CodeStr,
     token::{
         TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD,
@@ -34,55 +34,82 @@ pub fn tokenize<'a>(
             // Match tokens corresponding to symbols.
             '*' => {
                 tokens.push(Token {
-                    source_range: (i, i + 1),
+                    source_range: SourceRange {
+                        start: i,
+                        end: i + 1,
+                    },
                     variant: Variant::Asterisk,
                 });
             }
             ':' => {
                 tokens.push(Token {
-                    source_range: (i, i + 1),
+                    source_range: SourceRange {
+                        start: i,
+                        end: i + 1,
+                    },
                     variant: Variant::Colon,
                 });
             }
             '{' => {
                 tokens.push(Token {
-                    source_range: (i, i + 1),
+                    source_range: SourceRange {
+                        start: i,
+                        end: i + 1,
+                    },
                     variant: Variant::LeftCurly,
                 });
             }
             '(' => {
                 tokens.push(Token {
-                    source_range: (i, i + 1),
+                    source_range: SourceRange {
+                        start: i,
+                        end: i + 1,
+                    },
                     variant: Variant::LeftParen,
                 });
             }
             '+' => {
                 tokens.push(Token {
-                    source_range: (i, i + 1),
+                    source_range: SourceRange {
+                        start: i,
+                        end: i + 1,
+                    },
                     variant: Variant::Plus,
                 });
             }
             '}' => {
                 tokens.push(Token {
-                    source_range: (i, i + 1),
+                    source_range: SourceRange {
+                        start: i,
+                        end: i + 1,
+                    },
                     variant: Variant::RightCurly,
                 });
             }
             ')' => {
                 tokens.push(Token {
-                    source_range: (i, i + 1),
+                    source_range: SourceRange {
+                        start: i,
+                        end: i + 1,
+                    },
                     variant: Variant::RightParen,
                 });
             }
             '/' => {
                 tokens.push(Token {
-                    source_range: (i, i + 1),
+                    source_range: SourceRange {
+                        start: i,
+                        end: i + 1,
+                    },
                     variant: Variant::Slash,
                 });
             }
             ';' => {
                 tokens.push(Token {
-                    source_range: (i, i + 1),
+                    source_range: SourceRange {
+                        start: i,
+                        end: i + 1,
+                    },
                     variant: Variant::Terminator(TerminatorType::Semicolon),
                 });
             }
@@ -123,7 +150,10 @@ pub fn tokenize<'a>(
                     }
                 {
                     tokens.push(Token {
-                        source_range: (i, i + 1),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 1,
+                        },
                         variant: Variant::Terminator(TerminatorType::LineBreak),
                     });
                 }
@@ -132,12 +162,18 @@ pub fn tokenize<'a>(
                 if let Some(&(_, '>')) = iter.peek() {
                     iter.next();
                     tokens.push(Token {
-                        source_range: (i, i + 2),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 2,
+                        },
                         variant: Variant::ThinArrow,
                     });
                 } else {
                     tokens.push(Token {
-                        source_range: (i, i + 1),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 1,
+                        },
                         variant: Variant::Minus,
                     });
                 }
@@ -146,12 +182,18 @@ pub fn tokenize<'a>(
                 if let Some(&(_, '=')) = iter.peek() {
                     iter.next();
                     tokens.push(Token {
-                        source_range: (i, i + 2),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 2,
+                        },
                         variant: Variant::LessThanOrEqualTo,
                     });
                 } else {
                     tokens.push(Token {
-                        source_range: (i, i + 1),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 1,
+                        },
                         variant: Variant::LessThan,
                     });
                 }
@@ -160,20 +202,29 @@ pub fn tokenize<'a>(
                 Some(&(_, '=')) => {
                     iter.next();
                     tokens.push(Token {
-                        source_range: (i, i + 2),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 2,
+                        },
                         variant: Variant::DoubleEquals,
                     });
                 }
                 Some(&(_, '>')) => {
                     iter.next();
                     tokens.push(Token {
-                        source_range: (i, i + 2),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 2,
+                        },
                         variant: Variant::ThickArrow,
                     });
                 }
                 _ => {
                     tokens.push(Token {
-                        source_range: (i, i + 1),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 1,
+                        },
                         variant: Variant::Equals,
                     });
                 }
@@ -182,12 +233,18 @@ pub fn tokenize<'a>(
                 if let Some(&(_, '=')) = iter.peek() {
                     iter.next();
                     tokens.push(Token {
-                        source_range: (i, i + 2),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 2,
+                        },
                         variant: Variant::GreaterThanOrEqualTo,
                     });
                 } else {
                     tokens.push(Token {
-                        source_range: (i, i + 1),
+                        source_range: SourceRange {
+                            start: i,
+                            end: i + 1,
+                        },
                         variant: Variant::GreaterThan,
                     });
                 }
@@ -210,47 +267,47 @@ pub fn tokenize<'a>(
 
                 if &source_contents[i..end] == BOOLEAN_KEYWORD {
                     tokens.push(Token {
-                        source_range: (i, end),
+                        source_range: SourceRange { start: i, end },
                         variant: Variant::Boolean,
                     });
                 } else if &source_contents[i..end] == ELSE_KEYWORD {
                     tokens.push(Token {
-                        source_range: (i, end),
+                        source_range: SourceRange { start: i, end },
                         variant: Variant::Else,
                     });
                 } else if &source_contents[i..end] == FALSE_KEYWORD {
                     tokens.push(Token {
-                        source_range: (i, end),
+                        source_range: SourceRange { start: i, end },
                         variant: Variant::False,
                     });
                 } else if &source_contents[i..end] == IF_KEYWORD {
                     tokens.push(Token {
-                        source_range: (i, end),
+                        source_range: SourceRange { start: i, end },
                         variant: Variant::If,
                     });
                 } else if &source_contents[i..end] == INTEGER_KEYWORD {
                     tokens.push(Token {
-                        source_range: (i, end),
+                        source_range: SourceRange { start: i, end },
                         variant: Variant::Integer,
                     });
                 } else if &source_contents[i..end] == THEN_KEYWORD {
                     tokens.push(Token {
-                        source_range: (i, end),
+                        source_range: SourceRange { start: i, end },
                         variant: Variant::Then,
                     });
                 } else if &source_contents[i..end] == TRUE_KEYWORD {
                     tokens.push(Token {
-                        source_range: (i, end),
+                        source_range: SourceRange { start: i, end },
                         variant: Variant::True,
                     });
                 } else if &source_contents[i..end] == TYPE_KEYWORD {
                     tokens.push(Token {
-                        source_range: (i, end),
+                        source_range: SourceRange { start: i, end },
                         variant: Variant::Type,
                     });
                 } else {
                     tokens.push(Token {
-                        source_range: (i, end),
+                        source_range: SourceRange { start: i, end },
                         variant: Variant::Identifier(&source_contents[i..end]),
                     });
                 }
@@ -271,7 +328,7 @@ pub fn tokenize<'a>(
                 }
 
                 tokens.push(Token {
-                    source_range: (i, end),
+                    source_range: SourceRange { start: i, end },
                     variant: Variant::IntegerLiteral(
                         // This `unwrap` is safe due to the specification of integer literals.
                         BigInt::parse_bytes(source_contents[i..end].as_bytes(), 10).unwrap(),
@@ -313,7 +370,7 @@ pub fn tokenize<'a>(
                 errors.push(throw::<Error>(
                     &format!("Unexpected symbol {}.", &source_contents[i..end].code_str()),
                     source_path,
-                    Some(&listing(source_contents, (i, end))),
+                    Some(&listing(source_contents, SourceRange { start: i, end })),
                     None,
                 ));
             }
@@ -381,6 +438,7 @@ pub fn tokenize<'a>(
 mod tests {
     use crate::{
         assert_fails, assert_same,
+        error::SourceRange,
         token::{
             TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
             IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
@@ -409,7 +467,7 @@ mod tests {
         assert_same!(
             tokenize(None, "*").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Asterisk,
             }],
         );
@@ -420,7 +478,10 @@ mod tests {
         assert_same!(
             tokenize(None, BOOLEAN_KEYWORD).unwrap(),
             vec![Token {
-                source_range: (0, BOOLEAN_KEYWORD.len()),
+                source_range: SourceRange {
+                    start: 0,
+                    end: BOOLEAN_KEYWORD.len()
+                },
                 variant: Variant::Boolean,
             }],
         );
@@ -431,7 +492,7 @@ mod tests {
         assert_same!(
             tokenize(None, ":").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Colon,
             }],
         );
@@ -442,7 +503,7 @@ mod tests {
         assert_same!(
             tokenize(None, "==").unwrap(),
             vec![Token {
-                source_range: (0, 2),
+                source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::DoubleEquals,
             }],
         );
@@ -453,7 +514,10 @@ mod tests {
         assert_same!(
             tokenize(None, ELSE_KEYWORD).unwrap(),
             vec![Token {
-                source_range: (0, ELSE_KEYWORD.len()),
+                source_range: SourceRange {
+                    start: 0,
+                    end: ELSE_KEYWORD.len()
+                },
                 variant: Variant::Else,
             }],
         );
@@ -464,7 +528,7 @@ mod tests {
         assert_same!(
             tokenize(None, "=").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Equals,
             }],
         );
@@ -475,7 +539,10 @@ mod tests {
         assert_same!(
             tokenize(None, FALSE_KEYWORD).unwrap(),
             vec![Token {
-                source_range: (0, FALSE_KEYWORD.len()),
+                source_range: SourceRange {
+                    start: 0,
+                    end: FALSE_KEYWORD.len()
+                },
                 variant: Variant::False,
             }],
         );
@@ -486,7 +553,7 @@ mod tests {
         assert_same!(
             tokenize(None, ">").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::GreaterThan,
             }],
         );
@@ -497,7 +564,7 @@ mod tests {
         assert_same!(
             tokenize(None, ">=").unwrap(),
             vec![Token {
-                source_range: (0, 2),
+                source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::GreaterThanOrEqualTo,
             }],
         );
@@ -508,7 +575,7 @@ mod tests {
         assert_same!(
             tokenize(None, "\u{5e78}\u{798f}").unwrap(),
             vec![Token {
-                source_range: (0, 6),
+                source_range: SourceRange { start: 0, end: 6 },
                 variant: Variant::Identifier("\u{5e78}\u{798f}"),
             }],
         );
@@ -519,7 +586,10 @@ mod tests {
         assert_same!(
             tokenize(None, IF_KEYWORD).unwrap(),
             vec![Token {
-                source_range: (0, IF_KEYWORD.len()),
+                source_range: SourceRange {
+                    start: 0,
+                    end: IF_KEYWORD.len()
+                },
                 variant: Variant::If,
             }],
         );
@@ -530,7 +600,10 @@ mod tests {
         assert_same!(
             tokenize(None, INTEGER_KEYWORD).unwrap(),
             vec![Token {
-                source_range: (0, INTEGER_KEYWORD.len()),
+                source_range: SourceRange {
+                    start: 0,
+                    end: INTEGER_KEYWORD.len()
+                },
                 variant: Variant::Integer,
             }],
         );
@@ -541,7 +614,7 @@ mod tests {
         assert_same!(
             tokenize(None, "42").unwrap(),
             vec![Token {
-                source_range: (0, 2),
+                source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
             }],
         );
@@ -552,7 +625,7 @@ mod tests {
         assert_same!(
             tokenize(None, "{").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::LeftCurly,
             }],
         );
@@ -563,7 +636,7 @@ mod tests {
         assert_same!(
             tokenize(None, "(").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::LeftParen,
             }],
         );
@@ -574,7 +647,7 @@ mod tests {
         assert_same!(
             tokenize(None, "<").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::LessThan,
             }],
         );
@@ -585,7 +658,7 @@ mod tests {
         assert_same!(
             tokenize(None, "<=").unwrap(),
             vec![Token {
-                source_range: (0, 2),
+                source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::LessThanOrEqualTo,
             }],
         );
@@ -596,7 +669,7 @@ mod tests {
         assert_same!(
             tokenize(None, "-").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Minus,
             }],
         );
@@ -607,7 +680,7 @@ mod tests {
         assert_same!(
             tokenize(None, "+").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Plus,
             }],
         );
@@ -618,7 +691,7 @@ mod tests {
         assert_same!(
             tokenize(None, "}").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::RightCurly,
             }],
         );
@@ -629,7 +702,7 @@ mod tests {
         assert_same!(
             tokenize(None, ")").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::RightParen,
             }],
         );
@@ -640,7 +713,7 @@ mod tests {
         assert_same!(
             tokenize(None, "/").unwrap(),
             vec![Token {
-                source_range: (0, 1),
+                source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Slash,
             }],
         );
@@ -652,15 +725,15 @@ mod tests {
             tokenize(None, "\n\ntype\n\ntype\n\n").unwrap(),
             vec![
                 Token {
-                    source_range: (2, 6),
+                    source_range: SourceRange { start: 2, end: 6 },
                     variant: Variant::Type,
                 },
                 Token {
-                    source_range: (6, 7),
+                    source_range: SourceRange { start: 6, end: 7 },
                     variant: Variant::Terminator(TerminatorType::LineBreak),
                 },
                 Token {
-                    source_range: (8, 12),
+                    source_range: SourceRange { start: 8, end: 12 },
                     variant: Variant::Type,
                 },
             ],
@@ -673,35 +746,35 @@ mod tests {
             tokenize(None, ";;type;;type;;").unwrap(),
             vec![
                 Token {
-                    source_range: (0, 1),
+                    source_range: SourceRange { start: 0, end: 1 },
                     variant: Variant::Terminator(TerminatorType::Semicolon),
                 },
                 Token {
-                    source_range: (1, 2),
+                    source_range: SourceRange { start: 1, end: 2 },
                     variant: Variant::Terminator(TerminatorType::Semicolon),
                 },
                 Token {
-                    source_range: (2, 6),
+                    source_range: SourceRange { start: 2, end: 6 },
                     variant: Variant::Type,
                 },
                 Token {
-                    source_range: (6, 7),
+                    source_range: SourceRange { start: 6, end: 7 },
                     variant: Variant::Terminator(TerminatorType::Semicolon),
                 },
                 Token {
-                    source_range: (7, 8),
+                    source_range: SourceRange { start: 7, end: 8 },
                     variant: Variant::Terminator(TerminatorType::Semicolon),
                 },
                 Token {
-                    source_range: (8, 12),
+                    source_range: SourceRange { start: 8, end: 12 },
                     variant: Variant::Type,
                 },
                 Token {
-                    source_range: (12, 13),
+                    source_range: SourceRange { start: 12, end: 13 },
                     variant: Variant::Terminator(TerminatorType::Semicolon),
                 },
                 Token {
-                    source_range: (13, 14),
+                    source_range: SourceRange { start: 13, end: 14 },
                     variant: Variant::Terminator(TerminatorType::Semicolon),
                 },
             ],
@@ -713,7 +786,10 @@ mod tests {
         assert_same!(
             tokenize(None, THEN_KEYWORD).unwrap(),
             vec![Token {
-                source_range: (0, THEN_KEYWORD.len()),
+                source_range: SourceRange {
+                    start: 0,
+                    end: THEN_KEYWORD.len()
+                },
                 variant: Variant::Then,
             }],
         );
@@ -724,7 +800,7 @@ mod tests {
         assert_same!(
             tokenize(None, "=>").unwrap(),
             vec![Token {
-                source_range: (0, 2),
+                source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::ThickArrow,
             }],
         );
@@ -735,7 +811,7 @@ mod tests {
         assert_same!(
             tokenize(None, "->").unwrap(),
             vec![Token {
-                source_range: (0, 2),
+                source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::ThinArrow,
             }],
         );
@@ -746,7 +822,10 @@ mod tests {
         assert_same!(
             tokenize(None, TRUE_KEYWORD).unwrap(),
             vec![Token {
-                source_range: (0, TRUE_KEYWORD.len()),
+                source_range: SourceRange {
+                    start: 0,
+                    end: TRUE_KEYWORD.len()
+                },
                 variant: Variant::True,
             }],
         );
@@ -757,7 +836,10 @@ mod tests {
         assert_same!(
             tokenize(None, TYPE_KEYWORD).unwrap(),
             vec![Token {
-                source_range: (0, TYPE_KEYWORD.len()),
+                source_range: SourceRange {
+                    start: 0,
+                    end: TYPE_KEYWORD.len()
+                },
                 variant: Variant::Type,
             }],
         );
@@ -769,23 +851,23 @@ mod tests {
             tokenize(None, ":()=>->").unwrap(),
             vec![
                 Token {
-                    source_range: (0, 1),
+                    source_range: SourceRange { start: 0, end: 1 },
                     variant: Variant::Colon,
                 },
                 Token {
-                    source_range: (1, 2),
+                    source_range: SourceRange { start: 1, end: 2 },
                     variant: Variant::LeftParen,
                 },
                 Token {
-                    source_range: (2, 3),
+                    source_range: SourceRange { start: 2, end: 3 },
                     variant: Variant::RightParen,
                 },
                 Token {
-                    source_range: (3, 5),
+                    source_range: SourceRange { start: 3, end: 5 },
                     variant: Variant::ThickArrow,
                 },
                 Token {
-                    source_range: (5, 7),
+                    source_range: SourceRange { start: 5, end: 7 },
                     variant: Variant::ThinArrow,
                 },
             ],
@@ -798,23 +880,23 @@ mod tests {
             tokenize(None, " : ( ) => -> ").unwrap(),
             vec![
                 Token {
-                    source_range: (1, 2),
+                    source_range: SourceRange { start: 1, end: 2 },
                     variant: Variant::Colon,
                 },
                 Token {
-                    source_range: (3, 4),
+                    source_range: SourceRange { start: 3, end: 4 },
                     variant: Variant::LeftParen,
                 },
                 Token {
-                    source_range: (5, 6),
+                    source_range: SourceRange { start: 5, end: 6 },
                     variant: Variant::RightParen,
                 },
                 Token {
-                    source_range: (7, 9),
+                    source_range: SourceRange { start: 7, end: 9 },
                     variant: Variant::ThickArrow,
                 },
                 Token {
-                    source_range: (10, 12),
+                    source_range: SourceRange { start: 10, end: 12 },
                     variant: Variant::ThinArrow,
                 },
             ],

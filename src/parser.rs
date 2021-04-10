@@ -1,5 +1,5 @@
 use crate::{
-    error::{listing, throw, Error},
+    error::{listing, throw, Error, SourceRange},
     evaluator::is_value,
     format::CodeStr,
     term,
@@ -11,7 +11,6 @@ use num_bigint::BigInt;
 use scopeguard::defer;
 use std::{
     cell::RefCell,
-    cmp::{max, min},
     collections::{HashMap, HashSet},
     path::Path,
     rc::Rc,
@@ -70,14 +69,14 @@ fn error_factory<'a>(
             throw::<Error>(
                 &format!("Expected {}, but the file is empty.", expectation),
                 source_path,
-                Some(&listing(source_contents, source_range.0)),
+                Some(&listing(source_contents, source_range)),
                 None,
             )
         } else if position == tokens.len() {
             throw::<Error>(
                 &format!("Expected {} at the end of the file.", expectation),
                 source_path,
-                Some(&listing(source_contents, source_range.0)),
+                Some(&listing(source_contents, source_range)),
                 None,
             )
         } else {
@@ -94,22 +93,18 @@ fn error_factory<'a>(
                     )
                 },
                 source_path,
-                Some(&listing(source_contents, source_range.0)),
+                Some(&listing(source_contents, source_range)),
                 None,
             )
         }
     })
 }
 
-// For extra type safety, we use the "newtype" pattern here to introduce a new type for source
-// ranges. The goal is to prevent source ranges from accidentally including token indices.
-#[derive(Clone, Copy, Debug)]
-struct SourceRange((usize, usize)); // Inclusive on the left and exclusive on the right
-
 // This function constructs a `SourceRange` that spans two given `SourceRange`s.
 fn span(x: SourceRange, y: SourceRange) -> SourceRange {
     SourceRange {
-        0: (min((x.0).0, (y.0).0), max((x.0).1, (y.0).1)),
+        start: x.start,
+        end: y.end,
     }
 }
 
@@ -117,15 +112,14 @@ fn span(x: SourceRange, y: SourceRange) -> SourceRange {
 // file in the case where the given position is at the end of the token stream.
 fn token_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
     if position == tokens.len() {
-        SourceRange {
-            0: tokens
-                .last()
-                .map_or((0, 0), |token| (token.source_range.1, token.source_range.1)),
-        }
+        tokens
+            .last()
+            .map_or(SourceRange { start: 0, end: 0 }, |token| SourceRange {
+                start: token.source_range.end,
+                end: token.source_range.end,
+            })
     } else {
-        SourceRange {
-            0: tokens[position].source_range,
-        }
+        tokens[position].source_range
     }
 }
 
@@ -133,10 +127,11 @@ fn token_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRan
 // the end of the source file in the case where the given position is at the end of the token
 // stream.
 fn empty_source_range<'a>(tokens: &'a [Token<'a>], position: usize) -> SourceRange {
-    let range_start = (token_source_range(tokens, position).0).0;
+    let source_range = token_source_range(tokens, position);
 
     SourceRange {
-        0: (range_start, range_start),
+        start: source_range.start,
+        end: source_range.start,
     }
 }
 
@@ -1391,7 +1386,7 @@ fn resolve_variables<'a>(
         Variant::Type => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Type,
             }
         }
@@ -1400,7 +1395,7 @@ fn resolve_variables<'a>(
             if let Some(variable_depth) = context.get(variable) {
                 // Calculate the De Bruijn index for the variable and return it.
                 term::Term {
-                    source_range: Some(term.source_range.0),
+                    source_range: Some(term.source_range),
                     variant: term::Variant::Variable(variable, depth - 1 - variable_depth),
                 }
             } else {
@@ -1410,14 +1405,14 @@ fn resolve_variables<'a>(
                     errors.push(throw::<Error>(
                         &format!("Variable {} not in scope.", variable.code_str()),
                         source_path,
-                        Some(&listing(source_contents, term.source_range.0)),
+                        Some(&listing(source_contents, term.source_range)),
                         None,
                     ));
                 }
 
                 // Construct and return a unifier.
                 term::Term {
-                    source_range: Some(term.source_range.0),
+                    source_range: Some(term.source_range),
                     variant: term::Variant::Unifier(Rc::new(RefCell::new(None)), 0),
                 }
             }
@@ -1436,7 +1431,7 @@ fn resolve_variables<'a>(
                     errors.push(throw::<Error>(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some(&listing(source_contents, variable.source_range.0)),
+                        Some(&listing(source_contents, variable.source_range)),
                         None,
                     ));
                 }
@@ -1453,7 +1448,7 @@ fn resolve_variables<'a>(
             // Construct the lambda.
             let mut guard = context_cell.borrow_mut();
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Lambda(
                     variable.name,
                     *implicit,
@@ -1490,7 +1485,7 @@ fn resolve_variables<'a>(
                     errors.push(throw::<Error>(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some(&listing(source_contents, variable.source_range.0)),
+                        Some(&listing(source_contents, variable.source_range)),
                         None,
                     ));
                 }
@@ -1507,7 +1502,7 @@ fn resolve_variables<'a>(
             // Construct the pi type.
             let mut guard = context_cell.borrow_mut();
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Pi(
                     variable.name,
                     *implicit,
@@ -1526,7 +1521,7 @@ fn resolve_variables<'a>(
         Variant::Application(applicand, argument) => {
             // Just resolve variables in the applicand and the argument.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Application(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1581,7 +1576,7 @@ fn resolve_variables<'a>(
                                 inner_variable.name.code_str(),
                             ),
                             source_path,
-                            Some(&listing(source_contents, inner_variable.source_range.0)),
+                            Some(&listing(source_contents, inner_variable.source_range)),
                             None,
                         ));
                     }
@@ -1647,7 +1642,7 @@ fn resolve_variables<'a>(
 
             // Resolve definitions in the body and construct the let.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Let(
                     resolved_definitions,
                     Rc::new(resolve_variables(
@@ -1664,21 +1659,21 @@ fn resolve_variables<'a>(
         Variant::Integer => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Integer,
             }
         }
         Variant::IntegerLiteral(integer) => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::IntegerLiteral(integer.clone()),
             }
         }
         Variant::Negation(subterm) => {
             // Just resolve variables in the subterm.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Negation(Rc::new(resolve_variables(
                     source_path,
                     source_contents,
@@ -1692,7 +1687,7 @@ fn resolve_variables<'a>(
         Variant::Sum(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Sum(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1716,7 +1711,7 @@ fn resolve_variables<'a>(
         Variant::Difference(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Difference(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1740,7 +1735,7 @@ fn resolve_variables<'a>(
         Variant::Product(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Product(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1764,7 +1759,7 @@ fn resolve_variables<'a>(
         Variant::Quotient(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Quotient(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1788,7 +1783,7 @@ fn resolve_variables<'a>(
         Variant::LessThan(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::LessThan(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1812,7 +1807,7 @@ fn resolve_variables<'a>(
         Variant::LessThanOrEqualTo(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::LessThanOrEqualTo(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1836,7 +1831,7 @@ fn resolve_variables<'a>(
         Variant::EqualTo(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::EqualTo(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1860,7 +1855,7 @@ fn resolve_variables<'a>(
         Variant::GreaterThan(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::GreaterThan(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1884,7 +1879,7 @@ fn resolve_variables<'a>(
         Variant::GreaterThanOrEqualTo(term1, term2) => {
             // Just resolve variables in the subterms.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::GreaterThanOrEqualTo(
                     Rc::new(resolve_variables(
                         source_path,
@@ -1908,28 +1903,28 @@ fn resolve_variables<'a>(
         Variant::Boolean => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::Boolean,
             }
         }
         Variant::True => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::True,
             }
         }
         Variant::False => {
             // There are no variables to resolve here.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::False,
             }
         }
         Variant::If(condition, then_branch, else_branch) => {
             // Just resolve variables in the condition and branches.
             term::Term {
-                source_range: Some(term.source_range.0),
+                source_range: Some(term.source_range),
                 variant: term::Variant::If(
                     Rc::new(resolve_variables(
                         source_path,
@@ -3807,17 +3802,17 @@ fn parse_group<'a>(
                 throw::<Error>(
                     "This parenthesis was never closed:",
                     source_path,
-                    Some(&listing(source_contents, left_parenthesis_source_range.0)),
+                    Some(&listing(source_contents, left_parenthesis_source_range)),
                     None,
                 )
             } else {
                 let left_parenthesis_listing =
-                    listing(source_contents, left_parenthesis_source_range.0);
+                    listing(source_contents, left_parenthesis_source_range);
 
                 let unexpected_token_source_range = token_source_range(tokens, next);
 
                 let unexpected_token_listing =
-                    listing(source_contents, unexpected_token_source_range.0);
+                    listing(source_contents, unexpected_token_source_range);
 
                 Error {
                     message: if let token::Variant::Terminator(TerminatorType::LineBreak) =
@@ -4141,6 +4136,7 @@ fn parse_jumbo_term<'a>(
 mod tests {
     use crate::{
         assert_fails, assert_same,
+        error::SourceRange,
         parser::parse,
         term::{
             Term,
@@ -4177,7 +4173,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 4)),
+                source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: Type,
             },
         );
@@ -4192,7 +4188,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 1)),
+                source_range: Some(SourceRange { start: 0, end: 1 }),
                 variant: Variable("x", 0),
             },
         );
@@ -4207,7 +4203,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 1)),
+                source_range: Some(SourceRange { start: 0, end: 1 }),
                 variant: Unifier(Rc::new(RefCell::new(None)), 0),
             },
         );
@@ -4234,7 +4230,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 6)),
+                source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: Lambda(
                     "x",
                     false,
@@ -4243,7 +4239,7 @@ mod tests {
                         variant: Unifier(Rc::new(RefCell::new(None)), 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -4260,7 +4256,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 8)),
+                source_range: Some(SourceRange { start: 0, end: 8 }),
                 variant: Lambda(
                     "x",
                     true,
@@ -4269,7 +4265,7 @@ mod tests {
                         variant: Unifier(Rc::new(RefCell::new(None)), 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((7, 8)),
+                        source_range: Some(SourceRange { start: 7, end: 8 }),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -4286,16 +4282,16 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 12)),
+                source_range: Some(SourceRange { start: 0, end: 12 }),
                 variant: Lambda(
                     "x",
                     false,
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((11, 12)),
+                        source_range: Some(SourceRange { start: 11, end: 12 }),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -4312,16 +4308,16 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 12)),
+                source_range: Some(SourceRange { start: 0, end: 12 }),
                 variant: Lambda(
                     "x",
                     true,
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((11, 12)),
+                        source_range: Some(SourceRange { start: 11, end: 12 }),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -4350,25 +4346,25 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 23)),
+                source_range: Some(SourceRange { start: 0, end: 23 }),
                 variant: Lambda(
                     "_",
                     false,
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((11, 23)),
+                        source_range: Some(SourceRange { start: 11, end: 23 }),
                         variant: Lambda(
                             "_",
                             false,
                             Rc::new(Term {
-                                source_range: Some((16, 17)),
+                                source_range: Some(SourceRange { start: 16, end: 17 }),
                                 variant: Variable("a", 1),
                             }),
                             Rc::new(Term {
-                                source_range: Some((22, 23)),
+                                source_range: Some(SourceRange { start: 22, end: 23 }),
                                 variant: Variable("a", 2),
                             }),
                         ),
@@ -4387,16 +4383,16 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 12)),
+                source_range: Some(SourceRange { start: 0, end: 12 }),
                 variant: Pi(
                     "x",
                     false,
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((11, 12)),
+                        source_range: Some(SourceRange { start: 11, end: 12 }),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -4413,16 +4409,16 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 12)),
+                source_range: Some(SourceRange { start: 0, end: 12 }),
                 variant: Pi(
                     "x",
                     true,
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((11, 12)),
+                        source_range: Some(SourceRange { start: 11, end: 12 }),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -4451,25 +4447,25 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 23)),
+                source_range: Some(SourceRange { start: 0, end: 23 }),
                 variant: Pi(
                     "_",
                     false,
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: Variable("a", 0),
                     }),
                     Rc::new(Term {
-                        source_range: Some((11, 23)),
+                        source_range: Some(SourceRange { start: 11, end: 23 }),
                         variant: Pi(
                             "_",
                             false,
                             Rc::new(Term {
-                                source_range: Some((16, 17)),
+                                source_range: Some(SourceRange { start: 16, end: 17 }),
                                 variant: Variable("a", 1),
                             }),
                             Rc::new(Term {
-                                source_range: Some((22, 23)),
+                                source_range: Some(SourceRange { start: 22, end: 23 }),
                                 variant: Variable("a", 2),
                             }),
                         ),
@@ -4488,16 +4484,16 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 6)),
+                source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: Pi(
                     "_",
                     false,
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: Variable("a", 1),
                     }),
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: Variable("b", 1),
                     }),
                 ),
@@ -4514,25 +4510,25 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 11)),
+                source_range: Some(SourceRange { start: 0, end: 11 }),
                 variant: Pi(
                     "_",
                     false,
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: Variable("a", 2),
                     }),
                     Rc::new(Term {
-                        source_range: Some((5, 11)),
+                        source_range: Some(SourceRange { start: 5, end: 11 }),
                         variant: Pi(
                             "_",
                             false,
                             Rc::new(Term {
-                                source_range: Some((5, 6)),
+                                source_range: Some(SourceRange { start: 5, end: 6 }),
                                 variant: Variable("b", 2),
                             }),
                             Rc::new(Term {
-                                source_range: Some((10, 11)),
+                                source_range: Some(SourceRange { start: 10, end: 11 }),
                                 variant: Variable("c", 2),
                             }),
                         ),
@@ -4551,14 +4547,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 3)),
+                source_range: Some(SourceRange { start: 0, end: 3 }),
                 variant: Application(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: Variable("f", 1),
                     }),
                     Rc::new(Term {
-                        source_range: Some((2, 3)),
+                        source_range: Some(SourceRange { start: 2, end: 3 }),
                         variant: Variable("x", 0),
                     }),
                 ),
@@ -4575,23 +4571,23 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Application(
                     Rc::new(Term {
-                        source_range: Some((0, 3)),
+                        source_range: Some(SourceRange { start: 0, end: 3 }),
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((0, 1)),
+                                source_range: Some(SourceRange { start: 0, end: 1 }),
                                 variant: Variable("f", 2),
                             }),
                             Rc::new(Term {
-                                source_range: Some((2, 3)),
+                                source_range: Some(SourceRange { start: 2, end: 3 }),
                                 variant: Variable("x", 1),
                             }),
                         ),
                     }),
                     Rc::new(Term {
-                        source_range: Some((4, 5)),
+                        source_range: Some(SourceRange { start: 4, end: 5 }),
                         variant: Variable("y", 0),
                     }),
                 ),
@@ -4608,21 +4604,21 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 7)),
+                source_range: Some(SourceRange { start: 0, end: 7 }),
                 variant: Application(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: Variable("f", 2),
                     }),
                     Rc::new(Term {
-                        source_range: Some((3, 6)),
+                        source_range: Some(SourceRange { start: 3, end: 6 }),
                         variant: Application(
                             Rc::new(Term {
-                                source_range: Some((3, 4)),
+                                source_range: Some(SourceRange { start: 3, end: 4 }),
                                 variant: Variable("x", 1),
                             }),
                             Rc::new(Term {
-                                source_range: Some((5, 6)),
+                                source_range: Some(SourceRange { start: 5, end: 6 }),
                                 variant: Variable("y", 0),
                             }),
                         ),
@@ -4641,7 +4637,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 46)),
+                source_range: Some(SourceRange { start: 0, end: 46 }),
                 variant: Let(
                     vec![
                         (
@@ -4651,25 +4647,31 @@ mod tests {
                                 variant: Unifier(Rc::new(RefCell::new(None)), 2),
                             }),
                             Rc::new(Term {
-                                source_range: Some((4, 26)),
+                                source_range: Some(SourceRange { start: 4, end: 26 }),
                                 variant: Application(
                                     Rc::new(Term {
-                                        source_range: Some((4, 21)),
+                                        source_range: Some(SourceRange { start: 4, end: 21 }),
                                         variant: Lambda(
                                             "_",
                                             false,
                                             Rc::new(Term {
-                                                source_range: Some((10, 14)),
+                                                source_range: Some(SourceRange {
+                                                    start: 10,
+                                                    end: 14
+                                                }),
                                                 variant: Type,
                                             }),
                                             Rc::new(Term {
-                                                source_range: Some((19, 20)),
+                                                source_range: Some(SourceRange {
+                                                    start: 19,
+                                                    end: 20
+                                                }),
                                                 variant: Variable("y", 1),
                                             }),
                                         ),
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((22, 26)),
+                                        source_range: Some(SourceRange { start: 22, end: 26 }),
                                         variant: Type,
                                     }),
                                 ),
@@ -4678,17 +4680,17 @@ mod tests {
                         (
                             "y",
                             Rc::new(Term {
-                                source_range: Some((32, 36)),
+                                source_range: Some(SourceRange { start: 32, end: 36 }),
                                 variant: Type,
                             }),
                             Rc::new(Term {
-                                source_range: Some((39, 43)),
+                                source_range: Some(SourceRange { start: 39, end: 43 }),
                                 variant: Type,
                             }),
                         ),
                     ],
                     Rc::new(Term {
-                        source_range: Some((45, 46)),
+                        source_range: Some(SourceRange { start: 45, end: 46 }),
                         variant: Variable("x", 1),
                     }),
                 ),
@@ -4705,7 +4707,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 3)),
+                source_range: Some(SourceRange { start: 0, end: 3 }),
                 variant: Integer,
             },
         );
@@ -4720,7 +4722,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 2)),
+                source_range: Some(SourceRange { start: 0, end: 2 }),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
             },
         );
@@ -4735,9 +4737,9 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 2)),
+                source_range: Some(SourceRange { start: 0, end: 2 }),
                 variant: Negation(Rc::new(Term {
-                    source_range: Some((1, 2)),
+                    source_range: Some(SourceRange { start: 1, end: 2 }),
                     variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                 })),
             },
@@ -4753,14 +4755,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Sum(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((4, 5)),
+                        source_range: Some(SourceRange { start: 4, end: 5 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                 ),
@@ -4777,14 +4779,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Difference(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((4, 5)),
+                        source_range: Some(SourceRange { start: 4, end: 5 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                 ),
@@ -4801,14 +4803,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Product(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((4, 5)),
+                        source_range: Some(SourceRange { start: 4, end: 5 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
                     }),
                 ),
@@ -4825,14 +4827,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Quotient(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&7).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((4, 5)),
+                        source_range: Some(SourceRange { start: 4, end: 5 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                 ),
@@ -4849,37 +4851,43 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 19)),
+                source_range: Some(SourceRange { start: 0, end: 19 }),
                 variant: Sum(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((4, 19)),
+                        source_range: Some(SourceRange { start: 4, end: 19 }),
                         variant: Product(
                             Rc::new(Term {
-                                source_range: Some((4, 5)),
+                                source_range: Some(SourceRange { start: 4, end: 5 }),
                                 variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                             }),
                             Rc::new(Term {
-                                source_range: Some((8, 19)),
+                                source_range: Some(SourceRange { start: 8, end: 19 }),
                                 variant: Difference(
                                     Rc::new(Term {
-                                        source_range: Some((9, 10)),
+                                        source_range: Some(SourceRange { start: 9, end: 10 }),
                                         variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((13, 18)),
+                                        source_range: Some(SourceRange { start: 13, end: 18 }),
                                         variant: Quotient(
                                             Rc::new(Term {
-                                                source_range: Some((13, 14)),
+                                                source_range: Some(SourceRange {
+                                                    start: 13,
+                                                    end: 14
+                                                }),
                                                 variant: IntegerLiteral(
                                                     ToBigInt::to_bigint(&4).unwrap(),
                                                 ),
                                             }),
                                             Rc::new(Term {
-                                                source_range: Some((17, 18)),
+                                                source_range: Some(SourceRange {
+                                                    start: 17,
+                                                    end: 18
+                                                }),
                                                 variant: IntegerLiteral(
                                                     ToBigInt::to_bigint(&5).unwrap(),
                                                 ),
@@ -4904,14 +4912,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: LessThan(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((4, 5)),
+                        source_range: Some(SourceRange { start: 4, end: 5 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                 ),
@@ -4928,14 +4936,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 6)),
+                source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: LessThanOrEqualTo(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                 ),
@@ -4952,14 +4960,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 6)),
+                source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: EqualTo(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                 ),
@@ -4976,14 +4984,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: GreaterThan(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((4, 5)),
+                        source_range: Some(SourceRange { start: 4, end: 5 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                 ),
@@ -5000,14 +5008,14 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 6)),
+                source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: GreaterThanOrEqualTo(
                     Rc::new(Term {
-                        source_range: Some((0, 1)),
+                        source_range: Some(SourceRange { start: 0, end: 1 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((5, 6)),
+                        source_range: Some(SourceRange { start: 5, end: 6 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
                     }),
                 ),
@@ -5024,7 +5032,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 4)),
+                source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: Boolean,
             },
         );
@@ -5039,7 +5047,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 4)),
+                source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: True,
             },
         );
@@ -5054,7 +5062,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: False,
             },
         );
@@ -5069,18 +5077,18 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 21)),
+                source_range: Some(SourceRange { start: 0, end: 21 }),
                 variant: If(
                     Rc::new(Term {
-                        source_range: Some((3, 7)),
+                        source_range: Some(SourceRange { start: 3, end: 7 }),
                         variant: True,
                     }),
                     Rc::new(Term {
-                        source_range: Some((13, 14)),
+                        source_range: Some(SourceRange { start: 13, end: 14 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&0).unwrap()),
                     }),
                     Rc::new(Term {
-                        source_range: Some((20, 21)),
+                        source_range: Some(SourceRange { start: 20, end: 21 }),
                         variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
                     }),
                 ),
@@ -5097,7 +5105,7 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 3)),
+                source_range: Some(SourceRange { start: 0, end: 3 }),
                 variant: Variable("x", 0),
             },
         );
@@ -5112,61 +5120,79 @@ mod tests {
         assert_same!(
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
-                source_range: Some((0, 58)),
+                source_range: Some(SourceRange { start: 0, end: 58 }),
                 variant: Lambda(
                     "a",
                     false,
                     Rc::new(Term {
-                        source_range: Some((5, 9)),
+                        source_range: Some(SourceRange { start: 5, end: 9 }),
                         variant: Type,
                     }),
                     Rc::new(Term {
-                        source_range: Some((14, 58)),
+                        source_range: Some(SourceRange { start: 14, end: 58 }),
                         variant: Lambda(
                             "b",
                             false,
                             Rc::new(Term {
-                                source_range: Some((19, 23)),
+                                source_range: Some(SourceRange { start: 19, end: 23 }),
                                 variant: Type,
                             }),
                             Rc::new(Term {
-                                source_range: Some((28, 58)),
+                                source_range: Some(SourceRange { start: 28, end: 58 }),
                                 variant: Lambda(
                                     "f",
                                     false,
                                     Rc::new(Term {
-                                        source_range: Some((33, 39)),
+                                        source_range: Some(SourceRange { start: 33, end: 39 }),
                                         variant: Pi(
                                             "_",
                                             false,
                                             Rc::new(Term {
-                                                source_range: Some((33, 34)),
+                                                source_range: Some(SourceRange {
+                                                    start: 33,
+                                                    end: 34
+                                                }),
                                                 variant: Variable("a", 1),
                                             }),
                                             Rc::new(Term {
-                                                source_range: Some((38, 39)),
+                                                source_range: Some(SourceRange {
+                                                    start: 38,
+                                                    end: 39
+                                                }),
                                                 variant: Variable("b", 1),
                                             }),
                                         ),
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((44, 58)),
+                                        source_range: Some(SourceRange { start: 44, end: 58 }),
                                         variant: Lambda(
                                             "x",
                                             false,
                                             Rc::new(Term {
-                                                source_range: Some((49, 50)),
+                                                source_range: Some(SourceRange {
+                                                    start: 49,
+                                                    end: 50
+                                                }),
                                                 variant: Variable("a", 2),
                                             }),
                                             Rc::new(Term {
-                                                source_range: Some((55, 58)),
+                                                source_range: Some(SourceRange {
+                                                    start: 55,
+                                                    end: 58
+                                                }),
                                                 variant: Application(
                                                     Rc::new(Term {
-                                                        source_range: Some((55, 56)),
+                                                        source_range: Some(SourceRange {
+                                                            start: 55,
+                                                            end: 56
+                                                        }),
                                                         variant: Variable("f", 1),
                                                     }),
                                                     Rc::new(Term {
-                                                        source_range: Some((57, 58)),
+                                                        source_range: Some(SourceRange {
+                                                            start: 57,
+                                                            end: 58
+                                                        }),
                                                         variant: Variable("x", 0),
                                                     }),
                                                 ),
