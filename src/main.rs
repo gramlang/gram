@@ -67,9 +67,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
         .arg(
             Arg::with_name(PATH_OPTION)
                 .value_name("PATH")
-                .help("Sets the path of the program entrypoint")
-                .takes_value(true)
-                .number_of_values(1),
+                .help("Sets the path of the program entrypoint"),
         )
         .subcommand(
             SubCommand::with_name(CHECK_SUBCOMMAND)
@@ -78,9 +76,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                     Arg::with_name(CHECK_SUBCOMMAND_PATH_OPTION)
                         .value_name("PATH")
                         .help("Sets the path of the program entrypoint")
-                        .required(true) // [tag:check_subcommand_shell_required]
-                        .takes_value(true)
-                        .number_of_values(1),
+                        .required(true), // [tag:check_subcommand_shell_required],
                 ),
         )
         .subcommand(
@@ -90,9 +86,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                     Arg::with_name(RUN_SUBCOMMAND_PATH_OPTION)
                         .value_name("PATH")
                         .help("Sets the path of the program entrypoint")
-                        .required(true) // [tag:run_subcommand_shell_required]
-                        .takes_value(true)
-                        .number_of_values(1),
+                        .required(true), // [tag:run_subcommand_shell_required],
                 ),
         )
         .subcommand(
@@ -108,9 +102,7 @@ fn cli<'a, 'b>() -> App<'a, 'b> {
                     Arg::with_name(SHELL_COMPLETION_SUBCOMMAND_SHELL_OPTION)
                         .value_name("SHELL")
                         .help("Bash, Fish, Zsh, PowerShell, or Elvish")
-                        .required(true) // [tag:shell_completion_subcommand_shell_required]
-                        .takes_value(true)
-                        .number_of_values(1),
+                        .required(true), // [tag:shell_completion_subcommand_shell_required],
                 ),
         )
 }
