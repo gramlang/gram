@@ -1,5 +1,6 @@
 use crate::{
     de_bruijn::unsigned_shift,
+    error::SourceRange,
     token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
 };
 use num_bigint::BigInt;
@@ -14,7 +15,7 @@ use std::{
 // struct represents a node in an AST.
 #[derive(Clone, Debug)]
 pub struct Term<'a> {
-    pub source_range: Option<(usize, usize)>, // Inclusive on the left and exclusive on the right
+    pub source_range: Option<SourceRange>,
     pub variant: Variant<'a>,
 }
 

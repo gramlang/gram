@@ -635,6 +635,7 @@ pub fn is_value(term: &Term) -> bool {
 mod tests {
     use crate::{
         assert_same,
+        error::SourceRange,
         evaluator::evaluate,
         parser::parse,
         term::{
@@ -658,7 +659,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((0, 4)),
+                source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: Type,
             },
         );
@@ -684,43 +685,43 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((0, 39)),
+                source_range: Some(SourceRange { start: 0, end: 39 }),
                 variant: Lambda(
                     "f",
                     false,
                     Rc::new(Term {
-                        source_range: Some((5, 17)),
+                        source_range: Some(SourceRange { start: 5, end: 17 }),
                         variant: Pi(
                             "_",
                             false,
                             Rc::new(Term {
-                                source_range: Some((5, 9)),
+                                source_range: Some(SourceRange { start: 5, end: 9 }),
                                 variant: Type,
                             }),
                             Rc::new(Term {
-                                source_range: Some((13, 17)),
+                                source_range: Some(SourceRange { start: 13, end: 17 }),
                                 variant: Type,
                             }),
                         ),
                     }),
                     Rc::new(Term {
-                        source_range: Some((22, 39)),
+                        source_range: Some(SourceRange { start: 22, end: 39 }),
                         variant: Lambda(
                             "x",
                             false,
                             Rc::new(Term {
-                                source_range: Some((27, 31)),
+                                source_range: Some(SourceRange { start: 27, end: 31 }),
                                 variant: Type,
                             }),
                             Rc::new(Term {
-                                source_range: Some((36, 39)),
+                                source_range: Some(SourceRange { start: 36, end: 39 }),
                                 variant: Application(
                                     Rc::new(Term {
-                                        source_range: Some((36, 37)),
+                                        source_range: Some(SourceRange { start: 36, end: 37 }),
                                         variant: Variable("f", 1),
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((38, 39)),
+                                        source_range: Some(SourceRange { start: 38, end: 39 }),
                                         variant: Variable("x", 0),
                                     }),
                                 ),
@@ -741,43 +742,43 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((0, 39)),
+                source_range: Some(SourceRange { start: 0, end: 39 }),
                 variant: Pi(
                     "f",
                     false,
                     Rc::new(Term {
-                        source_range: Some((5, 17)),
+                        source_range: Some(SourceRange { start: 5, end: 17 }),
                         variant: Pi(
                             "_",
                             false,
                             Rc::new(Term {
-                                source_range: Some((5, 9)),
+                                source_range: Some(SourceRange { start: 5, end: 9 }),
                                 variant: Type,
                             }),
                             Rc::new(Term {
-                                source_range: Some((13, 17)),
+                                source_range: Some(SourceRange { start: 13, end: 17 }),
                                 variant: Type,
                             }),
                         ),
                     }),
                     Rc::new(Term {
-                        source_range: Some((22, 39)),
+                        source_range: Some(SourceRange { start: 22, end: 39 }),
                         variant: Pi(
                             "x",
                             false,
                             Rc::new(Term {
-                                source_range: Some((27, 31)),
+                                source_range: Some(SourceRange { start: 27, end: 31 }),
                                 variant: Type,
                             }),
                             Rc::new(Term {
-                                source_range: Some((36, 39)),
+                                source_range: Some(SourceRange { start: 36, end: 39 }),
                                 variant: Application(
                                     Rc::new(Term {
-                                        source_range: Some((36, 37)),
+                                        source_range: Some(SourceRange { start: 36, end: 37 }),
                                         variant: Variable("f", 1),
                                     }),
                                     Rc::new(Term {
-                                        source_range: Some((38, 39)),
+                                        source_range: Some(SourceRange { start: 38, end: 39 }),
                                         variant: Variable("x", 0),
                                     }),
                                 ),
@@ -798,7 +799,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((18, 22)),
+                source_range: Some(SourceRange { start: 18, end: 22 }),
                 variant: Type,
             },
         );
@@ -823,7 +824,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((46, 50)),
+                source_range: Some(SourceRange { start: 46, end: 50 }),
                 variant: Type,
             },
         );
@@ -838,7 +839,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((0, 3)),
+                source_range: Some(SourceRange { start: 0, end: 3 }),
                 variant: Integer,
             },
         );
@@ -853,7 +854,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((0, 2)),
+                source_range: Some(SourceRange { start: 0, end: 2 }),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
             },
         );
@@ -1018,7 +1019,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((0, 4)),
+                source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: Boolean,
             },
         );
@@ -1033,7 +1034,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((0, 4)),
+                source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: True,
             },
         );
@@ -1048,7 +1049,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((0, 5)),
+                source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: False,
             },
         );
@@ -1063,7 +1064,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((13, 14)),
+                source_range: Some(SourceRange { start: 13, end: 14 }),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
             },
         );
@@ -1078,7 +1079,7 @@ mod tests {
         assert_same!(
             evaluate(&term).unwrap(),
             Term {
-                source_range: Some((21, 22)),
+                source_range: Some(SourceRange { start: 21, end: 22 }),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&4).unwrap()),
             },
         );

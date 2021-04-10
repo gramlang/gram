@@ -1,3 +1,4 @@
+use crate::error::SourceRange;
 use num_bigint::BigInt;
 use std::fmt::{Display, Formatter, Result};
 
@@ -15,7 +16,7 @@ pub const TYPE_KEYWORD: &str = "type";
 // represents a single token.
 #[derive(Clone, Debug)]
 pub struct Token<'a> {
-    pub source_range: (usize, usize), // Inclusive on the left and exclusive on the right
+    pub source_range: SourceRange,
     pub variant: Variant<'a>,
 }
 
@@ -105,9 +106,12 @@ impl<'a> Display for Variant<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::token::{
-        TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD,
-        INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+    use crate::{
+        error::SourceRange,
+        token::{
+            TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
+            IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+        },
     };
     use num_bigint::ToBigInt;
 
@@ -117,7 +121,7 @@ mod tests {
             format!(
                 "{}",
                 Token {
-                    source_range: (0, 0),
+                    source_range: SourceRange { start: 0, end: 0 },
                     variant: Variant::Asterisk,
                 },
             ),
