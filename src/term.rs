@@ -158,7 +158,9 @@ impl<'a> Display for Variant<'a> {
             Self::If(condition, then_branch, else_branch) => write!(
                 f,
                 "if {} then {} else {}",
-                condition, then_branch, else_branch,
+                condition,
+                then_branch,
+                else_branch,
             ),
         }
     }

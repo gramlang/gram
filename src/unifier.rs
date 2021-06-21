@@ -162,48 +162,54 @@ pub fn unify<'a>(
                 && unify(then_branch1, then_branch2, definitions_context)
                 && unify(else_branch1, else_branch2, definitions_context)
         }
-        (Unifier(_, _), _)
-        | (_, Unifier(_, _))
-        | (Variable(_, _), _)
-        | (_, Variable(_, _))
-        | (Lambda(_, _, _, _), _)
-        | (_, Lambda(_, _, _, _))
-        | (Pi(_, _, _, _), _)
-        | (_, Pi(_, _, _, _))
-        | (Application(_, _), _)
-        | (_, Application(_, _))
-        | (Integer, _)
-        | (_, Integer)
-        | (IntegerLiteral(_), _)
-        | (_, IntegerLiteral(_))
-        | (Negation(_), _)
-        | (_, Negation(_))
-        | (Sum(_, _), _)
-        | (_, Sum(_, _))
-        | (Difference(_, _), _)
-        | (_, Difference(_, _))
-        | (Product(_, _), _)
-        | (_, Product(_, _))
-        | (Quotient(_, _), _)
-        | (_, Quotient(_, _))
-        | (LessThan(_, _), _)
-        | (_, LessThan(_, _))
-        | (LessThanOrEqualTo(_, _), _)
-        | (_, LessThanOrEqualTo(_, _))
-        | (EqualTo(_, _), _)
-        | (_, EqualTo(_, _))
-        | (GreaterThan(_, _), _)
-        | (_, GreaterThan(_, _))
-        | (GreaterThanOrEqualTo(_, _), _)
-        | (_, GreaterThanOrEqualTo(_, _))
-        | (Boolean, _)
-        | (_, Boolean)
-        | (True, _)
-        | (_, True)
-        | (False, _)
-        | (_, False)
-        | (If(_, _, _), _)
-        | (_, If(_, _, _)) => false,
+        (
+            Unifier(_, _)
+            | Variable(_, _)
+            | Lambda(_, _, _, _)
+            | Pi(_, _, _, _)
+            | Application(_, _)
+            | Integer
+            | IntegerLiteral(_)
+            | Negation(_)
+            | Sum(_, _)
+            | Difference(_, _)
+            | Product(_, _)
+            | Quotient(_, _)
+            | LessThan(_, _)
+            | LessThanOrEqualTo(_, _)
+            | EqualTo(_, _)
+            | GreaterThan(_, _)
+            | GreaterThanOrEqualTo(_, _)
+            | Boolean
+            | True
+            | False
+            | If(_, _, _),
+            _,
+        )
+        | (
+            _,
+            Unifier(_, _)
+            | Variable(_, _)
+            | Lambda(_, _, _, _)
+            | Pi(_, _, _, _)
+            | Application(_, _)
+            | Integer
+            | IntegerLiteral(_)
+            | Negation(_)
+            | Sum(_, _)
+            | Difference(_, _)
+            | Product(_, _)
+            | Quotient(_, _)
+            | LessThan(_, _)
+            | LessThanOrEqualTo(_, _)
+            | EqualTo(_, _)
+            | GreaterThan(_, _)
+            | GreaterThanOrEqualTo(_, _)
+            | Boolean
+            | True
+            | False
+            | If(_, _, _),
+        ) => false,
         (Let(_, _), _) | (_, Let(_, _)) => {
             // [ref:let_not_in_weak_head_normal_form]
             panic!("Encountered a let after conversion to weak head normal form.")
