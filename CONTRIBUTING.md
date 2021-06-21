@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for your interest in contributing to Gram! You can contribute by filing [issues](https://github.com/gramlang/gram/issues) and submitting [pull requests](https://github.com/gramlang/gram/pulls). Please observe our [code of conduct](https://github.com/gramlang/gram/blob/main/CODE_OF_CONDUCT.md).
+Thank you for your interest in contributing! You can contribute by filing [issues](https://github.com/gramlang/gram/issues) and submitting [pull requests](https://github.com/gramlang/gram/pulls). Please observe our [code of conduct](https://github.com/gramlang/gram/blob/main/CODE_OF_CONDUCT.md).
 
 If you submit a pull request, please ensure your change passes the [GitHub Actions](https://github.com/gramlang/gram/actions) CI checks. This will be apparent from the required status check(s) in the pull request.
 
@@ -41,20 +41,6 @@ The linter enforces that items in multi-line sequences (e.g., function arguments
 ```rust
 macro_rules! my_macro {
     ($foo:expr, $bar:expr, $baz:expr $(,)?) => {{
-        ...
-    }};
-}
-```
-
-When the arguments in the definition of the macro span multiple lines, you will need a comment with a trailing comma to satisfy the linter as follows:
-
-```rust
-macro_rules! my_macro {
-    (
-        $foo:expr,
-        $bar:expr,
-        $baz:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
-    ) => {{
         ...
     }};
 }
