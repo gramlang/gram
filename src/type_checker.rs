@@ -1376,13 +1376,13 @@ mod tests {
         let mut definitions_context = vec![None, None];
         let term_source = "
           (
-            (a : type) => (P: a -> type) => (f : (x : a) -> P x) => (x : a) => f x # ,
+            (a : type) => (P: a -> type) => (f : (x : a) -> P x) => (x : a) => f x
           ) (
-            ((t : type) => t) foo # ,
+            ((t : type) => t) foo
           ) (
-            (x : foo) => foo # ,
+            (x : foo) => foo
           ) (
-            (x : foo) => x # ,
+            (x : foo) => x
           ) y
         ";
         let type_source = "foo";
