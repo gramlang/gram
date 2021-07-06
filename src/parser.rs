@@ -328,7 +328,7 @@ macro_rules! consume_token_0 {
         $tokens:expr,
         $next:expr,
         $variant:ident,
-        $expectation:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $expectation:expr $(,)?
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -368,7 +368,7 @@ macro_rules! consume_token_1 {
         $tokens:expr,
         $next:expr,
         $variant:ident,
-        $expectation:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $expectation:expr $(,)?
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -411,7 +411,7 @@ macro_rules! expect_token_0 {
         $errors:ident,
         $variant:ident,
         $expectation:expr,
-        $report_error:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $report_error:expr $(,)?
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
@@ -476,7 +476,7 @@ macro_rules! expect_token_1 {
         $errors:ident,
         $variant:ident,
         $expectation:expr,
-        $report_error:expr $(,)? // This comma is needed to satisfy the trailing commas check: ,
+        $report_error:expr $(,)?
     ) => {{
         // Macros are call-by-name, but we want call-by-value (or at least call-by-need) to avoid
         // accidentally evaluating arguments multiple times. Here we force eager evaluation.
