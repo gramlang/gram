@@ -50,7 +50,7 @@ pub fn unify<'a>(
 ) -> bool {
     // The two terms might not have normal forms, but if they are syntactically equal then we can
     // still consider them unified. So we check for that first.
-    if syntactically_equal(&term1, &term2) {
+    if syntactically_equal(term1, term2) {
         return true;
     }
 

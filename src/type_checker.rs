@@ -347,7 +347,7 @@ pub fn type_check_rec<'a>(
                     );
 
                     // Check the type against the annotation.
-                    if !unify(&definition_type, &annotation, borrowed_definitions_context) {
+                    if !unify(&definition_type, annotation, borrowed_definitions_context) {
                         errors.push(throw::<Error>(
                             &format!(
                                 "This has type {}, but it was expected to have type {}:",
