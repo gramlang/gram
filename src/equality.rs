@@ -1,15 +1,18 @@
-use crate::{
-    de_bruijn::unsigned_shift,
-    term::{
-        Term,
-        Variant::{
-            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
-            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
-            Product, Quotient, Sum, True, Type, Unifier, Variable,
+use {
+    crate::{
+        de_bruijn::unsigned_shift,
+        term::{
+            Term,
+            Variant::{
+                Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
+                Variable,
+            },
         },
     },
+    std::rc::Rc,
 };
-use std::rc::Rc;
 
 // Check if two terms are equal up to alpha conversion. Type annotations are not checked.
 #[allow(clippy::similar_names)]
@@ -151,16 +154,18 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        equality::syntactically_equal,
-        parser::parse,
-        term::{
-            Term,
-            Variant::{Unifier, Variable},
+    use {
+        crate::{
+            equality::syntactically_equal,
+            parser::parse,
+            term::{
+                Term,
+                Variant::{Unifier, Variable},
+            },
+            tokenizer::tokenize,
         },
-        tokenizer::tokenize,
+        std::{cell::RefCell, rc::Rc},
     };
-    use std::{cell::RefCell, rc::Rc};
 
     #[test]
     fn syntactically_equal_unifier_left() {

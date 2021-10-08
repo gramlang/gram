@@ -1,14 +1,16 @@
-use crate::{
-    error::{listing, throw, Error, SourceRange},
-    format::CodeStr,
-    token::{
-        TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD,
-        INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+use {
+    crate::{
+        error::{listing, throw, Error, SourceRange},
+        format::CodeStr,
+        token::{
+            TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
+            IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+        },
     },
+    num_bigint::BigInt,
+    std::path::Path,
+    unicode_segmentation::GraphemeCursor,
 };
-use num_bigint::BigInt;
-use std::path::Path;
-use unicode_segmentation::GraphemeCursor;
 
 // Tokenize the contents of a source file.
 #[allow(clippy::cognitive_complexity)]
@@ -436,16 +438,18 @@ pub fn tokenize<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        assert_fails, assert_same,
-        error::SourceRange,
-        token::{
-            TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
-            IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+    use {
+        crate::{
+            assert_fails, assert_same,
+            error::SourceRange,
+            token::{
+                TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
+                IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+            },
+            tokenizer::tokenize,
         },
-        tokenizer::tokenize,
+        num_bigint::ToBigInt,
     };
-    use num_bigint::ToBigInt;
 
     #[test]
     fn tokenize_empty() {

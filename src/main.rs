@@ -14,16 +14,18 @@ mod tokenizer;
 mod type_checker;
 mod unifier;
 
-use crate::{
-    error::{throw, Error},
-    evaluator::evaluate,
-    format::CodeStr,
-    parser::parse,
-    tokenizer::tokenize,
-    type_checker::type_check,
+use {
+    crate::{
+        error::{throw, Error},
+        evaluator::evaluate,
+        format::CodeStr,
+        parser::parse,
+        tokenizer::tokenize,
+        type_checker::type_check,
+    },
+    clap::{App, AppSettings, Arg, Shell, SubCommand},
+    std::{fs::read_to_string, io::stdout, path::Path, process::exit, thread},
 };
-use clap::{App, AppSettings, Arg, Shell, SubCommand};
-use std::{fs::read_to_string, io::stdout, path::Path, process::exit, thread};
 
 // The program version
 const VERSION: &str = env!("CARGO_PKG_VERSION");

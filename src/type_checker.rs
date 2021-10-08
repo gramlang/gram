@@ -1,20 +1,23 @@
-use crate::{
-    de_bruijn::{open, unsigned_shift},
-    error::{listing, throw, Error},
-    format::CodeStr,
-    parser::PLACEHOLDER_VARIABLE,
-    term::{
-        Term,
-        Variant::{
-            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
-            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
-            Product, Quotient, Sum, True, Type, Unifier, Variable,
+use {
+    crate::{
+        de_bruijn::{open, unsigned_shift},
+        error::{listing, throw, Error},
+        format::CodeStr,
+        parser::PLACEHOLDER_VARIABLE,
+        term::{
+            Term,
+            Variant::{
+                Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
+                Variable,
+            },
         },
+        unifier::unify,
     },
-    unifier::unify,
+    scopeguard::defer,
+    std::{cell::RefCell, path::Path, rc::Rc},
 };
-use scopeguard::defer;
-use std::{cell::RefCell, path::Path, rc::Rc};
 
 // This is the top-level type checking function. It returns the pair `(elaborated_term, type)`.
 // Invariants:
@@ -1130,18 +1133,20 @@ pub fn type_check_rec<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        assert_fails,
-        equality::syntactically_equal,
-        parser::parse,
-        term::{
-            Term,
-            Variant::{Type, Variable},
+    use {
+        crate::{
+            assert_fails,
+            equality::syntactically_equal,
+            parser::parse,
+            term::{
+                Term,
+                Variant::{Type, Variable},
+            },
+            tokenizer::tokenize,
+            type_checker::type_check,
         },
-        tokenizer::tokenize,
-        type_checker::type_check,
+        std::rc::Rc,
     };
-    use std::rc::Rc;
 
     #[test]
     fn type_check_type() {

@@ -1,12 +1,14 @@
-use crate::term::{
-    Term,
-    Variant::{
-        Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo, If,
-        Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi, Product,
-        Quotient, Sum, True, Type, Unifier, Variable,
+use {
+    crate::term::{
+        Term,
+        Variant::{
+            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
+            Product, Quotient, Sum, True, Type, Unifier, Variable,
+        },
     },
+    std::{cell::RefCell, convert::TryFrom, rc::Rc},
 };
-use std::{cell::RefCell, convert::TryFrom, rc::Rc};
 
 // Shifting refers to adjusting the De Bruijn indices of free variables. A cutoff determines which
 // variables are considered free. This function is used to raise or lower a term into a different
@@ -427,21 +429,23 @@ pub fn open<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        assert_same,
-        de_bruijn::{open, signed_shift, unsigned_shift},
-        term::{
-            Term,
-            Variant::{
-                Application, Boolean, Difference, EqualTo, False, GreaterThan,
-                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
-                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
-                Variable,
+    use {
+        crate::{
+            assert_same,
+            de_bruijn::{open, signed_shift, unsigned_shift},
+            term::{
+                Term,
+                Variant::{
+                    Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                    GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                    LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type,
+                    Unifier, Variable,
+                },
             },
         },
+        num_bigint::ToBigInt,
+        std::{cell::RefCell, rc::Rc},
     };
-    use num_bigint::ToBigInt;
-    use std::{cell::RefCell, rc::Rc};
 
     #[test]
     fn signed_shift_unifier_none_valid() {
