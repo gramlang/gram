@@ -1,23 +1,26 @@
-use crate::{
-    de_bruijn::signed_shift,
-    equality::syntactically_equal,
-    normalizer::normalize_weak_head,
-    term::{
-        Term,
-        Variant::{
-            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
-            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
-            Product, Quotient, Sum, True, Type, Unifier, Variable,
+use {
+    crate::{
+        de_bruijn::signed_shift,
+        equality::syntactically_equal,
+        normalizer::normalize_weak_head,
+        term::{
+            Term,
+            Variant::{
+                Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
+                Variable,
+            },
         },
     },
-};
-use std::{
-    cell::RefCell,
-    collections::HashSet,
-    convert::TryFrom,
-    hash::{Hash, Hasher},
-    ptr,
-    rc::Rc,
+    std::{
+        cell::RefCell,
+        collections::HashSet,
+        convert::TryFrom,
+        hash::{Hash, Hasher},
+        ptr,
+        rc::Rc,
+    },
 };
 
 // This struct is a "newtype" for `Rc` that implements `Eq` and `Hash` based on the underlying
@@ -280,16 +283,18 @@ pub fn collect_unifiers<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        parser::parse,
-        term::{
-            Term,
-            Variant::{Application, Unifier, Variable},
+    use {
+        crate::{
+            parser::parse,
+            term::{
+                Term,
+                Variant::{Application, Unifier, Variable},
+            },
+            tokenizer::tokenize,
+            unifier::{collect_unifiers, unify},
         },
-        tokenizer::tokenize,
-        unifier::{collect_unifiers, unify},
+        std::{cell::RefCell, collections::HashSet, rc::Rc},
     };
-    use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
     #[test]
     fn unify_unifier_left() {

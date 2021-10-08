@@ -1,19 +1,21 @@
-use crate::{
-    error::{listing, throw, Error, SourceRange},
-    evaluator::is_value,
-    format::CodeStr,
-    term,
-    term::free_variables,
-    token::{self, TerminatorType, Token},
-};
-use colored::Colorize;
-use num_bigint::BigInt;
-use scopeguard::defer;
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    path::Path,
-    rc::Rc,
+use {
+    crate::{
+        error::{listing, throw, Error, SourceRange},
+        evaluator::is_value,
+        format::CodeStr,
+        term,
+        term::free_variables,
+        token::{self, TerminatorType, Token},
+    },
+    colored::Colorize,
+    num_bigint::BigInt,
+    scopeguard::defer,
+    std::{
+        cell::RefCell,
+        collections::{HashMap, HashSet},
+        path::Path,
+        rc::Rc,
+    },
 };
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
@@ -4134,23 +4136,25 @@ fn parse_jumbo_term<'a>(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        assert_fails, assert_same,
-        error::SourceRange,
-        parser::parse,
-        term::{
-            Term,
-            Variant::{
-                Application, Boolean, Difference, EqualTo, False, GreaterThan,
-                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
-                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
-                Variable,
+    use {
+        crate::{
+            assert_fails, assert_same,
+            error::SourceRange,
+            parser::parse,
+            term::{
+                Term,
+                Variant::{
+                    Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                    GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                    LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type,
+                    Unifier, Variable,
+                },
             },
+            tokenizer::tokenize,
         },
-        tokenizer::tokenize,
+        num_bigint::ToBigInt,
+        std::{cell::RefCell, rc::Rc},
     };
-    use num_bigint::ToBigInt;
-    use std::{cell::RefCell, rc::Rc};
 
     #[test]
     fn parse_empty() {

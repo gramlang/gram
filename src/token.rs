@@ -1,6 +1,8 @@
-use crate::error::SourceRange;
-use num_bigint::BigInt;
-use std::fmt::{Display, Formatter, Result};
+use {
+    crate::error::SourceRange,
+    num_bigint::BigInt,
+    std::fmt::{Display, Formatter, Result},
+};
 
 // Keywords
 pub const BOOLEAN_KEYWORD: &str = "bool";
@@ -106,14 +108,16 @@ impl<'a> Display for Variant<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        error::SourceRange,
-        token::{
-            TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
-            IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+    use {
+        crate::{
+            error::SourceRange,
+            token::{
+                TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
+                IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+            },
         },
+        num_bigint::ToBigInt,
     };
-    use num_bigint::ToBigInt;
 
     #[test]
     fn token_display() {

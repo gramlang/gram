@@ -1,17 +1,20 @@
-use crate::{
-    de_bruijn::{open, unsigned_shift},
-    error::Error,
-    format::CodeStr,
-    term::{
-        Term,
-        Variant::{
-            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
-            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
-            Product, Quotient, Sum, True, Type, Unifier, Variable,
+use {
+    crate::{
+        de_bruijn::{open, unsigned_shift},
+        error::Error,
+        format::CodeStr,
+        term::{
+            Term,
+            Variant::{
+                Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
+                Variable,
+            },
         },
     },
+    std::{iter::once, rc::Rc},
 };
-use std::{iter::once, rc::Rc};
 
 // This function evaluates a term using a call-by-value strategy.
 pub fn evaluate<'a>(term: &Term<'a>) -> Result<Term<'a>, Error> {
@@ -633,22 +636,24 @@ pub fn is_value(term: &Term) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        assert_same,
-        error::SourceRange,
-        evaluator::evaluate,
-        parser::parse,
-        term::{
-            Term,
-            Variant::{
-                Application, Boolean, False, Integer, IntegerLiteral, Lambda, Pi, True, Type,
-                Variable,
+    use {
+        crate::{
+            assert_same,
+            error::SourceRange,
+            evaluator::evaluate,
+            parser::parse,
+            term::{
+                Term,
+                Variant::{
+                    Application, Boolean, False, Integer, IntegerLiteral, Lambda, Pi, True, Type,
+                    Variable,
+                },
             },
+            tokenizer::tokenize,
         },
-        tokenizer::tokenize,
+        num_bigint::ToBigInt,
+        std::rc::Rc,
     };
-    use num_bigint::ToBigInt;
-    use std::rc::Rc;
 
     #[test]
     fn evaluate_type() {

@@ -1,14 +1,16 @@
-use crate::{
-    de_bruijn::unsigned_shift,
-    error::SourceRange,
-    token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
-};
-use num_bigint::BigInt;
-use std::{
-    cell::RefCell,
-    collections::HashSet,
-    fmt::{Display, Formatter},
-    rc::Rc,
+use {
+    crate::{
+        de_bruijn::unsigned_shift,
+        error::SourceRange,
+        token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
+    },
+    num_bigint::BigInt,
+    std::{
+        cell::RefCell,
+        collections::HashSet,
+        fmt::{Display, Formatter},
+        rc::Rc,
+    },
 };
 
 // The token stream is parsed into an abstract syntax tree (AST) [tag:ast] [ref:bison_grammar]. This
@@ -271,20 +273,22 @@ pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSe
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        term::{
-            free_variables, Term,
-            Variant::{
-                Application, Boolean, Difference, EqualTo, False, GreaterThan,
-                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
-                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
-                Variable,
+    use {
+        crate::{
+            term::{
+                free_variables, Term,
+                Variant::{
+                    Application, Boolean, Difference, EqualTo, False, GreaterThan,
+                    GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
+                    LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type,
+                    Unifier, Variable,
+                },
             },
+            token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
         },
-        token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
+        num_bigint::ToBigInt,
+        std::{cell::RefCell, collections::HashSet, rc::Rc},
     };
-    use num_bigint::ToBigInt;
-    use std::{cell::RefCell, collections::HashSet, rc::Rc};
 
     #[test]
     fn term_display() {
