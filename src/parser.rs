@@ -40,7 +40,7 @@ use {
 // whether a term was parsed as group [tag:group_flag].
 //
 // After resolving ambiguities, we end up with the grammar located in `grammar.y`. This grammar has
-// been verified to be unambiguous by Bison. [ref:bison_grammar]
+// been verified to be unambiguous by Bison [ref:bison_grammar].
 //
 // There is one more concern to consider: packrat parsers are greedy, so the order in which we try
 // the productions matters in some cases. We address this by attempting productions that result in
