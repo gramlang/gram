@@ -14,8 +14,8 @@ readme = "README.md"
 colored = "1"
 num-bigint = "0.2"
 pad = "0.1"
-scopeguard = "1.0"
-unicode-segmentation = "1.6"
+scopeguard = "1"
+unicode-segmentation = "1"
 
 [dependencies.clap]
 version = "2"
