@@ -1145,7 +1145,7 @@ mod tests {
             tokenizer::tokenize,
             type_checker::type_check,
         },
-        std::rc::Rc,
+        std::{fmt::Write, rc::Rc},
     };
 
     #[test]

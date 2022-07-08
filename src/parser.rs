@@ -4153,7 +4153,7 @@ mod tests {
             tokenizer::tokenize,
         },
         num_bigint::ToBigInt,
-        std::{cell::RefCell, rc::Rc},
+        std::{cell::RefCell, fmt::Write, rc::Rc},
     };
 
     #[test]

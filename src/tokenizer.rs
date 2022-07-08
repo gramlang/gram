@@ -449,6 +449,7 @@ mod tests {
             tokenizer::tokenize,
         },
         num_bigint::ToBigInt,
+        std::fmt::Write,
     };
 
     #[test]
