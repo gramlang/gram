@@ -1468,7 +1468,7 @@ fn resolve_variables<'a>(
                         source_contents,
                         body,
                         depth + 1,
-                        *guard,
+                        &mut guard,
                         errors,
                     )),
                 ),
@@ -1514,7 +1514,7 @@ fn resolve_variables<'a>(
                         source_contents,
                         codomain,
                         depth + 1,
-                        *guard,
+                        &mut guard,
                         errors,
                     )),
                 ),
@@ -1980,7 +1980,6 @@ fn check_definitions<'a>(
     source_contents: &'a str,
     term: &term::Term<'a>,
     depth: usize,
-    context: &mut HashMap<&'a str, usize>,
     errors: &mut Vec<Error>,
 ) {
     match &term.variant {
@@ -1996,55 +1995,20 @@ fn check_definitions<'a>(
 
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
             if let Some(subterm) = { subterm.borrow().clone() } {
-                check_definitions(
-                    source_path,
-                    source_contents,
-                    &subterm,
-                    depth,
-                    context,
-                    errors,
-                );
+                check_definitions(source_path, source_contents, &subterm, depth, errors);
             }
         }
         term::Variant::Lambda(_, _, domain, body) => {
-            check_definitions(source_path, source_contents, domain, depth, context, errors);
-            check_definitions(
-                source_path,
-                source_contents,
-                body,
-                depth + 1,
-                context,
-                errors,
-            );
+            check_definitions(source_path, source_contents, domain, depth, errors);
+            check_definitions(source_path, source_contents, body, depth + 1, errors);
         }
         term::Variant::Pi(_, _, domain, codomain) => {
-            check_definitions(source_path, source_contents, domain, depth, context, errors);
-            check_definitions(
-                source_path,
-                source_contents,
-                codomain,
-                depth + 1,
-                context,
-                errors,
-            );
+            check_definitions(source_path, source_contents, domain, depth, errors);
+            check_definitions(source_path, source_contents, codomain, depth + 1, errors);
         }
         term::Variant::Application(applicand, argument) => {
-            check_definitions(
-                source_path,
-                source_contents,
-                applicand,
-                depth,
-                context,
-                errors,
-            );
-            check_definitions(
-                source_path,
-                source_contents,
-                argument,
-                depth,
-                context,
-                errors,
-            );
+            check_definitions(source_path, source_contents, applicand, depth, errors);
+            check_definitions(source_path, source_contents, argument, depth, errors);
         }
         term::Variant::Let(definitions, body) => {
             let new_depth = depth + definitions.len();
@@ -2057,7 +2021,6 @@ fn check_definitions<'a>(
                         source_path,
                         source_contents,
                         definitions,
-                        new_depth,
                         i,
                         i,
                         &mut visited,
@@ -2066,24 +2029,10 @@ fn check_definitions<'a>(
                 }
             }
 
-            check_definitions(
-                source_path,
-                source_contents,
-                body,
-                new_depth,
-                context,
-                errors,
-            );
+            check_definitions(source_path, source_contents, body, new_depth, errors);
         }
         term::Variant::Negation(subterm) => {
-            check_definitions(
-                source_path,
-                source_contents,
-                subterm,
-                depth,
-                context,
-                errors,
-            );
+            check_definitions(source_path, source_contents, subterm, depth, errors);
         }
         term::Variant::Sum(term1, term2)
         | term::Variant::Difference(term1, term2)
@@ -2094,34 +2043,13 @@ fn check_definitions<'a>(
         | term::Variant::EqualTo(term1, term2)
         | term::Variant::GreaterThan(term1, term2)
         | term::Variant::GreaterThanOrEqualTo(term1, term2) => {
-            check_definitions(source_path, source_contents, term1, depth, context, errors);
-            check_definitions(source_path, source_contents, term2, depth, context, errors);
+            check_definitions(source_path, source_contents, term1, depth, errors);
+            check_definitions(source_path, source_contents, term2, depth, errors);
         }
         term::Variant::If(condition, then_branch, else_branch) => {
-            check_definitions(
-                source_path,
-                source_contents,
-                condition,
-                depth,
-                context,
-                errors,
-            );
-            check_definitions(
-                source_path,
-                source_contents,
-                then_branch,
-                depth,
-                context,
-                errors,
-            );
-            check_definitions(
-                source_path,
-                source_contents,
-                else_branch,
-                depth,
-                context,
-                errors,
-            );
+            check_definitions(source_path, source_contents, condition, depth, errors);
+            check_definitions(source_path, source_contents, then_branch, depth, errors);
+            check_definitions(source_path, source_contents, else_branch, depth, errors);
         }
     }
 }
@@ -2134,9 +2062,8 @@ fn check_definition<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
     definitions: &[(&'a str, Rc<term::Term<'a>>, Rc<term::Term<'a>>)],
-    definitions_depth: usize, // Assumes the definitions have already been added to the context
-    start_index: usize,       // [0, definitions.len())
-    current_index: usize,     // [0, definitions.len())
+    start_index: usize,   // [0, definitions.len())
+    current_index: usize, // [0, definitions.len())
     visited: &mut HashSet<usize>,
     errors: &mut Vec<Error>,
 ) {
@@ -2159,7 +2086,6 @@ fn check_definition<'a>(
                         source_path,
                         source_contents,
                         definitions,
-                        definitions_depth,
                         start_index,
                         definition_index,
                         visited,
@@ -2252,7 +2178,6 @@ pub fn parse<'a>(
         source_contents,
         &resolved_term,
         context.len(),
-        &mut context,
         &mut errors,
     );
 
