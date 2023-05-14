@@ -1,6 +1,6 @@
 [package]
 name = "gram"
-version = "0.0.0"
+version = "0.0.1"
 authors = ["Stephan Boyer <stephan@stephanboyer.com>"]
 edition = "2021"
 description = "A programming language for distributed systems."
