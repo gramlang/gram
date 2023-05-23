@@ -6,9 +6,9 @@
 
 ## Installation instructions
 
-### Installation on macOS (AArch64 or x86-64) or Linux (x86-64)
+### Installation on macOS or Linux (AArch64 or x86-64)
 
-If you're running macOS (AArch64 or x86-64) or Linux (x86-64), you can install Gram with this command:
+If you're running macOS or Linux (AArch64 or x86-64), you can install Gram with this command:
 
 ```sh
 curl https://raw.githubusercontent.com/gramlang/gram/main/install.sh -LSfs | sh
