@@ -44,11 +44,23 @@ jobs:
     - run: |
         # Make Bash not silently ignore errors.
         set -euo pipefail
+
         # The artifact name will contain the target triple, so the file name doesn't need to.
         mv artifacts/gram-aarch64-unknown-linux-gnu artifacts/gram
     - uses: actions/upload-artifact@v2
       with:
         name: aarch64-unknown-linux-gnu
+        path: artifacts/gram
+        if-no-files-found: error
+    - run: |
+        # Make Bash not silently ignore errors.
+        set -euo pipefail
+
+        # The artifact name will contain the target triple, so the file name doesn't need to.
+        mv artifacts/gram-aarch64-unknown-linux-musl artifacts/gram
+    - uses: actions/upload-artifact@v2
+      with:
+        name: aarch64-unknown-linux-musl
         path: artifacts/gram
         if-no-files-found: error
   ci-windows:
@@ -176,6 +188,9 @@ jobs:
           artifacts/aarch64-unknown-linux-gnu/gram \
           artifacts/gram-aarch64-unknown-linux-gnu
         mv \
+          artifacts/aarch64-unknown-linux-musl/gram \
+          artifacts/gram-aarch64-unknown-linux-musl
+        mv \
           artifacts/x86_64-apple-darwin/gram \
           artifacts/gram-x86_64-apple-darwin
         mv \
@@ -192,6 +207,7 @@ jobs:
           --attach 'artifacts/gram-x86_64-unknown-linux-gnu' \
           --attach 'artifacts/gram-x86_64-unknown-linux-musl' \
           --attach 'artifacts/gram-aarch64-unknown-linux-gnu' \
+          --attach 'artifacts/gram-aarch64-unknown-linux-musl' \
           --attach 'artifacts/gram-x86_64-apple-darwin' \
           --attach 'artifacts/gram-aarch64-apple-darwin' \
           --attach 'artifacts/gram-x86_64-pc-windows-msvc.exe' \
