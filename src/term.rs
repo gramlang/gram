@@ -88,18 +88,18 @@ impl<'a> Display for Variant<'a> {
                 // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too
                 // long.
                 if let Some(subterm) = { subterm_rc.borrow().clone() } {
-                    write!(f, "{}", subterm)
+                    write!(f, "{subterm}")
                 } else {
                     write!(f, "_")
                 }
             }
-            Self::Type => write!(f, "{}", TYPE_KEYWORD),
-            Self::Variable(variable, _) => write!(f, "{}", variable),
+            Self::Type => write!(f, "{TYPE_KEYWORD}"),
+            Self::Variable(variable, _) => write!(f, "{variable}"),
             Self::Lambda(variable, implicit, domain, body) => {
                 if *implicit {
-                    write!(f, "{{{} : {}}} => {}", variable, domain, body)
+                    write!(f, "{{{variable} : {domain}}} => {body}")
                 } else {
-                    write!(f, "({} : {}) => {}", variable, domain, body)
+                    write!(f, "({variable} : {domain}) => {body}")
                 }
             }
             Self::Pi(variable, implicit, domain, codomain) => {
@@ -108,15 +108,15 @@ impl<'a> Display for Variant<'a> {
 
                 if variables.contains(&0) {
                     if *implicit {
-                        write!(f, "{{{} : {}}} -> {}", variable, domain, codomain)
+                        write!(f, "{{{variable} : {domain}}} -> {codomain}")
                     } else {
-                        write!(f, "({} : {}) -> {}", variable, domain, codomain)
+                        write!(f, "({variable} : {domain}) -> {codomain}")
                     }
                 } else if *implicit {
-                    write!(f, "{{{}}} -> {}", domain, codomain)
+                    write!(f, "{{{domain}}} -> {codomain}")
                 } else {
                     match domain.variant {
-                        Self::Application(_, _) => write!(f, "{} -> {}", domain, codomain),
+                        Self::Application(_, _) => write!(f, "{domain} -> {codomain}"),
                         _ => write!(f, "{} -> {}", group(domain), codomain),
                     }
                 }
@@ -136,10 +136,10 @@ impl<'a> Display for Variant<'a> {
                     )?;
                 }
 
-                write!(f, "{}", body)
+                write!(f, "{body}")
             }
-            Self::Integer => write!(f, "{}", INTEGER_KEYWORD),
-            Self::IntegerLiteral(integer) => write!(f, "{}", integer),
+            Self::Integer => write!(f, "{INTEGER_KEYWORD}"),
+            Self::IntegerLiteral(integer) => write!(f, "{integer}"),
             Self::Negation(subterm) => write!(f, "-{}", group(subterm)),
             Self::Sum(term1, term2) => write!(f, "{} + {}", group(term1), group(term2)),
             Self::Difference(term1, term2) => write!(f, "{} - {}", group(term1), group(term2)),
@@ -154,16 +154,12 @@ impl<'a> Display for Variant<'a> {
             Self::GreaterThanOrEqualTo(term1, term2) => {
                 write!(f, "{} >= {}", group(term1), group(term2))
             }
-            Self::Boolean => write!(f, "{}", BOOLEAN_KEYWORD),
-            Self::True => write!(f, "{}", TRUE_KEYWORD),
-            Self::False => write!(f, "{}", FALSE_KEYWORD),
-            Self::If(condition, then_branch, else_branch) => write!(
-                f,
-                "if {} then {} else {}",
-                condition,
-                then_branch,
-                else_branch,
-            ),
+            Self::Boolean => write!(f, "{BOOLEAN_KEYWORD}"),
+            Self::True => write!(f, "{TRUE_KEYWORD}"),
+            Self::False => write!(f, "{FALSE_KEYWORD}"),
+            Self::If(condition, then_branch, else_branch) => {
+                write!(f, "if {condition} then {then_branch} else {else_branch}")
+            }
         }
     }
 }
@@ -177,7 +173,7 @@ fn group(term: &Term) -> String {
             if let Some(subterm) = { subterm.borrow().clone() } {
                 group(&subterm)
             } else {
-                format!("{}", term)
+                format!("{term}")
             }
         }
         Variant::Type
@@ -186,7 +182,7 @@ fn group(term: &Term) -> String {
         | Variant::IntegerLiteral(_)
         | Variant::Boolean
         | Variant::True
-        | Variant::False => format!("{}", term),
+        | Variant::False => format!("{term}"),
         Variant::Lambda(_, _, _, _)
         | Variant::Pi(_, _, _, _)
         | Variant::Application(_, _)
@@ -201,13 +197,13 @@ fn group(term: &Term) -> String {
         | Variant::EqualTo(_, _)
         | Variant::GreaterThan(_, _)
         | Variant::GreaterThanOrEqualTo(_, _)
-        | Variant::If(_, _, _) => format!("({})", term),
+        | Variant::If(_, _, _) => format!("({term})"),
     }
 }
 
 // Compute the free variables of a term. A cutoff determines which variables are considered free.
 // This function includes free variables in type annotations.
-pub fn free_variables<'a>(term: &Term<'a>, cutoff: usize, variables: &mut HashSet<usize>) {
+pub fn free_variables(term: &Term<'_>, cutoff: usize, variables: &mut HashSet<usize>) {
     match &term.variant {
         Variant::Unifier(subterm, subterm_shift) => {
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
@@ -328,7 +324,7 @@ mod tests {
 
     #[test]
     fn variant_type_display() {
-        assert_eq!(format!("{}", Type), TYPE_KEYWORD);
+        assert_eq!(format!("{Type}"), TYPE_KEYWORD);
     }
 
     #[test]
@@ -574,7 +570,7 @@ mod tests {
 
     #[test]
     fn variant_integer_display() {
-        assert_eq!(format!("{}", Integer), INTEGER_KEYWORD);
+        assert_eq!(format!("{Integer}"), INTEGER_KEYWORD);
     }
 
     #[test]
@@ -781,17 +777,17 @@ mod tests {
 
     #[test]
     fn variant_boolean_display() {
-        assert_eq!(format!("{}", Boolean), BOOLEAN_KEYWORD);
+        assert_eq!(format!("{Boolean}"), BOOLEAN_KEYWORD);
     }
 
     #[test]
     fn variant_true_display() {
-        assert_eq!(format!("{}", True), TRUE_KEYWORD);
+        assert_eq!(format!("{True}"), TRUE_KEYWORD);
     }
 
     #[test]
     fn variant_false_display() {
-        assert_eq!(format!("{}", False), FALSE_KEYWORD);
+        assert_eq!(format!("{False}"), FALSE_KEYWORD);
     }
 
     #[test]

@@ -69,14 +69,14 @@ fn error_factory<'a>(
     Rc::new(move |source_path, source_contents| {
         if tokens.is_empty() {
             throw::<Error>(
-                &format!("Expected {}, but the file is empty.", expectation),
+                &format!("Expected {expectation}, but the file is empty."),
                 source_path,
                 Some(&listing(source_contents, source_range)),
                 None,
             )
         } else if position == tokens.len() {
             throw::<Error>(
-                &format!("Expected {} at the end of the file.", expectation),
+                &format!("Expected {expectation} at the end of the file."),
                 source_path,
                 Some(&listing(source_contents, source_range)),
                 None,
@@ -86,7 +86,7 @@ fn error_factory<'a>(
                 &if let token::Variant::Terminator(TerminatorType::LineBreak) =
                     tokens[position].variant
                 {
-                    format!("Expected {} at the end of this line:", expectation)
+                    format!("Expected {expectation} at the end of this line:")
                 } else {
                     format!(
                         "Expected {}, but encountered {}.",
