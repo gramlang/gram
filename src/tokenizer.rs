@@ -321,7 +321,7 @@ pub fn tokenize<'a>(
                 let mut end = source_contents.len();
 
                 while let Some((j, d)) = iter.peek() {
-                    if ('0'..='9').contains(d) {
+                    if d.is_ascii_digit() {
                         iter.next();
                     } else {
                         end = *j;

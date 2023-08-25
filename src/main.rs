@@ -294,17 +294,17 @@ fn main() {
         .spawn(|| {
             // Jump to the entrypoint and report any resulting errors.
             if let Err(e) = entry() {
-                eprintln!("{}", e);
+                eprintln!("{e}");
                 exit(1);
             }
         })
         .unwrap_or_else(|e| {
-            eprintln!("Error spawning thread: {:?}", e);
+            eprintln!("Error spawning thread: {e:?}");
             exit(1);
         })
         .join()
         .unwrap_or_else(|e| {
-            eprintln!("Error joining thread: {:?}", e);
+            eprintln!("Error joining thread: {e:?}");
             exit(1);
         });
 }
