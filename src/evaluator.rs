@@ -671,7 +671,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic = "Evaluation of `x` is stuck!"]
     fn evaluate_variable() {
         let context = ["x"];
         let source = "x";
@@ -811,7 +811,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
+    #[should_panic = "Evaluation of `type type` is stuck!"]
     fn evaluate_non_redex() {
         let source = "type type";
         let tokens = tokenize(None, source).unwrap();
