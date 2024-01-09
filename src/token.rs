@@ -198,7 +198,7 @@ mod tests {
         assert_eq!(
             format!(
                 "{}",
-                Variant::IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+                Variant::IntegerLiteral(ToBigInt::to_bigint(&42_i32).unwrap()),
             ),
             "42",
         );

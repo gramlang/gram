@@ -860,7 +860,7 @@ mod tests {
             evaluate(&term).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 2 }),
-                variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&42_i32).unwrap()),
             },
         );
     }
@@ -875,7 +875,7 @@ mod tests {
             evaluate(&term).unwrap(),
             Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&-42).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&-42_i32).unwrap()),
             },
         );
     }
@@ -890,7 +890,7 @@ mod tests {
             evaluate(&term).unwrap(),
             Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&3_i32).unwrap()),
             },
         );
     }
@@ -905,7 +905,7 @@ mod tests {
             evaluate(&term).unwrap(),
             Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
             },
         );
     }
@@ -920,7 +920,7 @@ mod tests {
             evaluate(&term).unwrap(),
             Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&6).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&6_i32).unwrap()),
             },
         );
     }
@@ -935,7 +935,7 @@ mod tests {
             evaluate(&term).unwrap(),
             Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&3_i32).unwrap()),
             },
         );
     }
@@ -1070,7 +1070,7 @@ mod tests {
             evaluate(&term).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 13, end: 14 }),
-                variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&3_i32).unwrap()),
             },
         );
     }
@@ -1085,7 +1085,7 @@ mod tests {
             evaluate(&term).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 21, end: 22 }),
-                variant: IntegerLiteral(ToBigInt::to_bigint(&4).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&4_i32).unwrap()),
             },
         );
     }
@@ -1107,7 +1107,7 @@ mod tests {
             evaluate(&term).unwrap(),
             Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&120).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&120_i32).unwrap()),
             },
         );
     }

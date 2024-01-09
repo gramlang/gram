@@ -620,7 +620,7 @@ mod tests {
             tokenize(None, "42").unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 2 },
-                variant: Variant::IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+                variant: Variant::IntegerLiteral(ToBigInt::to_bigint(&42_i32).unwrap()),
             }],
         );
     }

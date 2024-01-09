@@ -4652,7 +4652,7 @@ mod tests {
             parse(None, source, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 2 }),
-                variant: IntegerLiteral(ToBigInt::to_bigint(&42).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&42_i32).unwrap()),
             },
         );
     }
@@ -4669,7 +4669,7 @@ mod tests {
                 source_range: Some(SourceRange { start: 0, end: 2 }),
                 variant: Negation(Rc::new(Term {
                     source_range: Some(SourceRange { start: 1, end: 2 }),
-                    variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                    variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                 })),
             },
         );
@@ -4688,11 +4688,11 @@ mod tests {
                 variant: Sum(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 4, end: 5 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                     }),
                 ),
             },
@@ -4712,11 +4712,11 @@ mod tests {
                 variant: Difference(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 4, end: 5 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                     }),
                 ),
             },
@@ -4736,11 +4736,11 @@ mod tests {
                 variant: Product(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 4, end: 5 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&3_i32).unwrap()),
                     }),
                 ),
             },
@@ -4760,11 +4760,11 @@ mod tests {
                 variant: Quotient(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&7).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&7_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 4, end: 5 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                     }),
                 ),
             },
@@ -4784,21 +4784,23 @@ mod tests {
                 variant: Sum(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 4, end: 19 }),
                         variant: Product(
                             Rc::new(Term {
                                 source_range: Some(SourceRange { start: 4, end: 5 }),
-                                variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                                variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                             }),
                             Rc::new(Term {
                                 source_range: Some(SourceRange { start: 8, end: 19 }),
                                 variant: Difference(
                                     Rc::new(Term {
                                         source_range: Some(SourceRange { start: 9, end: 10 }),
-                                        variant: IntegerLiteral(ToBigInt::to_bigint(&3).unwrap()),
+                                        variant: IntegerLiteral(
+                                            ToBigInt::to_bigint(&3_i32).unwrap(),
+                                        ),
                                     }),
                                     Rc::new(Term {
                                         source_range: Some(SourceRange { start: 13, end: 18 }),
@@ -4809,7 +4811,7 @@ mod tests {
                                                     end: 14,
                                                 }),
                                                 variant: IntegerLiteral(
-                                                    ToBigInt::to_bigint(&4).unwrap(),
+                                                    ToBigInt::to_bigint(&4_i32).unwrap(),
                                                 ),
                                             }),
                                             Rc::new(Term {
@@ -4818,7 +4820,7 @@ mod tests {
                                                     end: 18,
                                                 }),
                                                 variant: IntegerLiteral(
-                                                    ToBigInt::to_bigint(&5).unwrap(),
+                                                    ToBigInt::to_bigint(&5_i32).unwrap(),
                                                 ),
                                             }),
                                         ),
@@ -4845,11 +4847,11 @@ mod tests {
                 variant: LessThan(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 4, end: 5 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                     }),
                 ),
             },
@@ -4869,11 +4871,11 @@ mod tests {
                 variant: LessThanOrEqualTo(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 5, end: 6 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                     }),
                 ),
             },
@@ -4893,11 +4895,11 @@ mod tests {
                 variant: EqualTo(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 5, end: 6 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                     }),
                 ),
             },
@@ -4917,11 +4919,11 @@ mod tests {
                 variant: GreaterThan(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 4, end: 5 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                     }),
                 ),
             },
@@ -4941,11 +4943,11 @@ mod tests {
                 variant: GreaterThanOrEqualTo(
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 0, end: 1 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 5, end: 6 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&2).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&2_i32).unwrap()),
                     }),
                 ),
             },
@@ -5014,11 +5016,11 @@ mod tests {
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 13, end: 14 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&0).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&0_i32).unwrap()),
                     }),
                     Rc::new(Term {
                         source_range: Some(SourceRange { start: 20, end: 21 }),
-                        variant: IntegerLiteral(ToBigInt::to_bigint(&1).unwrap()),
+                        variant: IntegerLiteral(ToBigInt::to_bigint(&1_i32).unwrap()),
                     }),
                 ),
             },

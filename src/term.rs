@@ -576,7 +576,7 @@ mod tests {
     #[test]
     fn variant_integer_literal_display() {
         assert_eq!(
-            format!("{}", IntegerLiteral(ToBigInt::to_bigint(&42).unwrap())),
+            format!("{}", IntegerLiteral(ToBigInt::to_bigint(&42_i32).unwrap())),
             "42",
         );
     }
@@ -1052,7 +1052,7 @@ mod tests {
         free_variables(
             &Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&84_i32).unwrap()),
             },
             10,
             &mut variables,
