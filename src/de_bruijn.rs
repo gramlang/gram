@@ -867,14 +867,14 @@ mod tests {
             unsigned_shift(
                 &Term {
                     source_range: None,
-                    variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+                    variant: IntegerLiteral(ToBigInt::to_bigint(&84_i32).unwrap()),
                 },
                 0,
                 42,
             ),
             Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&84_i32).unwrap()),
             },
         );
     }
@@ -1699,7 +1699,7 @@ mod tests {
             open(
                 &Term {
                     source_range: None,
-                    variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+                    variant: IntegerLiteral(ToBigInt::to_bigint(&84_i32).unwrap()),
                 },
                 0,
                 &Term {
@@ -1710,7 +1710,7 @@ mod tests {
             ),
             Term {
                 source_range: None,
-                variant: IntegerLiteral(ToBigInt::to_bigint(&84).unwrap()),
+                variant: IntegerLiteral(ToBigInt::to_bigint(&84_i32).unwrap()),
             },
         );
     }
