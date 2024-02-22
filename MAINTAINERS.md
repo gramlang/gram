@@ -30,5 +30,5 @@ The GitHub workflow will fail initially because the jobs which test the installe
 
 Releasing a new version is a two-step process:
 
-1. Bump the version in `Cargo.toml`, run `cargo build` to update `Cargo.lock`, and update `CHANGELOG.md` with information about the new version. Ship those changes as a single commit.
-2. Once the GitHub workflow has finished on the `main` branch, update the version in `install.sh` to point to the new release.
+1. Bump the version in `[file:Cargo.toml]`, run `cargo build` to update `[file:Cargo.lock]`, and update `[file:CHANGELOG.md]` with information about the new version. Ship those changes as a single commit.
+2. Once the GitHub workflow has finished on the `main` branch, update the version in `[file:install.sh]` to point to the new release.
