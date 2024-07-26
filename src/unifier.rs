@@ -75,6 +75,7 @@ pub fn unify<'a>(
         {
             // Occurs check
             let mut unifiers = vec![];
+            #[allow(clippy::mutable_key_type)]
             let mut visited = HashSet::new();
             collect_unifiers(&whnf2, &mut unifiers, &mut visited);
             if visited.contains(&HashableRc(subterm1.clone())) {
@@ -94,6 +95,7 @@ pub fn unify<'a>(
         {
             // Occurs check
             let mut unifiers = vec![];
+            #[allow(clippy::mutable_key_type)]
             let mut visited = HashSet::new();
             collect_unifiers(&whnf1, &mut unifiers, &mut visited);
             if visited.contains(&HashableRc(subterm2.clone())) {
@@ -223,6 +225,7 @@ pub fn unify<'a>(
 
 // This function collects all the unresolved unifiers in a term. The unifiers are deduplicated and
 // returned in the order they are first encountered in the term.
+#[allow(clippy::mutable_key_type)]
 #[allow(clippy::type_complexity)]
 pub fn collect_unifiers<'a>(
     term: &Term<'a>,
@@ -1025,6 +1028,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1050,6 +1054,7 @@ mod tests {
         };
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1065,6 +1070,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1085,6 +1091,7 @@ mod tests {
         };
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1100,6 +1107,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1115,6 +1123,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1130,6 +1139,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1145,6 +1155,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1160,6 +1171,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1175,6 +1187,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1190,6 +1203,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1205,6 +1219,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1220,6 +1235,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1235,6 +1251,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1250,6 +1267,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1265,6 +1283,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1280,6 +1299,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1295,6 +1315,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1310,6 +1331,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1325,6 +1347,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1340,6 +1363,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1355,6 +1379,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1370,6 +1395,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1385,6 +1411,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1400,6 +1427,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1415,6 +1443,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
@@ -1430,6 +1459,7 @@ mod tests {
         let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
+        #[allow(clippy::mutable_key_type)]
         let mut visited = HashSet::new();
         collect_unifiers(&term, &mut unifiers, &mut visited);
 
