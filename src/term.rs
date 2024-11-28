@@ -74,14 +74,14 @@ pub enum Variant<'a> {
     If(Rc<Term<'a>>, Rc<Term<'a>>, Rc<Term<'a>>),
 }
 
-impl<'a> Display for Term<'a> {
+impl Display for Term<'_> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         write!(f, "{}", self.variant)?;
         Ok(())
     }
 }
 
-impl<'a> Display for Variant<'a> {
+impl Display for Variant<'_> {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match self {
             Self::Unifier(subterm_rc, _) => {
