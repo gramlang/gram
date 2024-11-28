@@ -64,13 +64,13 @@ pub enum TerminatorType {
     Semicolon,
 }
 
-impl<'a> Display for Token<'a> {
+impl Display for Token<'_> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         write!(f, "{}", self.variant)
     }
 }
 
-impl<'a> Display for Variant<'a> {
+impl Display for Variant<'_> {
     fn fmt(&self, f: &mut Formatter) -> Result {
         match self {
             Self::Asterisk => write!(f, "*"),
