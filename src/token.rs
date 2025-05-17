@@ -112,8 +112,8 @@ mod tests {
         crate::{
             error::SourceRange,
             token::{
-                TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
-                IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+                BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD, INTEGER_KEYWORD,
+                THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD, TerminatorType, Token, Variant,
             },
         },
         num_bigint::ToBigInt,

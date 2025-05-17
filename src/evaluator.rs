@@ -62,7 +62,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Application(Rc::new(stepped_applicand), argument.clone()),
                 });
-            };
+            }
 
             // Ensure the applicand is a value.
             if !is_value(applicand) {
@@ -75,7 +75,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Application(applicand.clone(), Rc::new(stepped_argument)),
                 });
-            };
+            }
 
             // Ensure the argument is a value.
             if !is_value(argument) {
@@ -114,7 +114,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                             body.clone(),
                         ),
                     });
-                };
+                }
 
                 // Ensure the definition is a value.
                 if !is_value(definition) {
@@ -188,7 +188,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Negation(Rc::new(stepped_subterm)),
                 });
-            };
+            }
 
             // Ensure the subterm is a value.
             if !is_value(subterm) {
@@ -214,7 +214,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Sum(Rc::new(stepped_term1), term2.clone()),
                 });
-            };
+            }
 
             // Ensure the left subterm is a value.
             if !is_value(term1) {
@@ -227,7 +227,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Sum(term1.clone(), Rc::new(stepped_term2)),
                 });
-            };
+            }
 
             // Ensure the right subterm is a value.
             if !is_value(term2) {
@@ -255,7 +255,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Difference(Rc::new(stepped_term1), term2.clone()),
                 });
-            };
+            }
 
             // Ensure the left subterm is a value.
             if !is_value(term1) {
@@ -268,7 +268,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Difference(term1.clone(), Rc::new(stepped_term2)),
                 });
-            };
+            }
 
             // Ensure the right subterm is a value.
             if !is_value(term2) {
@@ -296,7 +296,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Product(Rc::new(stepped_term1), term2.clone()),
                 });
-            };
+            }
 
             // Ensure the left subterm is a value.
             if !is_value(term1) {
@@ -309,7 +309,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Product(term1.clone(), Rc::new(stepped_term2)),
                 });
-            };
+            }
 
             // Ensure the right subterm is a value.
             if !is_value(term2) {
@@ -337,7 +337,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Quotient(Rc::new(stepped_term1), term2.clone()),
                 });
-            };
+            }
 
             // Ensure the left subterm is a value.
             if !is_value(term1) {
@@ -350,7 +350,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: Quotient(term1.clone(), Rc::new(stepped_term2)),
                 });
-            };
+            }
 
             // Ensure the right subterm is a value.
             if !is_value(term2) {
@@ -378,7 +378,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: LessThan(Rc::new(stepped_term1), term2.clone()),
                 });
-            };
+            }
 
             // Ensure the left subterm is a value.
             if !is_value(term1) {
@@ -391,7 +391,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: LessThan(term1.clone(), Rc::new(stepped_term2)),
                 });
-            };
+            }
 
             // Ensure the right subterm is a value.
             if !is_value(term2) {
@@ -419,7 +419,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: LessThanOrEqualTo(Rc::new(stepped_term1), term2.clone()),
                 });
-            };
+            }
 
             // Ensure the left subterm is a value.
             if !is_value(term1) {
@@ -432,7 +432,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: LessThanOrEqualTo(term1.clone(), Rc::new(stepped_term2)),
                 });
-            };
+            }
 
             // Ensure the right subterm is a value.
             if !is_value(term2) {
@@ -460,7 +460,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: EqualTo(Rc::new(stepped_term1), term2.clone()),
                 });
-            };
+            }
 
             // Ensure the left subterm is a value.
             if !is_value(term1) {
@@ -473,7 +473,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: EqualTo(term1.clone(), Rc::new(stepped_term2)),
                 });
-            };
+            }
 
             // Ensure the right subterm is a value.
             if !is_value(term2) {
@@ -501,7 +501,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: GreaterThan(Rc::new(stepped_term1), term2.clone()),
                 });
-            };
+            }
 
             // Ensure the left subterm is a value.
             if !is_value(term1) {
@@ -514,7 +514,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: GreaterThan(term1.clone(), Rc::new(stepped_term2)),
                 });
-            };
+            }
 
             // Ensure the right subterm is a value.
             if !is_value(term2) {
@@ -542,7 +542,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: GreaterThanOrEqualTo(Rc::new(stepped_term1), term2.clone()),
                 });
-            };
+            }
 
             // Ensure the left subterm is a value.
             if !is_value(term1) {
@@ -555,7 +555,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                     source_range: None,
                     variant: GreaterThanOrEqualTo(term1.clone(), Rc::new(stepped_term2)),
                 });
-            };
+            }
 
             // Ensure the right subterm is a value.
             if !is_value(term2) {
@@ -587,7 +587,7 @@ pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
                         else_branch.clone(),
                     ),
                 });
-            };
+            }
 
             // Ensure the condition is a value.
             if !is_value(condition) {
