@@ -14,7 +14,7 @@ mod unifier;
 
 use {
     crate::{
-        error::{throw, Error},
+        error::{Error, throw},
         evaluator::evaluate,
         format::CodeStr,
         parser::parse,
@@ -119,7 +119,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
                     // [ref:overline_u203e].
                     if acc
                         .split('\n')
-                        .last()
+                        .next_back()
                         .unwrap()
                         .chars()
                         .all(|c| c == ' ' || c == '\u{203e}')

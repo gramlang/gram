@@ -1,10 +1,10 @@
 use {
     crate::{
-        error::{listing, throw, Error, SourceRange},
+        error::{Error, SourceRange, listing, throw},
         format::CodeStr,
         token::{
-            TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
-            IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+            BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD, INTEGER_KEYWORD,
+            THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD, TerminatorType, Token, Variant,
         },
     },
     num_bigint::BigInt,
@@ -333,13 +333,13 @@ pub fn tokenize<'a>(
                     source_range: SourceRange { start: i, end },
                     variant: Variant::IntegerLiteral(
                         // This `unwrap` is safe due to the specification of integer literals.
-                        BigInt::parse_bytes(source_contents[i..end].as_bytes(), 10).unwrap(),
+                        BigInt::parse_bytes(&source_contents.as_bytes()[i..end], 10).unwrap(),
                     ),
                 });
             }
 
             // Skip whitespace. Note that line breaks are handled above [ref:line_break].
-            _ if c.is_whitespace() => continue,
+            _ if c.is_whitespace() => {}
 
             // Skip comments. Don't skip the terminating line break, if it exists [ref:line_break].
             '#' => {
@@ -443,8 +443,8 @@ mod tests {
             assert_fails, assert_same,
             error::SourceRange,
             token::{
-                TerminatorType, Token, Variant, BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD,
-                IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD,
+                BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD, INTEGER_KEYWORD,
+                THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD, TerminatorType, Token, Variant,
             },
             tokenizer::tokenize,
         },

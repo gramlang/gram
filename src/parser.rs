@@ -1,6 +1,6 @@
 use {
     crate::{
-        error::{listing, throw, Error, SourceRange},
+        error::{Error, SourceRange, listing, throw},
         evaluator::is_value,
         format::CodeStr,
         term,
@@ -585,7 +585,7 @@ fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term
             collect_error_factories(error_factories, then_branch);
             collect_error_factories(error_factories, else_branch);
         }
-    };
+    }
 
     for error_factory in &term.errors {
         error_factories.push(error_factory.clone());

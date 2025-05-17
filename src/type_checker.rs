@@ -1,7 +1,7 @@
 use {
     crate::{
         de_bruijn::{open, unsigned_shift},
-        error::{listing, throw, Error},
+        error::{Error, listing, throw},
         format::CodeStr,
         parser::PLACEHOLDER_VARIABLE,
         term::{
@@ -256,7 +256,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the argument.
             let (argument, argument_type) = type_check_rec(
@@ -460,7 +460,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -497,7 +497,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the right subterm.
             let (term2, term2_type) = type_check_rec(
@@ -524,7 +524,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -561,7 +561,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the right subterm.
             let (term2, term2_type) = type_check_rec(
@@ -588,7 +588,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -625,7 +625,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the right subterm.
             let (term2, term2_type) = type_check_rec(
@@ -652,7 +652,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -689,7 +689,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the right subterm.
             let (term2, term2_type) = type_check_rec(
@@ -716,7 +716,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -753,7 +753,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the right subterm.
             let (term2, term2_type) = type_check_rec(
@@ -780,7 +780,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -817,7 +817,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the right subterm.
             let (term2, term2_type) = type_check_rec(
@@ -844,7 +844,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -881,7 +881,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the right subterm.
             let (term2, term2_type) = type_check_rec(
@@ -908,7 +908,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -945,7 +945,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the right subterm.
             let (term2, term2_type) = type_check_rec(
@@ -972,7 +972,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -1009,7 +1009,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the right subterm.
             let (term2, term2_type) = type_check_rec(
@@ -1036,7 +1036,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (
@@ -1073,7 +1073,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Infer the type of the then branch.
             let (then_branch, then_branch_type) = type_check_rec(
@@ -1110,7 +1110,7 @@ pub fn type_check_rec<'a>(
                         .as_deref(),
                     None,
                 ));
-            };
+            }
 
             // Return the new term and type.
             (

@@ -272,13 +272,14 @@ mod tests {
     use {
         crate::{
             term::{
-                free_variables, Term,
+                Term,
                 Variant::{
                     Application, Boolean, Difference, EqualTo, False, GreaterThan,
                     GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
                     LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type,
                     Unifier, Variable,
                 },
+                free_variables,
             },
             token::{BOOLEAN_KEYWORD, FALSE_KEYWORD, INTEGER_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD},
         },
