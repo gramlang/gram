@@ -389,8 +389,8 @@ pub fn tokenize<'a>(
     let mut tokens_iter = tokens.iter().peekable();
     while let Some(token) = tokens_iter.next() {
         if let Variant::Terminator(TerminatorType::LineBreak) = token.variant {
-            if let Some(next_token) = tokens_iter.peek() {
-                if match next_token.variant {
+            if let Some(next_token) = tokens_iter.peek()
+                && match next_token.variant {
                     Variant::Asterisk
                     | Variant::Colon
                     | Variant::DoubleEquals
@@ -423,9 +423,9 @@ pub fn tokenize<'a>(
                         // [ref:no_consecutive_line_break_terminators]
                         panic!("Two consecutive line break terminators were found.");
                     }
-                } {
-                    filtered_tokens.push(token.clone());
                 }
+            {
+                filtered_tokens.push(token.clone());
             }
         } else {
             filtered_tokens.push(token.clone());
