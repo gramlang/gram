@@ -2,7 +2,36 @@
 
 [![Build status](https://github.com/gramlang/gram/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/gramlang/gram/actions?query=branch%3Amain)
 
-[Gram](https://www.gram.org) is a programming language for distributed systems.
+*Gram* is a programming language for distributed systems.
+
+## Usage
+
+Once Gram is [installed](#installation-instructions), you can run it from the command line as
+follows:
+
+```sh
+gram program.g
+```
+
+Here are the supported command-line options:
+
+```
+Usage: gram [PATH] [COMMAND]
+
+Commands:
+  check             Check a program
+  run               Run a program
+  shell-completion  Print a shell completion script. Supports Bash, Fish, Zsh, PowerShell, and
+                    Elvish.
+  help              Print this message or the help of the given subcommand(s)
+
+Arguments:
+  [PATH]  Set the path to the program entrypoint
+
+Options:
+  -v, --version  Print version
+  -h, --help     Print help
+```
 
 ## Installation instructions
 
