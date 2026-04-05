@@ -208,19 +208,16 @@ fn entry() -> Result<(), Error> {
     } else {
         // Decide what to do based on the subcommand.
         match cli.command {
-            // [tag:check_subcommand]
             Some(GramCommand::Check(args)) => {
                 // Check the program.
                 run(Path::new(&args.path), true)?;
             }
 
-            // [tag:run_subcommand]
             Some(GramCommand::Run(args)) => {
                 // Run the program.
                 run(Path::new(&args.path), false)?;
             }
 
-            // [tag:shell_completion_subcommand]
             Some(GramCommand::ShellCompletion(args)) => {
                 shell_completion(&args.shell)?;
             }
