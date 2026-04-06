@@ -14,7 +14,7 @@
   DESTINATION="${PREFIX:-/usr/local/bin}/gram"
 
   # Which version to download
-  RELEASE="v${VERSION:-0.0.4}"
+  RELEASE="v${VERSION:-0.1.0}"
 
   # Determine which binary to download.
   FILENAME=''
