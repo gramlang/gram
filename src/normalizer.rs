@@ -1,18 +1,15 @@
-use {
-    crate::{
-        de_bruijn::{open, unsigned_shift},
-        term::{
-            Term,
-            Variant::{
-                Application, Boolean, Difference, EqualTo, False, GreaterThan,
-                GreaterThanOrEqualTo, If, Integer, IntegerLiteral, Lambda, LessThan,
-                LessThanOrEqualTo, Let, Negation, Pi, Product, Quotient, Sum, True, Type, Unifier,
-                Variable,
-            },
+use crate::{
+    de_bruijn::{open, unsigned_shift},
+    term::{
+        Term,
+        Variant::{
+            Application, Boolean, Difference, EqualTo, False, GreaterThan, GreaterThanOrEqualTo,
+            If, Integer, IntegerLiteral, Lambda, LessThan, LessThanOrEqualTo, Let, Negation, Pi,
+            Product, Quotient, Sum, True, Type, Unifier, Variable,
         },
     },
-    std::rc::Rc,
 };
+use std::rc::Rc;
 
 // This function reduces a term to weak head normal form using normal order reduction. Invariant:
 // when this function is finished, the context is left unmodified.
@@ -412,24 +409,22 @@ pub fn normalize_weak_head<'a>(
 
 #[cfg(test)]
 mod tests {
-    use {
-        crate::{
-            assert_same,
-            error::SourceRange,
-            normalizer::normalize_weak_head,
-            parser::parse,
-            term::{
-                Term,
-                Variant::{
-                    Application, Boolean, False, Integer, IntegerLiteral, Lambda, Pi, True, Type,
-                    Variable,
-                },
+    use crate::{
+        assert_same,
+        error::SourceRange,
+        normalizer::normalize_weak_head,
+        parser::parse,
+        term::{
+            Term,
+            Variant::{
+                Application, Boolean, False, Integer, IntegerLiteral, Lambda, Pi, True, Type,
+                Variable,
             },
-            tokenizer::tokenize,
         },
-        num_bigint::ToBigInt,
-        std::rc::Rc,
+        tokenizer::tokenize,
     };
+    use num_bigint::ToBigInt;
+    use std::rc::Rc;
 
     #[test]
     fn normalize_weak_head_type() {
