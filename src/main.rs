@@ -12,19 +12,17 @@ mod tokenizer;
 mod type_checker;
 mod unifier;
 
-use {
-    crate::{
-        error::{Error, throw},
-        evaluator::evaluate,
-        format::CodeStr,
-        parser::parse,
-        tokenizer::tokenize,
-        type_checker::type_check,
-    },
-    clap::{ArgAction, Args, CommandFactory, Parser, Subcommand as ClapSubcommand},
-    clap_complete::{Shell, generate},
-    std::{fs::read_to_string, io::stdout, path::Path, process::exit, thread},
+use crate::{
+    error::{Error, throw},
+    evaluator::evaluate,
+    format::CodeStr,
+    parser::parse,
+    tokenizer::tokenize,
+    type_checker::type_check,
 };
+use clap::{ArgAction, Args, CommandFactory, Parser, Subcommand as ClapSubcommand};
+use clap_complete::{Shell, generate};
+use std::{fs::read_to_string, io::stdout, path::Path, process::exit, thread};
 
 // The name of the program binary
 const BIN_NAME: &str = "gram";
