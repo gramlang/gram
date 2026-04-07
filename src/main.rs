@@ -22,7 +22,13 @@ use crate::{
 };
 use clap::{ArgAction, Args, CommandFactory, Parser, Subcommand as ClapSubcommand};
 use clap_complete::{Shell, generate};
-use std::{fs::read_to_string, io::stdout, path::Path, process::exit, thread};
+use std::{
+    fs::read_to_string,
+    io::stdout,
+    path::{Path, PathBuf},
+    process::exit,
+    thread,
+};
 
 // The name of the program binary
 const BIN_NAME: &str = "gram";
@@ -50,7 +56,7 @@ struct Cli {
     _version: Option<bool>,
 
     #[arg(help = "Set the path to the program entrypoint")]
-    path: Option<String>,
+    path: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Option<GramCommand>,
@@ -59,7 +65,7 @@ struct Cli {
 #[derive(Args)]
 struct ProgramPathArg {
     #[arg(help = "Set the path to the program entrypoint")]
-    path: String,
+    path: PathBuf,
 }
 
 #[derive(Args)]
@@ -202,18 +208,18 @@ fn entry() -> Result<(), Error> {
     // Check if the user provided a path as the first argument.
     if let Some(source_path) = cli.path.as_deref() {
         // We got a path. Run the program at that path.
-        run(Path::new(source_path), false)?;
+        run(source_path, false)?;
     } else {
         // Decide what to do based on the subcommand.
         match cli.command {
             Some(GramCommand::Check(args)) => {
                 // Check the program.
-                run(Path::new(&args.path), true)?;
+                run(&args.path, true)?;
             }
 
             Some(GramCommand::Run(args)) => {
                 // Run the program.
-                run(Path::new(&args.path), false)?;
+                run(&args.path, false)?;
             }
 
             Some(GramCommand::ShellCompletion(args)) => {
