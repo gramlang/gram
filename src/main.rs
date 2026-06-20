@@ -70,8 +70,8 @@ struct ProgramPathArg {
 
 #[derive(Args)]
 struct ShellCompletionArgs {
-    #[arg(help = "Bash, Fish, Zsh, PowerShell, or Elvish")]
-    shell: String,
+    #[arg(value_enum, ignore_case = true)]
+    shell: Shell,
 }
 
 #[derive(ClapSubcommand)]
@@ -173,31 +173,10 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
 }
 
 // Print a shell completion script to STDOUT.
-fn shell_completion(shell: &str) -> Result<(), Error> {
-    // Determine which shell the user wants the shell completion for.
-    let shell_variant = match shell.trim().to_lowercase().as_ref() {
-        "bash" => Shell::Bash,
-        "fish" => Shell::Fish,
-        "zsh" => Shell::Zsh,
-        "powershell" => Shell::PowerShell,
-        "elvish" => Shell::Elvish,
-        _ => {
-            return Err(Error {
-                message: format!(
-                    "Unknown shell {}. Must be one of Bash, Fish, Zsh, PowerShell, or Elvish.",
-                    shell.code_str(),
-                ),
-                reason: None,
-            });
-        }
-    };
-
+fn shell_completion(shell: Shell) {
     // Write the script to STDOUT.
     let mut command = Cli::command();
-    generate(shell_variant, &mut command, BIN_NAME, &mut stdout());
-
-    // If we made it this far, nothing went wrong.
-    Ok(())
+    generate(shell, &mut command, BIN_NAME, &mut stdout());
 }
 
 // Program entrypoint
@@ -223,7 +202,7 @@ fn entry() -> Result<(), Error> {
             }
 
             Some(GramCommand::ShellCompletion(args)) => {
-                shell_completion(&args.shell)?;
+                shell_completion(args.shell);
             }
 
             // If no path or subcommand was provided, the [ref:arg_required_else_help] setting
