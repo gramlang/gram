@@ -368,7 +368,7 @@ pub fn tokenize<'a>(
 
                 // Now that we've computed the grapheme cluster, construct and report the error.
                 errors.push(throw::<Error>(
-                    &format!("Unexpected symbol {}.", &source_contents[i..end].code_str()),
+                    &format!("Unexpected symbol {}.", source_contents[i..end].code_str()),
                     source_path,
                     Some(&listing(source_contents, SourceRange { start: i, end })),
                     None,
