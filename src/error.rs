@@ -162,8 +162,8 @@ pub fn listing(source_contents: &str, source_range: SourceRange) -> String {
             format!(
                 "{}{}{}{}{}",
                 format!("{line_number:>gutter_width$} \u{2502} ")
-                .blue()
-                .bold(),
+                    .blue()
+                    .bold(),
                 &line[..*section_start],
                 line[*section_start..*section_end].red(),
                 &line[*section_end..],
