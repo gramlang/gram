@@ -1,6 +1,5 @@
 use crate::format::CodeStr;
 use colored::{Colorize, control::SHOULD_COLORIZE};
-use pad::{Alignment, PadStr};
 use std::{
     cmp::{max, min},
     error, fmt,
@@ -162,10 +161,7 @@ pub fn listing(source_contents: &str, source_range: SourceRange) -> String {
         .map(|(i, (line_number, line, section_start, section_end))| {
             format!(
                 "{}{}{}{}{}",
-                format!(
-                    "{} \u{2502} ",
-                    line_number.pad(gutter_width, ' ', Alignment::Right, false),
-                )
+                format!("{line_number:>gutter_width$} \u{2502} ")
                 .blue()
                 .bold(),
                 &line[..*section_start],
