@@ -15,7 +15,7 @@ mod unifier;
 use crate::{
     error::{Error, throw},
     evaluator::evaluate,
-    format::CodeStr,
+    format::{CodePath, CodeStr},
     parser::parse,
     tokenizer::tokenize,
     type_checker::type_check,
@@ -124,10 +124,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
     // Read the file.
     let source_contents = read_to_string(source_path).map_err(|error| {
         throw(
-            &format!(
-                "Error when reading file {}.",
-                source_path.to_string_lossy().code_str(),
-            ),
+            &format!("Error when reading file {}.", source_path.code_path()),
             None,
             None,
             Some(error),
