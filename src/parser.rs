@@ -1,7 +1,7 @@
 use crate::{
     error::{Error, SourceRange, listing, throw},
     evaluator::is_value,
-    format::CodeStr,
+    format::{CodePath, CodeStr},
     term,
     term::free_variables,
     token::{self, TerminatorType, Token},
@@ -3748,7 +3748,7 @@ fn parse_group<'a>(
                                 "{} {} This parenthesis was never closed:\n\n{}\n\nIt was \
                                     expected to be closed at the end of this line:\n\n{}",
                                 "[Error]".red().bold(),
-                                format!("[{}]", path.to_string_lossy().code_str()).magenta(),
+                                format!("[{}]", path.code_path()).magenta(),
                                 left_parenthesis_listing,
                                 unexpected_token_listing,
                             )
@@ -3766,7 +3766,7 @@ fn parse_group<'a>(
                             "{} {} This parenthesis was never closed:\n\n{}\n\nIt was \
                                 expected to be closed before {}:\n\n{}",
                             "[Error]".red().bold(),
-                            format!("[{}]", path.to_string_lossy().code_str()).magenta(),
+                            format!("[{}]", path.code_path()).magenta(),
                             left_parenthesis_listing,
                             tokens[next].to_string().code_str(),
                             unexpected_token_listing,
