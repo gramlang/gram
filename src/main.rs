@@ -13,7 +13,7 @@ mod type_checker;
 mod unifier;
 
 use crate::{
-    error::{Error, throw},
+    error::{Error, merge_errors, throw},
     evaluator::evaluate,
     format::{CodePath, CodeStr},
     parser::parse,
@@ -91,36 +91,6 @@ enum GramCommand {
 
 // Run a program.
 fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
-    // Here is a helper function for mapping a `Vec<Error>` to a single `Error`.
-    let collect_errors = |errors: Vec<Error>| Error {
-        message: errors
-            .iter()
-            .fold(String::new(), |acc, error| {
-                format!(
-                    "{}\n{}{}",
-                    acc,
-                    // Only render an empty line between errors here if the previous line
-                    // doesn't already visually look like an empty line. See
-                    // [ref:overline_u203e].
-                    if acc
-                        .split('\n')
-                        .next_back()
-                        .unwrap()
-                        .chars()
-                        .all(|c| c == ' ' || c == '\u{203e}')
-                    {
-                        ""
-                    } else {
-                        "\n"
-                    },
-                    error,
-                )
-            })
-            .trim()
-            .to_owned(),
-        reason: None,
-    };
-
     // Read the file.
     let source_contents = read_to_string(source_path).map_err(|error| {
         throw(
@@ -132,11 +102,12 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
     })?;
 
     // Tokenize the source.
-    let tokens = tokenize(Some(source_path), &source_contents).map_err(collect_errors)?;
+    let tokens =
+        tokenize(Some(source_path), &source_contents).map_err(|errors| merge_errors(&errors))?;
 
     // Parse the tokens.
-    let term =
-        parse(Some(source_path), &source_contents, &tokens[..], &[]).map_err(collect_errors)?;
+    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])
+        .map_err(|errors| merge_errors(&errors))?;
 
     // Type check the term.
     let mut typing_context = vec![];
@@ -148,7 +119,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
         &mut typing_context,
         &mut definitions_context,
     )
-    .map_err(collect_errors)?;
+    .map_err(|errors| merge_errors(&errors))?;
 
     // Evaluate the term if applicable.
     if check_only {
