@@ -1,6 +1,9 @@
 mod assertions;
 mod de_bruijn;
 mod equality;
+
+// Retain the complete shared error API even though Gram does not consume editor source ranges.
+#[allow(dead_code)]
 mod error;
 mod evaluator;
 mod format;
@@ -13,7 +16,7 @@ mod type_checker;
 mod unifier;
 
 use crate::{
-    error::{Error, merge_errors, throw},
+    error::{Error, format_errors},
     evaluator::evaluate,
     format::{CodePath, CodeStr},
     parser::parse,
@@ -27,6 +30,7 @@ use std::{
     io::stdout,
     path::{Path, PathBuf},
     process::exit,
+    rc::Rc,
     thread,
 };
 
@@ -90,24 +94,22 @@ enum GramCommand {
 }
 
 // Run a program.
-fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
+fn run(source_path: &Path, check_only: bool) -> Result<(), Vec<Error>> {
     // Read the file.
     let source_contents = read_to_string(source_path).map_err(|error| {
-        throw(
+        vec![Error::new(
             &format!("Error when reading file {}.", source_path.code_path()),
             None,
             None,
-            Some(error),
-        )
+            Some(Rc::new(error)),
+        )]
     })?;
 
     // Tokenize the source.
-    let tokens =
-        tokenize(Some(source_path), &source_contents).map_err(|errors| merge_errors(&errors))?;
+    let tokens = tokenize(Some(source_path), &source_contents)?;
 
     // Parse the tokens.
-    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])
-        .map_err(|errors| merge_errors(&errors))?;
+    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
 
     // Type check the term.
     let mut typing_context = vec![];
@@ -118,8 +120,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
         &term,
         &mut typing_context,
         &mut definitions_context,
-    )
-    .map_err(|errors| merge_errors(&errors))?;
+    )?;
 
     // Evaluate the term if applicable.
     if check_only {
@@ -132,7 +133,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Error> {
             elaborated_type.to_string().code_str(),
         );
     } else {
-        let value = evaluate(&elaborated_term)?;
+        let value = evaluate(&elaborated_term).map_err(|error| vec![error])?;
         println!("{}", value.to_string().code_str());
     }
 
@@ -148,7 +149,7 @@ fn shell_completion(shell: Shell) {
 }
 
 // Program entrypoint
-fn entry() -> Result<(), Error> {
+fn entry() -> Result<(), Vec<Error>> {
     // Parse command-line arguments.
     let cli = Cli::parse();
 
@@ -190,8 +191,8 @@ fn main() {
         .stack_size(STACK_SIZE)
         .spawn(|| {
             // Jump to the entrypoint and report any resulting errors.
-            if let Err(e) = entry() {
-                eprintln!("{e}");
+            if let Err(errors) = entry() {
+                eprintln!("{}", format_errors(&errors));
                 exit(1);
             }
         })
