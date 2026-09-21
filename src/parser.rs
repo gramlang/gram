@@ -1,12 +1,11 @@
 use crate::{
-    error::{Error, SourceRange, listing, throw},
+    error::{Error, SourceRange},
     evaluator::is_value,
-    format::{CodePath, CodeStr},
+    format::CodeStr,
     term,
     term::free_variables,
     token::{self, TerminatorType, Token},
 };
-use colored::Colorize;
 use num_bigint::BigInt;
 use scopeguard::defer;
 use std::{
@@ -66,21 +65,21 @@ fn error_factory<'a>(
 
     Rc::new(move |source_path, source_contents| {
         if tokens.is_empty() {
-            throw::<Error>(
+            Error::new(
                 &format!("Expected {expectation}, but the file is empty."),
                 source_path,
-                Some(&listing(source_contents, source_range)),
+                Some((source_contents, source_range)),
                 None,
             )
         } else if position == tokens.len() {
-            throw::<Error>(
+            Error::new(
                 &format!("Expected {expectation} at the end of the file."),
                 source_path,
-                Some(&listing(source_contents, source_range)),
+                Some((source_contents, source_range)),
                 None,
             )
         } else {
-            throw::<Error>(
+            Error::new(
                 &if let token::Variant::Terminator(TerminatorType::LineBreak) =
                     tokens[position].variant
                 {
@@ -93,7 +92,7 @@ fn error_factory<'a>(
                     )
                 },
                 source_path,
-                Some(&listing(source_contents, source_range)),
+                Some((source_contents, source_range)),
                 None,
             )
         }
@@ -1402,10 +1401,10 @@ fn resolve_variables<'a>(
                 // The variable isn't in scope. If it's the placeholder variable, don't worry about
                 // it; we'll construct a unifier below. Otherwise report an error.
                 if *variable != PLACEHOLDER_VARIABLE {
-                    errors.push(throw::<Error>(
+                    errors.push(Error::new(
                         &format!("Variable {} not in scope.", variable.code_str()),
                         source_path,
-                        Some(&listing(source_contents, term.source_range)),
+                        Some((source_contents, term.source_range)),
                         None,
                     ));
                 }
@@ -1428,10 +1427,10 @@ fn resolve_variables<'a>(
             if variable.name != PLACEHOLDER_VARIABLE {
                 // Report an error if the variable is already in the context.
                 if context.contains_key(variable.name) {
-                    errors.push(throw::<Error>(
+                    errors.push(Error::new(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some(&listing(source_contents, variable.source_range)),
+                        Some((source_contents, variable.source_range)),
                         None,
                     ));
                 }
@@ -1482,10 +1481,10 @@ fn resolve_variables<'a>(
             if variable.name != PLACEHOLDER_VARIABLE {
                 // Report an error if the variable is already in the context.
                 if context.contains_key(variable.name) {
-                    errors.push(throw::<Error>(
+                    errors.push(Error::new(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some(&listing(source_contents, variable.source_range)),
+                        Some((source_contents, variable.source_range)),
                         None,
                     ));
                 }
@@ -1570,13 +1569,13 @@ fn resolve_variables<'a>(
 
                     // Report an error if the variable is already in the context.
                     if borrowed_context.contains_key(inner_variable.name) {
-                        errors.push(throw::<Error>(
+                        errors.push(Error::new(
                             &format!(
                                 "Variable {} already exists.",
                                 inner_variable.name.code_str(),
                             ),
                             source_path,
-                            Some(&listing(source_contents, inner_variable.source_range)),
+                            Some((source_contents, inner_variable.source_range)),
                             None,
                         ));
                     }
@@ -2090,7 +2089,7 @@ fn check_definition<'a>(
                         errors,
                     );
                 } else if definition_index >= start_index {
-                    errors.push(throw::<Error>(
+                    errors.push(Error::new(
                         &format!(
                             "The definition of {} references {} (directly or indirectly), \
                                     which will not be available in time during evaluation.",
@@ -2101,8 +2100,7 @@ fn check_definition<'a>(
                         definitions[start_index]
                             .2
                             .source_range
-                            .map(|source_range| listing(source_contents, source_range))
-                            .as_deref(),
+                            .map(|source_range| (source_contents, source_range)),
                         None,
                     ));
                 }
@@ -3724,65 +3722,39 @@ fn parse_group<'a>(
 
             // Check if we're at the end of the file.
             if next == tokens.len() {
-                throw::<Error>(
+                Error::new(
                     "This parenthesis was never closed:",
                     source_path,
-                    Some(&listing(source_contents, left_parenthesis_source_range)),
+                    Some((source_contents, left_parenthesis_source_range)),
                     None,
                 )
             } else {
-                let left_parenthesis_listing =
-                    listing(source_contents, left_parenthesis_source_range);
-
+                // Describe and locate the point where the closing parenthesis was expected.
                 let unexpected_token_source_range = token_source_range(tokens, next);
+                let reason_message = if let token::Variant::Terminator(TerminatorType::LineBreak) =
+                    tokens[next].variant
+                {
+                    "It was expected to be closed at the end of this line:".to_owned()
+                } else {
+                    format!(
+                        "It was expected to be closed before {}:",
+                        tokens[next].to_string().code_str(),
+                    )
+                };
+                let reason = Error::new(
+                    &reason_message,
+                    source_path,
+                    Some((source_contents, unexpected_token_source_range)),
+                    None,
+                );
 
-                let unexpected_token_listing =
-                    listing(source_contents, unexpected_token_source_range);
-
-                Error {
-                    message: if let token::Variant::Terminator(TerminatorType::LineBreak) =
-                        tokens[next].variant
-                    {
-                        if let Some(path) = source_path {
-                            format!(
-                                "{} {} This parenthesis was never closed:\n\n{}\n\nIt was \
-                                    expected to be closed at the end of this line:\n\n{}",
-                                "[Error]".red().bold(),
-                                format!("[{}]", path.code_path()).magenta(),
-                                left_parenthesis_listing,
-                                unexpected_token_listing,
-                            )
-                        } else {
-                            format!(
-                                "{} This parenthesis was never closed:\n\n{}\n\nIt was \
-                                    expected to be closed at the end of this line:\n\n{}",
-                                "[Error]".red().bold(),
-                                left_parenthesis_listing,
-                                unexpected_token_listing,
-                            )
-                        }
-                    } else if let Some(path) = source_path {
-                        format!(
-                            "{} {} This parenthesis was never closed:\n\n{}\n\nIt was \
-                                expected to be closed before {}:\n\n{}",
-                            "[Error]".red().bold(),
-                            format!("[{}]", path.code_path()).magenta(),
-                            left_parenthesis_listing,
-                            tokens[next].to_string().code_str(),
-                            unexpected_token_listing,
-                        )
-                    } else {
-                        format!(
-                            "{} This parenthesis was never closed:\n\n{}\n\nIt was \
-                                expected to be closed before {}:\n\n{}",
-                            "[Error]".red().bold(),
-                            left_parenthesis_listing,
-                            tokens[next].to_string().code_str(),
-                            unexpected_token_listing,
-                        )
-                    },
-                    reason: None,
-                }
+                // Report both relevant source locations as one causal error chain.
+                Error::new(
+                    "This parenthesis was never closed:",
+                    source_path,
+                    Some((source_contents, left_parenthesis_source_range)),
+                    Some(Rc::new(reason)),
+                )
             }
         }));
     }

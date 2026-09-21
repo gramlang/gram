@@ -25,10 +25,12 @@ pub fn evaluate<'a>(term: &Term<'a>) -> Result<Term<'a>, Error> {
     if is_value(&term) {
         Ok(term)
     } else {
-        Err(Error {
-            message: format!("Evaluation of {} is stuck!", term.to_string().code_str()),
-            reason: None,
-        })
+        Err(Error::new(
+            &format!("Evaluation of {} is stuck!", term.to_string().code_str()),
+            None,
+            None,
+            None,
+        ))
     }
 }
 
