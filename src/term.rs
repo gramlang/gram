@@ -11,7 +11,7 @@ use std::{
     rc::Rc,
 };
 
-// The token stream is parsed into an abstract syntax tree (AST) [tag:ast] [ref:bison_grammar]. This
+// The token stream is parsed into an abstract syntax tree (AST) [group:bison_grammar]. This
 // struct represents a node in an AST.
 #[derive(Clone, Debug)]
 pub struct Term<'a> {
