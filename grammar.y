@@ -18,7 +18,7 @@
 
 %define lr.type ielr
 
-/* [tag:bison_tokens] [ref:tokens] */
+/* [group:bison_tokens] */
 
 %token ASTERISK
 %token BOOLEAN
@@ -51,7 +51,7 @@
 
 %%
 
-/* [tag:bison_grammar] [ref:ast] */
+/* [group:bison_grammar] */
 
 term: let | jumbo_term;
 type: TYPE;
