@@ -30,7 +30,7 @@ use std::{
     io::stdout,
     path::{Path, PathBuf},
     process::exit,
-    rc::Rc,
+    sync::Arc,
     thread,
 };
 
@@ -101,7 +101,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Vec<Error>> {
             &format!("Error when reading file {}.", source_path.code_path()),
             None,
             None,
-            Some(Rc::new(error)),
+            Some(Arc::new(error)),
         )]
     })?;
 

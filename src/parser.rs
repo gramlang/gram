@@ -13,6 +13,7 @@ use std::{
     collections::{HashMap, HashSet},
     path::Path,
     rc::Rc,
+    sync::Arc,
 };
 
 // Gram uses a packrat parser, i.e., a recursive descent parser with memoization. This guarantees
@@ -3753,7 +3754,7 @@ fn parse_group<'a>(
                     "This parenthesis was never closed:",
                     source_path,
                     Some((source_contents, left_parenthesis_source_range)),
-                    Some(Rc::new(reason)),
+                    Some(Arc::new(reason)),
                 )
             }
         }));
