@@ -2264,6 +2264,7 @@ fn check_definition<'a>(
 pub fn parse<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
+    line_index: &LineIndex,
     tokens: &'a [Token<'a>],
     context: &[&'a str],
 ) -> Result<term::Term<'a>, Vec<Error>> {
@@ -2283,13 +2284,11 @@ pub fn parse<'a>(
         error_factories.push(error_factory(tokens, next, "the end of the file"));
     }
 
-    // Fail if there were any errors [tag:error_check]. Index the lines of the source so the errors
-    // can show them.
-    let line_index = LineIndex::new(source_contents);
+    // Fail if there were any errors [tag:error_check].
     if !error_factories.is_empty() {
         return Err(error_factories
             .into_iter()
-            .map(|error_factory| error_factory(source_path, source_contents, &line_index))
+            .map(|error_factory| error_factory(source_path, source_contents, line_index))
             .collect());
     }
 
@@ -2313,7 +2312,7 @@ pub fn parse<'a>(
     let resolved_term = resolve_variables(
         source_path,
         source_contents,
-        &line_index,
+        line_index,
         &reassociated_term,
         context.len(),
         &mut context,
@@ -2324,7 +2323,7 @@ pub fn parse<'a>(
     check_definitions(
         source_path,
         source_contents,
-        &line_index,
+        line_index,
         &resolved_term,
         context.len(),
         &mut errors,
@@ -4187,6 +4186,7 @@ mod tests {
     use crate::{
         assert_fails, assert_same,
         error::SourceRange,
+        line_index::LineIndex,
         parser::parse,
         term::{
             Term,
@@ -4205,11 +4205,12 @@ mod tests {
     #[test]
     fn parse_empty() {
         let source = "";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_fails!(
-            parse(None, source, &tokens[..], &context[..]),
+            parse(None, source, &line_index, &tokens[..], &context[..]),
             "file is empty",
         );
     }
@@ -4217,11 +4218,12 @@ mod tests {
     #[test]
     fn parse_type() {
         let source = "type";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: Type,
@@ -4232,11 +4234,12 @@ mod tests {
     #[test]
     fn parse_variable() {
         let source = "x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["x"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 1 }),
                 variant: Variable("x", 0),
@@ -4247,11 +4250,12 @@ mod tests {
     #[test]
     fn parse_variable_unifier() {
         let source = "_";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 1 }),
                 variant: Unifier(Rc::new(RefCell::new(None)), 0),
@@ -4262,11 +4266,12 @@ mod tests {
     #[test]
     fn parse_variable_missing() {
         let source = "x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_fails!(
-            parse(None, source, &tokens[..], &context[..]),
+            parse(None, source, &line_index, &tokens[..], &context[..]),
             "not in scope",
         );
     }
@@ -4274,11 +4279,12 @@ mod tests {
     #[test]
     fn parse_lambda() {
         let source = "x => x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: Lambda(
@@ -4300,11 +4306,12 @@ mod tests {
     #[test]
     fn parse_lambda_implicit() {
         let source = "{x} => x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 8 }),
                 variant: Lambda(
@@ -4326,11 +4333,12 @@ mod tests {
     #[test]
     fn parse_annotated_lambda() {
         let source = "(x : a) => x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 12 }),
                 variant: Lambda(
@@ -4352,11 +4360,12 @@ mod tests {
     #[test]
     fn parse_annotated_lambda_implicit() {
         let source = "{x : a} => x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 12 }),
                 variant: Lambda(
@@ -4378,11 +4387,12 @@ mod tests {
     #[test]
     fn parse_lambda_shadowing() {
         let source = "(x : a) => x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a", "x"];
 
         assert_fails!(
-            parse(None, source, &tokens[..], &context[..]),
+            parse(None, source, &line_index, &tokens[..], &context[..]),
             "already exists",
         );
     }
@@ -4390,11 +4400,12 @@ mod tests {
     #[test]
     fn parse_lambda_placeholder_variable() {
         let source = "(_ : a) => (_ : a) => a";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 23 }),
                 variant: Lambda(
@@ -4427,11 +4438,12 @@ mod tests {
     #[test]
     fn parse_pi() {
         let source = "(x : a) -> x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 12 }),
                 variant: Pi(
@@ -4453,11 +4465,12 @@ mod tests {
     #[test]
     fn parse_pi_implicit() {
         let source = "{x : a} -> x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 12 }),
                 variant: Pi(
@@ -4479,11 +4492,12 @@ mod tests {
     #[test]
     fn parse_pi_shadowing() {
         let source = "(x : a) -> x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a", "x"];
 
         assert_fails!(
-            parse(None, source, &tokens[..], &context[..]),
+            parse(None, source, &line_index, &tokens[..], &context[..]),
             "already exists",
         );
     }
@@ -4491,11 +4505,12 @@ mod tests {
     #[test]
     fn parse_pi_placeholder_variable() {
         let source = "(_ : a) -> (_ : a) -> a";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 23 }),
                 variant: Pi(
@@ -4528,11 +4543,12 @@ mod tests {
     #[test]
     fn parse_non_dependent_pi() {
         let source = "a -> b";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a", "b"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: Pi(
@@ -4554,11 +4570,12 @@ mod tests {
     #[test]
     fn parse_non_dependent_pi_associativity() {
         let source = "a -> b -> c";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["a", "b", "c"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 11 }),
                 variant: Pi(
@@ -4591,11 +4608,12 @@ mod tests {
     #[test]
     fn parse_application() {
         let source = "f x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["f", "x"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 3 }),
                 variant: Application(
@@ -4615,11 +4633,12 @@ mod tests {
     #[test]
     fn parse_application_associativity() {
         let source = "f x y";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["f", "x", "y"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Application(
@@ -4648,11 +4667,12 @@ mod tests {
     #[test]
     fn parse_application_grouped_argument() {
         let source = "f (x y)";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["f", "x", "y"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 7 }),
                 variant: Application(
@@ -4681,11 +4701,12 @@ mod tests {
     #[test]
     fn parse_let() {
         let source = "x = ((_ : type) => y) type; y : type = type; x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 46 }),
                 variant: Let(
@@ -4751,11 +4772,12 @@ mod tests {
     #[test]
     fn parse_integer() {
         let source = "int";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 3 }),
                 variant: Integer,
@@ -4766,11 +4788,12 @@ mod tests {
     #[test]
     fn parse_integer_literal() {
         let source = "42";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 2 }),
                 variant: IntegerLiteral(ToBigInt::to_bigint(&42_i32).unwrap()),
@@ -4781,11 +4804,12 @@ mod tests {
     #[test]
     fn parse_negation() {
         let source = "-2";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 2 }),
                 variant: Negation(Rc::new(Term {
@@ -4799,11 +4823,12 @@ mod tests {
     #[test]
     fn parse_sum() {
         let source = "1 + 2";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Sum(
@@ -4823,11 +4848,12 @@ mod tests {
     #[test]
     fn parse_difference() {
         let source = "1 - 2";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Difference(
@@ -4847,11 +4873,12 @@ mod tests {
     #[test]
     fn parse_product() {
         let source = "2 * 3";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Product(
@@ -4871,11 +4898,12 @@ mod tests {
     #[test]
     fn parse_quotient() {
         let source = "7 / 2";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: Quotient(
@@ -4895,11 +4923,12 @@ mod tests {
     #[test]
     fn parse_arithmetic() {
         let source = "1 + 2 * (3 - 4 / 5)";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 19 }),
                 variant: Sum(
@@ -4958,11 +4987,12 @@ mod tests {
     #[test]
     fn parse_less_than() {
         let source = "1 < 2";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: LessThan(
@@ -4982,11 +5012,12 @@ mod tests {
     #[test]
     fn parse_less_than_or_equal_to() {
         let source = "1 <= 2";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: LessThanOrEqualTo(
@@ -5006,11 +5037,12 @@ mod tests {
     #[test]
     fn parse_equal_to() {
         let source = "1 == 2";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: EqualTo(
@@ -5030,11 +5062,12 @@ mod tests {
     #[test]
     fn parse_greater_than() {
         let source = "1 > 2";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: GreaterThan(
@@ -5054,11 +5087,12 @@ mod tests {
     #[test]
     fn parse_greater_than_or_equal_to() {
         let source = "1 >= 2";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 6 }),
                 variant: GreaterThanOrEqualTo(
@@ -5078,11 +5112,12 @@ mod tests {
     #[test]
     fn parse_boolean() {
         let source = "bool";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: Boolean,
@@ -5093,11 +5128,12 @@ mod tests {
     #[test]
     fn parse_true() {
         let source = "true";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 4 }),
                 variant: True,
@@ -5108,11 +5144,12 @@ mod tests {
     #[test]
     fn parse_false() {
         let source = "false";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 5 }),
                 variant: False,
@@ -5123,11 +5160,12 @@ mod tests {
     #[test]
     fn parse_if() {
         let source = "if true then 0 else 1";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 21 }),
                 variant: If(
@@ -5151,11 +5189,12 @@ mod tests {
     #[test]
     fn parse_group() {
         let source = "(x)";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = ["x"];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 3 }),
                 variant: Variable("x", 0),
@@ -5166,11 +5205,12 @@ mod tests {
     #[test]
     fn parse_identity_function() {
         let source = "(a : type) => (b : type) => (f : a -> b) => (x : a) => f x";
-        let tokens = tokenize(None, source).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
         let context = [];
 
         assert_same!(
-            parse(None, source, &tokens[..], &context[..]).unwrap(),
+            parse(None, source, &line_index, &tokens[..], &context[..]).unwrap(),
             Term {
                 source_range: Some(SourceRange { start: 0, end: 58 }),
                 variant: Lambda(

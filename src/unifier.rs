@@ -284,6 +284,7 @@ pub fn collect_unifiers<'a>(
 #[cfg(test)]
 mod tests {
     use crate::{
+        line_index::LineIndex,
         parser::parse,
         term::{
             Term,
@@ -300,12 +301,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "_";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "type";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -316,12 +333,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "type";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "_";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -332,12 +365,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "type";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "type";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -348,12 +397,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -364,12 +429,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "y";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -380,12 +461,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "(x : type) => x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "(x : type) => x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -396,12 +493,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "(x : type) => x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "(x : (type type)) => x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -412,12 +525,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "(x : type) => x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "(x : type) => type";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -428,12 +557,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "(x : type) -> x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "(x : type) -> x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -444,12 +589,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "(x : type) -> x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "(x : (type type)) -> x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -460,12 +621,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "(x : type) -> x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "(x : type) -> type";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -476,12 +653,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "f x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "f x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -492,12 +685,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "f x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "x x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -508,12 +717,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "f x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "f f";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -524,12 +749,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "x = type; x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "x = type; x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -540,12 +781,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "x = type; x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "x = type type; x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -556,12 +813,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "x = type; x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "x = type; type type";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -572,12 +845,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "int";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "int";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -588,12 +877,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "42";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "42";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -604,12 +909,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "42";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "43";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -620,12 +941,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "-42";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "-42";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -636,12 +973,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "-42";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "-43";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -652,12 +1005,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 + 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -668,12 +1037,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 + 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "3 + 4";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -684,12 +1069,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "3 - 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "1";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -700,12 +1101,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 - 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "3 - 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -716,12 +1133,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "2 * 3";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "6";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -732,12 +1165,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 * 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "3 * 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -748,12 +1197,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "3 / 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "1";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -764,12 +1229,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 / 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "3 / 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -780,12 +1261,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "3 < 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "false";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -796,12 +1293,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 < 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "false";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -812,12 +1325,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "3 <= 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "false";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -828,12 +1357,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 <= 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "false";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -844,12 +1389,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "3 == 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "false";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -860,12 +1421,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 == 1";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "false";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -876,12 +1453,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "3 > 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "true";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -892,12 +1485,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 > 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "true";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -908,12 +1517,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "3 >= 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "true";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -924,12 +1549,28 @@ mod tests {
         let mut definitions_context = vec![None, None];
 
         let source1 = "1 >= 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "true";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(!unify(&term1, &term2, &mut definitions_context));
     }
@@ -940,12 +1581,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "bool";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "bool";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -956,12 +1613,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "true";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "true";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -972,12 +1645,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "false";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "false";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -988,12 +1677,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "if true then 1 + 2 else 3 + 4";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -1004,12 +1709,28 @@ mod tests {
         let mut definitions_context = vec![];
 
         let source1 = "if false then 1 + 2 else 3 + 4";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &parsing_context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(
+            None,
+            source1,
+            &line_index1,
+            &tokens1[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         let source2 = "7";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &parsing_context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(
+            None,
+            source2,
+            &line_index2,
+            &tokens2[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(unify(&term1, &term2, &mut definitions_context));
     }
@@ -1019,8 +1740,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "(x => x) _";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1061,8 +1783,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "(x => x) type";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1098,8 +1821,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "type";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1114,8 +1838,9 @@ mod tests {
         let parsing_context = ["x"];
 
         let source = "x";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1130,8 +1855,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "x => x";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1146,8 +1872,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "(x : type) => x";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1162,8 +1889,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "(x : type) -> x";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1178,8 +1906,9 @@ mod tests {
         let parsing_context = ["f", "x"];
 
         let source = "f x";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1194,8 +1923,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "x = type; x";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1210,8 +1940,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "int";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1226,8 +1957,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "42";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1242,8 +1974,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "-2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1258,8 +1991,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "1 + 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1274,8 +2008,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "1 - 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1290,8 +2025,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "1 * 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1306,8 +2042,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "1 / 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1322,8 +2059,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "1 < 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1338,8 +2076,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "1 <= 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1354,8 +2093,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "1 == 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1370,8 +2110,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "1 > 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1386,8 +2127,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "1 >= 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1402,8 +2144,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "bool";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1418,8 +2161,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "true";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1434,8 +2178,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "false";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]
@@ -1450,8 +2195,9 @@ mod tests {
         let parsing_context = [];
 
         let source = "if true then 0 else 1";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         let mut unifiers = vec![];
         #[allow(clippy::mutable_key_type)]

@@ -153,6 +153,7 @@ pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
 mod tests {
     use crate::{
         equality::syntactically_equal,
+        line_index::LineIndex,
         parser::parse,
         term::{
             Term,
@@ -258,12 +259,14 @@ mod tests {
         let context = [];
 
         let source1 = "_";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "_";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -273,12 +276,14 @@ mod tests {
         let context = [];
 
         let source1 = "type";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "type";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -288,12 +293,14 @@ mod tests {
         let context = ["x"];
 
         let source1 = "x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -303,12 +310,14 @@ mod tests {
         let context = ["x", "y"];
 
         let source1 = "x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "y";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -318,12 +327,14 @@ mod tests {
         let context = [];
 
         let source1 = "(x : type) => x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "(x : type) => x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -333,12 +344,14 @@ mod tests {
         let context = [];
 
         let source1 = "{x : type} => x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "{x : type} => x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -348,12 +361,14 @@ mod tests {
         let context = [];
 
         let source1 = "(x : type) => x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "(x : (type type)) => x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -363,12 +378,14 @@ mod tests {
         let context = [];
 
         let source1 = "{x : type} => x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "(x : type) => x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -378,12 +395,14 @@ mod tests {
         let context = [];
 
         let source1 = "(x : type) => x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "(x : type) => type";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -393,12 +412,14 @@ mod tests {
         let context = [];
 
         let source1 = "(x : type) -> x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "(x : type) -> x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -408,12 +429,14 @@ mod tests {
         let context = [];
 
         let source1 = "{x : type} -> x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "{x : type} -> x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -423,12 +446,14 @@ mod tests {
         let context = [];
 
         let source1 = "(x : type) -> x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "{x : type} -> x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -438,12 +463,14 @@ mod tests {
         let context = [];
 
         let source1 = "(x : type) -> x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "(x : (type type)) -> x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -453,12 +480,14 @@ mod tests {
         let context = [];
 
         let source1 = "(x : type) -> x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "(x : type) -> type";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -468,12 +497,14 @@ mod tests {
         let context = ["f", "x"];
 
         let source1 = "f x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "f x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -483,12 +514,14 @@ mod tests {
         let context = ["f", "x"];
 
         let source1 = "f x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "x x";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -498,12 +531,14 @@ mod tests {
         let context = ["f", "x"];
 
         let source1 = "f x";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "f f";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -513,12 +548,14 @@ mod tests {
         let context = ["f"];
 
         let source1 = "x = f; y = x; f y";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "x = f; y = x; f y";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -528,12 +565,14 @@ mod tests {
         let context = ["f"];
 
         let source1 = "x = f; y = x; f y";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "x = f; y = f; f y";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -543,12 +582,14 @@ mod tests {
         let context = ["f"];
 
         let source1 = "x = f; y = x; f y";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "x = f; y = x; f";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -558,12 +599,14 @@ mod tests {
         let context = [];
 
         let source1 = "int";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "int";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -573,12 +616,14 @@ mod tests {
         let context = [];
 
         let source1 = "42";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "42";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -588,12 +633,14 @@ mod tests {
         let context = [];
 
         let source1 = "42";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "43";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -603,12 +650,14 @@ mod tests {
         let context = [];
 
         let source1 = "-42";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "-42";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -618,12 +667,14 @@ mod tests {
         let context = [];
 
         let source1 = "-42";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "-43";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -633,12 +684,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 + 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 + 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -648,12 +701,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 + 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "3 + 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -663,12 +718,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 + 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 + 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -678,12 +735,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 - 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 - 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -693,12 +752,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 - 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "3 - 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -708,12 +769,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 - 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 - 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -723,12 +786,14 @@ mod tests {
         let context = [];
 
         let source1 = "2 * 3";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "2 * 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -738,12 +803,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 * 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "3 * 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -753,12 +820,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 * 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 * 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -768,12 +837,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 / 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 / 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -783,12 +854,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 / 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "3 / 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -798,12 +871,14 @@ mod tests {
         let context = [];
 
         let source1 = "4 / 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "4 / 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -813,12 +888,14 @@ mod tests {
         let context = [];
 
         let source1 = "2 < 3";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "2 < 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -828,12 +905,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 < 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "3 < 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -843,12 +922,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 < 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 < 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -858,12 +939,14 @@ mod tests {
         let context = [];
 
         let source1 = "2 <= 3";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "2 <= 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -873,12 +956,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 <= 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "3 <= 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -888,12 +973,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 <= 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 <= 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -903,12 +990,14 @@ mod tests {
         let context = [];
 
         let source1 = "2 == 3";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "2 == 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -918,12 +1007,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 == 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "3 == 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -933,12 +1024,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 == 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 == 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -948,12 +1041,14 @@ mod tests {
         let context = [];
 
         let source1 = "2 > 3";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "2 > 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -963,12 +1058,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 > 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "3 > 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -978,12 +1075,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 > 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 > 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -993,12 +1092,14 @@ mod tests {
         let context = [];
 
         let source1 = "2 >= 3";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "2 >= 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -1008,12 +1109,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 >= 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "3 >= 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -1023,12 +1126,14 @@ mod tests {
         let context = [];
 
         let source1 = "1 >= 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "1 >= 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -1038,12 +1143,14 @@ mod tests {
         let context = [];
 
         let source1 = "bool";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "bool";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -1053,12 +1160,14 @@ mod tests {
         let context = [];
 
         let source1 = "true";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "true";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -1068,12 +1177,14 @@ mod tests {
         let context = [];
 
         let source1 = "false";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "false";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -1083,12 +1194,14 @@ mod tests {
         let context = [];
 
         let source1 = "if true then 1 else 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "if true then 1 else 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(syntactically_equal(&term1, &term2));
     }
@@ -1098,12 +1211,14 @@ mod tests {
         let context = [];
 
         let source1 = "if true then 1 else 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "if false then 1 else 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -1113,12 +1228,14 @@ mod tests {
         let context = [];
 
         let source1 = "if true then 1 else 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "if true then 3 else 2";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }
@@ -1128,12 +1245,14 @@ mod tests {
         let context = [];
 
         let source1 = "if true then 1 else 2";
-        let tokens1 = tokenize(None, source1).unwrap();
-        let term1 = parse(None, source1, &tokens1[..], &context[..]).unwrap();
+        let line_index1 = LineIndex::new(source1);
+        let tokens1 = tokenize(None, source1, &line_index1).unwrap();
+        let term1 = parse(None, source1, &line_index1, &tokens1[..], &context[..]).unwrap();
 
         let source2 = "if true then 1 else 3";
-        let tokens2 = tokenize(None, source2).unwrap();
-        let term2 = parse(None, source2, &tokens2[..], &context[..]).unwrap();
+        let line_index2 = LineIndex::new(source2);
+        let tokens2 = tokenize(None, source2, &line_index2).unwrap();
+        let term2 = parse(None, source2, &line_index2, &tokens2[..], &context[..]).unwrap();
 
         assert!(!syntactically_equal(&term1, &term2));
     }

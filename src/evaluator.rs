@@ -639,6 +639,7 @@ mod tests {
         assert_same,
         error::SourceRange,
         evaluator::evaluate,
+        line_index::LineIndex,
         parser::parse,
         term::{
             Term,
@@ -655,8 +656,9 @@ mod tests {
     #[test]
     fn evaluate_type() {
         let source = "type";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -672,8 +674,9 @@ mod tests {
     fn evaluate_variable() {
         let context = ["x"];
         let source = "x";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &context[..]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &context[..]).unwrap();
 
         evaluate(&term).unwrap();
     }
@@ -681,8 +684,9 @@ mod tests {
     #[test]
     fn evaluate_lambda() {
         let source = "(f : type -> type) => (x : type) => f x";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -738,8 +742,9 @@ mod tests {
     #[test]
     fn evaluate_pi() {
         let source = "(f : type -> type) -> (x : type) -> f x";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -795,8 +800,9 @@ mod tests {
     #[test]
     fn evaluate_redex() {
         let source = "((x : type) => x) type";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -811,8 +817,9 @@ mod tests {
     #[should_panic = "Evaluation of `type type` is stuck!"]
     fn evaluate_non_redex() {
         let source = "type type";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         evaluate(&term).unwrap();
     }
@@ -820,8 +827,9 @@ mod tests {
     #[test]
     fn evaluate_let() {
         let source = "f = (x : type) => g x; g = (x : type) => x; f type";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -835,8 +843,9 @@ mod tests {
     #[test]
     fn evaluate_integer() {
         let source = "int";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -850,8 +859,9 @@ mod tests {
     #[test]
     fn evaluate_integer_literal() {
         let source = "42";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -865,8 +875,9 @@ mod tests {
     #[test]
     fn evaluate_negation() {
         let source = "-42";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -880,8 +891,9 @@ mod tests {
     #[test]
     fn evaluate_sum() {
         let source = "1 + 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -895,8 +907,9 @@ mod tests {
     #[test]
     fn evaluate_difference() {
         let source = "3 - 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -910,8 +923,9 @@ mod tests {
     #[test]
     fn evaluate_product() {
         let source = "2 * 3";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -925,8 +939,9 @@ mod tests {
     #[test]
     fn evaluate_quotient() {
         let source = "7 / 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -940,8 +955,9 @@ mod tests {
     #[test]
     fn evaluate_less_than() {
         let source = "1 < 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -955,8 +971,9 @@ mod tests {
     #[test]
     fn evaluate_less_than_or_equal_to() {
         let source = "1 <= 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -970,8 +987,9 @@ mod tests {
     #[test]
     fn evaluate_equal_to() {
         let source = "1 == 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -985,8 +1003,9 @@ mod tests {
     #[test]
     fn evaluate_greater_than() {
         let source = "1 > 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -1000,8 +1019,9 @@ mod tests {
     #[test]
     fn evaluate_greater_than_or_equal_to() {
         let source = "1 >= 2";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -1015,8 +1035,9 @@ mod tests {
     #[test]
     fn evaluate_boolean() {
         let source = "bool";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -1030,8 +1051,9 @@ mod tests {
     #[test]
     fn evaluate_true() {
         let source = "true";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -1045,8 +1067,9 @@ mod tests {
     #[test]
     fn evaluate_false() {
         let source = "false";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -1060,8 +1083,9 @@ mod tests {
     #[test]
     fn evaluate_if_true() {
         let source = "if true then 3 else 4";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -1075,8 +1099,9 @@ mod tests {
     #[test]
     fn evaluate_if_false() {
         let source = "if false then 3 else 4";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
@@ -1097,8 +1122,9 @@ mod tests {
 
             factorial 5
         ";
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &[]).unwrap();
+        let line_index = LineIndex::new(source);
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &[]).unwrap();
 
         assert_same!(
             evaluate(&term).unwrap(),
