@@ -1,6 +1,7 @@
 use crate::{
     error::{Error, SourceRange},
     format::CodeStr,
+    line_index::LineIndex,
     token::{
         BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD, INTEGER_KEYWORD, THEN_KEYWORD,
         TRUE_KEYWORD, TYPE_KEYWORD, TerminatorType, Token, Variant,
@@ -20,8 +21,10 @@ pub fn tokenize<'a>(
     // We'll be building up this vector of tokens.
     let mut tokens = vec![];
 
-    // Construct a vector to hold any errors that might be detected below.
+    // Construct a vector to hold any errors that might be detected below, and index the lines of
+    // the source so the errors can show them.
     let mut errors = vec![];
+    let line_index = LineIndex::new(source_contents);
 
     // We want to iterate one code point at a time, but we also want the byte indices so we can
     // capture slices.
@@ -370,7 +373,7 @@ pub fn tokenize<'a>(
                 errors.push(Error::new(
                     &format!("Unexpected symbol {}.", source_contents[i..end].code_str()),
                     source_path,
-                    Some((source_contents, SourceRange { start: i, end })),
+                    Some((source_contents, &line_index, SourceRange { start: i, end })),
                     None,
                 ));
             }

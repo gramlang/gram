@@ -2,6 +2,7 @@ use crate::{
     error::{Error, SourceRange},
     evaluator::is_value,
     format::CodeStr,
+    line_index::LineIndex,
     term,
     term::free_variables,
     token::{self, TerminatorType, Token},
@@ -49,10 +50,10 @@ use std::{
 // This represents a fresh variable name. It's never added to the context.
 pub const PLACEHOLDER_VARIABLE: &str = "_";
 
-// An `ErrorFactory` is a closure which takes a source path and contents and produces an `Error`.
-// It's cheaper to generate a closure that produces the `Error` than to generate the actual
-// `Error`, which may contain a long string message.
-type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str) -> Error + 'a>;
+// An `ErrorFactory` is a closure which takes a source path, its contents, and an index of their
+// lines, and produces an `Error`. It's cheaper to generate a closure that produces the `Error` than
+// to generate the actual `Error`, which may contain a long string message.
+type ErrorFactory<'a> = Rc<dyn Fn(Option<&'a Path>, &'a str, &LineIndex) -> Error + 'a>;
 
 // This function constructs a generic error factory that just complains about a particular token or
 // the end of the source file.
@@ -64,19 +65,19 @@ fn error_factory<'a>(
     let source_range = token_source_range(tokens, position);
     let expectation = expectation.to_owned();
 
-    Rc::new(move |source_path, source_contents| {
+    Rc::new(move |source_path, source_contents, line_index| {
         if tokens.is_empty() {
             Error::new(
                 &format!("Expected {expectation}, but the file is empty."),
                 source_path,
-                Some((source_contents, source_range)),
+                Some((source_contents, line_index, source_range)),
                 None,
             )
         } else if position == tokens.len() {
             Error::new(
                 &format!("Expected {expectation} at the end of the file."),
                 source_path,
-                Some((source_contents, source_range)),
+                Some((source_contents, line_index, source_range)),
                 None,
             )
         } else {
@@ -93,7 +94,7 @@ fn error_factory<'a>(
                     )
                 },
                 source_path,
-                Some((source_contents, source_range)),
+                Some((source_contents, line_index, source_range)),
                 None,
             )
         }
@@ -1369,6 +1370,7 @@ fn reassociate_sums_and_differences<'a>(
 fn resolve_variables<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
+    line_index: &LineIndex,
     term: &Term<'a>,
     depth: usize,
     context: &mut HashMap<&'a str, usize>,
@@ -1405,7 +1407,7 @@ fn resolve_variables<'a>(
                     errors.push(Error::new(
                         &format!("Variable {} not in scope.", variable.code_str()),
                         source_path,
-                        Some((source_contents, term.source_range)),
+                        Some((source_contents, line_index, term.source_range)),
                         None,
                     ));
                 }
@@ -1420,7 +1422,15 @@ fn resolve_variables<'a>(
         Variant::Lambda(variable, implicit, domain, body) => {
             // Resolve variables in the domain if it exists.
             let resolved_domain = domain.as_ref().map(|domain| {
-                resolve_variables(source_path, source_contents, domain, depth, context, errors)
+                resolve_variables(
+                    source_path,
+                    source_contents,
+                    line_index,
+                    domain,
+                    depth,
+                    context,
+                    errors,
+                )
             });
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
@@ -1431,7 +1441,7 @@ fn resolve_variables<'a>(
                     errors.push(Error::new(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some((source_contents, variable.source_range)),
+                        Some((source_contents, line_index, variable.source_range)),
                         None,
                     ));
                 }
@@ -1464,6 +1474,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         body,
                         depth + 1,
                         &mut guard,
@@ -1474,8 +1485,15 @@ fn resolve_variables<'a>(
         }
         Variant::Pi(variable, implicit, domain, codomain) => {
             // Resolve variables in the domain.
-            let resolved_domain =
-                resolve_variables(source_path, source_contents, domain, depth, context, errors);
+            let resolved_domain = resolve_variables(
+                source_path,
+                source_contents,
+                line_index,
+                domain,
+                depth,
+                context,
+                errors,
+            );
 
             // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts, and
             // don't add it to the context.
@@ -1485,7 +1503,7 @@ fn resolve_variables<'a>(
                     errors.push(Error::new(
                         &format!("Variable {} already exists.", variable.name.code_str()),
                         source_path,
-                        Some((source_contents, variable.source_range)),
+                        Some((source_contents, line_index, variable.source_range)),
                         None,
                     ));
                 }
@@ -1510,6 +1528,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         codomain,
                         depth + 1,
                         &mut guard,
@@ -1526,6 +1545,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         applicand,
                         depth,
                         context,
@@ -1534,6 +1554,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         argument,
                         depth,
                         context,
@@ -1576,7 +1597,7 @@ fn resolve_variables<'a>(
                                 inner_variable.name.code_str(),
                             ),
                             source_path,
-                            Some((source_contents, inner_variable.source_range)),
+                            Some((source_contents, line_index, inner_variable.source_range)),
                             None,
                         ));
                     }
@@ -1604,6 +1625,7 @@ fn resolve_variables<'a>(
                     Some(annotation) => Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         annotation,
                         new_depth,
                         borrowed_context,
@@ -1622,6 +1644,7 @@ fn resolve_variables<'a>(
                 let resolved_definition = resolve_variables(
                     source_path,
                     source_contents,
+                    line_index,
                     inner_definition,
                     new_depth,
                     borrowed_context,
@@ -1648,6 +1671,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         &innermost_body,
                         new_depth,
                         borrowed_context,
@@ -1677,6 +1701,7 @@ fn resolve_variables<'a>(
                 variant: term::Variant::Negation(Rc::new(resolve_variables(
                     source_path,
                     source_contents,
+                    line_index,
                     subterm,
                     depth,
                     context,
@@ -1692,6 +1717,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term1,
                         depth,
                         context,
@@ -1700,6 +1726,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term2,
                         depth,
                         context,
@@ -1716,6 +1743,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term1,
                         depth,
                         context,
@@ -1724,6 +1752,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term2,
                         depth,
                         context,
@@ -1740,6 +1769,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term1,
                         depth,
                         context,
@@ -1748,6 +1778,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term2,
                         depth,
                         context,
@@ -1764,6 +1795,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term1,
                         depth,
                         context,
@@ -1772,6 +1804,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term2,
                         depth,
                         context,
@@ -1788,6 +1821,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term1,
                         depth,
                         context,
@@ -1796,6 +1830,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term2,
                         depth,
                         context,
@@ -1812,6 +1847,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term1,
                         depth,
                         context,
@@ -1820,6 +1856,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term2,
                         depth,
                         context,
@@ -1836,6 +1873,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term1,
                         depth,
                         context,
@@ -1844,6 +1882,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term2,
                         depth,
                         context,
@@ -1860,6 +1899,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term1,
                         depth,
                         context,
@@ -1868,6 +1908,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term2,
                         depth,
                         context,
@@ -1884,6 +1925,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term1,
                         depth,
                         context,
@@ -1892,6 +1934,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         term2,
                         depth,
                         context,
@@ -1929,6 +1972,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         condition,
                         depth,
                         context,
@@ -1937,6 +1981,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         then_branch,
                         depth,
                         context,
@@ -1945,6 +1990,7 @@ fn resolve_variables<'a>(
                     Rc::new(resolve_variables(
                         source_path,
                         source_contents,
+                        line_index,
                         else_branch,
                         depth,
                         context,
@@ -1976,6 +2022,7 @@ fn collect_definitions<'a>(
 fn check_definitions<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
+    line_index: &LineIndex,
     term: &term::Term<'a>,
     depth: usize,
     errors: &mut Vec<Error>,
@@ -1993,20 +2040,69 @@ fn check_definitions<'a>(
 
             // We `clone` the borrowed `subterm` to avoid holding the dynamic borrow for too long.
             if let Some(subterm) = { subterm.borrow().clone() } {
-                check_definitions(source_path, source_contents, &subterm, depth, errors);
+                check_definitions(
+                    source_path,
+                    source_contents,
+                    line_index,
+                    &subterm,
+                    depth,
+                    errors,
+                );
             }
         }
         term::Variant::Lambda(_, _, domain, body) => {
-            check_definitions(source_path, source_contents, domain, depth, errors);
-            check_definitions(source_path, source_contents, body, depth + 1, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                domain,
+                depth,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                body,
+                depth + 1,
+                errors,
+            );
         }
         term::Variant::Pi(_, _, domain, codomain) => {
-            check_definitions(source_path, source_contents, domain, depth, errors);
-            check_definitions(source_path, source_contents, codomain, depth + 1, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                domain,
+                depth,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                codomain,
+                depth + 1,
+                errors,
+            );
         }
         term::Variant::Application(applicand, argument) => {
-            check_definitions(source_path, source_contents, applicand, depth, errors);
-            check_definitions(source_path, source_contents, argument, depth, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                applicand,
+                depth,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                argument,
+                depth,
+                errors,
+            );
         }
         term::Variant::Let(definitions, body) => {
             let new_depth = depth + definitions.len();
@@ -2018,6 +2114,7 @@ fn check_definitions<'a>(
                     check_definition(
                         source_path,
                         source_contents,
+                        line_index,
                         definitions,
                         i,
                         i,
@@ -2027,10 +2124,24 @@ fn check_definitions<'a>(
                 }
             }
 
-            check_definitions(source_path, source_contents, body, new_depth, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                body,
+                new_depth,
+                errors,
+            );
         }
         term::Variant::Negation(subterm) => {
-            check_definitions(source_path, source_contents, subterm, depth, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                subterm,
+                depth,
+                errors,
+            );
         }
         term::Variant::Sum(term1, term2)
         | term::Variant::Difference(term1, term2)
@@ -2041,13 +2152,48 @@ fn check_definitions<'a>(
         | term::Variant::EqualTo(term1, term2)
         | term::Variant::GreaterThan(term1, term2)
         | term::Variant::GreaterThanOrEqualTo(term1, term2) => {
-            check_definitions(source_path, source_contents, term1, depth, errors);
-            check_definitions(source_path, source_contents, term2, depth, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                term1,
+                depth,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                term2,
+                depth,
+                errors,
+            );
         }
         term::Variant::If(condition, then_branch, else_branch) => {
-            check_definitions(source_path, source_contents, condition, depth, errors);
-            check_definitions(source_path, source_contents, then_branch, depth, errors);
-            check_definitions(source_path, source_contents, else_branch, depth, errors);
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                condition,
+                depth,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                then_branch,
+                depth,
+                errors,
+            );
+            check_definitions(
+                source_path,
+                source_contents,
+                line_index,
+                else_branch,
+                depth,
+                errors,
+            );
         }
     }
 }
@@ -2059,6 +2205,7 @@ fn check_definitions<'a>(
 fn check_definition<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
+    line_index: &LineIndex,
     definitions: &[(&'a str, Rc<term::Term<'a>>, Rc<term::Term<'a>>)],
     start_index: usize,   // [0, definitions.len())
     current_index: usize, // [0, definitions.len())
@@ -2083,6 +2230,7 @@ fn check_definition<'a>(
                     check_definition(
                         source_path,
                         source_contents,
+                        line_index,
                         definitions,
                         start_index,
                         definition_index,
@@ -2101,7 +2249,7 @@ fn check_definition<'a>(
                         definitions[start_index]
                             .2
                             .source_range
-                            .map(|source_range| (source_contents, source_range)),
+                            .map(|source_range| (source_contents, line_index, source_range)),
                         None,
                     ));
                 }
@@ -2135,11 +2283,13 @@ pub fn parse<'a>(
         error_factories.push(error_factory(tokens, next, "the end of the file"));
     }
 
-    // Fail if there were any errors [tag:error_check].
+    // Fail if there were any errors [tag:error_check]. Index the lines of the source so the errors
+    // can show them.
+    let line_index = LineIndex::new(source_contents);
     if !error_factories.is_empty() {
         return Err(error_factories
             .into_iter()
-            .map(|error_factory| error_factory(source_path, source_contents))
+            .map(|error_factory| error_factory(source_path, source_contents, &line_index))
             .collect());
     }
 
@@ -2163,6 +2313,7 @@ pub fn parse<'a>(
     let resolved_term = resolve_variables(
         source_path,
         source_contents,
+        &line_index,
         &reassociated_term,
         context.len(),
         &mut context,
@@ -2173,6 +2324,7 @@ pub fn parse<'a>(
     check_definitions(
         source_path,
         source_contents,
+        &line_index,
         &resolved_term,
         context.len(),
         &mut errors,
@@ -3717,7 +3869,7 @@ fn parse_group<'a>(
     // Check if we found the right parenthesis.
     if !found {
         // We didn't find it. Report an error.
-        errors.push(Rc::new(move |source_path, source_contents| {
+        errors.push(Rc::new(move |source_path, source_contents, line_index| {
             // Compute the source range for the left parenthesis.
             let left_parenthesis_source_range = token_source_range(tokens, start);
 
@@ -3726,7 +3878,7 @@ fn parse_group<'a>(
                 Error::new(
                     "This parenthesis was never closed:",
                     source_path,
-                    Some((source_contents, left_parenthesis_source_range)),
+                    Some((source_contents, line_index, left_parenthesis_source_range)),
                     None,
                 )
             } else {
@@ -3745,7 +3897,7 @@ fn parse_group<'a>(
                 let reason = Error::new(
                     &reason_message,
                     source_path,
-                    Some((source_contents, unexpected_token_source_range)),
+                    Some((source_contents, line_index, unexpected_token_source_range)),
                     None,
                 );
 
@@ -3753,7 +3905,7 @@ fn parse_group<'a>(
                 Error::new(
                     "This parenthesis was never closed:",
                     source_path,
-                    Some((source_contents, left_parenthesis_source_range)),
+                    Some((source_contents, line_index, left_parenthesis_source_range)),
                     Some(Arc::new(reason)),
                 )
             }

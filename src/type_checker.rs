@@ -2,6 +2,7 @@ use crate::{
     de_bruijn::{open, unsigned_shift},
     error::Error,
     format::CodeStr,
+    line_index::LineIndex,
     parser::PLACEHOLDER_VARIABLE,
     term::{
         Term,
@@ -27,11 +28,14 @@ pub fn type_check<'a>(
     typing_context: &mut Vec<(Rc<Term<'a>>, usize)>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
 ) -> Result<(Term<'a>, Term<'a>), Vec<Error>> {
+    // Index the lines of the source so any errors can show them.
     let mut errors = vec![];
+    let line_index = LineIndex::new(source_contents);
 
     let (elaborated_term, term_type) = type_check_rec(
         source_path,
         source_contents,
+        &line_index,
         term,
         typing_context,
         definitions_context,
@@ -51,6 +55,7 @@ pub fn type_check<'a>(
 pub fn type_check_rec<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
+    line_index: &LineIndex,
     term: &Term<'a>,
     typing_context: &mut Vec<(Rc<Term<'a>>, usize)>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
@@ -90,6 +95,7 @@ pub fn type_check_rec<'a>(
             let (domain, domain_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 domain,
                 typing_context,
                 definitions_context,
@@ -103,7 +109,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     domain
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -117,6 +123,7 @@ pub fn type_check_rec<'a>(
             let (body, codomain) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 body,
                 typing_context,
                 definitions_context,
@@ -144,6 +151,7 @@ pub fn type_check_rec<'a>(
             let (domain, domain_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 domain,
                 typing_context,
                 definitions_context,
@@ -157,7 +165,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     domain
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -171,6 +179,7 @@ pub fn type_check_rec<'a>(
             let (codomain, codomain_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 codomain,
                 typing_context,
                 definitions_context,
@@ -184,7 +193,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     codomain
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -207,6 +216,7 @@ pub fn type_check_rec<'a>(
             let (applicand, applicand_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 applicand,
                 typing_context,
                 definitions_context,
@@ -246,7 +256,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     applicand
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -255,6 +265,7 @@ pub fn type_check_rec<'a>(
             let (argument, argument_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 argument,
                 typing_context,
                 definitions_context,
@@ -272,7 +283,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     argument
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -335,6 +346,7 @@ pub fn type_check_rec<'a>(
                     let (definition, definition_type) = type_check_rec(
                         source_path,
                         source_contents,
+                        line_index,
                         definition,
                         borrowed_typing_context,
                         borrowed_definitions_context,
@@ -352,7 +364,7 @@ pub fn type_check_rec<'a>(
                             source_path,
                             definition
                                 .source_range
-                                .map(|source_range| (source_contents, source_range)),
+                                .map(|source_range| (source_contents, line_index, source_range)),
                             None,
                         ));
                     }
@@ -369,6 +381,7 @@ pub fn type_check_rec<'a>(
             let (body, body_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 body,
                 borrowed_typing_context,
                 borrowed_definitions_context,
@@ -430,6 +443,7 @@ pub fn type_check_rec<'a>(
             let (subterm, subterm_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 subterm,
                 typing_context,
                 definitions_context,
@@ -447,7 +461,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     subterm
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -466,6 +480,7 @@ pub fn type_check_rec<'a>(
             let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term1,
                 typing_context,
                 definitions_context,
@@ -483,7 +498,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -492,6 +507,7 @@ pub fn type_check_rec<'a>(
             let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term2,
                 typing_context,
                 definitions_context,
@@ -509,7 +525,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -528,6 +544,7 @@ pub fn type_check_rec<'a>(
             let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term1,
                 typing_context,
                 definitions_context,
@@ -545,7 +562,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -554,6 +571,7 @@ pub fn type_check_rec<'a>(
             let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term2,
                 typing_context,
                 definitions_context,
@@ -571,7 +589,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -590,6 +608,7 @@ pub fn type_check_rec<'a>(
             let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term1,
                 typing_context,
                 definitions_context,
@@ -607,7 +626,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -616,6 +635,7 @@ pub fn type_check_rec<'a>(
             let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term2,
                 typing_context,
                 definitions_context,
@@ -633,7 +653,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -652,6 +672,7 @@ pub fn type_check_rec<'a>(
             let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term1,
                 typing_context,
                 definitions_context,
@@ -669,7 +690,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -678,6 +699,7 @@ pub fn type_check_rec<'a>(
             let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term2,
                 typing_context,
                 definitions_context,
@@ -695,7 +717,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -714,6 +736,7 @@ pub fn type_check_rec<'a>(
             let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term1,
                 typing_context,
                 definitions_context,
@@ -731,7 +754,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -740,6 +763,7 @@ pub fn type_check_rec<'a>(
             let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term2,
                 typing_context,
                 definitions_context,
@@ -757,7 +781,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -776,6 +800,7 @@ pub fn type_check_rec<'a>(
             let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term1,
                 typing_context,
                 definitions_context,
@@ -793,7 +818,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -802,6 +827,7 @@ pub fn type_check_rec<'a>(
             let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term2,
                 typing_context,
                 definitions_context,
@@ -819,7 +845,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -838,6 +864,7 @@ pub fn type_check_rec<'a>(
             let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term1,
                 typing_context,
                 definitions_context,
@@ -855,7 +882,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -864,6 +891,7 @@ pub fn type_check_rec<'a>(
             let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term2,
                 typing_context,
                 definitions_context,
@@ -881,7 +909,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -900,6 +928,7 @@ pub fn type_check_rec<'a>(
             let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term1,
                 typing_context,
                 definitions_context,
@@ -917,7 +946,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -926,6 +955,7 @@ pub fn type_check_rec<'a>(
             let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term2,
                 typing_context,
                 definitions_context,
@@ -943,7 +973,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -962,6 +992,7 @@ pub fn type_check_rec<'a>(
             let (term1, term1_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term1,
                 typing_context,
                 definitions_context,
@@ -979,7 +1010,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term1
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -988,6 +1019,7 @@ pub fn type_check_rec<'a>(
             let (term2, term2_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 term2,
                 typing_context,
                 definitions_context,
@@ -1005,7 +1037,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     term2
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -1024,6 +1056,7 @@ pub fn type_check_rec<'a>(
             let (condition, condition_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 condition,
                 typing_context,
                 definitions_context,
@@ -1041,7 +1074,7 @@ pub fn type_check_rec<'a>(
                     source_path,
                     condition
                         .source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
@@ -1050,6 +1083,7 @@ pub fn type_check_rec<'a>(
             let (then_branch, then_branch_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 then_branch,
                 typing_context,
                 definitions_context,
@@ -1060,6 +1094,7 @@ pub fn type_check_rec<'a>(
             let (else_branch, else_branch_type) = type_check_rec(
                 source_path,
                 source_contents,
+                line_index,
                 else_branch,
                 typing_context,
                 definitions_context,
@@ -1077,7 +1112,7 @@ pub fn type_check_rec<'a>(
                     ),
                     source_path,
                     term.source_range
-                        .map(|source_range| (source_contents, source_range)),
+                        .map(|source_range| (source_contents, line_index, source_range)),
                     None,
                 ));
             }
