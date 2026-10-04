@@ -54,6 +54,7 @@ const ABOUT: &str = concat!(
 #[command(
     about = ABOUT,
     version,
+    display_name = "Gram",
     arg_required_else_help = true, // [tag:arg_required_else_help]
     disable_version_flag = true
 )]
