@@ -7,6 +7,7 @@ mod equality;
 mod error;
 mod evaluator;
 mod format;
+mod line_index;
 mod normalizer;
 mod parser;
 mod term;
