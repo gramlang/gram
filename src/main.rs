@@ -42,17 +42,15 @@ const BIN_NAME: &str = "gram";
 // The stack size in bytes.
 const STACK_SIZE: usize = 16 * 1024 * 1024; // 16 mebibytes (MiB)
 
-const ABOUT: &str = concat!(
-    env!("CARGO_PKG_DESCRIPTION"),
-    "\n\n",
-    "More information can be found at: ",
-    env!("CARGO_PKG_HOMEPAGE"),
-);
-
 // This struct represents the command-line arguments.
 #[derive(Parser)]
 #[command(
-    about = ABOUT,
+    about = concat!(
+        env!("CARGO_PKG_DESCRIPTION"),
+        "\n\n",
+        "More information can be found at: ",
+        env!("CARGO_PKG_HOMEPAGE"),
+    ),
     version,
     display_name = "Gram",
     arg_required_else_help = true, // [tag:arg_required_else_help]
