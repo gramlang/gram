@@ -17,14 +17,13 @@ use unicode_segmentation::GraphemeCursor;
 pub fn tokenize<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
+    line_index: &LineIndex,
 ) -> Result<Vec<Token<'a>>, Vec<Error>> {
     // We'll be building up this vector of tokens.
     let mut tokens = vec![];
 
-    // Construct a vector to hold any errors that might be detected below, and index the lines of
-    // the source so the errors can show them.
+    // Construct a vector to hold any errors that might be detected below.
     let mut errors = vec![];
-    let line_index = LineIndex::new(source_contents);
 
     // We want to iterate one code point at a time, but we also want the byte indices so we can
     // capture slices.
@@ -373,7 +372,7 @@ pub fn tokenize<'a>(
                 errors.push(Error::new(
                     &format!("Unexpected symbol {}.", source_contents[i..end].code_str()),
                     source_path,
-                    Some((source_contents, &line_index, SourceRange { start: i, end })),
+                    Some((source_contents, line_index, SourceRange { start: i, end })),
                     None,
                 ));
             }
@@ -442,6 +441,7 @@ mod tests {
     use crate::{
         assert_fails, assert_same,
         error::SourceRange,
+        line_index::LineIndex,
         token::{
             BOOLEAN_KEYWORD, ELSE_KEYWORD, FALSE_KEYWORD, IF_KEYWORD, INTEGER_KEYWORD,
             THEN_KEYWORD, TRUE_KEYWORD, TYPE_KEYWORD, TerminatorType, Token, Variant,
@@ -453,23 +453,40 @@ mod tests {
 
     #[test]
     fn tokenize_empty() {
-        assert_same!(tokenize(None, "").unwrap(), vec![]);
+        let source = "";
+
+        assert_same!(
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
+            vec![],
+        );
     }
 
     #[test]
     fn tokenize_whitespace() {
-        assert_same!(tokenize(None, " \t\n").unwrap(), vec![]);
+        let source = " \t\n";
+
+        assert_same!(
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
+            vec![],
+        );
     }
 
     #[test]
     fn tokenize_comment() {
-        assert_same!(tokenize(None, "# Hello, World!").unwrap(), vec![]);
+        let source = "# Hello, World!";
+
+        assert_same!(
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
+            vec![],
+        );
     }
 
     #[test]
     fn tokenize_asterisk() {
+        let source = "*";
+
         assert_same!(
-            tokenize(None, "*").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Asterisk,
@@ -479,8 +496,10 @@ mod tests {
 
     #[test]
     fn tokenize_boolean() {
+        let source = BOOLEAN_KEYWORD;
+
         assert_same!(
-            tokenize(None, BOOLEAN_KEYWORD).unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
@@ -493,8 +512,10 @@ mod tests {
 
     #[test]
     fn tokenize_colon() {
+        let source = ":";
+
         assert_same!(
-            tokenize(None, ":").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Colon,
@@ -504,8 +525,10 @@ mod tests {
 
     #[test]
     fn tokenize_double_equals() {
+        let source = "==";
+
         assert_same!(
-            tokenize(None, "==").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::DoubleEquals,
@@ -515,8 +538,10 @@ mod tests {
 
     #[test]
     fn tokenize_else() {
+        let source = ELSE_KEYWORD;
+
         assert_same!(
-            tokenize(None, ELSE_KEYWORD).unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
@@ -529,8 +554,10 @@ mod tests {
 
     #[test]
     fn tokenize_equals() {
+        let source = "=";
+
         assert_same!(
-            tokenize(None, "=").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Equals,
@@ -540,8 +567,10 @@ mod tests {
 
     #[test]
     fn tokenize_false() {
+        let source = FALSE_KEYWORD;
+
         assert_same!(
-            tokenize(None, FALSE_KEYWORD).unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
@@ -554,8 +583,10 @@ mod tests {
 
     #[test]
     fn tokenize_greater_than() {
+        let source = ">";
+
         assert_same!(
-            tokenize(None, ">").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::GreaterThan,
@@ -565,8 +596,10 @@ mod tests {
 
     #[test]
     fn tokenize_greater_than_or_equal() {
+        let source = ">=";
+
         assert_same!(
-            tokenize(None, ">=").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::GreaterThanOrEqualTo,
@@ -576,8 +609,10 @@ mod tests {
 
     #[test]
     fn tokenize_identifier() {
+        let source = "\u{5e78}\u{798f}";
+
         assert_same!(
-            tokenize(None, "\u{5e78}\u{798f}").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 6 },
                 variant: Variant::Identifier("\u{5e78}\u{798f}"),
@@ -587,8 +622,10 @@ mod tests {
 
     #[test]
     fn tokenize_if() {
+        let source = IF_KEYWORD;
+
         assert_same!(
-            tokenize(None, IF_KEYWORD).unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
@@ -601,8 +638,10 @@ mod tests {
 
     #[test]
     fn tokenize_integer() {
+        let source = INTEGER_KEYWORD;
+
         assert_same!(
-            tokenize(None, INTEGER_KEYWORD).unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
@@ -615,8 +654,10 @@ mod tests {
 
     #[test]
     fn tokenize_integer_literal() {
+        let source = "42";
+
         assert_same!(
-            tokenize(None, "42").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::IntegerLiteral(ToBigInt::to_bigint(&42_i32).unwrap()),
@@ -626,8 +667,10 @@ mod tests {
 
     #[test]
     fn tokenize_left_curly() {
+        let source = "{";
+
         assert_same!(
-            tokenize(None, "{").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::LeftCurly,
@@ -637,8 +680,10 @@ mod tests {
 
     #[test]
     fn tokenize_left_paren() {
+        let source = "(";
+
         assert_same!(
-            tokenize(None, "(").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::LeftParen,
@@ -648,8 +693,10 @@ mod tests {
 
     #[test]
     fn tokenize_less_than() {
+        let source = "<";
+
         assert_same!(
-            tokenize(None, "<").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::LessThan,
@@ -659,8 +706,10 @@ mod tests {
 
     #[test]
     fn tokenize_less_than_or_equal() {
+        let source = "<=";
+
         assert_same!(
-            tokenize(None, "<=").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::LessThanOrEqualTo,
@@ -670,8 +719,10 @@ mod tests {
 
     #[test]
     fn tokenize_minus() {
+        let source = "-";
+
         assert_same!(
-            tokenize(None, "-").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Minus,
@@ -681,8 +732,10 @@ mod tests {
 
     #[test]
     fn tokenize_plus() {
+        let source = "+";
+
         assert_same!(
-            tokenize(None, "+").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Plus,
@@ -692,8 +745,10 @@ mod tests {
 
     #[test]
     fn tokenize_right_curly() {
+        let source = "}";
+
         assert_same!(
-            tokenize(None, "}").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::RightCurly,
@@ -703,8 +758,10 @@ mod tests {
 
     #[test]
     fn tokenize_right_paren() {
+        let source = ")";
+
         assert_same!(
-            tokenize(None, ")").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::RightParen,
@@ -714,8 +771,10 @@ mod tests {
 
     #[test]
     fn tokenize_slash() {
+        let source = "/";
+
         assert_same!(
-            tokenize(None, "/").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 1 },
                 variant: Variant::Slash,
@@ -725,8 +784,10 @@ mod tests {
 
     #[test]
     fn tokenize_terminator_line_break() {
+        let source = "\n\ntype\n\ntype\n\n";
+
         assert_same!(
-            tokenize(None, "\n\ntype\n\ntype\n\n").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![
                 Token {
                     source_range: SourceRange { start: 2, end: 6 },
@@ -746,8 +807,10 @@ mod tests {
 
     #[test]
     fn tokenize_terminator_semicolon() {
+        let source = ";;type;;type;;";
+
         assert_same!(
-            tokenize(None, ";;type;;type;;").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![
                 Token {
                     source_range: SourceRange { start: 0, end: 1 },
@@ -787,8 +850,10 @@ mod tests {
 
     #[test]
     fn tokenize_then() {
+        let source = THEN_KEYWORD;
+
         assert_same!(
-            tokenize(None, THEN_KEYWORD).unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
@@ -801,8 +866,10 @@ mod tests {
 
     #[test]
     fn tokenize_thick_arrow() {
+        let source = "=>";
+
         assert_same!(
-            tokenize(None, "=>").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::ThickArrow,
@@ -812,8 +879,10 @@ mod tests {
 
     #[test]
     fn tokenize_thin_arrow() {
+        let source = "->";
+
         assert_same!(
-            tokenize(None, "->").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange { start: 0, end: 2 },
                 variant: Variant::ThinArrow,
@@ -823,8 +892,10 @@ mod tests {
 
     #[test]
     fn tokenize_true() {
+        let source = TRUE_KEYWORD;
+
         assert_same!(
-            tokenize(None, TRUE_KEYWORD).unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
@@ -837,8 +908,10 @@ mod tests {
 
     #[test]
     fn tokenize_type() {
+        let source = TYPE_KEYWORD;
+
         assert_same!(
-            tokenize(None, TYPE_KEYWORD).unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![Token {
                 source_range: SourceRange {
                     start: 0,
@@ -851,8 +924,10 @@ mod tests {
 
     #[test]
     fn tokenize_operators() {
+        let source = ":()=>->";
+
         assert_same!(
-            tokenize(None, ":()=>->").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![
                 Token {
                     source_range: SourceRange { start: 0, end: 1 },
@@ -880,8 +955,10 @@ mod tests {
 
     #[test]
     fn tokenize_operators_with_whitespace() {
+        let source = " : ( ) => -> ";
+
         assert_same!(
-            tokenize(None, " : ( ) => -> ").unwrap(),
+            tokenize(None, source, &LineIndex::new(source)).unwrap(),
             vec![
                 Token {
                     source_range: SourceRange { start: 1, end: 2 },
@@ -909,6 +986,11 @@ mod tests {
 
     #[test]
     fn tokenize_unexpected_code_point() {
-        assert_fails!(tokenize(None, "$"), "Unexpected symbol `$`.");
+        let source = "$";
+
+        assert_fails!(
+            tokenize(None, source, &LineIndex::new(source)),
+            "Unexpected symbol `$`.",
+        );
     }
 }

@@ -24,18 +24,17 @@ use std::{cell::RefCell, path::Path, rc::Rc};
 pub fn type_check<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
+    line_index: &LineIndex,
     term: &Term<'a>,
     typing_context: &mut Vec<(Rc<Term<'a>>, usize)>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,
 ) -> Result<(Term<'a>, Term<'a>), Vec<Error>> {
-    // Index the lines of the source so any errors can show them.
     let mut errors = vec![];
-    let line_index = LineIndex::new(source_contents);
 
     let (elaborated_term, term_type) = type_check_rec(
         source_path,
         source_contents,
-        &line_index,
+        line_index,
         term,
         typing_context,
         definitions_context,
@@ -1141,6 +1140,7 @@ mod tests {
     use crate::{
         assert_fails,
         equality::syntactically_equal,
+        line_index::LineIndex,
         parser::parse,
         term::{
             Term,
@@ -1157,21 +1157,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "type";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "type";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1197,21 +1214,38 @@ mod tests {
         ];
         let mut definitions_context = vec![None, None];
         let term_source = "x";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "a";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1228,21 +1262,38 @@ mod tests {
         )];
         let mut definitions_context = vec![None];
         let term_source = "(x : a) => x";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "(x : a) -> a";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1259,21 +1310,38 @@ mod tests {
         )];
         let mut definitions_context = vec![None];
         let term_source = "(x : a) -> a";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "type";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1299,21 +1367,38 @@ mod tests {
         ];
         let mut definitions_context = vec![None, None];
         let term_source = "((x : a) => x) y";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "a";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1346,14 +1431,23 @@ mod tests {
         ];
         let mut definitions_context = vec![None, None, None];
         let term_source = "((x : a) => x) y";
+        let term_line_index = LineIndex::new(term_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert_fails!(
             type_check(
                 None,
                 term_source,
+                &term_line_index,
                 &term_term,
                 &mut typing_context,
                 &mut definitions_context,
@@ -1393,21 +1487,38 @@ mod tests {
             (x : foo) => x
           ) y
         ";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "foo";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1424,21 +1535,38 @@ mod tests {
         )];
         let mut definitions_context = vec![None];
         let term_source = "b = a; b";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "type";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1449,21 +1577,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "int";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "type";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1474,21 +1619,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "42";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "int";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1499,21 +1661,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "-42";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "int";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1524,21 +1703,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 + 2";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "int";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1549,21 +1745,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 - 2";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "int";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1574,21 +1787,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "2 * 3";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "int";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1599,21 +1829,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "7 / 2";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "int";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1624,21 +1871,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 < 2";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "bool";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1649,21 +1913,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 <= 2";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "bool";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1674,21 +1955,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 == 2";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "bool";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1699,21 +1997,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 > 2";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "bool";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1724,21 +2039,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "1 >= 2";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "bool";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1749,21 +2081,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "bool";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "type";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1774,21 +2123,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "true";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "bool";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1799,21 +2165,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "false";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "bool";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }
@@ -1824,21 +2207,38 @@ mod tests {
         let mut typing_context = vec![];
         let mut definitions_context = vec![];
         let term_source = "if true then 3 else 4";
+        let term_line_index = LineIndex::new(term_source);
         let type_source = "int";
+        let type_line_index = LineIndex::new(type_source);
 
-        let term_tokens = tokenize(None, term_source).unwrap();
-        let term_term = parse(None, term_source, &term_tokens[..], &parsing_context[..]).unwrap();
+        let term_tokens = tokenize(None, term_source, &term_line_index).unwrap();
+        let term_term = parse(
+            None,
+            term_source,
+            &term_line_index,
+            &term_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
         let (_, term_type_term) = type_check(
             None,
             term_source,
+            &term_line_index,
             &term_term,
             &mut typing_context,
             &mut definitions_context,
         )
         .unwrap();
 
-        let type_tokens = tokenize(None, type_source).unwrap();
-        let type_term = parse(None, type_source, &type_tokens[..], &parsing_context[..]).unwrap();
+        let type_tokens = tokenize(None, type_source, &type_line_index).unwrap();
+        let type_term = parse(
+            None,
+            type_source,
+            &type_line_index,
+            &type_tokens[..],
+            &parsing_context[..],
+        )
+        .unwrap();
 
         assert!(syntactically_equal(&term_type_term, &type_term));
     }

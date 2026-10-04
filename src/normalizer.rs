@@ -412,6 +412,7 @@ mod tests {
     use crate::{
         assert_same,
         error::SourceRange,
+        line_index::LineIndex,
         normalizer::normalize_weak_head,
         parser::parse,
         term::{
@@ -431,9 +432,10 @@ mod tests {
         let parsing_context = [];
         let mut definitions_context = vec![];
         let source = "type";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -449,9 +451,10 @@ mod tests {
         let parsing_context = ["x"];
         let mut definitions_context = vec![None];
         let source = "x";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -473,9 +476,10 @@ mod tests {
             0,
         ))];
         let source = "x";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -491,9 +495,10 @@ mod tests {
         let parsing_context = ["p", "q"];
         let mut definitions_context = vec![None, None];
         let source = "(x : ((y : type) => y) p) => ((z : type) => z) q";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -560,9 +565,10 @@ mod tests {
         let parsing_context = ["p", "q"];
         let mut definitions_context = vec![None, None];
         let source = "(x : ((y : type) => y) p) -> ((z : type) => z) q";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -629,9 +635,10 @@ mod tests {
         let parsing_context = ["y", "w"];
         let mut definitions_context = vec![None, None];
         let source = "(((x : type) => x) y) (((z : type) => z) w)";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -676,9 +683,10 @@ mod tests {
         let parsing_context = ["y"];
         let mut definitions_context = vec![None];
         let source = "((x : type) => x) y";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -694,9 +702,10 @@ mod tests {
         let parsing_context = ["y"];
         let mut definitions_context = vec![None];
         let source = "x = y; ((z : type) => z) x";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -712,9 +721,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "int";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -730,9 +740,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "42";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -748,9 +759,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "-42";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -766,9 +778,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "1 + 2";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -784,9 +797,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "3 - 2";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -802,9 +816,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "2 * 3";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -820,9 +835,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "7 / 2";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -838,9 +854,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "1 < 2";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -856,9 +873,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "1 <= 2";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -874,9 +892,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "1 == 2";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -892,9 +911,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "1 >= 2";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -910,9 +930,10 @@ mod tests {
         let parsing_context = [""];
         let mut definitions_context = vec![];
         let source = "1 >= 2";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -928,9 +949,10 @@ mod tests {
         let parsing_context = [];
         let mut definitions_context = vec![];
         let source = "bool";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -946,9 +968,10 @@ mod tests {
         let parsing_context = [];
         let mut definitions_context = vec![];
         let source = "true";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -964,9 +987,10 @@ mod tests {
         let parsing_context = [];
         let mut definitions_context = vec![];
         let source = "false";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -982,9 +1006,10 @@ mod tests {
         let parsing_context = [];
         let mut definitions_context = vec![];
         let source = "if true then 3 else 4";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),
@@ -1000,9 +1025,10 @@ mod tests {
         let parsing_context = [];
         let mut definitions_context = vec![];
         let source = "if false then 3 else 4";
+        let line_index = LineIndex::new(source);
 
-        let tokens = tokenize(None, source).unwrap();
-        let term = parse(None, source, &tokens[..], &parsing_context[..]).unwrap();
+        let tokens = tokenize(None, source, &line_index).unwrap();
+        let term = parse(None, source, &line_index, &tokens[..], &parsing_context[..]).unwrap();
 
         assert_same!(
             normalize_weak_head(&term, &mut definitions_context),

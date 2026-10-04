@@ -20,6 +20,7 @@ use crate::{
     error::{Error, format_errors},
     evaluator::evaluate,
     format::{CodePath, CodeStr},
+    line_index::LineIndex,
     parser::parse,
     tokenizer::tokenize,
     type_checker::type_check,
@@ -106,11 +107,20 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Vec<Error>> {
         )]
     })?;
 
+    // Index the lines of the source so errors can show them.
+    let line_index = LineIndex::new(&source_contents);
+
     // Tokenize the source.
-    let tokens = tokenize(Some(source_path), &source_contents)?;
+    let tokens = tokenize(Some(source_path), &source_contents, &line_index)?;
 
     // Parse the tokens.
-    let term = parse(Some(source_path), &source_contents, &tokens[..], &[])?;
+    let term = parse(
+        Some(source_path),
+        &source_contents,
+        &line_index,
+        &tokens[..],
+        &[],
+    )?;
 
     // Type check the term.
     let mut typing_context = vec![];
@@ -118,6 +128,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Vec<Error>> {
     let (elaborated_term, elaborated_type) = type_check(
         Some(source_path),
         &source_contents,
+        &line_index,
         &term,
         &mut typing_context,
         &mut definitions_context,
