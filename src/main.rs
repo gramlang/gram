@@ -19,7 +19,7 @@ mod unifier;
 use crate::{
     error::{Error, format_errors},
     evaluator::evaluate,
-    format::{CodePath, CodeStr},
+    format::CodeStr,
     line_index::LineIndex,
     parser::parse,
     tokenizer::tokenize,
@@ -99,7 +99,7 @@ fn run(source_path: &Path, check_only: bool) -> Result<(), Vec<Error>> {
     // Read the file.
     let source_contents = read_to_string(source_path).map_err(|error| {
         vec![Error::new(
-            &format!("Error when reading file {}.", source_path.code_path()),
+            &format!("Error when reading file {}.", source_path.code_str()),
             None,
             None,
             Some(Arc::new(error)),
