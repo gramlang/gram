@@ -14,8 +14,7 @@ use crate::{
     },
     unifier::unify,
 };
-use scopeguard::defer;
-use std::{cell::RefCell, path::Path, rc::Rc};
+use std::{cell::RefCell, mem::DropGuard, path::Path, rc::Rc};
 
 // This is the top-level type checking function. It returns the pair `(elaborated_term, type)`.
 // Invariants:
@@ -299,61 +298,45 @@ pub fn type_check_rec<'a>(
         Let(definitions, body) => {
             // When the function returns, remove the variables from the context that we are
             // temporarily adding.
-            let context_cell = RefCell::new(((typing_context, definitions_context), 0_usize));
-            defer! {{
-                let mut guard = context_cell.borrow_mut();
-                let (
-                    (borrowed_typing_context, borrowed_definitions_context),
-                    borrowed_variables_added,
-                ) = &mut (*guard);
-
-                for _ in 0..*borrowed_variables_added {
-                    borrowed_typing_context.pop();
-                    borrowed_definitions_context.pop();
-                }
-            }};
+            let mut guard = DropGuard::new(
+                (typing_context, definitions_context, 0_usize),
+                |(typing_context, definitions_context, variables_added)| {
+                    for _ in 0..variables_added {
+                        typing_context.pop();
+                        definitions_context.pop();
+                    }
+                },
+            );
+            let (typing_context, definitions_context, variables_added) = &mut *guard;
 
             // Add the definitions and their types to the context.
             for (i, (_, annotation, definition)) in definitions.iter().enumerate() {
-                // Temporarily borrow from the scope guard.
-                let mut guard = context_cell.borrow_mut();
-                let (
-                    (borrowed_typing_context, borrowed_definitions_context),
-                    borrowed_variables_added,
-                ) = &mut (*guard);
-
                 // Compute this once rather than multiple times.
                 let definitions_len_minus_i = definitions.len() - i;
 
                 // Add the definition and its type to the context.
-                borrowed_typing_context.push((annotation.clone(), definitions_len_minus_i));
-                borrowed_definitions_context
-                    .push(Some((definition.clone(), definitions_len_minus_i)));
-                *borrowed_variables_added += 1;
+                typing_context.push((annotation.clone(), definitions_len_minus_i));
+                definitions_context.push(Some((definition.clone(), definitions_len_minus_i)));
+                *variables_added += 1;
             }
 
             // Infer/check the types of the definitions.
             let definitions: Vec<_> = definitions
                 .iter()
                 .map(|(variable, annotation, definition)| {
-                    // Temporarily borrow from the scope guard.
-                    let mut guard = context_cell.borrow_mut();
-                    let ((borrowed_typing_context, borrowed_definitions_context), _) =
-                        &mut (*guard);
-
                     // Infer the type of the definition.
                     let (definition, definition_type) = type_check_rec(
                         source_path,
                         source_contents,
                         line_index,
                         definition,
-                        borrowed_typing_context,
-                        borrowed_definitions_context,
+                        typing_context,
+                        definitions_context,
                         errors,
                     );
 
                     // Check the type against the annotation.
-                    if !unify(&definition_type, annotation, borrowed_definitions_context) {
+                    if !unify(&definition_type, annotation, definitions_context) {
                         errors.push(Error::new(
                             &format!(
                                 "This has type {}, but it was expected to have type {}:",
@@ -372,18 +355,14 @@ pub fn type_check_rec<'a>(
                 })
                 .collect();
 
-            // Temporarily borrow from the scope guard.
-            let mut guard = context_cell.borrow_mut();
-            let ((borrowed_typing_context, borrowed_definitions_context), _) = &mut (*guard);
-
             // Infer the type of the body.
             let (body, body_type) = type_check_rec(
                 source_path,
                 source_contents,
                 line_index,
                 body,
-                borrowed_typing_context,
-                borrowed_definitions_context,
+                typing_context,
+                definitions_context,
                 errors,
             );
 

@@ -8,10 +8,10 @@ use crate::{
     token::{self, TerminatorType, Token},
 };
 use num_bigint::BigInt;
-use scopeguard::defer;
 use std::{
     cell::RefCell,
     collections::{HashMap, HashSet},
+    mem::DropGuard,
     path::Path,
     rc::Rc,
     sync::Arc,
@@ -1452,11 +1452,11 @@ fn resolve_variables<'a>(
 
             // Remove the variable from the context (if it was added) when the function
             // returns.
-            let context_cell = RefCell::new(context);
-            defer! {{ context_cell.borrow_mut().remove(variable.name); }};
+            let mut context = DropGuard::new(context, |context| {
+                context.remove(variable.name);
+            });
 
             // Construct the lambda.
-            let mut guard = context_cell.borrow_mut();
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Lambda(
@@ -1477,7 +1477,7 @@ fn resolve_variables<'a>(
                         line_index,
                         body,
                         depth + 1,
-                        &mut guard,
+                        &mut context,
                         errors,
                     )),
                 ),
@@ -1514,11 +1514,11 @@ fn resolve_variables<'a>(
 
             // Remove the variable from the context (if it was added) when the function
             // returns.
-            let context_cell = RefCell::new(context);
-            defer! {{ context_cell.borrow_mut().remove(variable.name); }};
+            let mut context = DropGuard::new(context, |context| {
+                context.remove(variable.name);
+            });
 
             // Construct the pi type.
-            let mut guard = context_cell.borrow_mut();
             term::Term {
                 source_range: Some(term.source_range),
                 variant: term::Variant::Pi(
@@ -1531,7 +1531,7 @@ fn resolve_variables<'a>(
                         line_index,
                         codomain,
                         depth + 1,
-                        &mut guard,
+                        &mut context,
                         errors,
                     )),
                 ),
@@ -1570,27 +1570,23 @@ fn resolve_variables<'a>(
 
             // When the function returns, remove the variables from the context that we are
             // temporarily adding.
-            let context_cell = RefCell::new((context, vec![]));
-            defer! {{
-                let mut guard = context_cell.borrow_mut();
-                let (borrowed_context, borrowed_variables_added) = &mut (*guard);
-
-                for variable_added in borrowed_variables_added {
-                    borrowed_context.remove(*variable_added);
-                }
-            }};
+            let mut guard = DropGuard::new(
+                (context, Vec::<&str>::new()),
+                |(context, variables_added)| {
+                    for variable_added in variables_added {
+                        context.remove(variable_added);
+                    }
+                },
+            );
+            let (context, variables_added) = &mut *guard;
 
             // Add the definitions to the context.
             for (i, (inner_variable, _, _)) in definitions.iter().enumerate() {
                 // If the variable is `PLACEHOLDER_VARIABLE`, don't check for naming conflicts,
                 // and don't add it to the context.
                 if inner_variable.name != PLACEHOLDER_VARIABLE {
-                    // Temporarily borrow from the scope guard.
-                    let mut guard = context_cell.borrow_mut();
-                    let (borrowed_context, borrowed_variables_added) = &mut (*guard);
-
                     // Report an error if the variable is already in the context.
-                    if borrowed_context.contains_key(inner_variable.name) {
+                    if context.contains_key(inner_variable.name) {
                         errors.push(Error::new(
                             &format!(
                                 "Variable {} already exists.",
@@ -1603,8 +1599,8 @@ fn resolve_variables<'a>(
                     }
 
                     // Add the variable to the context.
-                    borrowed_context.insert(inner_variable.name, depth + i);
-                    borrowed_variables_added.push(inner_variable.name);
+                    context.insert(inner_variable.name, depth + i);
+                    variables_added.push(inner_variable.name);
                 }
             }
 
@@ -1616,10 +1612,6 @@ fn resolve_variables<'a>(
             for (i, (inner_variable, inner_annotation, inner_definition)) in
                 definitions.iter().enumerate()
             {
-                // Temporarily borrow from the scope guard.
-                let mut guard = context_cell.borrow_mut();
-                let (borrowed_context, _) = &mut (*guard);
-
                 // Resolve variables in the annotation.
                 let resolved_annotation = match inner_annotation {
                     Some(annotation) => Rc::new(resolve_variables(
@@ -1628,7 +1620,7 @@ fn resolve_variables<'a>(
                         line_index,
                         annotation,
                         new_depth,
-                        borrowed_context,
+                        context,
                         errors,
                     )),
                     None => Rc::new(term::Term {
@@ -1647,7 +1639,7 @@ fn resolve_variables<'a>(
                     line_index,
                     inner_definition,
                     new_depth,
-                    borrowed_context,
+                    context,
                     errors,
                 );
 
@@ -1658,10 +1650,6 @@ fn resolve_variables<'a>(
                     Rc::new(resolved_definition),
                 ));
             }
-
-            // Temporarily borrow from the scope guard.
-            let mut guard = context_cell.borrow_mut();
-            let (borrowed_context, _) = &mut (*guard);
 
             // Resolve definitions in the body and construct the let.
             term::Term {
@@ -1674,7 +1662,7 @@ fn resolve_variables<'a>(
                         line_index,
                         &innermost_body,
                         new_depth,
-                        borrowed_context,
+                        context,
                         errors,
                     )),
                 ),
