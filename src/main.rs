@@ -49,7 +49,7 @@ const STACK_SIZE: usize = 16 * 1024 * 1024; // 16 mebibytes (MiB)
         env!("CARGO_PKG_DESCRIPTION"),
         "\n\n",
         "More information can be found at: ",
-        env!("CARGO_PKG_HOMEPAGE"),
+        env!("CARGO_PKG_REPOSITORY"),
     ),
     version,
     display_name = "Gram",
