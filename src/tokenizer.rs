@@ -12,8 +12,8 @@ use std::path::Path;
 use unicode_segmentation::GraphemeCursor;
 
 // Tokenize the contents of a source file.
-#[allow(clippy::cognitive_complexity)]
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::cognitive_complexity)]
+#[expect(clippy::too_many_lines)]
 pub fn tokenize<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,

@@ -12,8 +12,8 @@ use crate::{
 use std::rc::Rc;
 
 // Check if two terms are equal up to alpha conversion. Type annotations are not checked.
-#[allow(clippy::similar_names)]
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::similar_names)]
+#[expect(clippy::too_many_lines)]
 pub fn syntactically_equal<'a>(term1: &Term<'a>, term2: &Term<'a>) -> bool {
     // Follow unifiers in the first term.
     let mut term1 = term1.clone();
