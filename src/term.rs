@@ -49,7 +49,6 @@ pub enum Variant<'a> {
     // assumed to be in a context in which the variables (with their respective annotations and
     // definitions) have already been added. This allows for recursive definitions. The fields are
     // `([(variable_name, annotation, definition)], body)`.
-    #[allow(clippy::type_complexity)]
     Let(Vec<(&'a str, Rc<Term<'a>>, Rc<Term<'a>>)>, Rc<Term<'a>>),
 
     // The above constructs form the core language. To make the language usable, we introduce

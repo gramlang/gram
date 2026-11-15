@@ -592,7 +592,7 @@ fn collect_error_factories<'a>(error_factories: &mut Vec<ErrorFactory<'a>>, term
 }
 
 // Flip the associativity of applications from right to left.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 fn reassociate_applications<'a>(acc: Option<Term<'a>>, term: &Term<'a>) -> Term<'a> {
     // In every case except the application case, if we have a value for the accumulator, we want
     // to construct an application with the accumulator as the applicand and the reduced term as
@@ -814,7 +814,7 @@ enum ProductOrQuotient {
 }
 
 // Flip the associativity of products and quotients from right to left.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 fn reassociate_products_and_quotients<'a>(
     acc: Option<(Term<'a>, ProductOrQuotient)>,
     term: &Term<'a>,
@@ -1094,7 +1094,7 @@ enum SumOrDifference {
 }
 
 // Flip the associativity of sums and differences from right to left.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 fn reassociate_sums_and_differences<'a>(
     acc: Option<(Term<'a>, SumOrDifference)>,
     term: &Term<'a>,
@@ -1366,7 +1366,7 @@ fn reassociate_sums_and_differences<'a>(
 }
 
 // Resolve variables into De Bruijn indices.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 fn resolve_variables<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
@@ -1991,7 +1991,7 @@ fn resolve_variables<'a>(
 }
 
 // Recurse into nested lets to collect their definitions and return the innermost body.
-#[allow(clippy::type_complexity)]
+#[expect(clippy::type_complexity)]
 fn collect_definitions<'a>(
     definitions: &mut Vec<(SourceVariable<'a>, Option<Rc<Term<'a>>>, Rc<Term<'a>>)>,
     term: Rc<Term<'a>>,
@@ -2006,7 +2006,7 @@ fn collect_definitions<'a>(
 }
 
 // This function checks that definitions are evaluated before they are used.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 fn check_definitions<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
@@ -2188,8 +2188,7 @@ fn check_definitions<'a>(
 
 // This function checks that all the free variables in a definition will stand for values by the
 // time the definition is evaluated.
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::type_complexity)]
+#[expect(clippy::too_many_arguments)]
 fn check_definition<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
@@ -2961,8 +2960,8 @@ fn parse_application<'a>(
 }
 
 // Parse a let.
-#[allow(clippy::cognitive_complexity)]
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::cognitive_complexity)]
+#[expect(clippy::too_many_lines)]
 fn parse_let<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],
@@ -3813,7 +3812,6 @@ fn parse_if<'a>(
 }
 
 // Parse a group.
-#[allow(clippy::too_many_lines)]
 fn parse_group<'a>(
     cache: &mut Cache<'a>,
     tokens: &'a [Token<'a>],

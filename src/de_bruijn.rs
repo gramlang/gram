@@ -12,7 +12,7 @@ use std::{cell::RefCell, convert::TryFrom, rc::Rc};
 // variables are considered free. This function is used to raise or lower a term into a different
 // scope while preserving its meaning. This is necessarily a partial operation. If the term has any
 // free variables in the range `cutoff <= variable < cutoff - amount`, this operation will fail.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 pub fn signed_shift<'a>(term: &Term<'a>, cutoff: usize, amount: isize) -> Option<Term<'a>> {
     match &term.variant {
         Unifier(subterm, subterm_shift) => {
@@ -196,7 +196,7 @@ pub fn unsigned_shift<'a>(term: &Term<'a>, cutoff: usize, amount: usize) -> Term
 // corresponding to the variable being substituted. This function can also shift the term to insert
 // by a given amount, though the shift will usually be zero in the outermost call. This operation is
 // used to perform beta reduction.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 pub fn open<'a>(
     term_to_open: &Term<'a>,
     index_to_replace: usize,

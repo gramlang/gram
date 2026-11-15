@@ -36,8 +36,8 @@ pub fn evaluate<'a>(term: &Term<'a>) -> Result<Term<'a>, Error> {
 
 // This function implements a call-by-value operational semantics by performing a "small step".
 // Call this repeatedly to evaluate a term.
-#[allow(clippy::cognitive_complexity)]
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::cognitive_complexity)]
+#[expect(clippy::too_many_lines)]
 pub fn step<'a>(term: &Term<'a>) -> Option<Term<'a>> {
     match &term.variant {
         Type

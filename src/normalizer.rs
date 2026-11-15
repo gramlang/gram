@@ -13,7 +13,7 @@ use std::rc::Rc;
 
 // This function reduces a term to weak head normal form using normal order reduction. Invariant:
 // when this function is finished, the context is left unmodified.
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::too_many_lines)]
 pub fn normalize_weak_head<'a>(
     term: &Term<'a>,
     definitions_context: &mut Vec<Option<(Rc<Term<'a>>, usize)>>,

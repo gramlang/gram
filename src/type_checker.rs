@@ -48,8 +48,8 @@ pub fn type_check<'a>(
 }
 
 // This helper function is the workhorse of the `type_check` function above.
-#[allow(clippy::cognitive_complexity)]
-#[allow(clippy::too_many_lines)]
+#[expect(clippy::cognitive_complexity)]
+#[expect(clippy::too_many_lines)]
 pub fn type_check_rec<'a>(
     source_path: Option<&'a Path>,
     source_contents: &'a str,
